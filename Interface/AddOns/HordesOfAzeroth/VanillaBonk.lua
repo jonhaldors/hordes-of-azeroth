@@ -3212,6 +3212,9 @@ local function RefreshHeroStats()
             explained = Percent(floor(1000 * min(0.6, max(0, shown) / (max(0, shown) * 4 / 3 + 100)) + 0.5) / 10)
         end
         line.lines = { format(stat.text, explained) }
+        if stat.cap then
+            tinsert(line.lines, "Maximum " .. FormatStat(statId, stat.cap) .. ".")
+        end
         if stat.note then
             tinsert(line.lines, " ")
             tinsert(line.lines, stat.note)

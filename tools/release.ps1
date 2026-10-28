@@ -5,7 +5,9 @@ param(
     [string]$PreviousManifest,
     [switch]$ReuseWorldDump,
     [string]$NotesFile,
-    [switch]$OwnNotesOnly
+    [switch]$OwnNotesOnly,
+    [switch]$RepostDiscord,
+    [int]$Hotfix = 0
 )
 . "$PSScriptRoot\common.ps1"
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
@@ -14,12 +16,12 @@ Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 $releaseConfig = Get-Content (Join-Path $ConfigDir 'release.json') -Raw | ConvertFrom-Json
 $repository = if ($Repository) { $Repository } else { $releaseConfig.repository }
 $testChannel = $repository -ne $releaseConfig.repository
-$statsUrl = "$env:HOA_STATS_URL"
+$statsUrl = if ($env:HOA_STATS_URL) { $env:HOA_STATS_URL } else { "$([Environment]::GetEnvironmentVariable('HOA_STATS_URL', 'User'))" }
 if (-not $statsUrl) { Write-Warning 'HOA_STATS_URL is not set: this launcher will not send run data or bug reports.' }
 if ($Publish -and $Version -and -not $testChannel) { throw 'A -Version test release only goes to a test repository (-Repository): change VERSION and CHANGELOG.md for a real one.' }
 $version = if ($Version) { $Version } else { (Get-Content (Join-Path $RepoRoot 'VERSION') -Raw).Trim() }
 $tag = "v$version"
-$packageTag = "packages-$tag"
+$packageTag = if ($Hotfix) { "packages-$tag-hotfix$Hotfix" } else { "packages-$tag" }
 $releaseRoot = Join-Path $RepoRoot 'release'
 $buildDir = Join-Path $releaseRoot 'build'
 $cacheDir = Join-Path $releaseRoot 'cache'
@@ -90,43 +92,94 @@ function Get-DiscordWebhook {
     return $null
 }
 
-function ConvertTo-DiscordNotes([string]$Notes, [string]$ReleaseUrl) {
+$discordDescriptionLimit = 4096
+$discordPartHeaderRoom = 24
+$discordPostsFile = Join-Path $env:LOCALAPPDATA 'HordesOfAzeroth\discord-posts.txt'
+
+function ConvertTo-DiscordChunks([string]$Notes, [string]$ReleaseUrl) {
     $lines = $Notes -split "`r?`n" | ForEach-Object { if ($_ -match '^####\s+(.+)$') { "**$($Matches[1].Trim())**" } else { $_ } }
-    $text = ($lines -join "`n").Trim()
     $more = "`n`n[Full patch notes and download]($ReleaseUrl)"
-    $limit = 4000 - $more.Length
-    if ($text.Length -gt $limit) {
-        $cut = $text.LastIndexOf("`n", $limit)
-        if ($cut -lt 1) { $cut = $limit }
-        $text = $text.Substring(0, $cut) + "`n…"
+    $limit = $discordDescriptionLimit - $discordPartHeaderRoom
+    $chunks = New-Object System.Collections.Generic.List[string]
+    $current = ''
+    $heading = ''
+    foreach ($line in (($lines -join "`n").Trim() -split "`n")) {
+        $candidate = if ($current) { "$current`n$line" } else { $line }
+        if ($candidate.Length -gt $limit -and $current) {
+            $chunks.Add($current.Trim())
+            $current = if ($heading -and $line -notmatch '^### ') { "$heading`n$line" } else { $line }
+        } else {
+            $current = $candidate
+        }
+        if ($line -match '^### ') { $heading = $line }
     }
-    $text + $more
+    if (($current + $more).Length -gt $limit) {
+        $chunks.Add($current.Trim())
+        $current = ''
+    }
+    $chunks.Add(($current + $more).Trim())
+    if ($chunks.Count -gt 1) {
+        for ($index = 0; $index -lt $chunks.Count; $index++) {
+            $chunks[$index] = "**Part $($index + 1) of $($chunks.Count)**`n`n" + $chunks[$index]
+        }
+    }
+    , $chunks.ToArray()
 }
 
-function Send-DiscordAnnouncement([string]$Title, [string]$Notes, [string]$ReleaseUrl) {
+function Remove-DiscordPosts([string]$Webhook, [string]$Tag) {
+    if (-not (Test-Path $discordPostsFile)) { return 0 }
+    $kept = @()
+    $removed = 0
+    foreach ($line in Get-Content $discordPostsFile) {
+        $parts = $line -split '=', 2
+        if ($parts.Count -eq 2 -and $parts[0] -eq $Tag) {
+            try {
+                Invoke-RestMethod -Method Delete -Uri "$Webhook/messages/$($parts[1])" | Out-Null
+                $removed++
+            } catch {
+                Write-Warning "Couldn't delete Discord message $($parts[1]): $($_.Exception.Message)"
+            }
+        } else {
+            $kept += $line
+        }
+    }
+    [System.IO.File]::WriteAllLines($discordPostsFile, [string[]]$kept)
+    $removed
+}
+
+function Send-DiscordAnnouncement([string]$Title, [string]$Notes, [string]$ReleaseUrl, [string]$Tag) {
     $webhook = Get-DiscordWebhook
     if (-not $webhook) {
         Write-Host 'No Discord webhook set up; skipping the #announcements post.'
         return
     }
-    $payload = @{
-        username = $releaseConfig.productName
-        allowed_mentions = @{ parse = @() }
-        embeds = @(@{
-            title = $Title
-            url = $ReleaseUrl
-            description = ConvertTo-DiscordNotes $Notes $ReleaseUrl
-            color = 0xB3261E
-            footer = @{ text = 'Start the launcher and press Update. Your characters are backed up first.' }
-        })
-    }
-    $body = [System.Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Depth 6))
+    $chunks = ConvertTo-DiscordChunks $Notes $ReleaseUrl
     try {
-        Invoke-RestMethod -Method Post -Uri $webhook -ContentType 'application/json; charset=utf-8' -Body $body | Out-Null
-        Write-Host 'Posted the patch notes to Discord.'
+        for ($index = 0; $index -lt $chunks.Count; $index++) {
+            $embed = @{ description = $chunks[$index]; color = 0xB3261E }
+            if ($index -eq 0) { $embed.title = $Title; $embed.url = $ReleaseUrl }
+            if ($index -eq $chunks.Count - 1) { $embed.footer = @{ text = 'Start the launcher and press Update. Your characters are backed up first.' } }
+            $payload = @{ username = $releaseConfig.productName; allowed_mentions = @{ parse = @() }; embeds = @($embed) }
+            $body = [System.Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Depth 6))
+            $posted = Invoke-RestMethod -Method Post -Uri "$($webhook)?wait=true" -ContentType 'application/json; charset=utf-8' -Body $body
+            New-Item -ItemType Directory -Force (Split-Path $discordPostsFile) | Out-Null
+            Add-Content -Path $discordPostsFile -Value "$Tag=$($posted.id)"
+            if ($index -lt $chunks.Count - 1) { Start-Sleep -Milliseconds 800 }
+        }
+        Write-Host "Posted the patch notes to Discord ($($chunks.Count) messages)."
     } catch {
         Write-Warning "The release is published, but the Discord post failed: $($_.Exception.Message)"
     }
+}
+
+if ($RepostDiscord) {
+    $webhook = Get-DiscordWebhook
+    if (-not $webhook) { throw 'No Discord webhook set up.' }
+    Write-Host "Deleted $(Remove-DiscordPosts $webhook $tag) earlier Discord posts for $tag."
+    $section = Get-ReleaseNotes | Where-Object { $_.version -eq $version } | Select-Object -First 1
+    if (-not $section) { throw "CHANGELOG.md has no section for $version." }
+    Send-DiscordAnnouncement "$($releaseConfig.productName) $version" $section.notes "https://github.com/$repository/releases/tag/$tag" $tag
+    return
 }
 
 function Get-CMake {
@@ -591,9 +644,17 @@ if ($uploads.Count) {
     gh release create $packageTag @uploads --repo $repository --prerelease --title "$title update packages" --notes "Packages the launcher downloads for $tag. Players don't need anything here: get the launcher from the $tag release."
     if ($LASTEXITCODE -ne 0) { throw "gh release create $packageTag failed with exit code $LASTEXITCODE." }
 }
+if ($Hotfix) {
+    gh release upload $tag @releaseUploads --repo $repository --clobber
+    if ($LASTEXITCODE -ne 0) { throw "gh release upload $tag failed with exit code $LASTEXITCODE." }
+    gh release edit $tag --repo $repository --notes-file $notesPath
+    if ($LASTEXITCODE -ne 0) { throw "gh release edit $tag failed with exit code $LASTEXITCODE." }
+    Write-Host "Published hotfix $Hotfix to $tag on $repository; no Discord post"
+    return
+}
 gh release create $tag @releaseUploads --repo $repository --title $title --notes-file $notesPath --latest
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
 Write-Host "Published $tag to $repository"
 if (-not $testChannel) {
-    Send-DiscordAnnouncement $title $currentNotes.notes "https://github.com/$repository/releases/tag/$tag"
+    Send-DiscordAnnouncement $title $currentNotes.notes "https://github.com/$repository/releases/tag/$tag" $tag
 }

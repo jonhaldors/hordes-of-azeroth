@@ -158,6 +158,22 @@ local function Colour(which)
     return GREY
 end
 
+local function DescriptionAtRank(node, rank)
+    local per = tonumber(node.valuePerRank)
+    if not per or per == 0 or rank <= 1 then
+        return node.description
+    end
+    local scaled = false
+    local text = string.gsub(node.description, "%d*%.?%d+", function(number)
+        if not scaled and tonumber(number) == per then
+            scaled = true
+            return format("%g", per * rank)
+        end
+        return number
+    end)
+    return text
+end
+
 local function ShowTooltip(button)
     local node = button.node
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
@@ -181,7 +197,12 @@ local function ShowTooltip(button)
     if not IsFree(node) then
         GameTooltip:AddLine("Rank " .. node.rank .. "/" .. node.maxRank, 1, 1, 1)
     end
-    GameTooltip:AddLine(node.description, 1, 0.82, 0, 1)
+    GameTooltip:AddLine(DescriptionAtRank(node, node.rank), 1, 0.82, 0, 1)
+    if node.rank > 0 and node.rank < node.maxRank and not IsFree(node) then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Next rank:", 1, 1, 1)
+        GameTooltip:AddLine(DescriptionAtRank(node, node.rank + 1), 1, 0.82, 0, 1)
+    end
     VanillaBonkUI.AddGlossary(GameTooltip, { node.description })
     local missing = Missing(node)
     if missing then

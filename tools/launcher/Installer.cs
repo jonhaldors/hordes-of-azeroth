@@ -170,6 +170,7 @@ namespace HordesOfAzeroth.Launcher
 
         public async Task<bool> UpdateAsync(Manifest manifest, IProgress<InstallProgress> progress, CancellationToken cancel)
         {
+            RefuseDevelopmentTree();
             bool launcherChanged = LauncherOutdated(manifest);
             string from = "Patch " + (m_folder.InstalledVersion?.Display ?? "unknown");
             try
@@ -265,8 +266,26 @@ namespace HordesOfAzeroth.Launcher
                 old.Delete(true);
         }
 
+        async Task ClearWorldDatabaseAsync()
+        {
+            string Listed(string type) => $"SELECT CONCAT('`', table_name, '`') FROM information_schema.tables WHERE table_schema = 'mangos' AND table_type = '{type}'";
+            List<string> views = Lines(await m_server.QueryAsync("mysql", Listed("VIEW"))).ToList();
+            if (views.Count > 0)
+                await m_server.QueryAsync("mangos", "DROP VIEW IF EXISTS " + string.Join(", ", views));
+            List<string> tables = Lines(await m_server.QueryAsync("mysql", Listed("BASE TABLE"))).ToList();
+            if (tables.Count > 0)
+                await m_server.QueryAsync("mangos", "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE IF EXISTS " + string.Join(", ", tables));
+        }
+
+        void RefuseDevelopmentTree()
+        {
+            if (m_folder.IsDevelopmentTree)
+                throw new InvalidOperationException("This folder is a Hordes of Azeroth source checkout. Install the game into a separate copy of World of Warcraft 1.12.1 instead.");
+        }
+
         public async Task InstallAsync(Manifest manifest, IProgress<InstallProgress> progress, CancellationToken cancel)
         {
+            RefuseDevelopmentTree();
             Directory.CreateDirectory(m_folder.LauncherData);
             HashSet<string> done = CompletedSteps;
             try
@@ -605,6 +624,7 @@ namespace HordesOfAzeroth.Launcher
             await Folders.MoveAsync(Path.Combine(DataDir, "dbc"), dbcTarget, cancel);
 
             progress.Report(new InstallProgress { Step = step, Detail = "buildings and trees", Fraction = 0.4 });
+            await Folders.DeleteAsync(Path.Combine(DataDir, "Buildings"), cancel);
             await RunToolAsync(Path.Combine(extractors, Platform.Exe("VMapExtractor")), DataDir, cancel, "-d", Quote(m_folder.Data), "--silent");
             progress.Report(new InstallProgress { Step = step, Detail = "line of sight", Fraction = 0.8 });
             await RunToolAsync(Path.Combine(extractors, Platform.Exe("VMapAssembler")), DataDir, cancel, "Buildings", "vmaps", "--silent");
@@ -707,8 +727,8 @@ namespace HordesOfAzeroth.Launcher
                 throw new FileNotFoundException("The world database file (server/sql/world.sql) is missing. " + LocalServer.RepairAdvice, WorldSql);
             progress.Report(new InstallProgress { Step = step, Detail = "loading the world (about a minute)", Fraction = 0.55, Fixing = true });
             ForgetApplied(WorldPackage);
-            await m_server.QueryAsync("mysql", "DROP DATABASE IF EXISTS mangos");
             await m_server.RunSqlFileAsync(null, Path.Combine(m_folder.Config, "create-databases.sql"));
+            await ClearWorldDatabaseAsync();
             await m_server.RunSqlFileAsync("mangos", WorldSql);
             MarkApplied(WorldPackage);
         }
