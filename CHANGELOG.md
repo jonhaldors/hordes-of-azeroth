@@ -2,6 +2,23 @@
 
 ## 0.5.0
 
+### Hotfix 2
+- Each Mythic find you don't extract now gives 2 Scrap. Finds above the Quartermaster's tier still give 20 to 50.
+- The Extraction Vault shows 16 items per page, highest tier first.
+- New passive cards show their description again. Total rows name their stat.
+- Upgraded legendaries keep their effect text.
+- Portals no longer spawn inside trees or other unreachable spots.
+- Linux: installing into a folder with spaces in its path now works.
+
+### Hotfix 1
+- Haste and Area are no longer offered once a pick adds less than 1%.
+- Extra card copies no longer reduce Count.
+- Total rows show a decimal instead of a false "(at cap)".
+- Talent tooltips show the value at your current rank and the next rank.
+- Capped stats show their maximum again.
+- Run data and bug reports now upload.
+- Updating no longer fails when the game's database folder is open in another program.
+
 ### New client and Linux
 - 0.5 runs on a new client (benilla), heavily modified for performance. Expect bugs.
 - Linux and Steam Deck support (beta): native launcher, client and server.

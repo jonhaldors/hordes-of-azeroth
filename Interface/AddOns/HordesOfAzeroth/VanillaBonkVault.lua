@@ -4,6 +4,7 @@ local CARD_WIDTH = 118
 local CARD_HEIGHT = 168
 local CARD_GAP = 10
 local PER_ROW = 8
+local PER_PAGE = PER_ROW * 2
 local SLOT_SIZE = 52
 local CARDS_TOP = 40
 local CARDS_ROOM = 320
@@ -15,7 +16,7 @@ local STONE_BORDER = { edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
 local ARROW_UP = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
 local ARROW_DOWN = "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up"
 
-local vault = { slots = 1, chosen = {}, order = {}, finds = {}, pillar = false }
+local vault = { slots = 1, chosen = {}, order = {}, finds = {}, pillar = false, page = 1 }
 local incoming
 
 local function Command(text)
@@ -270,6 +271,8 @@ frame.hint:SetTextColor(0.72, 0.72, 0.72)
 frame.done = UI.Button(frame, 100, "Done", function()
     frame:Hide()
 end)
+frame.pageText = UI.Text(frame, 12)
+frame.pageText:SetTextColor(1, 0.82, 0)
 
 local function SavedText(find)
     if getn(find.saved) == 0 then
@@ -331,7 +334,35 @@ local function FillCard(card, find)
     return name ~= nil and savedKnown
 end
 
-local function Refresh()
+local function ShownOrder()
+    local shown = {}
+    for _, find in ipairs(vault.finds) do
+        tinsert(shown, find)
+    end
+    table.sort(shown, function(a, b)
+        if a.tier ~= b.tier then
+            return a.tier > b.tier
+        end
+        if a.quality ~= b.quality then
+            return a.quality > b.quality
+        end
+        return a.sell > b.sell
+    end)
+    return shown
+end
+
+local Refresh
+
+local function TurnPage(step)
+    vault.page = vault.page + step
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    Refresh()
+end
+
+frame.prev = UI.Button(frame, 90, "Previous", function() TurnPage(-1) end)
+frame.next = UI.Button(frame, 90, "Next", function() TurnPage(1) end)
+
+function Refresh()
     local slots = max(1, vault.slots)
     frame.title:SetText(vault.pillar and "Extraction Pillar" or "Extraction Vault")
     if vault.pillar then
@@ -384,7 +415,12 @@ local function Refresh()
         end
     end
 
-    local count = getn(vault.finds)
+    local shown = ShownOrder()
+    local total = getn(shown)
+    local pages = max(1, ceil(total / PER_PAGE))
+    vault.page = max(1, min(vault.page, pages))
+    local first = (vault.page - 1) * PER_PAGE
+    local count = max(0, min(PER_PAGE, total - first))
     local perRow = max(1, min(count, PER_ROW))
     local rows = max(1, ceil(count / perRow))
     local width = perRow * CARD_WIDTH + (perRow - 1) * CARD_GAP
@@ -397,7 +433,13 @@ local function Refresh()
     frame.cards:SetPoint("TOP", frame, "CENTER", 0, CARDS_TOP / scale)
     local missing = false
     local rest = 0
-    for index, find in ipairs(vault.finds) do
+    for _, find in ipairs(shown) do
+        if not vault.chosen[find.guid] then
+            rest = rest + find.sell
+        end
+    end
+    for index = 1, count do
+        local find = shown[first + index]
         local card = Card(index)
         local row = floor((index - 1) / perRow)
         local column = mod(index - 1, perRow)
@@ -408,17 +450,35 @@ local function Refresh()
         if not FillCard(card, find) then
             missing = true
         end
-        if not vault.chosen[find.guid] then
-            rest = rest + find.sell
-        end
         card:Show()
     end
     for index = count + 1, getn(frame.cards.list) do
         frame.cards.list[index]:Hide()
     end
 
+    local anchor = frame.cards
+    if pages > 1 then
+        frame.pageText:SetText("Page " .. vault.page .. " of " .. pages .. "  (" .. total .. " items)")
+        frame.pageText:ClearAllPoints()
+        frame.pageText:SetPoint("TOP", frame.cards, "BOTTOM", 0, -12)
+        frame.prev:ClearAllPoints()
+        frame.prev:SetPoint("RIGHT", frame.pageText, "LEFT", -14, 0)
+        frame.next:ClearAllPoints()
+        frame.next:SetPoint("LEFT", frame.pageText, "RIGHT", 14, 0)
+        if vault.page > 1 then frame.prev:Enable() else frame.prev:Disable() end
+        if vault.page < pages then frame.next:Enable() else frame.next:Disable() end
+        frame.pageText:Show()
+        frame.prev:Show()
+        frame.next:Show()
+        anchor = frame.pageText
+    else
+        frame.pageText:Hide()
+        frame.prev:Hide()
+        frame.next:Hide()
+    end
+
     frame.rest:ClearAllPoints()
-    frame.rest:SetPoint("TOP", frame.cards, "BOTTOM", 0, -14)
+    frame.rest:SetPoint("TOP", anchor, "BOTTOM", 0, -14)
     if count == 0 then
         frame.rest:SetText("|cff9d9d9dNothing found this run yet.|r")
     elseif vault.pillar then
@@ -533,6 +593,7 @@ handlers["vaultopen"] = function(f)
     if not frame:IsShown() then
         local x, y = HeroSpot()
         frame.openedAt = x and { x, y } or nil
+        vault.page = 1
         frame:Show()
     end
 end

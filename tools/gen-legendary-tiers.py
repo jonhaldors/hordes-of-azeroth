@@ -70,7 +70,7 @@ def write_migration(kinds):
         "DROP TEMPORARY TABLE IF EXISTS `legendary_items`;",
         "CREATE TEMPORARY TABLE `legendary_items` AS SELECT m.`new_entry`, m.`tier`, m.`sell`, m.`level`, t.* FROM `legendary_map` m "
         "JOIN `item_template` t ON t.`entry` = m.`src_entry`;",
-        "UPDATE `legendary_items` SET `entry` = `new_entry`, `patch` = 0, `description` = CONCAT('Tier ', `tier`), `quality` = 5, `flags` = 0,",
+        "UPDATE `legendary_items` SET `entry` = `new_entry`, `patch` = 0, `quality` = 5, `flags` = 0,",
         "    `buy_count` = 1, `buy_price` = 0, `sell_price` = `sell`, `item_level` = `level`, `required_level` = 0, `max_count` = 0, `bonding` = 1,",
         "    `random_property` = 0, `set_id` = 0, `disenchant_id` = 0;",
         "ALTER TABLE `legendary_items` DROP COLUMN `new_entry`, DROP COLUMN `tier`, DROP COLUMN `sell`, DROP COLUMN `level`;",

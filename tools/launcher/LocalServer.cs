@@ -219,10 +219,11 @@ namespace HordesOfAzeroth.Launcher
             File.WriteAllText(rootPassword, RootPasswordSql);
             try
             {
+                string FromMariaDb(string path) => Path.GetRelativePath(m_folder.MariaDb, path);
                 await RunToEndAsync(Path.Combine(m_folder.MariaDb, "scripts", "mariadb-install-db"), m_folder.MariaDb, DatabaseCreationLimit,
-                    $"\"--defaults-file={Path.Combine(m_folder.Config, "mariadb.ini")}\"",
-                    $"\"--basedir={m_folder.MariaDb}\"", $"\"--datadir={m_folder.MariaDbData}\"",
-                    "--auth-root-authentication-method=normal", $"\"--extra-file={rootPassword}\"");
+                    $"\"--defaults-file={FromMariaDb(Path.Combine(m_folder.Config, "mariadb.ini"))}\"",
+                    "--basedir=.", $"\"--datadir={FromMariaDb(m_folder.MariaDbData)}\"",
+                    "--auth-root-authentication-method=normal", $"\"--extra-file={FromMariaDb(rootPassword)}\"");
             }
             finally
             {
