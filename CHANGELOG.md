@@ -3,7 +3,7 @@
 ## 0.5.0
 
 ### Hotfix 2
-- Each Mythic find you don't extract now gives 2 Scrap. Finds above the Quartermaster's tier still give 20 to 50.
+- Each Mythic item you don't extract now gives 2 Scrap. Items above the Quartermaster's tier give 4 to 8.
 - The Extraction Vault shows 16 items per page, highest tier first.
 - New passive cards show their description again. Total rows name their stat.
 - Upgraded legendaries keep their effect text.

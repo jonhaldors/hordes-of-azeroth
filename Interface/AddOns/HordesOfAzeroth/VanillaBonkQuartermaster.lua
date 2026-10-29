@@ -852,7 +852,7 @@ Refresh = function()
     frame.title:SetText(MODES[qm.mode].title)
     frame.stock:SetText(StockText())
     frame.tierNote:SetText(qm.mode == "mythic"
-        and ("New floors raise stock a tier. Unextracted Mythic finds give Scrap. " .. qm.scrapNeeded .. " Scrap buys one item a tier higher.") or "")
+        and ("New floors raise stock a tier. Unextracted Mythic items give Scrap. " .. qm.scrapNeeded .. " Scrap buys one item a tier higher.") or "")
     panel.heading:SetText(HeadingText())
     panel.headingNote:SetText(qm.mode == "mythic" and qm.category ~= "buyback" and qm.category ~= "legendaries"
         and ("Tier " .. (qm.upgrade and qm.tier + 1 or qm.tier)) or "")
