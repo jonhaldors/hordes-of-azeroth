@@ -37,7 +37,7 @@ holder.label:SetText(L["Darkmoon Cards"])
 
 holder.leyLabel = UI.Text(holder, 11)
 holder.leyLabel:SetTextColor(1, 0.82, 0)
-holder.leyLabel:SetText("Ley Lines")
+holder.leyLabel:SetText(L["Ley Lines"])
 
 local buttons = {}
 local leyButtons = {}
@@ -151,7 +151,7 @@ local function LeyTooltip(button)
     end
     GameTooltip:SetOwner(button, "ANCHOR_BOTTOMRIGHT")
     GameTooltip:AddLine(ley.name, 1, 1, 1)
-    GameTooltip:AddLine("Ley Line blessing", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine(L["Ley Line blessing"], 0.6, 0.6, 0.6)
     GameTooltip:AddLine(ley.text, 1, 0.82, 0, 1)
     GameTooltip:Show()
 end

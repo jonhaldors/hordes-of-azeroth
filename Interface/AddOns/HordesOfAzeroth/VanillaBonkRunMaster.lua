@@ -1319,8 +1319,8 @@ local function ShowCheckpoints()
     for index = table.getn(floors) + 1, table.getn(startRow.buttons) do
         startRow.buttons[index]:Hide()
     end
-    startRow.note:SetText(chosen > 1 and ("You start at level " .. (RunMaster.CheckpointLevel(chosen)) .. " and pick your build first. Skipped floors give only their glyph choices.")
-        or "Checkpoints open 15 floors below your best floor for this class.")
+    startRow.note:SetText(chosen > 1 and L("You start at level {1} and pick your build first. Skipped floors give only their glyph choices.", RunMaster.CheckpointLevel(chosen))
+        or L["Checkpoints open 15 floors below your best floor for this class."])
     startRow:Show()
 end
 
@@ -1332,7 +1332,7 @@ local function BuildCheckpoints()
     startRow.label = UI.Text(startRow, 12)
     startRow.label:SetPoint("TOPLEFT", startRow, "TOPLEFT", 0, 0)
     startRow.label:SetTextColor(1, 0.82, 0)
-    startRow.label:SetText("Start on floor")
+    startRow.label:SetText(L["Start on floor"])
     startRow.note = UI.Text(startRow, 9)
     startRow.note:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", 0, -34)
     startRow.note:SetWidth(LEFT_WIDTH)
@@ -1396,7 +1396,7 @@ function RunMaster.Caption()
     end
     local start = StartFloor()
     if start > 1 and mode == "zones" then
-        place = place .. ", floor " .. start
+        place = place .. L(", floor {1}", start)
     end
     return tier.name .. "  ·  " .. place
 end

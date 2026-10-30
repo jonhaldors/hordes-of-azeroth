@@ -25,7 +25,7 @@ window.checks = {}
 window.radios = {}
 window.keys = {}
 
-local LISTEN_TEXT = "Press a button"
+local LISTEN_TEXT = L["Press a button"]
 
 local function PadAction(row)
     local controller = VanillaBonkController

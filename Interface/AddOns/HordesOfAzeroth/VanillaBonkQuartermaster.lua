@@ -148,11 +148,11 @@ frame.upgrade:SetScript("OnEnter", function()
     if qm.upgrade then
         return
     end
-    local ceiling = "Tier " .. qm.ceiling
+    local ceiling = L("Tier {1}", qm.ceiling)
     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Upgrade Found Gear")
-    GameTooltip:AddLine("Spend Scrap to upgrade gear found in Mythic runs.", 1, 0.82, 0, 1)
-    GameTooltip:AddLine("Current limit: " .. ceiling, 1, 1, 1)
+    GameTooltip:AddLine(L["Upgrade Found Gear"])
+    GameTooltip:AddLine(L["Spend Scrap to upgrade gear found in Mythic runs."], 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L("Current limit: {1}", ceiling), 1, 1, 1)
     GameTooltip:Show()
 end)
 frame.upgrade:SetScript("OnLeave", function()
@@ -259,7 +259,7 @@ reroll.heading:SetPoint("TOPLEFT", reroll, "TOPLEFT", 12, -10)
 reroll.hint = UI.Text(reroll, 10)
 reroll.hint:SetPoint("BOTTOMLEFT", reroll, "BOTTOMLEFT", 12, 14)
 reroll.hint:SetTextColor(0.54, 0.52, 0.47)
-reroll.hint:SetText("You may only reroll one stat per item.")
+reroll.hint:SetText(L["You may only reroll one stat per item."])
 reroll.rows = {}
 
 local itemBar = CreateFrame("Frame", nil, panel)
@@ -286,7 +286,7 @@ reroll.upgrade:SetScript("OnEnter", function()
     local piece = reroll.piece
     if piece and not piece.can then
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Clear Mythic floor " .. (piece.tier + 1) .. " to upgrade it further.", 1, 0.5, 0.25, 1)
+        GameTooltip:AddLine(L("Clear Mythic floor {1} to upgrade it further.", piece.tier + 1), 1, 0.5, 0.25, 1)
         GameTooltip:Show()
     end
 end)
@@ -353,7 +353,7 @@ reroll.coin:SetWidth(13)
 reroll.coin:SetHeight(13)
 
 local function SetRerollPrice(copper)
-    reroll.price:SetText("Reroll: " .. floor(copper / 10000))
+    reroll.price:SetText(L("Reroll: {1}", floor(copper / 10000)))
     local width = reroll.price:GetStringWidth() + 15
     reroll.price:ClearAllPoints()
     reroll.price:SetPoint("LEFT", reroll.button, "CENTER", -width / 2, 0)
@@ -428,7 +428,7 @@ local function LayoutReroll()
         row:Hide()
     end
     local nextTier = piece.tier + 1
-    reroll.upgrade:SetText(piece.can and ("Upgrade to Tier " .. nextTier .. ": " .. piece.cost .. " Scrap") or ("Upgrade to Tier " .. nextTier))
+    reroll.upgrade:SetText(piece.can and L("Upgrade to Tier {1}: {2} Scrap", nextTier, piece.cost) or L("Upgrade to Tier {1}", nextTier))
     if piece.can and qm.scrap >= piece.cost then
         reroll.upgrade:Enable()
     else
@@ -443,22 +443,22 @@ local function LayoutReroll()
     end
     if piece.offers then
         local current = piece.offerStat
-        reroll.heading:SetText("Choose a stat:")
-        ShowRerollRow(1, lines[current], "Current", true, function() Command("rerollpick " .. piece.guid .. " 0") end)
+        reroll.heading:SetText(L["Choose a stat:"])
+        ShowRerollRow(1, lines[current], L["Current"], true, function() Command("rerollpick " .. piece.guid .. " 0") end)
         for index, offer in ipairs(piece.offers) do
             local choice = index
             ShowRerollRow(index + 1, offer, nil, false, function() Command("rerollpick " .. piece.guid .. " " .. choice) end)
         end
         reroll.stat = current
     elseif piece.rerollStat then
-        reroll.heading:SetText("Rerolled stat:")
+        reroll.heading:SetText(L["Rerolled stat:"])
         ShowRerollRow(1, lines[piece.rerollStat], nil, true, nil)
         reroll.stat = piece.rerollStat
     else
         if not qm.rerollPick or not lines[qm.rerollPick] then
             qm.rerollPick = table.getn(lines) == 1 and 1 or nil
         end
-        reroll.heading:SetText("Choose a stat to reroll:")
+        reroll.heading:SetText(L["Choose a stat to reroll:"])
         for index, statLine in ipairs(lines) do
             local stat = index
             ShowRerollRow(index, statLine, nil, qm.rerollPick == index, function()
@@ -753,11 +753,11 @@ local function Card(index)
                 GameTooltip:AddLine(" ")
                 local nextTier = this.item.tier + 1
                 if not this.item.can then
-                    GameTooltip:AddLine("Clear Mythic floor " .. nextTier .. " to upgrade it further.", 1, 0.5, 0.25, 1)
+                    GameTooltip:AddLine(L("Clear Mythic floor {1} to upgrade it further.", nextTier), 1, 0.5, 0.25, 1)
                 else
-                    GameTooltip:AddLine("Right-click to upgrade to Tier " .. nextTier .. " for " .. this.item.cost .. " Scrap.", 0.2, 1, 0.2, 1)
+                    GameTooltip:AddLine(L("Right-click to upgrade to Tier {1} for {2} Scrap.", nextTier, this.item.cost), 0.2, 1, 0.2, 1)
                 end
-                GameTooltip:AddLine("Left-click to select it.", 0.2, 1, 0.2, 1)
+                GameTooltip:AddLine(L["Left-click to select it."], 0.2, 1, 0.2, 1)
                 GameTooltip:Show()
             elseif this.item.buyback then
                 GameTooltip:SetBuybackItem(this.item.index)
@@ -1002,7 +1002,7 @@ local function ShowCard(card, item, x, y)
     card.name:SetTextColor(r, g, b)
     if item.upgrade then
         local lines = item.found and table.getn(item.found.lines) or 0
-        local cost = "|cffc7bfb0" .. item.cost .. " Scrap|r"
+        local cost = "|cffc7bfb0" .. L("{1} Scrap", item.cost) .. "|r"
         card.price:SetText(UI.TierText(item.tier) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or "") ..
             (item.can and ("  " .. cost) or ""))
     else

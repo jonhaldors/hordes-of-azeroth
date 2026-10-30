@@ -119,18 +119,18 @@ local function WorthText(find)
         tinsert(parts, UI.FormatGold(find.sell))
     end
     if find.scrap > 0 then
-        tinsert(parts, find.scrap .. " Scrap")
+        tinsert(parts, L("{1} Scrap", find.scrap))
     end
-    return table.concat(parts, " and ")
+    return table.concat(parts, L[" and "])
 end
 
 local function LeftOutText(gold, scrap)
     if gold > 0 and scrap > 0 then
-        return "sells for " .. UI.FormatGold(gold) .. " and gives " .. scrap .. " Scrap"
+        return L("sells for {1} and gives {2} Scrap", UI.FormatGold(gold), scrap)
     elseif scrap > 0 then
-        return "gives " .. scrap .. " Scrap"
+        return L("gives {1} Scrap", scrap)
     end
-    return "sells for " .. UI.FormatGold(gold)
+    return L("sells for {1}", UI.FormatGold(gold))
 end
 
 local function ShowItemTooltip(owner, find, line)
@@ -206,11 +206,11 @@ frame.sent:SetBackdrop({
 frame.sent.label = UI.Text(frame.sent, 12)
 frame.sent.label:SetPoint("TOP", frame.sent, "TOP", 0, -16)
 frame.sent.label:SetTextColor(1, 0.82, 0)
-frame.sent.label:SetText("Sent home this run")
+frame.sent.label:SetText(L["Sent home this run"])
 frame.sent.empty = UI.Text(frame.sent, 11)
 frame.sent.empty:SetPoint("CENTER", frame.sent, "CENTER", 0, -8)
 frame.sent.empty:SetTextColor(0.62, 0.62, 0.62)
-frame.sent.empty:SetText("Nothing yet. Each pillar sends 1 piece.")
+frame.sent.empty:SetText(L["Nothing yet. Each pillar sends 1 piece."])
 frame.sent.slots = {}
 frame.sent:Hide()
 
@@ -227,7 +227,7 @@ local function SentSlot(index)
         if this.piece then
             GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
             GameTooltip:SetHyperlink("item:" .. this.piece.entry .. ":0:0:0")
-            GameTooltip:AddLine("Sent home on floor " .. this.piece.floor .. ".", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(L("Sent home on floor {1}.", this.piece.floor), 0.7, 0.7, 0.7)
             GameTooltip:Show()
         end
     end)
@@ -257,7 +257,7 @@ local function ShowSent()
             slot.icon:Show()
             slot:ClearAllPoints()
             slot:SetPoint("TOP", frame.sent, "TOP", (index - (shown + 1) / 2) * SENT_SPACING, -40)
-            slot.caption:SetText("Floor " .. piece.floor)
+            slot.caption:SetText(L("Floor {1}", piece.floor))
             slot:Show()
             slot.caption:Show()
         else
@@ -598,7 +598,7 @@ function Refresh()
     if vault.pillar then
         frame.hint:ClearAllPoints()
         frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
-        frame.hint:SetText("Click an item to send it home now. It leaves your character for the rest of the run.")
+        frame.hint:SetText(L["Click an item to send it home now. It leaves your character for the rest of the run."])
         frame.hint:Show()
         frame.done:SetPoint("TOP", frame.hint, "BOTTOM", 0, -12)
     else

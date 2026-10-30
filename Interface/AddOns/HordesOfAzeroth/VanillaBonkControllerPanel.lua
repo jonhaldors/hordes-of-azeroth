@@ -54,7 +54,7 @@ panel.status:SetTextColor(0.78, 0.75, 0.66)
 panel.hint = UI.Text(panel, 10)
 panel.hint:SetPoint("TOP", panel.status, "BOTTOM", 0, -4)
 panel.hint:SetTextColor(0.66, 0.63, 0.56)
-panel.hint:SetText("Select a highlighted action, then press the button you want for it")
+panel.hint:SetText(L["Select a highlighted action, then press the button you want for it"])
 
 panel.art = panel:CreateTexture(nil, "ARTWORK")
 panel.art:SetPoint("TOP", panel, "TOP", 0, ART_TOP)
@@ -64,8 +64,8 @@ local function ArtHeight(style)
     return ART_WIDTH * ART[style].height / 512
 end
 
-local LISTEN_TEXT = "Press a button"
-local LISTEN_HELP = "B cancels"
+local LISTEN_TEXT = L["Press a button"]
+local LISTEN_HELP = L["B cancels"]
 
 local function MakeLabel(rightSide, rebindable)
     local label = CreateFrame(rebindable and "Button" or "Frame", nil, panel)

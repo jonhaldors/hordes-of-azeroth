@@ -184,7 +184,7 @@ local function BuildLanguageDropdown(box)
     local dropdown = CreateFrame("Frame", "VanillaBonkOptionsLanguage", box, "UIDropDownMenuTemplate")
     local label = dropdown:CreateFontString(nil, "BACKGROUND", "GameFontNormalSmall")
     label:SetPoint("BOTTOMLEFT", dropdown, "TOPLEFT", 16, 3)
-    label:SetText("Language")
+    label:SetText(L["Language"])
     UIDropDownMenu_SetWidth(110, dropdown)
     UIDropDownMenu_Initialize(dropdown, function()
         for _, choice in ipairs(UI.LANGUAGES) do

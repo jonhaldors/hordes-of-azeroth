@@ -159,21 +159,21 @@ function Tip.Yards(value)
     return format("%.1f", tenths / 10) .. L[" yd"]
 end
 
-local function Grown(base, current, word)
+local function Grown(base, current, phrase)
     current = tonumber(current) or 0
     if current > 0 and abs(current - base) >= 0.05 then
-        return (current > base and "|cff21ff21" or "|cffff2020") .. Tip.Yards(current) .. " " .. word .. "|r"
+        return (current > base and "|cff21ff21" or "|cffff2020") .. string.gsub(phrase, "{1}", function() return Tip.Yards(current) end) .. "|r"
     end
-    return Tip.Yards(base) .. " " .. word
+    return (string.gsub(phrase, "{1}", function() return Tip.Yards(base) end))
 end
 
 function Tip.ReachText(radius, range, current, currentRange)
     radius = tonumber(radius) or 0
     range = tonumber(range) or 0
     if radius > 0 then
-        return Grown(radius, current, "radius")
+        return Grown(radius, current, L["{1} radius"])
     elseif range > 0 then
-        return Grown(range, currentRange, "range")
+        return Grown(range, currentRange, L["{1} range"])
     end
     return ""
 end
@@ -188,7 +188,7 @@ end
 function Tip:AddFooter(spec, school, aoe)
     local text = (spec and spec ~= "") and spec or (school or "")
     if aoe then
-        text = text ~= "" and (text .. L["  ·  AoE"]) or "AoE"
+        text = text ~= "" and (text .. L["  ·  AoE"]) or L["AoE"]
     end
     if text ~= "" then
         self:AddSmallLine(text, Tip.GREY)

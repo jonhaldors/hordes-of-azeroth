@@ -296,10 +296,10 @@ offerFrame.autopick:SetScript("OnClick", function()
 end)
 offerFrame.autopick:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOP")
-    GameTooltip:SetText("Auto-pick")
-    GameTooltip:AddLine("Picks your remaining " .. (VB.catchUp or 0) .. " level-ups.", 1, 1, 1, 1)
-    GameTooltip:AddLine("Prioritizes spells and passives you have already chosen.", 1, 1, 1, 1)
-    GameTooltip:AddLine("Will stop when the selection only shows new cards.", 1, 1, 1, 1)
+    GameTooltip:SetText(L["Auto-pick"])
+    GameTooltip:AddLine(L("Picks your remaining {1} level-ups.", VB.catchUp or 0), 1, 1, 1, 1)
+    GameTooltip:AddLine(L["Prioritizes spells and passives you have already chosen."], 1, 1, 1, 1)
+    GameTooltip:AddLine(L["Will stop when the selection only shows new cards."], 1, 1, 1, 1)
     GameTooltip:Show()
 end)
 offerFrame.autopick:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1277,7 +1277,7 @@ local function ShowOffer(level)
 
     local buttons = {}
     if (VB.catchUp or 0) > 0 and VB.offerSource == "level" then
-        offerFrame.autopick:SetText("Auto-pick (" .. VB.catchUp .. ")")
+        offerFrame.autopick:SetText(L("Auto-pick ({1})", VB.catchUp))
         tinsert(buttons, offerFrame.autopick)
     else
         offerFrame.autopick:Hide()
@@ -1894,10 +1894,10 @@ do
         return button
     end
 
-    bar.activate = AddButton(84, "Set active")
+    bar.activate = AddButton(84, L["Set active"])
     bar.activate:SetScript("OnClick", SendPreset)
     bar.activate:SetScript("OnEnter", function()
-        ShowTip("Set active", "Switches to the talents saved in the selected preset. Your current talents stay in their preset.")
+        ShowTip(L["Set active"], L["Switches to the talents saved in the selected preset. Your current talents stay in their preset."])
     end)
 
     bar.slots = {}
@@ -1912,11 +1912,11 @@ do
         end)
         button:SetScript("OnEnter", function()
             local points = shop.presets and shop.presets.points[this.slot] or 0
-            local text = points > 0 and (points .. (points == 1 and " talent point" or " talent points")) or "Empty"
+            local text = points > 0 and (points == 1 and L["1 talent point"] or L("{1} talent points", points)) or L["Empty"]
             if shop.presets and shop.presets.active == this.slot then
-                text = text .. "\n|cff20ff20Active. Talent changes save here.|r"
+                text = text .. "\n|cff20ff20" .. L["Active. Talent changes save here."] .. "|r"
             end
-            ShowTip("Preset " .. this.slot, text)
+            ShowTip(L("Preset {1}", this.slot), text)
         end)
         bar.slots[slot] = button
         anchor = button
@@ -1924,7 +1924,7 @@ do
 
     bar.label = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     bar.label:SetPoint("RIGHT", bar.slots[1], "LEFT", -6, 0)
-    bar.label:SetText("Presets")
+    bar.label:SetText(L["Presets"])
 
     shop.PreviewSlot = function(data)
         local presets = not data.inspect and data.presets
@@ -2477,8 +2477,8 @@ RefreshShop = function()
     end
     shop.title:SetText((data.className and (data.className .. " ") or "") .. (SHOP_TITLES[data.kind] or ""))
     shop.header:SetText(data.npc)
-    shop.hint:SetText(data.inspect and "Talents can only be changed at the Inn." or
-        previewSlot and ("Preset " .. previewSlot .. ". Click Set active to use these talents.") or SHOP_HINTS[data.kind] or "")
+    shop.hint:SetText(data.inspect and L["Talents can only be changed at the Inn."] or
+        previewSlot and L("Preset {1}. Click Set active to use these talents.", previewSlot) or SHOP_HINTS[data.kind] or "")
     if VanillaBonkTalents then
         VanillaBonkTalents.readOnly = data.inspect or previewSlot ~= nil
     end
@@ -3500,10 +3500,10 @@ local function RefreshHeroStats()
         end
         line.lines = { format(stat.text, explained) }
         if statId == 9 and shown > 0 then
-            tinsert(line.lines, "Heals at most " .. Percent(floor(3 * shown + 0.5) / 100) .. " of maximum health per sec.")
+            tinsert(line.lines, L("Heals at most {1} of maximum health per sec.", Percent(floor(3 * shown + 0.5) / 100)))
         end
         if statId == 12 and shown > 300 then
-            tinsert(line.lines, "Armor past 300 gives " .. Percent(floor(5 * (shown - 300) + 0.5) / 10) .. " maximum health.")
+            tinsert(line.lines, L("Armor past 300 gives {1} maximum health.", Percent(floor(5 * (shown - 300) + 0.5) / 10)))
         end
         if stat.cap then
             tinsert(line.lines, L["Maximum "] .. FormatStat(statId, stat.cap) .. ".")

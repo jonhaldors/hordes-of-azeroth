@@ -1,6 +1,7 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
-UI.ENCHANTER_NAME = "Ilsa Runeweaver"
+UI.ENCHANTER_NAME = L["Ilsa Runeweaver"]
 UI.enchants = UI.enchants or {}
 
 local WIDTH = 440
@@ -11,26 +12,26 @@ local ROW_HEIGHT = 40
 local ICON_SIZE = 32
 local ROLL_WIDTH = 92
 local NO_ENCHANT = 255
-local GREETING = "For Valor I will bind magic into your gear until this run ends. The enchant stays on the slot, whatever you wear there, and grows with the piece."
+local GREETING = L["For Valor I will bind magic into your gear until this run ends. The enchant stays on the slot, whatever you wear there, and grows with the piece."]
 local OFFER_COUNT = 3
 local OFFER_HEIGHT = 26
 
 local SLOTS = {
-    { slot = 0, name = "Head", art = "Head" },
-    { slot = 2, name = "Shoulders", art = "Shoulder" },
-    { slot = 4, name = "Chest", art = "Chest" },
-    { slot = 8, name = "Wrists", art = "Wrists" },
-    { slot = 9, name = "Hands", art = "Hands" },
-    { slot = 5, name = "Waist", art = "Waist" },
-    { slot = 6, name = "Legs", art = "Legs" },
-    { slot = 7, name = "Feet", art = "Feet" },
+    { slot = 0, name = L["Head"], art = "Head" },
+    { slot = 2, name = L["Shoulders"], art = "Shoulder" },
+    { slot = 4, name = L["armor slot::Chest"], art = "Chest" },
+    { slot = 8, name = L["Wrists"], art = "Wrists" },
+    { slot = 9, name = L["Hands"], art = "Hands" },
+    { slot = 5, name = L["Waist"], art = "Waist" },
+    { slot = 6, name = L["Legs"], art = "Legs" },
+    { slot = 7, name = L["Feet"], art = "Feet" },
 }
 local GRADES = {
-    [0] = { name = "Minor", color = { 0.8, 0.8, 0.8 } },
-    [1] = { name = "Lesser", color = { 0.12, 1, 0 } },
-    [2] = { name = "Greater", color = { 0, 0.44, 0.87 } },
-    [3] = { name = "Superior", color = { 0.64, 0.21, 0.93 } },
-    [4] = { name = "Godly", color = { 1, 0.5, 0 } },
+    [0] = { name = L["Minor"], color = { 0.8, 0.8, 0.8 } },
+    [1] = { name = L["Lesser"], color = { 0.12, 1, 0 } },
+    [2] = { name = L["Greater"], color = { 0, 0.44, 0.87 } },
+    [3] = { name = L["Superior"], color = { 0.64, 0.21, 0.93 } },
+    [4] = { name = L["Godly"], color = { 1, 0.5, 0 } },
 }
 
 local state = { cost = 0, valor = 0, slots = {}, offers = nil }
@@ -56,7 +57,7 @@ window.cost:SetPoint("TOPLEFT", window.greeting, "BOTTOMLEFT", 0, -10)
 local function EnchantText(effect, grade, value)
     local info = GRADES[grade]
     if not effect or effect == NO_ENCHANT or not info then
-        return "|cff8a8478No enchant|r"
+        return "|cff8a8478" .. L["No enchant"] .. "|r"
     end
     local color = info.color
     return format("|cff%02x%02x%02x%s:|r %s", color[1] * 255, color[2] * 255, color[3] * 255, info.name, UI.StatText and UI.StatText(effect, value) or "")
@@ -90,7 +91,7 @@ for index, entry in ipairs(SLOTS) do
     row.enchant:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 10, 1)
     row.enchant:SetWidth(CONTENT_WIDTH - ICON_SIZE - ROLL_WIDTH - 24)
     row.enchant:SetJustifyH("LEFT")
-    row.roll = UI.Button(row, ROLL_WIDTH, "Enchant", function() Roll(this:GetParent().entry.slot) end)
+    row.roll = UI.Button(row, ROLL_WIDTH, L["Enchant"], function() Roll(this:GetParent().entry.slot) end)
     row.roll:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     rows[index] = row
 end
@@ -113,7 +114,7 @@ for index = 1, OFFER_COUNT do
     offer:SetPoint("TOPLEFT", window.pending, "TOPLEFT", 12, -30 - (index - 1) * OFFER_HEIGHT)
     window.pending.offers[index] = offer
 end
-window.pending.discard = UI.Button(window.pending, 120, "Keep current", function()
+window.pending.discard = UI.Button(window.pending, 120, L["Keep current"], function()
     PlaySound("igMainMenuOptionCheckBoxOff")
     SendChatMessage(".bonk gear enchant discard", "SAY")
 end)
@@ -135,7 +136,7 @@ local function Refresh()
     if not window:IsShown() then
         return
     end
-    window.cost:SetText("Each enchant costs |cffffe873" .. state.cost .. " Valor|r, and the next one this visit costs more. You have " .. state.valor .. ".")
+    window.cost:SetText(L("Each enchant costs |cffffe873{1} Valor|r, and the next one this visit costs more. You have {2}.", state.cost, state.valor))
     local offers = state.offers
     for _, row in ipairs(rows) do
         local slot = state.slots[row.entry.slot] or {}
@@ -149,7 +150,7 @@ local function Refresh()
     end
     if offers then
         local current = state.slots[offers.slot] or {}
-        window.pending.text:SetText("Choose an enchant for your " .. string.lower(SlotName(offers.slot)) .. ":")
+        window.pending.text:SetText(L("Choose an enchant for your {1}:", string.lower(SlotName(offers.slot))))
         for index, button in ipairs(window.pending.offers) do
             local offer = offers[index]
             if offer then
@@ -159,7 +160,7 @@ local function Refresh()
                 button:Hide()
             end
         end
-        window.pending.hint:SetText("Now: " .. EnchantText(current.effect, current.grade, current.value))
+        window.pending.hint:SetText(L("Now: {1}", EnchantText(current.effect, current.grade, current.value)))
         window.pending:Show()
     else
         window.pending:Hide()
@@ -267,5 +268,5 @@ function UI.EnchantLine(inventorySlot)
     if not enchant or not UI.StatText then
         return nil
     end
-    return "Enchanted: " .. GRADES[enchant.grade].name .. " " .. UI.StatText(enchant.stat, enchant.value)
+    return L("Enchanted: {1} {2}", GRADES[enchant.grade].name, UI.StatText(enchant.stat, enchant.value))
 end
