@@ -34,7 +34,7 @@ UI.DAMAGE_TYPES = {
     bear = { name = L["Bear Form"], r = 0.75, g = 0.45, b = 0.25, icon = "Ability_Racial_BearForm", note = L["Maul."] },
     tree = { name = L["Tree of Life"], r = 0.35, g = 0.85, b = 0.35, icon = "Spell_Nature_ProtectionformNature", note = L["Vines."] },
 }
-UI.DAMAGE_TYPE_BY_KEYWORD = { Bleed = "bleed", Poison = "poison", Burning = "burn", Decay = "decay", Agony = "agony" }
+UI.DAMAGE_TYPE_BY_KEYWORD = { [L["Bleed"]] = "bleed", [L["Poison"]] = "poison", [L["Burning"]] = "burn", [L["Decay"]] = "decay", [L["Agony"]] = "agony" }
 
 local ICON_SCHOOLS = {
     { "_FIRE_", "fire" }, { "FIREBALL", "fire" }, { "_FROST_", "frost" }, { "_ARCANE_", "arcane" }, { "STARFALL", "arcane" },

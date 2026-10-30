@@ -2,7 +2,7 @@ local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local SHAPESHIFT = "VANILLABONK_SHAPESHIFT"
-local SPELL_NAME = "Shapeshift"
+local SPELL_NAME = L["Shapeshift"]
 local SEND_INTERVAL = 0.25
 local GLYPH_SIZE = 16
 BINDING_NAME_VANILLABONK_SHAPESHIFT = L["Shapeshift"]

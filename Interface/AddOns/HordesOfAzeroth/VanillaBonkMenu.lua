@@ -10,7 +10,7 @@ local BUTTON_WIDTH = 176
 local SPELL_SIZE = 40
 local PASSIVE_SIZE = 30
 local CARD_SLOT_SIZE = 26
-local DIFFICULTY_COLORS = { Normal = "40ff40", Heroic = "ffd100", Mythic = "ff4d4d" }
+local DIFFICULTY_COLORS = { [L["Normal"]] = "40ff40", [L["Heroic"]] = "ffd100", [L["Mythic"]] = "ff4d4d" }
 
 local run = { inRun = false, stage = 1, difficulty = "", elapsed = 0, spells = {}, passives = {} }
 

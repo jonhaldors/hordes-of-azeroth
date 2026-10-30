@@ -2,9 +2,9 @@ local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local DIFFICULTY_COLORS = {
-    Normal = { 0.25, 1, 0.25 },
-    Heroic = { 1, 0.82, 0 },
-    Mythic = { 1, 0.3, 0.3 },
+    [L["Normal"]] = { 0.25, 1, 0.25 },
+    [L["Heroic"]] = { 1, 0.82, 0 },
+    [L["Mythic"]] = { 1, 0.3, 0.3 },
 }
 
 local run = { duration = 600, stage = 1, difficulty = "" }

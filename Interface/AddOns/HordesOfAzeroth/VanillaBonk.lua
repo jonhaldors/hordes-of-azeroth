@@ -318,12 +318,12 @@ local DARKMOON_CLOTH = "World\\ENVIRONMENT\\DOODAD\\Carnival\\bm_Carnie_tarp01"
 local DARKMOON_BANNER = "World\\ENVIRONMENT\\DOODAD\\Carnival\\Darkmoon_Banner01"
 local MAX_CARDS = 6
 local KEYWORD_ALIASES = {
-    ["Chill"] = { "Chilled" },
-    ["Frozen"] = { "Freezes", "Freeze", "Shatter" },
-    ["Hunter's Mark"] = { "Marked" },
-    ["Poison"] = { "Poisoned" },
-    ["Bleed"] = { "Bleeding" },
-    ["Dazed"] = { "Dazes", "Daze" },
+    [L["Chill"]] = { L["Chilled"] },
+    [L["Frozen"]] = { L["Freezes"], L["Freeze"], L["Shatter"] },
+    [L["Hunter's Mark"]] = { L["Marked"] },
+    [L["Poison"]] = { L["Poisoned"] },
+    [L["Bleed"]] = { L["Bleeding"] },
+    [L["Dazed"]] = { L["Dazes"], L["Daze"] },
 }
 VB.keywords = {}
 
@@ -368,19 +368,19 @@ local function MatchKeyword(text, pos, terms)
 end
 
 VB.keywordColors = {
-    ["Chill"] = { 0.41, 0.8, 0.94 },
-    ["Frozen"] = { 0.41, 0.8, 0.94 },
-    ["Burning"] = { 1, 0.71, 0.24 },
-    ["Fire Vulnerability"] = { 1, 0.49, 0.1 },
-    ["Bleed"] = { 1, 0.33, 0.33 },
-    ["Poison"] = { 0.4, 0.85, 0.3 },
-    ["Nature Vulnerability"] = { 0.25, 0.78, 0.71 },
-    ["Static"] = { 0.25, 0.78, 0.71 },
-    ["Decay"] = { 0.7, 0.55, 1 },
-    ["Shadow Vulnerability"] = { 0.7, 0.55, 1 },
-    ["Sunder Armor"] = { 0.78, 0.61, 0.43 },
-    ["Dazed"] = { 0.78, 0.61, 0.43 },
-    ["Hunter's Mark"] = { 0.78, 0.61, 0.43 },
+    [L["Chill"]] = { 0.41, 0.8, 0.94 },
+    [L["Frozen"]] = { 0.41, 0.8, 0.94 },
+    [L["Burning"]] = { 1, 0.71, 0.24 },
+    [L["Fire Vulnerability"]] = { 1, 0.49, 0.1 },
+    [L["Bleed"]] = { 1, 0.33, 0.33 },
+    [L["Poison"]] = { 0.4, 0.85, 0.3 },
+    [L["Nature Vulnerability"]] = { 0.25, 0.78, 0.71 },
+    [L["Static"]] = { 0.25, 0.78, 0.71 },
+    [L["Decay"]] = { 0.7, 0.55, 1 },
+    [L["Shadow Vulnerability"]] = { 0.7, 0.55, 1 },
+    [L["Sunder Armor"]] = { 0.78, 0.61, 0.43 },
+    [L["Dazed"]] = { 0.78, 0.61, 0.43 },
+    [L["Hunter's Mark"]] = { 0.78, 0.61, 0.43 },
 }
 
 function VB.KeywordRGB(id)
@@ -2173,7 +2173,7 @@ local function ShowNodeTooltip(button)
     else
         GameTooltip:AddLine(node.description, 1, 0.82, 0, 1)
     end
-    if node.description and string.find(node.description, "Valor") then
+    if node.description and string.find(node.description, L["Valor"], 1, true) then
         GameTooltip:AddLine(L["Valor is spent during a run to open chests and buy from shops. Resets every run, it's not kept."], 0.6, 0.6, 0.6, 1)
     end
 
@@ -2969,17 +2969,17 @@ function VB.BuildStatTerms(names)
 end
 
 VB.BuildStatTerms({
-    ["Power"] = "s0", ["Haste"] = "s1", ["Count"] = "s2",
-    ["Movement speed"] = "s3", ["movement speed"] = "s3",
-    ["Maximum health"] = "s4", ["maximum health"] = "s4", ["Max health"] = "s4",
-    ["Health regained each second"] = "s5",
-    ["Experience"] = "s7", ["experience"] = "s7",
-    ["Pickup range"] = "s8", ["pickup range"] = "s8",
-    ["Area"] = "s10", ["Armor"] = "s12",
-    ["Dodge chance"] = "s14", ["chance to dodge"] = "s14",
-    ["Critical strike chance"] = "s15", ["critical strike chance"] = "s15", ["Crit chance"] = "s15",
-    ["Critical strike damage"] = "s16", ["critical strike damage"] = "s16",
-    ["Luck"] = "s18",
+    [L["Power"]] = "s0", [L["Haste"]] = "s1", [L["Count"]] = "s2",
+    [L["Movement speed"]] = "s3", [L["movement speed"]] = "s3",
+    [L["Maximum health"]] = "s4", [L["maximum health"]] = "s4", [L["Max health"]] = "s4",
+    [L["Health regained each second"]] = "s5",
+    [L["Experience"]] = "s7", [L["experience"]] = "s7",
+    [L["Pickup range"]] = "s8", [L["pickup range"]] = "s8",
+    [L["Area"]] = "s10", [L["Armor"]] = "s12",
+    [L["Dodge chance"]] = "s14", [L["chance to dodge"]] = "s14",
+    [L["Critical strike chance"]] = "s15", [L["critical strike chance"]] = "s15", [L["Crit chance"]] = "s15",
+    [L["Critical strike damage"]] = "s16", [L["critical strike damage"]] = "s16",
+    [L["Luck"]] = "s18",
 })
 
 VB.gear = {}

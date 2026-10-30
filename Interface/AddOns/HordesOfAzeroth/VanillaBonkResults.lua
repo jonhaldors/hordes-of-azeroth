@@ -1391,7 +1391,7 @@ end
 
 handlers["sumw"] = function(f)
     local icon = f[2] ~= "" and f[2] or "INV_Misc_QuestionMark"
-    local name = f[3] or ""
+    local name = f[3] == "Melee" and L["Melee"] or f[3] or ""
     local school = UI.DAMAGE_TYPES[f[9] or ""] and f[9] or DamageTypeFor(name, icon)
     tinsert(weapons, {
         icon = icon,

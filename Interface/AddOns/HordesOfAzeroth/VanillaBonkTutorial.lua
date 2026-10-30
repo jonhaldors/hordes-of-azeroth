@@ -815,9 +815,9 @@ end)
 local gearTip = {}
 local GEAR_TIP_WIDTH = 270
 local GEAR_TIPS = {
-    Heroic = { title = L["Heroic gear"],
+    [L["Heroic"]] = { title = L["Heroic gear"],
         body = L["Durgan now sells Heroic gear as well. It is a lot stronger than Normal gear, so look here before you spend your gold."] },
-    Mythic = { title = L["Mythic gear"],
+    [L["Mythic"]] = { title = L["Mythic gear"],
         body = L["Durgan now sells Mythic gear, the strongest he has. Look here before you spend your gold."] },
 }
 
