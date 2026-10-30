@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local XP_SOUNDS_KEY = "xpSounds"
@@ -5,9 +6,9 @@ local ROW = 26
 
 local check = CreateFrame("CheckButton", "VanillaBonkXpSoundsCheck", SoundOptionsFrame, "OptionsCheckButtonTemplate")
 check:SetPoint("TOP", SoundOptionsFrameCheckButton8, "BOTTOM", 0, 6)
-getglobal(check:GetName() .. "Text"):SetText("Experience Pickup Sounds")
+getglobal(check:GetName() .. "Text"):SetText(L["Experience Pickup Sounds"])
 getglobal(check:GetName() .. "Text"):SetTextColor(HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-check.tooltipText = "Plays a coin sound when you collect experience."
+check.tooltipText = L["Plays a coin sound when you collect experience."]
 SoundOptionsFrame:SetHeight(SoundOptionsFrame:GetHeight() + ROW)
 
 check:SetScript("OnClick", function()

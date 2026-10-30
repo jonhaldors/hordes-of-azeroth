@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local QUESTION_MARK = "INV_Misc_QuestionMark"
@@ -95,7 +96,7 @@ local function ShowEntryTooltip()
         return
     end
     GameTooltip:SetOwner(this, "ANCHOR_BOTTOMRIGHT")
-    GameTooltip:AddDoubleLine(keyword.name, this.stacks > 1 and (this.stacks .. " stacks") or "", 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(keyword.name, this.stacks > 1 and (this.stacks .. L[" stacks"]) or "", 1, 0.82, 0, 1, 1, 1)
     if keyword.description ~= "" then
         GameTooltip:AddLine(keyword.description, 1, 1, 1, 1)
     end

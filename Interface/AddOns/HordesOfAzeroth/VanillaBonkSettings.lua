@@ -1,47 +1,48 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local DEFAULT_KEY_DELAY = 1
 local MODIFIER_KEYS = { SHIFT = true, CTRL = true, ALT = true }
 
 UI.INTERACT_TYPES = {
-    { key = "interactPeople", label = "People", hint = "Talk, shop and bank", units = true },
-    { key = "interactChests", label = "Chests", hint = "Open chests, vaults and hidden finds", objects = { 900001, 900002, 900041, 900060 }, types = { 3 } },
-    { key = "interactShrines", label = "Shrines", hint = "Touch shrines, totems and altars", objects = { 900031, 900032, 900033, 900034 } },
-    { key = "interactPortals", label = "Portals", hint = "Step through portals", objects = { 900003 } },
-    { key = "interactMail", label = "Mailbox", hint = "Read your mail", types = { 19 } },
+    { key = "interactPeople", label = L["People"], hint = L["Talk, shop and bank"], units = true },
+    { key = "interactChests", label = L["Chests"], hint = L["Open chests, vaults and hidden finds"], objects = { 900001, 900002, 900041, 900060 }, types = { 3 } },
+    { key = "interactShrines", label = L["Shrines"], hint = L["Touch shrines, totems and altars"], objects = { 900031, 900032, 900033, 900034 } },
+    { key = "interactPortals", label = L["Portals"], hint = L["Step through portals"], objects = { 900003 } },
+    { key = "interactMail", label = L["Mailbox"], hint = L["Read your mail"], types = { 19 } },
 }
 
 UI.AUTO_CHEST_ENTRIES = { 900001, 900002 }
 
 UI.DISPLAY_SETTINGS = {
-    { key = "enemyPlates", label = "Enemy Nameplates", default = true,
-        tooltip = "Shows health bars over enemies near you.", apply = function() UI.ApplyEnemyPlates() end },
-    { key = "damageMeter", label = "Damage Meter", default = true,
-        tooltip = "Shows how much damage each of your spells has done this run.", apply = function() UI.ApplyDamageMeter() end },
-    { key = "incomingNumbers", label = "Damage Taken Numbers", default = true,
-        tooltip = "Shows the damage you take as numbers beside your character." },
-    { key = "healthNumbers", label = "Health Bar Numbers", default = true,
-        tooltip = "Shows your health as numbers on your health bars.", apply = function() UI.ApplyHealthNumbers() end },
-    { key = "cooldownNumbers", label = "Cooldown Numbers", default = true,
-        tooltip = "Shows the seconds left on spells with a cooldown of 2 seconds or more." },
+    { key = "enemyPlates", label = L["Enemy Nameplates"], default = true,
+        tooltip = L["Shows health bars over enemies near you."], apply = function() UI.ApplyEnemyPlates() end },
+    { key = "damageMeter", label = L["Damage Meter"], default = true,
+        tooltip = L["Shows how much damage each of your spells has done this run."], apply = function() UI.ApplyDamageMeter() end },
+    { key = "incomingNumbers", label = L["Damage Taken Numbers"], default = true,
+        tooltip = L["Shows the damage you take as numbers beside your character."] },
+    { key = "healthNumbers", label = L["Health Bar Numbers"], default = true,
+        tooltip = L["Shows your health as numbers on your health bars."], apply = function() UI.ApplyHealthNumbers() end },
+    { key = "cooldownNumbers", label = L["Cooldown Numbers"], default = true,
+        tooltip = L["Shows the seconds left on spells with a cooldown of 2 seconds or more."] },
 }
 
 UI.INTERACT_SETTINGS = {}
 for _, kind in ipairs(UI.INTERACT_TYPES) do
     tinsert(UI.INTERACT_SETTINGS, { key = kind.key, label = kind.label, default = true,
-        tooltip = "The interact key interacts with " .. string.lower(kind.label) .. ". " .. kind.hint .. ".",
+        tooltip = L["The interact key interacts with "] .. string.lower(kind.label) .. ". " .. kind.hint .. ".",
         apply = function() UI.ApplyInteract() end })
 end
-UI.AUTO_CHEST_SETTING = { key = "autoChests", label = "Automatically open chests when you walk up to them", default = false,
-    tooltip = "Chests open by themselves when you get close. People, shrines and portals still wait for the interact key.",
+UI.AUTO_CHEST_SETTING = { key = "autoChests", label = L["Automatically open chests when you walk up to them"], default = false,
+    tooltip = L["Chests open by themselves when you get close. People, shrines and portals still wait for the interact key."],
     apply = function() UI.ApplyInteract() end }
 
 UI.KEYS = {
-    { command = "VANILLABONK_INTERACT", label = "Interact", default = "F" },
-    { command = "VANILLABONK_HEARTH", label = "Use Hearthstone", default = "T" },
-    { command = "VANILLABONK_DASH", label = "Dash", modifierAllowed = true },
-    { command = "VANILLABONK_SHAPESHIFT", label = "Shapeshift (Druid)", default = "R", class = "Druid", replaces = { REPLY = true } },
-    { command = "VANILLABONK_INSPECT", label = "Inspect talents (in a run)", default = "N", replaces = { TOGGLETALENTS = true } },
+    { command = "VANILLABONK_INTERACT", label = L["Interact"], default = "F" },
+    { command = "VANILLABONK_HEARTH", label = L["Use Hearthstone"], default = "T" },
+    { command = "VANILLABONK_DASH", label = L["Dash"], modifierAllowed = true },
+    { command = "VANILLABONK_SHAPESHIFT", label = L["Shapeshift (Druid)"], default = "R", class = "Druid", replaces = { REPLY = true } },
+    { command = "VANILLABONK_INSPECT", label = L["Inspect talents (in a run)"], default = "N", replaces = { TOGGLETALENTS = true } },
 }
 
 local settingsWatchers = {}
@@ -95,6 +96,7 @@ function UI.ChangeLanguage(value)
     end
     SetCVar(UI.LANGUAGE_CVAR, value)
     SendChatMessage(".bonk lang " .. value, "SAY")
+    VanillaBonkLocale.Changed(value)
     SettingsChanged()
 end
 
@@ -215,14 +217,14 @@ function UI.CaptureKey(binding)
     capture.binding = binding
     capture.modifier = nil
     capture.title:SetText(binding.label)
-    capture.body:SetText("Press the key you want for " .. binding.label .. ". Escape keeps the current key.")
+    capture.body:SetText(L("Press the key you want for {1}. Escape keeps the current key.", binding.label))
     capture:Show()
 end
 
 function UI.KeyText(binding)
     local text = UI.BindingText(binding.command)
     if text == "" then
-        return "None"
+        return L["None"]
     end
     return text
 end

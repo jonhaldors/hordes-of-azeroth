@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local PREFIX = "BONK~"
 local SAMPLE_SECONDS = 1
 local MINUTE_SECONDS = 60
@@ -160,5 +161,5 @@ SlashCmdList["VANILLABONKPERF"] = function(text)
     for index = first, getn(minutes) do
         DEFAULT_CHAT_FRAME:AddMessage(minutes[index])
     end
-    DEFAULT_CHAT_FRAME:AddMessage(format("Hordes of Azeroth: %d slow seconds logged. Type /bonkperf reset to clear.", getn(VanillaBonkPerfLog.slow)))
+    DEFAULT_CHAT_FRAME:AddMessage(format(L["Hordes of Azeroth: %d slow seconds logged. Type /bonkperf reset to clear."], getn(VanillaBonkPerfLog.slow)))
 end

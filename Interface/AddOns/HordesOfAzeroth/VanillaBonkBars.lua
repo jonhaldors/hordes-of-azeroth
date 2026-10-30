@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local BAG_OFFSET_Y = 88
 local MICRO_STEP = 26
 

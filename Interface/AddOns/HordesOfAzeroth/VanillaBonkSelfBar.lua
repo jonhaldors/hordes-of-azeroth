@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local LIFT = 0
@@ -11,9 +12,9 @@ local FRAME_NUMBER_SIZE = 9
 local NUMBERED_PLATE = { width = 78, height = 14, name = 0, percent = 0 }
 
 UI.HEALTH_BAR_MODES = {
-    { value = "frame", label = "Unit Frame" },
-    { value = "plate", label = "Nameplate" },
-    { value = "both", label = "Both" },
+    { value = "frame", label = L["Unit Frame"] },
+    { value = "plate", label = L["Nameplate"] },
+    { value = "both", label = L["Both"] },
 }
 
 local shield = 0

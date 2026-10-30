@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local WIDTH, HEIGHT = 720, 496
@@ -20,7 +21,7 @@ local UPDATE_INTERVAL = 0.03
 local window = UI.Window("VanillaBonkMap", WIDTH, HEIGHT)
 window:SetFrameStrata("FULLSCREEN_DIALOG")
 window:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
-window.header:SetText("Mouse wheel zooms in and out.")
+window.header:SetText(L["Mouse wheel zooms in and out."])
 window.header:SetTextColor(0.7, 0.7, 0.7)
 
 local view = CreateFrame("Frame", nil, window)
@@ -66,9 +67,9 @@ hero:SetHeight(ARROW_SIZE)
 local noMap = UI.Text(overlay, 13)
 noMap:SetPoint("CENTER", view, "CENTER", 0, 0)
 noMap:SetTextColor(1, 0.82, 0)
-noMap:SetText("There is no map for this place.")
+noMap:SetText(L["There is no map for this place."])
 
-local worldButton = UI.Button(window, 110, "World Map")
+local worldButton = UI.Button(window, 110, L["World Map"])
 worldButton:SetPoint("TOPRIGHT", window, "TOPRIGHT", -14, -38)
 
 local mapFile
@@ -279,7 +280,7 @@ local function PlacePin(objective, scale)
         px, py = cx + dx * reach, cy + dy * reach
         pin:SetAlpha(0.8)
         local yards = YardsTo(objective)
-        pin.yards:SetText(yards and (yards .. " yd") or "")
+        pin.yards:SetText(yards and (yards .. L[" yd"]) or "")
         pin.yards:Show()
     end
     pin:ClearAllPoints()
@@ -327,7 +328,7 @@ end
 local emptyList = UI.Text(window, 12)
 emptyList:SetPoint("TOPLEFT", window, "TOPLEFT", VIEW_LEFT, -LIST_TOP - 8)
 emptyList:SetTextColor(0.7, 0.7, 0.7)
-emptyList:SetText("There are no objectives right now.")
+emptyList:SetText(L["There are no objectives right now."])
 
 local function FillList(list)
     for index, row in ipairs(rows) do
@@ -336,8 +337,8 @@ local function FillList(list)
             row.pin.objective = objective
             row.pin.icon:SetTexture(UI.ObjectiveIcon(objective))
             row.pin:Show()
-            row.label:SetText(objective.label ~= "" and objective.label or "Objective")
-            row.yards:SetText(objective.distance .. " yd")
+            row.label:SetText(objective.label ~= "" and objective.label or L["Objective"])
+            row.yards:SetText(objective.distance .. L[" yd"])
             row:Show()
         else
             row.pin.objective = nil

@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local KIND_ICONS = {
@@ -60,17 +61,17 @@ local function ShowTooltip()
     end
     local tooltip = TooltipFor(this)
     tooltip:SetOwner(this, "ANCHOR_RIGHT")
-    tooltip:AddLine(objective.label ~= "" and objective.label or "Objective", 1, 1, 1)
+    tooltip:AddLine(objective.label ~= "" and objective.label or L["Objective"], 1, 1, 1)
     if objective.description ~= "" then
         tooltip:AddLine(objective.description, 1, 0.82, 0, 1)
     end
     local north, west = HeroPosition()
     if north then
         local dn, dw = objective.x - north, objective.y - west
-        tooltip:AddLine(floor(sqrt(dn * dn + dw * dw)) .. " yards away", 0.7, 0.7, 0.7)
+        tooltip:AddLine(floor(sqrt(dn * dn + dw * dw)) .. L[" yards away"], 0.7, 0.7, 0.7)
     end
     if objective.leaves then
-        tooltip:AddLine("Gone in " .. max(0, ceil(objective.leaves - GetTime())) .. " sec", 0.7, 0.7, 0.7)
+        tooltip:AddLine(L("Gone in {1} sec", max(0, ceil(objective.leaves - GetTime()))), 0.7, 0.7, 0.7)
     end
     tooltip:Show()
 end

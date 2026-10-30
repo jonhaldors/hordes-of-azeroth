@@ -1,6 +1,7 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
-BINDING_NAME_VANILLABONK_INSPECT = "Inspect talents"
+BINDING_NAME_VANILLABONK_INSPECT = L["Inspect talents"]
 
 function VanillaBonk_Inspect()
     if keystate == "up" then
@@ -11,7 +12,7 @@ function VanillaBonk_Inspect()
         return
     end
     if not UI.InRun() then
-        UIErrorsFrame:AddMessage("You can inspect your talents during a run.", 1, 0.1, 0.1, 1)
+        UIErrorsFrame:AddMessage(L["You can inspect your talents during a run."], 1, 0.1, 0.1, 1)
         return
     end
     SendChatMessage(".bonk inspect", "SAY")

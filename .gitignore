@@ -40,6 +40,9 @@
 
 !/stop.bat
 
+# Translations of the server's text, edited with tools/translate.ps1.
+!/localization/
+
 # Under /server only the VMaNGOS fork (a submodule) is tracked. The build,
 # MariaDB and extracted client data are generated or third-party.
 !/.gitmodules

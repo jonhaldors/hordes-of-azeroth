@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local REFRESH_DELAY = 0.4
@@ -71,7 +72,7 @@ function UI.TakeHyperlinkFound()
 end
 
 function UI.TierText(tier)
-    return "Tier " .. tier
+    return L("Tier {1}", tier)
 end
 
 function UI.FoundLineText(piece)
@@ -79,7 +80,7 @@ function UI.FoundLineText(piece)
     if count == 0 then
         return ""
     end
-    return count == 1 and "1 bonus stat" or (count .. " bonus stats")
+    return count == 1 and L["1 bonus stat"] or L("{1} bonus stats", count)
 end
 
 local handlers = {}

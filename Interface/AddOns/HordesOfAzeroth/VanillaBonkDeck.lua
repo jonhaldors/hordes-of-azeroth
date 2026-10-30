@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 VanillaBonkDeck = {}
@@ -21,10 +22,10 @@ local DARKMOON_CLOTH = "World\\ENVIRONMENT\\DOODAD\\Carnival\\bm_Carnie_tarp01"
 local DARKMOON_BANNER = "World\\ENVIRONMENT\\DOODAD\\Carnival\\Darkmoon_Banner01"
 local GLYPH_ART = "Interface\\TalentFrame\\MageArcane-TopLeft"
 local KINDS = {
-    { key = "c", tab = "Darkmoon Cards", list = "cards", noun = "card", bans = "Card bans",
-        blurb = "Every card you own can turn up in a chest. Ban the ones you never want to see." },
-    { key = "g", tab = "Glyphs", list = "glyphs", noun = "Glyph", bans = "Glyph bans",
-        blurb = "Every Glyph you own can be offered after a mini-boss. Ban the ones you never want to see." },
+    { key = "c", tab = L["Darkmoon Cards"], list = "cards", noun = L["card"], bans = L["Card bans"],
+        blurb = L["Every card you own can turn up in a chest. Ban the ones you never want to see."] },
+    { key = "g", tab = L["Glyphs"], list = "glyphs", noun = L["Glyph"], bans = L["Glyph bans"],
+        blurb = L["Every Glyph you own can be offered after a mini-boss. Ban the ones you never want to see."] },
 }
 
 local book
@@ -239,11 +240,11 @@ local function ShowLockedTooltip(card, entry)
     local rarity = Rarity(entry)
     local lock = book.locks[Kind().key .. entry.id]
     GameTooltip:SetOwner(card, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Undiscovered " .. (Kind().key == "g" and "Glyph" or "Darkmoon Card"), 0.62, 0.62, 0.62)
+    GameTooltip:AddLine(L["Undiscovered "] .. (Kind().key == "g" and L["Glyph"] or L["Darkmoon Card"]), 0.62, 0.62, 0.62)
     GameTooltip:AddLine(rarity.name, rarity.r, rarity.g, rarity.b)
     if lock then
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Quest: " .. lock.name, 1, 0.82, 0)
+        GameTooltip:AddLine(L["Quest: "] .. lock.name, 1, 0.82, 0)
         GameTooltip:AddLine(lock.description, 1, 1, 1, 1)
         UI.AddQuestProgress(GameTooltip, lock)
     end
@@ -356,19 +357,19 @@ local function ShowGrid()
     end
     grid.child:SetHeight(max(1, top))
     grid.scroll:UpdateScrollChildRect()
-    grid.empty:SetText(getn(entries) == 0 and "Nothing here yet." or "")
+    grid.empty:SetText(getn(entries) == 0 and L["Nothing here yet."] or "")
 end
 
 local function UnlockText(entry)
     if entry.locked then
         local lock = book.locks[Kind().key .. entry.id]
-        return "|cffff6060Locked: " .. (lock and lock.name or "a quest") .. "|r"
+        return L["|cffff6060Locked: "] .. (lock and lock.name or L["a quest"]) .. "|r"
     end
     local lock = book.locks[Kind().key .. entry.id]
     if lock then
-        return "|cff40ff40Unlocked by " .. lock.name .. "|r"
+        return L["|cff40ff40Unlocked by "] .. lock.name .. "|r"
     end
-    return "|cff9d9d9dStarter|r"
+    return L["|cff9d9d9dStarter|r"]
 end
 
 local function ShowDetail()
@@ -382,7 +383,7 @@ local function ShowDetail()
     StyleCardFace(side.big, entry)
     side.name:SetText(entry.name)
     side.name:SetTextColor(rarity.r, rarity.g, rarity.b)
-    side.rarity:SetText(rarity.name .. (Kind().key == "g" and " Glyph" or " Darkmoon Card"))
+    side.rarity:SetText(L(Kind().key == "g" and "{1} Glyph" or "{1} Darkmoon Card", rarity.name))
     side.source:SetText(UnlockText(entry))
     local text = entry.description or ""
     if entry.drawback and entry.drawback ~= "" then
@@ -399,10 +400,10 @@ local function ShowDetail()
     end
     local pool = Pool()
     if entry.off then
-        side.ban:SetText("Allow this " .. Kind().noun)
+        side.ban:SetText(L["Allow this "] .. Kind().noun)
         side.ban:Enable()
     else
-        side.ban:SetText("Ban this " .. Kind().noun)
+        side.ban:SetText(L["Ban this "] .. Kind().noun)
         if pool.used < pool.slots then
             side.ban:Enable()
         else
@@ -460,10 +461,10 @@ local function ShowSlots()
     for index = getn(sources) + 1, getn(side.pips) do
         side.pips[index]:Hide()
     end
-    side.slotText:SetText(pool.used .. " used, " .. max(0, pool.slots - pool.used) .. " free")
+    side.slotText:SetText(L("{1} used, {2} free", pool.used, max(0, pool.slots - pool.used)))
     local sale = NextSale()
     if sale then
-        side.buy:SetText("Buy a ban slot: " .. sale.tickets .. " tickets")
+        side.buy:SetText(L("Buy a ban slot: {1} tickets", sale.tickets))
         if (book.tickets or 0) >= sale.tickets then
             side.buy:Enable()
         else
@@ -473,22 +474,22 @@ local function ShowSlots()
     else
         side.buy:Hide()
     end
-    side.tickets:SetText((book.tickets or 0) .. " Darkmoon Tickets")
+    side.tickets:SetText((book.tickets or 0) .. L[" Darkmoon Tickets"])
 end
 
 local function ShowHelp(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
-    GameTooltip:AddLine("Getting more " .. strlower(Kind().bans), 1, 0.82, 0)
+    GameTooltip:AddLine(L["Getting more "] .. strlower(Kind().bans), 1, 0.82, 0)
     for _, source in ipairs(Bans()) do
-        local right = source.earned and "Earned" or (source.tickets > 0 and (source.tickets .. " tickets") or source.detail)
+        local right = source.earned and L["Earned"] or (source.tickets > 0 and (source.tickets .. L[" tickets"]) or source.detail)
         if source.earned then
             GameTooltip:AddDoubleLine(source.label, right, 0.25, 1, 0.25, 0.25, 1, 0.25)
         else
             GameTooltip:AddDoubleLine(source.label, right, 1, 1, 1, 0.62, 0.62, 0.62)
         end
     end
-    GameTooltip:AddLine(Kind().key == "c" and "Glyph bans are counted on their own, on the Glyphs tab." or
-        "Card bans are counted on their own, on the Darkmoon Cards tab.", 0.62, 0.62, 0.62, 1)
+    GameTooltip:AddLine(Kind().key == "c" and L["Glyph bans are counted on their own, on the Glyphs tab."] or
+        L["Card bans are counted on their own, on the Darkmoon Cards tab."], 0.62, 0.62, 0.62, 1)
     GameTooltip:Show()
 end
 
@@ -527,7 +528,7 @@ local function BuildFrame()
     frame.plateText = UI.Text(frame, 13)
     frame.plateText:SetPoint("TOP", frame.plate, "TOP", 0, -14)
     frame.plateText:SetTextColor(1, 0.82, 0)
-    frame.plateText:SetText("Darkmoon Deck")
+    frame.plateText:SetText(L["Darkmoon Deck"])
 
     frame.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     frame.close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -4)
@@ -535,7 +536,7 @@ local function BuildFrame()
     frame.label = UI.Text(frame, 11)
     frame.label:SetPoint("TOPLEFT", frame, "TOPLEFT", 28, -30)
     frame.label:SetTextColor(1, 0.82, 0)
-    frame.label:SetText("Sayge's Table")
+    frame.label:SetText(L["Sayge's Table"])
     frame.title = UI.Text(frame, 30, UI.TITLE_FONT)
     frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", 26, -46)
     frame.title:SetTextColor(TITLE_COLOR[1], TITLE_COLOR[2], TITLE_COLOR[3])
@@ -614,13 +615,13 @@ local function BuildFrame()
     side.oneLabel = UI.Text(side.copies, 11)
     side.oneLabel:SetPoint("TOPLEFT", side.copies, "TOPLEFT", 0, 0)
     side.oneLabel:SetTextColor(0.62, 0.62, 0.62)
-    side.oneLabel:SetText("1 copy")
+    side.oneLabel:SetText(L["1 copy"])
     side.oneValue = UI.Text(side.copies, 11)
     side.oneValue:SetPoint("TOPRIGHT", side.copies, "TOPRIGHT", 0, 0)
     side.fiveLabel = UI.Text(side.copies, 11)
     side.fiveLabel:SetPoint("TOPLEFT", side.oneLabel, "BOTTOMLEFT", 0, -4)
     side.fiveLabel:SetTextColor(0.62, 0.62, 0.62)
-    side.fiveLabel:SetText("5 copies")
+    side.fiveLabel:SetText(L["5 copies"])
     side.fiveValue = UI.Text(side.copies, 11)
     side.fiveValue:SetPoint("TOPRIGHT", side.oneValue, "BOTTOMRIGHT", 0, -4)
     side.ban = UI.Button(side.detail, SIDE_WIDTH - 28, "", function() ToggleBan(SelectedEntry()) end)
@@ -629,7 +630,7 @@ local function BuildFrame()
     side.slotLabel = UI.Text(frame, 12)
     side.slotLabel:SetPoint("TOPLEFT", side.detail, "BOTTOMLEFT", 0, -22)
     side.slotLabel:SetTextColor(1, 0.82, 0)
-    side.slotLabel:SetText("Ban slots")
+    side.slotLabel:SetText(L["Ban slots"])
     side.help = CreateFrame("Button", nil, frame)
     side.help:SetWidth(18)
     side.help:SetHeight(18)
@@ -653,7 +654,7 @@ local function BuildFrame()
     side.tickets:SetPoint("TOPLEFT", side.buy, "BOTTOMLEFT", 0, -12)
     side.tickets:SetTextColor(SOFT[1], SOFT[2], SOFT[3])
 
-    frame.done = UI.Button(frame, 100, "Close", function() frame:Hide() end)
+    frame.done = UI.Button(frame, 100, L["Close"], function() frame:Hide() end)
     frame.done:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -24, 22)
 end
 

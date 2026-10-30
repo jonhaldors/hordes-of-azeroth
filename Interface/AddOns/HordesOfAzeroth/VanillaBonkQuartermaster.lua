@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local WIDTH, HEIGHT = 760, 490
@@ -31,33 +32,33 @@ local REROLL_FRAME_HEIGHT = 64
 local ITEM_BAR_HEIGHT, ITEM_BAR_GAP = 34, 6
 
 local ACCESSORY_GROUPS = {
-    { key = "cloak", name = "Cloaks" },
-    { key = "neck", name = "Necks" },
-    { key = "ring", name = "Rings" },
-    { key = "trinket", name = "Trinkets" },
+    { key = "cloak", name = L["Cloaks"] },
+    { key = "neck", name = L["Necks"] },
+    { key = "ring", name = L["Rings"] },
+    { key = "trinket", name = L["Trinkets"] },
 }
 local ARMOR_GROUPS = {
-    { key = "head", name = "Head" },
-    { key = "shoulder", name = "Shoulders" },
-    { key = "chest", name = "Chest" },
-    { key = "wrist", name = "Wrists" },
-    { key = "hands", name = "Hands" },
-    { key = "waist", name = "Waist" },
-    { key = "legs", name = "Legs" },
-    { key = "feet", name = "Feet" },
+    { key = "head", name = L["Head"] },
+    { key = "shoulder", name = L["Shoulders"] },
+    { key = "chest", name = L["armor slot::Chest"] },
+    { key = "wrist", name = L["Wrists"] },
+    { key = "hands", name = L["Hands"] },
+    { key = "waist", name = L["Waist"] },
+    { key = "legs", name = L["Legs"] },
+    { key = "feet", name = L["Feet"] },
 }
 local CATEGORY_ART = {
-    sets = { name = "Sets", icon = "Interface\\Icons\\INV_Helmet_74" },
-    armor = { name = "Armor", icon = "Interface\\Icons\\INV_Chest_Plate16", groups = ARMOR_GROUPS },
-    weapons = { name = "Weapons", icon = "Interface\\Icons\\INV_Sword_50" },
-    accessories = { name = "Accessories", icon = "Interface\\Icons\\INV_Jewelry_Talisman_12", groups = ACCESSORY_GROUPS },
-    legendaries = { name = "Legendaries", icon = "Interface\\Icons\\INV_Sword_39" },
-    upgrade = { name = "Your found gear", icon = "Interface\\Icons\\INV_Misc_Gear_08", groups = { { key = "worn", name = "Equipped" }, { key = "bags", name = "In bags" } } },
-    buyback = { name = "Buyback", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
+    sets = { name = L["Sets"], icon = "Interface\\Icons\\INV_Helmet_74" },
+    armor = { name = L["Armor"], icon = "Interface\\Icons\\INV_Chest_Plate16", groups = ARMOR_GROUPS },
+    weapons = { name = L["Weapons"], icon = "Interface\\Icons\\INV_Sword_50" },
+    accessories = { name = L["Accessories"], icon = "Interface\\Icons\\INV_Jewelry_Talisman_12", groups = ACCESSORY_GROUPS },
+    legendaries = { name = L["Legendaries"], icon = "Interface\\Icons\\INV_Sword_39" },
+    upgrade = { name = L["Your found gear"], icon = "Interface\\Icons\\INV_Misc_Gear_08", groups = { { key = "worn", name = L["Equipped"] }, { key = "bags", name = L["In bags"] } } },
+    buyback = { name = L["Buyback"], icon = "Interface\\Icons\\INV_Misc_Coin_01" },
 }
 local MODES = {
-    mythic = { title = "Mythic Quartermaster", categories = { "sets", "weapons", "accessories", "buyback" } },
-    gear = { title = "Gear Vendor", categories = { "armor", "weapons", "accessories", "buyback" } },
+    mythic = { title = L["Mythic Quartermaster"], categories = { "sets", "weapons", "accessories", "buyback" } },
+    gear = { title = L["Gear Vendor"], categories = { "armor", "weapons", "accessories", "buyback" } },
 }
 local ACCESSORY_KIND_GROUP = { [9] = "cloak", [10] = "neck", [11] = "ring" }
 local EQUIP_PLACES = {
@@ -137,7 +138,7 @@ frame.tierNote:SetTextColor(0.54, 0.52, 0.47)
 frame.divider = UI.Divider(frame, WIDTH - 36)
 frame.divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -80)
 
-frame.upgrade = UI.Button(frame, 150, "Upgrade found gear", function()
+frame.upgrade = UI.Button(frame, 150, L["Upgrade found gear"], function()
     PlaySound(qm.upgrade and "igMainMenuOptionCheckBoxOff" or "igMainMenuOptionCheckBoxOn")
     SendChatMessage(".bonk gear upgrade " .. (qm.upgrade and "off" or "on"), "SAY")
 end)
@@ -147,11 +148,11 @@ frame.upgrade:SetScript("OnEnter", function()
     if qm.upgrade then
         return
     end
-    local ceiling = "Tier " .. qm.ceiling
+    local ceiling = L("Tier {1}", qm.ceiling)
     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Upgrade Found Gear")
-    GameTooltip:AddLine("Spend Scrap to upgrade gear found in Mythic runs.", 1, 0.82, 0, 1)
-    GameTooltip:AddLine("Current limit: " .. ceiling, 1, 1, 1)
+    GameTooltip:AddLine(L["Upgrade Found Gear"])
+    GameTooltip:AddLine(L["Spend Scrap to upgrade gear found in Mythic runs."], 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L("Current limit: {1}", ceiling), 1, 1, 1)
     GameTooltip:Show()
 end)
 frame.upgrade:SetScript("OnLeave", function()
@@ -162,10 +163,10 @@ frame.scrap:SetPoint("BOTTOM", frame.upgrade, "TOP", 0, 3)
 frame.scrap:SetTextColor(0.78, 0.75, 0.69)
 frame.scrap:Hide()
 
-frame.done = UI.Button(frame, 90, "Close", function() frame:Hide() end)
+frame.done = UI.Button(frame, 90, L["Close"], function() frame:Hide() end)
 frame.done:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", SIDE_X, 18)
 
-frame.refit = UI.Button(frame, SIDE_W, "Refit set pieces", function()
+frame.refit = UI.Button(frame, SIDE_W, L["Refit set pieces"], function()
     PlaySound("igMainMenuOptionCheckBoxOn")
     SendChatMessage(".bonk gear refit", "SAY")
 end)
@@ -193,11 +194,11 @@ panel.headingNote:SetTextColor(0.54, 0.52, 0.47)
 panel.hint = UI.Text(panel, 10)
 panel.hint:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 14, 10)
 panel.hint:SetTextColor(0.54, 0.52, 0.47)
-panel.hint:SetText("Right-click an item to buy it, Ctrl-click to preview it. Right-click your own items to sell them.")
+panel.hint:SetText(L["Right-click an item to buy it, Ctrl-click to preview it. Right-click your own items to sell them."])
 panel.empty = UI.Text(panel, 12)
 panel.empty:SetPoint("CENTER", panel, "CENTER", 0, 0)
 panel.empty:SetTextColor(0.54, 0.52, 0.47)
-panel.empty:SetText("No extracted items")
+panel.empty:SetText(L["No extracted items"])
 panel.empty:Hide()
 
 local Refresh
@@ -258,7 +259,7 @@ reroll.heading:SetPoint("TOPLEFT", reroll, "TOPLEFT", 12, -10)
 reroll.hint = UI.Text(reroll, 10)
 reroll.hint:SetPoint("BOTTOMLEFT", reroll, "BOTTOMLEFT", 12, 14)
 reroll.hint:SetTextColor(0.54, 0.52, 0.47)
-reroll.hint:SetText("You may only reroll one stat per item.")
+reroll.hint:SetText(L["You may only reroll one stat per item."])
 reroll.rows = {}
 
 local itemBar = CreateFrame("Frame", nil, panel)
@@ -285,7 +286,7 @@ reroll.upgrade:SetScript("OnEnter", function()
     local piece = reroll.piece
     if piece and not piece.can then
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Clear Mythic floor " .. (piece.tier + 1) .. " to upgrade it further.", 1, 0.5, 0.25, 1)
+        GameTooltip:AddLine(L("Clear Mythic floor {1} to upgrade it further.", piece.tier + 1), 1, 0.5, 0.25, 1)
         GameTooltip:Show()
     end
 end)
@@ -352,7 +353,7 @@ reroll.coin:SetWidth(13)
 reroll.coin:SetHeight(13)
 
 local function SetRerollPrice(copper)
-    reroll.price:SetText("Reroll: " .. floor(copper / 10000))
+    reroll.price:SetText(L("Reroll: {1}", floor(copper / 10000)))
     local width = reroll.price:GetStringWidth() + 15
     reroll.price:ClearAllPoints()
     reroll.price:SetPoint("LEFT", reroll.button, "CENTER", -width / 2, 0)
@@ -427,7 +428,7 @@ local function LayoutReroll()
         row:Hide()
     end
     local nextTier = piece.tier + 1
-    reroll.upgrade:SetText(piece.can and ("Upgrade to Tier " .. nextTier .. ": " .. piece.cost .. " Scrap") or ("Upgrade to Tier " .. nextTier))
+    reroll.upgrade:SetText(piece.can and L("Upgrade to Tier {1}: {2} Scrap", nextTier, piece.cost) or L("Upgrade to Tier {1}", nextTier))
     if piece.can and qm.scrap >= piece.cost then
         reroll.upgrade:Enable()
     else
@@ -442,22 +443,22 @@ local function LayoutReroll()
     end
     if piece.offers then
         local current = piece.offerStat
-        reroll.heading:SetText("Choose a stat:")
-        ShowRerollRow(1, lines[current], "Current", true, function() Command("rerollpick " .. piece.guid .. " 0") end)
+        reroll.heading:SetText(L["Choose a stat:"])
+        ShowRerollRow(1, lines[current], L["Current"], true, function() Command("rerollpick " .. piece.guid .. " 0") end)
         for index, offer in ipairs(piece.offers) do
             local choice = index
             ShowRerollRow(index + 1, offer, nil, false, function() Command("rerollpick " .. piece.guid .. " " .. choice) end)
         end
         reroll.stat = current
     elseif piece.rerollStat then
-        reroll.heading:SetText("Rerolled stat:")
+        reroll.heading:SetText(L["Rerolled stat:"])
         ShowRerollRow(1, lines[piece.rerollStat], nil, true, nil)
         reroll.stat = piece.rerollStat
     else
         if not qm.rerollPick or not lines[qm.rerollPick] then
             qm.rerollPick = table.getn(lines) == 1 and 1 or nil
         end
-        reroll.heading:SetText("Choose a stat to reroll:")
+        reroll.heading:SetText(L["Choose a stat to reroll:"])
         for index, statLine in ipairs(lines) do
             local stat = index
             ShowRerollRow(index, statLine, nil, qm.rerollPick == index, function()
@@ -718,7 +719,7 @@ local function Card(index)
     card.found = UI.Text(card, 10)
     card.found:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -6, 5)
     card.found:SetTextColor(0.2, 1, 0.2)
-    card.found:SetText("Found")
+    card.found:SetText(L["Found"])
     card.found:Hide()
     card:SetScript("OnClick", function()
         local item = this.item
@@ -752,11 +753,11 @@ local function Card(index)
                 GameTooltip:AddLine(" ")
                 local nextTier = this.item.tier + 1
                 if not this.item.can then
-                    GameTooltip:AddLine("Clear Mythic floor " .. nextTier .. " to upgrade it further.", 1, 0.5, 0.25, 1)
+                    GameTooltip:AddLine(L("Clear Mythic floor {1} to upgrade it further.", nextTier), 1, 0.5, 0.25, 1)
                 else
-                    GameTooltip:AddLine("Right-click to upgrade to Tier " .. nextTier .. " for " .. this.item.cost .. " Scrap.", 0.2, 1, 0.2, 1)
+                    GameTooltip:AddLine(L("Right-click to upgrade to Tier {1} for {2} Scrap.", nextTier, this.item.cost), 0.2, 1, 0.2, 1)
                 end
-                GameTooltip:AddLine("Left-click to select it.", 0.2, 1, 0.2, 1)
+                GameTooltip:AddLine(L["Left-click to select it."], 0.2, 1, 0.2, 1)
                 GameTooltip:Show()
             elseif this.item.buyback then
                 GameTooltip:SetBuybackItem(this.item.index)
@@ -764,9 +765,10 @@ local function Card(index)
                 GameTooltip:SetMerchantItem(this.item.index)
                 if qm.mode == "gear" and qm.found[ItemId(this.item.link) or 0] then
                     GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("Found in a run: half price.", 0.2, 1, 0.2)
+                    GameTooltip:AddLine(L["Found in a run: half price."], 0.2, 1, 0.2)
                     GameTooltip:Show()
                 end
+
             end
         end
     end)
@@ -908,7 +910,7 @@ local function JoinNames(names)
     if count == 1 then
         return names[1]
     end
-    return table.concat(names, ", ", 1, count - 1) .. " and " .. names[count]
+    return L("{1} and {2}", table.concat(names, L[", "], 1, count - 1), names[count])
 end
 
 local function Sections(shown)
@@ -1000,7 +1002,7 @@ local function ShowCard(card, item, x, y)
     card.name:SetTextColor(r, g, b)
     if item.upgrade then
         local lines = item.found and table.getn(item.found.lines) or 0
-        local cost = "|cffc7bfb0" .. item.cost .. " Scrap|r"
+        local cost = "|cffc7bfb0" .. L("{1} Scrap", item.cost) .. "|r"
         card.price:SetText(UI.TierText(item.tier) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or "") ..
             (item.can and ("  " .. cost) or ""))
     else
@@ -1059,7 +1061,7 @@ local function PlaceRows(shown)
     end
     local count = table.getn(pages)
     if count > 1 then
-        panel.pageText:SetText("Page " .. qm.page .. " of " .. count)
+        panel.pageText:SetText(L("Page {1} of {2}", qm.page, count))
         panel.pageText:Show()
         panel.prevPage:Show()
         panel.nextPage:Show()
@@ -1083,13 +1085,13 @@ end
 local function StockText()
     if qm.mode == "gear" then
         local tab = TabName()
-        return tab and ("Gear Vendor  |cff8a8478·|r  Stock: |cffffd100" .. tab .. "|r") or "Gear Vendor"
+        return tab and (L["Gear Vendor  |cff8a8478·|r  Stock: |cffffd100"] .. tab .. "|r") or L["Gear Vendor"]
     end
     if qm.upgrade then
-        local ceiling = "Tier " .. qm.ceiling
-        return "Mythic Quartermaster  |cff8a8478·|r  Upgrades up to |cff33ff33" .. ceiling .. "|r  |cff8a8478(Tier 10, or your best Mythic floor cleared)|r"
+        local ceiling = L("Tier {1}", qm.ceiling)
+        return L("Mythic Quartermaster  |cff8a8478·|r  Upgrades up to |cff33ff33{1}|r  |cff8a8478(Tier 10, or your best Mythic floor cleared)|r", ceiling)
     end
-    return "Mythic Quartermaster  |cff8a8478·|r  Stock: |cffffd100Tier " .. qm.tier .. "|r  |cff8a8478(2 below your best Mythic floor, up to Tier 10)|r"
+    return L("Mythic Quartermaster  |cff8a8478·|r  Stock: |cffffd100Tier {1}|r  |cff8a8478(2 below your best Mythic floor, up to Tier 10)|r", qm.tier)
 end
 
 local function LayoutRefit()
@@ -1100,12 +1102,12 @@ local function LayoutRefit()
     end
     local count = qm.refitCount
     if count > 0 then
-        frame.refit:SetText(count == 1 and "Refit 1 set piece" or ("Refit " .. count .. " set pieces"))
-        frame.refitNote:SetText("Set pieces from other classes in your bags become your class's. Costs " .. UI.FormatGold(qm.refitFee) .. ".")
+        frame.refit:SetText(count == 1 and L["Refit 1 set piece"] or L("Refit {1} set pieces", count))
+        frame.refitNote:SetText(L["Set pieces from other classes in your bags become your class's. Costs "] .. UI.FormatGold(qm.refitFee) .. ".")
         frame.refit:Enable()
     else
-        frame.refit:SetText("Refit set pieces")
-        frame.refitNote:SetText("Bring set pieces from your other characters to refit them for this class for a small fee.")
+        frame.refit:SetText(L["Refit set pieces"])
+        frame.refitNote:SetText(L["Bring set pieces from your other characters to refit them for this class for a small fee."])
         frame.refit:Disable()
     end
     frame.refit:Show()
@@ -1118,12 +1120,12 @@ local function LayoutUpgrade()
         frame.scrap:Hide()
         return
     end
-    frame.scrap:SetText("Scrap " .. qm.scrap)
+    frame.scrap:SetText(L["Scrap "] .. qm.scrap)
     if qm.upgrade then
-        frame.upgrade:SetText("Back to stock")
+        frame.upgrade:SetText(L["Back to stock"])
         frame.upgrade:Enable()
     else
-        frame.upgrade:SetText("Upgrade found gear")
+        frame.upgrade:SetText(L["Upgrade found gear"])
         frame.upgrade:Enable()
     end
     frame.upgrade:Show()
@@ -1161,9 +1163,9 @@ Refresh = function()
     frame.title:SetText(MODES[qm.mode].title)
     frame.stock:SetText(StockText())
     frame.tierNote:SetText(qm.mode == "mythic"
-        and "Higher tiers drop in Mythic runs. Spend Scrap to upgrade gear you found." or "")
+        and L["Higher tiers drop in Mythic runs. Spend Scrap to upgrade gear you found."] or "")
     panel.heading:SetText(HeadingText())
-    panel.headingNote:SetText(qm.mode == "mythic" and not qm.upgrade and qm.category ~= "buyback" and ("Tier " .. qm.tier) or "")
+    panel.headingNote:SetText(qm.mode == "mythic" and not qm.upgrade and qm.category ~= "buyback" and (L["Tier "] .. qm.tier) or "")
     local noneExtracted = qm.upgrade and table.getn(qm.items) == 0
     if noneExtracted then
         panel.empty:Show()
@@ -1171,9 +1173,9 @@ Refresh = function()
         panel.empty:Hide()
     end
     if qm.upgrade then
-        panel.hint:SetText(noneExtracted and "" or "Left-click a piece to upgrade it or reroll a bonus stat. Right-click upgrades it right away.")
+        panel.hint:SetText(noneExtracted and "" or L["Left-click a piece to upgrade it or reroll a bonus stat. Right-click upgrades it right away."])
     else
-        panel.hint:SetText("Right-click an item to buy it, Ctrl-click to preview it. Right-click your own items to sell them.")
+        panel.hint:SetText(L["Right-click an item to buy it, Ctrl-click to preview it. Right-click your own items to sell them."])
     end
     LayoutReroll()
     PlaceRows(Shown())

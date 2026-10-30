@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local MAX_WIDTH = 304
@@ -19,9 +20,9 @@ local GLYPH_INDEX = 100
 local BAR_SPEED = 8
 local MODE_SPELLS, MODE_TYPES, MODE_HEALING = 1, 2, 3
 local MODES = {
-    { mode = MODE_SPELLS, label = "Damage Done" },
-    { mode = MODE_TYPES, label = "Damage Types" },
-    { mode = MODE_HEALING, label = "Healing Done" },
+    { mode = MODE_SPELLS, label = L["Damage Done"] },
+    { mode = MODE_TYPES, label = L["Damage Types"] },
+    { mode = MODE_HEALING, label = L["Healing Done"] },
 }
 local HEAL_COLOR = UI.HEAL_COLOR
 local ABSORB_COLOR = UI.ABSORB_COLOR
@@ -206,8 +207,8 @@ meter.eye:Hide()
 meter.eye:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_LEFT")
     local count = HiddenCount()
-    GameTooltip:AddLine(count .. (count == 1 and " hidden entry" or " hidden entries"), 1, 1, 1)
-    GameTooltip:AddLine("Click to show everything again.", 0.75, 0.75, 0.75)
+    GameTooltip:AddLine(count .. (count == 1 and L[" hidden entry"] or L[" hidden entries"]), 1, 1, 1)
+    GameTooltip:AddLine(L["Click to show everything again."], 0.75, 0.75, 0.75)
     GameTooltip:Show()
 end)
 meter.eye:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -232,17 +233,17 @@ end
 
 local function SpellTooltip(entry, share)
     GameTooltip:AddLine(entry.name, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Damage", Short(entry.damage), 1, 0.82, 0, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Per second", Short(seconds > 0 and entry.damage / seconds or 0), 1, 0.82, 0, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Share", share .. "%", 1, 0.82, 0, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Kills", entry.kills or 0, 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Damage"], Short(entry.damage), 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Per second"], Short(seconds > 0 and entry.damage / seconds or 0), 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Share"], share .. "%", 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Kills"], entry.kills or 0, 1, 0.82, 0, 1, 1, 1)
     if getn(entry.parts) > 1 then
         AddPartLines(entry)
     end
 end
 
 local function AddHideHint()
-    GameTooltip:AddLine("Right-click to hide.", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine(L["Right-click to hide."], 0.6, 0.6, 0.6)
 end
 
 local function TypeTooltip(entry, share)
@@ -258,10 +259,10 @@ end
 
 local function HealTooltip(entry, share)
     GameTooltip:AddLine(entry.name, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Healed", Short(entry.healed), HEAL_COLOR.r, HEAL_COLOR.g, HEAL_COLOR.b, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Absorbed", Short(entry.absorbed), ABSORB_COLOR.r, ABSORB_COLOR.g, ABSORB_COLOR.b, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Per second", Short(seconds > 0 and entry.damage / seconds or 0), 1, 0.82, 0, 1, 1, 1)
-    GameTooltip:AddDoubleLine("Share", share .. "%", 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Healed"], Short(entry.healed), HEAL_COLOR.r, HEAL_COLOR.g, HEAL_COLOR.b, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Absorbed"], Short(entry.absorbed), ABSORB_COLOR.r, ABSORB_COLOR.g, ABSORB_COLOR.b, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Per second"], Short(seconds > 0 and entry.damage / seconds or 0), 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L["Share"], share .. "%", 1, 0.82, 0, 1, 1, 1)
 end
 
 local function ShowRowTooltip()
@@ -520,7 +521,7 @@ Refresh = function()
         end
     end
     if count == 0 then
-        meter.empty:SetText(mode == MODE_HEALING and "No healing yet." or "No damage yet.")
+        meter.empty:SetText(mode == MODE_HEALING and L["No healing yet."] or L["No damage yet."])
         meter.empty:Show()
     else
         meter.empty:Hide()

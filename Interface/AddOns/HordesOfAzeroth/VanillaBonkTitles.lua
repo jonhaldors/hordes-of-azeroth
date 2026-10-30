@@ -1,14 +1,15 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local STAT_NAMES = {
-    [0] = "Power",
-    [1] = "Haste",
-    [4] = "Maximum health",
-    [11] = "Duration",
-    [15] = "Critical strike chance",
-    [16] = "Critical strike damage",
+    [0] = L["Power"],
+    [1] = L["Haste"],
+    [4] = L["Maximum health"],
+    [11] = L["Duration"],
+    [15] = L["Critical strike chance"],
+    [16] = L["Critical strike damage"],
 }
-local NO_TITLE = "No title"
+local NO_TITLE = L["No title"]
 
 local titles = { active = 0, list = {} }
 
