@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local SIZE = 15
@@ -16,8 +17,8 @@ local GREY = { 0.7, 0.7, 0.7 }
 local PHYSICAL_SCHOOL = 0
 
 local WORDS = {
-    MISS = "Miss", DODGE = "Dodge", PARRY = "Parry", BLOCK = "Block", RESIST = "Resist",
-    IMMUNE = "Immune", EVADE = "Evade", DEFLECT = "Deflect", ABSORB = "Absorb", REFLECT = "Reflect",
+    MISS = L["Miss"], DODGE = L["Dodge"], PARRY = L["Parry"], BLOCK = L["Block"], RESIST = L["Resist"],
+    IMMUNE = L["Immune"], EVADE = L["Evade"], DEFLECT = L["Deflect"], ABSORB = L["Absorb"], REFLECT = L["Reflect"],
 }
 
 local frame = CreateFrame("Frame", "VanillaBonkHurt", UIParent)

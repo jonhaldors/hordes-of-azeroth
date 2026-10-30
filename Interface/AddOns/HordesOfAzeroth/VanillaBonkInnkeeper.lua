@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local WIDTH = 420
@@ -15,7 +16,7 @@ local PAD_ACTIONS = {
     VANILLABONK_DASH = "dash",
     VANILLABONK_SHAPESHIFT = "shapeshift",
 }
-local GREETING = "Make yourself at home, friend. Tell old Tarn how you like things, and the Inn will keep it that way."
+local GREETING = L["Make yourself at home, friend. Tell old Tarn how you like things, and the Inn will keep it that way."]
 
 local window = UI.Window("VanillaBonkInnkeeper", WIDTH, 600)
 window:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
@@ -127,7 +128,7 @@ local function KeyRow(binding, label)
     row.label = UI.Text(row, 12)
     row.label:SetPoint("LEFT", row, "LEFT", 4, 0)
     row.label:SetText(label or binding.label)
-    row.change = UI.Button(row, KEY_BUTTON_WIDTH, "Change", function()
+    row.change = UI.Button(row, KEY_BUTTON_WIDTH, L["Change"], function()
         PlaySound("igMainMenuOptionCheckBoxOn")
         ChangeKey(this:GetParent())
     end)
@@ -171,17 +172,17 @@ local function HealthBarChoice(mode, column)
     tinsert(window.radios, radio)
 end
 
-Section("Interact key")
-KeyRow(UI.KEYS[1], "Interact with what's nearby")
-Note("The key interacts with:")
+Section(L["Interact key"])
+KeyRow(UI.KEYS[1], L["Interact with what's nearby"])
+Note(L["The key interacts with:"])
 for index, setting in ipairs(UI.INTERACT_SETTINGS) do
     Check(setting, math.mod(index - 1, 2) + 1, math.mod(index, 2) == 0 or index == table.getn(UI.INTERACT_SETTINGS))
 end
 cursor = cursor + 4
 Check(UI.AUTO_CHEST_SETTING, 1, true)
 
-Section("Your character")
-Note("Your health bar:")
+Section(L["Your character"])
+Note(L["Your health bar:"])
 for index, mode in ipairs(UI.HEALTH_BAR_MODES) do
     HealthBarChoice(mode, index)
 end
@@ -190,17 +191,17 @@ for index, setting in ipairs(UI.DISPLAY_SETTINGS) do
     Check(setting, math.mod(index - 1, 2) + 1, math.mod(index, 2) == 0 or index == table.getn(UI.DISPLAY_SETTINGS))
 end
 
-Section("Keys")
+Section(L["Keys"])
 KeyRow(UI.KEYS[2])
 KeyRow(UI.KEYS[3])
 KeyRow(UI.KEYS[4])
 
-window.settings = UI.Button(window, 150, "All Game Settings", function()
+window.settings = UI.Button(window, 150, L["All Game Settings"], function()
     PlaySound("igMainMenuOption")
     window:Hide()
     ShowUIPanel(UIOptionsFrame)
 end)
-window.goodbye = UI.Button(window, 100, "Goodbye", function() window:Hide() end)
+window.goodbye = UI.Button(window, 100, L["Goodbye"], function() window:Hide() end)
 
 local footerTop = 84 + window.greeting:GetHeight() + cursor + 18
 window.settings:SetPoint("TOPLEFT", window, "TOPLEFT", LEFT, -footerTop)

@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local LOCKED_SLOTS = {
     WARRIOR = { "Ranged", "Ammo" },
     PALADIN = { "Ranged", "Ammo" },
@@ -11,15 +12,15 @@ local LOCKED_SLOTS = {
 }
 
 local CLASS_WEAPONS = {
-    WARRIOR = "Warriors fight using melee weapons.",
-    PALADIN = "Paladins fight using melee weapons and shields.",
-    ROGUE   = "Rogues fight using melee weapons.",
-    PRIEST  = "Priests fight using maces, staves and held items.",
-    SHAMAN  = "Shamans fight using melee weapons and shields.",
-    MAGE    = "Mages fight using staves, swords, daggers and held items.",
-    WARLOCK = "Warlocks fight using staves, swords, daggers and held items.",
-    DRUID   = "Druids fight using staves and two-handed maces.",
-    HUNTER  = "Hunters fight using ranged weapons.",
+    WARRIOR = L["Warriors fight using melee weapons."],
+    PALADIN = L["Paladins fight using melee weapons and shields."],
+    ROGUE   = L["Rogues fight using melee weapons."],
+    PRIEST  = L["Priests fight using maces, staves and held items."],
+    SHAMAN  = L["Shamans fight using melee weapons and shields."],
+    MAGE    = L["Mages fight using staves, swords, daggers and held items."],
+    WARLOCK = L["Warlocks fight using staves, swords, daggers and held items."],
+    DRUID   = L["Druids fight using staves and two-handed maces."],
+    HUNTER  = L["Hunters fight using ranged weapons."],
 }
 
 local DIM = 0.35
@@ -58,7 +59,7 @@ end
 local function ShowLockTooltip(button)
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
     GameTooltip:SetText(TEXT(getglobal(strupper(strsub(button:GetName(), 10)))), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-    GameTooltip:AddLine("Not used by your class.", RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
+    GameTooltip:AddLine(L["Not used by your class."], RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
     GameTooltip:AddLine(slots.why, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
     GameTooltip:Show()
 end

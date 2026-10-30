@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local ICON = "Interface\\Icons\\Spell_Holy_SealOfMight"
@@ -20,9 +21,9 @@ local state = { stacks = 0, percent = "0" }
 
 frame:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_BOTTOMLEFT")
-    GameTooltip:SetText("Determination", 1, 1, 1)
-    GameTooltip:AddLine("+" .. state.percent .. "% damage and " .. state.percent .. "% less damage taken.", 1, 0.82, 0, 1)
-    GameTooltip:AddLine("Grows each time you die. Ends when you clear Normal.", 0.6, 0.6, 0.6, 1)
+    GameTooltip:SetText(L["Determination"], 1, 1, 1)
+    GameTooltip:AddLine("+" .. state.percent .. L["% damage and "] .. state.percent .. L["% less damage taken."], 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L["Grows each time you die. Ends when you clear Normal."], 0.6, 0.6, 0.6, 1)
     GameTooltip:Show()
 end)
 frame:SetScript("OnLeave", function()

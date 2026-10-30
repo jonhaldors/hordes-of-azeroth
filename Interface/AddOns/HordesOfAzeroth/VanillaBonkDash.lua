@@ -1,10 +1,11 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local DASH = "VANILLABONK_DASH"
 local SHIFT = "SHIFT"
 local HEADER = "HEADER_VANILLABONK"
-BINDING_NAME_VANILLABONK_DASH = "Dash"
-KEY_SHIFT = KEY_SHIFT or "Shift"
+BINDING_NAME_VANILLABONK_DASH = L["Dash"]
+KEY_SHIFT = KEY_SHIFT or L["Shift"]
 
 local DASH_KEYS = { "SHIFT", "CTRL-SHIFT", "ALT-SHIFT", "ALT-CTRL-SHIFT" }
 local PLAIN_KEYS = { "SPACE", "UP", "DOWN", "MOUSEWHEELUP", "MOUSEWHEELDOWN" }
@@ -13,8 +14,8 @@ local CHOICE_KEYS = {
     ["4"] = "VANILLABONK_CHOICE4", ["5"] = "VANILLABONK_CHOICE5", ["6"] = "VANILLABONK_CHOICE6",
     ["R"] = "VANILLABONK_REROLL", ["X"] = "VANILLABONK_SKIP",
 }
-local MODIFIER_NAMES = { { "ALT-", "Alt-" }, { "CTRL-", "Ctrl-" }, { "SHIFT-", "Shift-" } }
-local KEY_NAMES = { SHIFT = "Shift", CTRL = "Ctrl", ALT = "Alt" }
+local MODIFIER_NAMES = { { "ALT-", L["Alt-"] }, { "CTRL-", L["Ctrl-"] }, { "SHIFT-", L["Shift-"] } }
+local KEY_NAMES = { SHIFT = L["Shift"], CTRL = L["Ctrl"], ALT = L["Alt"] }
 local SEND_INTERVAL = 0.25
 local NPC_WINDOWS = {
     "MailFrame", "OpenMailFrame", "MerchantFrame", "GossipFrame", "QuestFrame", "TradeFrame", "BankFrame",
@@ -119,7 +120,7 @@ local function SyncKeys()
     if not SetOverrideBinding or not ClearOverrideBindings then
         if onShift and not warned then
             warned = true
-            DEFAULT_CHAT_FRAME:AddMessage("Hordes of Azeroth: Shift can't dash in this client. Bind Dash to another key under Key Bindings instead.")
+            DEFAULT_CHAT_FRAME:AddMessage(L["Hordes of Azeroth: Shift can't dash in this client. Bind Dash to another key under Key Bindings instead."])
         end
         return
     end

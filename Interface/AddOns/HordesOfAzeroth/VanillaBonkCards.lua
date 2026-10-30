@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local SIZE = 24
@@ -32,7 +33,7 @@ end
 holder.label = UI.Text(holder, 11)
 holder.label:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
 holder.label:SetTextColor(1, 0.82, 0)
-holder.label:SetText("Darkmoon Cards")
+holder.label:SetText(L["Darkmoon Cards"])
 
 holder.leyLabel = UI.Text(holder, 11)
 holder.leyLabel:SetTextColor(1, 0.82, 0)
@@ -49,14 +50,14 @@ local function CardTooltip(owner, index, anchor)
     local tip = tips[card.id] or {}
     local color = UI.RARITY[card.rarity] or UI.RARITY[0]
     GameTooltip:SetOwner(owner, anchor or "ANCHOR_BOTTOMRIGHT")
-    GameTooltip:AddLine(tip.name or "Darkmoon Card", color.r, color.g, color.b)
+    GameTooltip:AddLine(tip.name or L["Darkmoon Card"], color.r, color.g, color.b)
     local copies = ""
     if card.maxCopies > 1 then
-        copies = card.copies .. "/" .. card.maxCopies .. " copies"
+        copies = card.copies .. "/" .. card.maxCopies .. L[" copies"]
     elseif card.copies > 1 then
         copies = "x" .. card.copies
     end
-    GameTooltip:AddDoubleLine(color.name .. " Darkmoon Card", copies, 0.6, 0.6, 0.6, 1, 1, 1)
+    GameTooltip:AddDoubleLine(color.name .. L[" Darkmoon Card"], copies, 0.6, 0.6, 0.6, 1, 1, 1)
     if tip.description and tip.description ~= "" then
         GameTooltip:AddLine(tip.description, 1, 0.82, 0, 1)
     end

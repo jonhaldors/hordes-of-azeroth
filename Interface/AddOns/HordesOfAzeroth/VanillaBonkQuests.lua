@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local PREFIX = "BONK~"
 local FLAT = "Interface\\Buttons\\WHITE8X8"
 local FONT = "Fonts\\FRIZQT__.TTF"
@@ -36,19 +37,19 @@ local UI = VanillaBonkUI
 
 local board = UI.Window("VanillaBonkQuestBoard", WIDTH, HEIGHT)
 board:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
-board.title:SetText("Quest Board")
+board.title:SetText(L["Quest Board"])
 
 board.pane = UI.Pane(board, UI.CONTENT_LEFT, UI.CONTENT_TOP, WIDTH - UI.CONTENT_LEFT - UI.CONTENT_RIGHT,
     HEIGHT - UI.CONTENT_TOP - UI.CONTENT_BOTTOM, "Interface\\Glues\\LoadingScreens\\LoadScreenStormwindStockade", 0.65)
 board.pane:SetFrameLevel(board:GetFrameLevel() + 1)
 
 local CATEGORIES = {
-    { key = "slayer", label = "Slayer" },
-    { key = "victory", label = "Victory" },
-    { key = "mastery", label = "Mastery" },
-    { key = "challenge", label = "Challenge" },
-    { key = "discovery", label = "Discovery" },
-    { key = "collection", label = "Collection" },
+    { key = "slayer", label = L["Slayer"] },
+    { key = "victory", label = L["Victory"] },
+    { key = "mastery", label = L["Mastery"] },
+    { key = "challenge", label = L["Challenge"] },
+    { key = "discovery", label = L["Discovery"] },
+    { key = "collection", label = L["Collection"] },
 }
 board.tab = "all"
 board.tabKeys = {}
@@ -72,7 +73,7 @@ local function RewardTooltip()
         return
     end
     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Reward", 1, 0.82, 0)
+    GameTooltip:AddLine(L["Reward"], 1, 0.82, 0)
     GameTooltip:AddLine(this.reward, 1, 1, 1, 1)
     GameTooltip:Show()
 end
@@ -176,7 +177,7 @@ function RefreshBoard()
     local keys, labels = {}, {}
     if present["all"] then
         tinsert(keys, "all")
-        tinsert(labels, "General")
+        tinsert(labels, L["General"])
     end
     for _, category in ipairs(CATEGORIES) do
         if present[category.key] then
@@ -186,11 +187,11 @@ function RefreshBoard()
     end
     if present["class"] then
         tinsert(keys, "class")
-        tinsert(labels, (UnitClass("player") or "Class") .. " quests")
+        tinsert(labels, (UnitClass("player") or L["Class"]) .. L[" quests"])
     end
     if table.getn(keys) == 0 then
         tinsert(keys, "all")
-        tinsert(labels, "General")
+        tinsert(labels, L["General"])
     end
 
     local selected = 1
@@ -228,7 +229,7 @@ function RefreshBoard()
             row:SetBackdropColor(0.03, 0.12, 0.03, 0.7)
             row.name:SetTextColor(0.4, 1, 0.4)
             row.bar:SetVertexColor(0.25, 0.8, 0.25)
-            row.progress:SetText("Complete")
+            row.progress:SetText(L["Complete"])
             row.rewardText:SetTextColor(0.6, 0.6, 0.6)
             row.check:Show()
             SetDesaturation(row.rewardIcon, 1)
@@ -249,14 +250,14 @@ function RefreshBoard()
 
     board.list:SetHeight(max(LIST_HEIGHT, table.getn(list) * ROW_HEIGHT))
     board.scroll:UpdateScrollChildRect()
-    board.headerRight:SetText("|cffffffff" .. done .. " / " .. table.getn(list) .. " done|r")
+    board.headerRight:SetText("|cffffffff" .. done .. " / " .. table.getn(list) .. L[" done|r"])
     board.scroll:SetVerticalScroll(0)
 end
 
 board:SetScript("OnShow", function()
     PlaySound("igQuestLogOpen")
     UI.SetPortrait(board)
-    board.header:SetText(UnitExists("npc") and UnitName("npc") or "Quest Board")
+    board.header:SetText(UnitExists("npc") and UnitName("npc") or L["Quest Board"])
 end)
 
 board:SetScript("OnHide", function()
@@ -328,7 +329,7 @@ toast.header = toast:CreateFontString(nil, "OVERLAY")
 SetFont(toast.header, FONT, 11)
 toast.header:SetPoint("TOPLEFT", toast, "TOPLEFT", 64, -9)
 toast.header:SetTextColor(1, 0.82, 0)
-toast.header:SetText("QUEST COMPLETE")
+toast.header:SetText(L["QUEST COMPLETE"])
 
 toast.name = toast:CreateFontString(nil, "OVERLAY")
 SetFont(toast.name, FONT, TOAST_NAME_SIZE, "OUTLINE")

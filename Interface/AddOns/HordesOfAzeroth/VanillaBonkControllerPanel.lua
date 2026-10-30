@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 local Controller = VanillaBonkController
 
@@ -20,29 +21,29 @@ local ART = {
     ps = { file = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\ControllerPlayStation", height = 331 },
 }
 ART.deck = ART.xbox
-local KIND_NAMES = { xbox = "Xbox controller connected", ps = "PlayStation controller connected", deck = "Steam Deck controls connected" }
+local KIND_NAMES = { xbox = L["Xbox controller connected"], ps = L["PlayStation controller connected"], deck = L["Steam Deck controls connected"] }
 local LEFT_LABELS = {
-    { "lt", "Zoom", "Hold with right stick or d-pad" },
-    { "lb", "Shapeshift", "Druid forms", "shapeshift" },
-    { "ls", "Move", "Full 360 degrees" },
-    { "view", "Run map", nil, "map" },
-    { "dpad", "Menus and cards", "Move the focus" },
+    { "lt", L["Zoom"], L["Hold with right stick or d-pad"] },
+    { "lb", L["Shapeshift"], L["Druid forms"], "shapeshift" },
+    { "ls", L["Move"], L["Full 360 degrees"] },
+    { "view", L["Run map"], nil, "map" },
+    { "dpad", L["Menus and cards"], L["Move the focus"] },
 }
 local RIGHT_LABELS = {
-    { "rt", "Dash", "Dash where you are moving", "dash" },
-    { "rb", "Hearthstone", nil, "hearth" },
-    { "y", "Character and bags", nil, "character" },
-    { "x", "Interact", "Talk, open, use", "interact" },
-    { "b", "Close or cancel" },
-    { "a", "Jump" },
-    { "rs", "Camera", "Press to recenter" },
-    { "menu", "Pause menu" },
+    { "rt", L["Dash"], L["Dash where you are moving"], "dash" },
+    { "rb", L["Hearthstone"], nil, "hearth" },
+    { "y", L["Character and bags"], nil, "character" },
+    { "x", L["Interact"], L["Talk, open, use"], "interact" },
+    { "b", L["Close or cancel"] },
+    { "a", L["Jump"] },
+    { "rs", L["Camera"], L["Press to recenter"] },
+    { "menu", L["Pause menu"] },
 }
-local PROMPT_CHOICES = { { "auto", "Automatic" }, { "xbox", "Xbox" }, { "ps", "PlayStation" }, { "deck", "Steam Deck" } }
+local PROMPT_CHOICES = { { "auto", L["Automatic"] }, { "xbox", "Xbox" }, { "ps", "PlayStation" }, { "deck", "Steam Deck" } }
 
 local panel = UI.Window("VanillaBonkControllerPanel", PANEL_WIDTH, PANEL_HEIGHT)
 panel:SetPoint("CENTER", UIParent, "CENTER", 0, 10)
-panel.title:SetText("Controller")
+panel.title:SetText(L["Controller"])
 panel.ART = ART
 panel.controls = {}
 panel.labels = {}
@@ -148,7 +149,7 @@ local SETTINGS_TOP = ART_TOP - ArtHeight("xbox") - 18
 panel.section = UI.Text(panel, 13)
 panel.section:SetPoint("TOPLEFT", panel, "TOPLEFT", COLUMN_LEFT, SETTINGS_TOP)
 panel.section:SetTextColor(1, 0.82, 0)
-panel.section:SetText("Settings")
+panel.section:SetText(L["Settings"])
 panel.rule = panel:CreateTexture(nil, "ARTWORK")
 panel.rule:SetTexture(UI.FLAT)
 panel.rule:SetVertexColor(1, 0.82, 0, 0.35)
@@ -252,32 +253,32 @@ local function ChoiceRow(x, y, key, title, help, choices)
 end
 
 local leftY = SETTINGS_TOP - 24
-leftY = leftY - SliderRow(COLUMN_LEFT, leftY, "yawSpeed", "Camera turn speed", "How fast the right stick turns the camera", 0.5, 2, 0.05, "Slow", "Fast", Percent)
-leftY = leftY - SliderRow(COLUMN_LEFT, leftY, "pitchSpeed", "Camera up and down speed", "Right stick up and down", 0.5, 2, 0.05, "Slow", "Fast", Percent)
-leftY = leftY - CheckRow(COLUMN_LEFT, leftY, "invertPitch", "Invert camera up and down", "Push up to look down")
-SliderRow(COLUMN_LEFT, leftY, "deadzone", "Stick deadzone", "Raise it if your hero drifts on its own", 0.1, 0.4, 0.01, "Small", "Large", Percent)
+leftY = leftY - SliderRow(COLUMN_LEFT, leftY, "yawSpeed", L["Camera turn speed"], L["How fast the right stick turns the camera"], 0.5, 2, 0.05, L["Slow"], L["Fast"], Percent)
+leftY = leftY - SliderRow(COLUMN_LEFT, leftY, "pitchSpeed", L["Camera up and down speed"], L["Right stick up and down"], 0.5, 2, 0.05, L["Slow"], L["Fast"], Percent)
+leftY = leftY - CheckRow(COLUMN_LEFT, leftY, "invertPitch", L["Invert camera up and down"], L["Push up to look down"])
+SliderRow(COLUMN_LEFT, leftY, "deadzone", L["Stick deadzone"], L["Raise it if your hero drifts on its own"], 0.1, 0.4, 0.01, L["Small"], L["Large"], Percent)
 
 local rightY = SETTINGS_TOP - 24
-rightY = rightY - SliderRow(COLUMN_RIGHT, rightY, "cursorSpeed", "Cursor speed", "Right stick cursor in Blizzard windows", 0.5, 2, 0.05, "Slow", "Fast", Percent)
-rightY = rightY - ChoiceRow(COLUMN_RIGHT, rightY, "prompts", "Button prompts", "Automatic follows the controller you pick up", PROMPT_CHOICES)
-CheckRow(COLUMN_RIGHT, rightY, "interactPrompts", "Show interact prompts", "\"X Talk\" above NPCs, chests and portals")
+rightY = rightY - SliderRow(COLUMN_RIGHT, rightY, "cursorSpeed", L["Cursor speed"], L["Right stick cursor in Blizzard windows"], 0.5, 2, 0.05, L["Slow"], L["Fast"], Percent)
+rightY = rightY - ChoiceRow(COLUMN_RIGHT, rightY, "prompts", L["Button prompts"], L["Automatic follows the controller you pick up"], PROMPT_CHOICES)
+CheckRow(COLUMN_RIGHT, rightY, "interactPrompts", L["Show interact prompts"], L["\"X Talk\" above NPCs, chests and portals"])
 
-panel.reset = UI.Button(panel, 150, "Reset to defaults", function()
+panel.reset = UI.Button(panel, 150, L["Reset to defaults"], function()
     panel:StopListening()
     Controller.ResetSettings()
     panel:Refresh()
 end)
 panel.reset:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", COLUMN_LEFT, 22)
-panel.done = UI.Button(panel, 120, "Done", function()
+panel.done = UI.Button(panel, 120, L["Done"], function()
     panel:Hide()
 end)
 panel.done:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -COLUMN_LEFT, 22)
 
 local function StatusText()
     local connected = HoAController_GetConnected and HoAController_GetConnected()
-    local text = connected and ("|cff40d040" .. KIND_NAMES[connected] .. "|r") or "No controller connected"
+    local text = connected and ("|cff40d040" .. KIND_NAMES[connected] .. "|r") or L["No controller connected"]
     if Controller.Setting("prompts") == "auto" then
-        text = text .. "  |cff9d9d9d·|r  prompts follow your last input"
+        text = text .. L["  |cff9d9d9d·|r  prompts follow your last input"]
     end
     return text
 end

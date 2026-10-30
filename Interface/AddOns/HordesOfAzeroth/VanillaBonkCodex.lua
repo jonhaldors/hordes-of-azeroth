@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local PREFIX = "BONK~"
 local FLAT = "Interface\\Buttons\\WHITE8X8"
 local FONT = "Fonts\\FRIZQT__.TTF"
@@ -20,15 +21,15 @@ local EVOLUTION_ARROW = "Interface\\ChatFrame\\ChatFrameExpandArrow"
 local EVOLVE_RANK = 10
 
 local CLASSES = {
-    { mask = 1,    name = "Warrior", color = { 0.78, 0.61, 0.43 }, coords = { 0, 0.25, 0, 0.25 } },
-    { mask = 2,    name = "Paladin", color = { 0.96, 0.55, 0.73 }, coords = { 0, 0.25, 0.5, 0.75 } },
-    { mask = 4,    name = "Hunter",  color = { 0.67, 0.83, 0.45 }, coords = { 0, 0.25, 0.25, 0.5 } },
-    { mask = 8,    name = "Rogue",   color = { 1.00, 0.96, 0.41 }, coords = { 0.49609375, 0.7421875, 0, 0.25 } },
-    { mask = 16,   name = "Priest",  color = { 1.00, 1.00, 1.00 }, coords = { 0.49609375, 0.7421875, 0.25, 0.5 } },
-    { mask = 64,   name = "Shaman",  color = { 0.00, 0.44, 0.87 }, coords = { 0.25, 0.49609375, 0.25, 0.5 } },
-    { mask = 128,  name = "Mage",    color = { 0.41, 0.80, 0.94 }, coords = { 0.25, 0.49609375, 0, 0.25 } },
-    { mask = 256,  name = "Warlock", color = { 0.58, 0.51, 0.79 }, coords = { 0.7421875, 0.98828125, 0.25, 0.5 } },
-    { mask = 1024, name = "Druid",   color = { 1.00, 0.49, 0.04 }, coords = { 0.7421875, 0.98828125, 0, 0.25 } },
+    { mask = 1,    name = L["Warrior"], plural = L["Warriors"], color = { 0.78, 0.61, 0.43 }, coords = { 0, 0.25, 0, 0.25 } },
+    { mask = 2,    name = L["Paladin"], plural = L["Paladins"], color = { 0.96, 0.55, 0.73 }, coords = { 0, 0.25, 0.5, 0.75 } },
+    { mask = 4,    name = L["Hunter"],  plural = L["Hunters"],  color = { 0.67, 0.83, 0.45 }, coords = { 0, 0.25, 0.25, 0.5 } },
+    { mask = 8,    name = L["Rogue"],   plural = L["Rogues"],   color = { 1.00, 0.96, 0.41 }, coords = { 0.49609375, 0.7421875, 0, 0.25 } },
+    { mask = 16,   name = L["Priest"],  plural = L["Priests"],  color = { 1.00, 1.00, 1.00 }, coords = { 0.49609375, 0.7421875, 0.25, 0.5 } },
+    { mask = 64,   name = L["Shaman"],  plural = L["Shamans"],  color = { 0.00, 0.44, 0.87 }, coords = { 0.25, 0.49609375, 0.25, 0.5 } },
+    { mask = 128,  name = L["Mage"],    plural = L["Mages"],    color = { 0.41, 0.80, 0.94 }, coords = { 0.25, 0.49609375, 0, 0.25 } },
+    { mask = 256,  name = L["Warlock"], plural = L["Warlocks"], color = { 0.58, 0.51, 0.79 }, coords = { 0.7421875, 0.98828125, 0.25, 0.5 } },
+    { mask = 1024, name = L["Druid"],   plural = L["Druids"],   color = { 1.00, 0.49, 0.04 }, coords = { 0.7421875, 0.98828125, 0, 0.25 } },
 }
 
 VanillaBonkCodex = {}
@@ -78,14 +79,14 @@ local function HasFlag(mask, flag)
     return math.mod(math.floor(mask / flag), 2) == 1
 end
 
-local function ClassNames(mask)
+local function ClassNames(mask, plural)
     if mask == 0 then
-        return "All classes"
+        return L["All classes"]
     end
     local names = {}
     for _, class in ipairs(CLASSES) do
         if HasFlag(mask, class.mask) then
-            tinsert(names, class.name)
+            tinsert(names, plural and class.plural or class.name)
         end
     end
     return table.concat(names, ", ")
@@ -117,7 +118,7 @@ local function EvolutionNames(evolutions)
     local count = getn(evolutions)
     for index, evolved in ipairs(evolutions) do
         if index > 1 then
-            text = text .. (index == count and " or " or ", ")
+            text = text .. (index == count and L[" or "] or ", ")
         end
         text = text .. evolved.name
     end
@@ -128,9 +129,9 @@ local tooltip = GameTooltip
 
 local function AddLock(lock)
     tooltip:AddLine(" ")
-    tooltip:AddLine("Locked", 1, 0.3, 0.3)
+    tooltip:AddLine(L["Locked"], 1, 0.3, 0.3)
     if lock then
-        tooltip:AddLine("Quest: " .. lock.name, 1, 0.6, 0.6)
+        tooltip:AddLine(L["Quest: "] .. lock.name, 1, 0.6, 0.6)
         tooltip:AddLine(lock.description, 0.9, 0.9, 0.9, 1)
         VanillaBonkUI.AddQuestProgress(tooltip, lock)
     end
@@ -153,7 +154,7 @@ local function ShowSpellTooltip(owner, spell)
     Tip:AddDoubleLine(spell.spec or "", classes, Tip.SPEC[1], Tip.SPEC[2], Tip.SPEC[3], 0.62, 0.62, 0.62)
     local base = evolved and book.weapons[spell.evolvesFrom]
     if base then
-        Tip:AddDoubleLine("Evolved from " .. base.name, "", 1, 0.5, 0, 1, 1, 1, 11)
+        Tip:AddDoubleLine(L["Evolved from "] .. base.name, "", 1, 0.5, 0, 1, 1, 1, 11)
     end
     Tip:AddReach(spell.radius, spell.range)
     if spell.description ~= "" then
@@ -163,15 +164,15 @@ local function ShowSpellTooltip(owner, spell)
 
     Tip:AddRule()
     if base then
-        Tip:AddSmallLine(base.name .. " evolves into this through a Legendary rank, offered from rank " .. EVOLVE_RANK .. ".", Tip.ORANGE)
+        Tip:AddSmallLine(base.name .. L[" evolves into this through a Legendary rank, offered from rank "] .. EVOLVE_RANK .. ".", Tip.ORANGE)
     else
         local evolutions = book.evolutionOf[spell.id]
         if evolutions then
-            Tip:AddSmallLine("From rank " .. EVOLVE_RANK .. ", a Legendary rank can evolve it into " .. EvolutionNames(evolutions) .. ".", Tip.ORANGE)
+            Tip:AddSmallLine(L["From rank "] .. EVOLVE_RANK .. L[", a Legendary rank can evolve it into "] .. EvolutionNames(evolutions) .. ".", Tip.ORANGE)
         end
     end
     if spell.starterMask > 0 then
-        Tip:AddSmallLine(gsub(ClassNames(spell.starterMask), ",", "s,") .. "s can choose it as their starter spell at the Run Master.", { 0.6, 0.8, 1 })
+        Tip:AddSmallLine(format(L["%s can choose it as their starter spell at the Run Master."], ClassNames(spell.starterMask, true)), { 0.6, 0.8, 1 })
     end
     AddState(spell)
     tooltip:Show()
@@ -181,11 +182,11 @@ local function ShowPassiveTooltip(owner, passive)
     tooltip = GameTooltip
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     tooltip:AddLine(passive.name, 1, 0.82, 0)
-    tooltip:AddLine("Passive (all classes)", 0.7, 0.7, 0.7)
+    tooltip:AddLine(L["Passive (all classes)"], 0.7, 0.7, 0.7)
     tooltip:AddLine(passive.description, 1, 1, 1, 1)
     if passive.maxRank > 0 then
         tooltip:AddLine(" ")
-        tooltip:AddLine("Max rank " .. passive.maxRank, 1, 0.82, 0)
+        tooltip:AddLine(L["Max rank "] .. passive.maxRank, 1, 0.82, 0)
     end
     AddState(passive)
     tooltip:Show()
@@ -196,12 +197,12 @@ local function ShowCardTooltip(owner, card)
     tooltip = GameTooltip
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     tooltip:AddLine(card.name, rarity.r, rarity.g, rarity.b)
-    tooltip:AddLine(rarity.name .. " Darkmoon Card (all classes)", 0.7, 0.7, 0.7)
+    tooltip:AddLine(rarity.name .. L[" Darkmoon Card (all classes)"], 0.7, 0.7, 0.7)
     if card.description ~= "" then
         tooltip:AddLine(card.description, 1, 1, 1, 1)
     end
     tooltip:AddLine(" ")
-    tooltip:AddLine(card.maxCopies == 1 and "1 copy per run" or "Each copy adds a bit less than the one before.", 1, 0.82, 0, 1)
+    tooltip:AddLine(card.maxCopies == 1 and L["1 copy per run"] or L["Each copy adds a bit less than the one before."], 1, 0.82, 0, 1)
     AddState(card)
     tooltip:Show()
 end
@@ -211,7 +212,7 @@ local function ShowGlyphTooltip(owner, glyph)
     tooltip = GameTooltip
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     tooltip:AddLine(glyph.name, rarity.r, rarity.g, rarity.b)
-    tooltip:AddLine(rarity.name .. " Glyph (all classes)", 0.7, 0.7, 0.7)
+    tooltip:AddLine(rarity.name .. L[" Glyph (all classes)"], 0.7, 0.7, 0.7)
     if glyph.description ~= "" then
         tooltip:AddLine(glyph.description, 1, 1, 1, 1)
     end
@@ -219,7 +220,7 @@ local function ShowGlyphTooltip(owner, glyph)
         tooltip:AddLine(glyph.drawback, 1, 0.29, 0.23, 1)
     end
     tooltip:AddLine(" ")
-    tooltip:AddLine("Offered after the first timed mini-boss and some floor bosses, up to 2 per run (6 on Mythic). Foresight adds one at the start of a run.", 1, 0.82, 0, 1)
+    tooltip:AddLine(L["Offered after the first timed mini-boss and some floor bosses, up to 2 per run (6 on Mythic). Foresight adds one at the start of a run."], 1, 0.82, 0, 1)
     AddState(glyph)
     tooltip:Show()
 end
@@ -235,22 +236,22 @@ local function ShowEntryTooltip(owner, entry, manage)
         TOOLTIPS[entry.kind](owner, entry)
         if entry.off then
             tooltip:AddLine(" ")
-            tooltip:AddLine("Banned. It won't turn up in runs.", 1, 0.3, 0.3)
+            tooltip:AddLine(L["Banned. It won't turn up in runs."], 1, 0.3, 0.3)
             if manage then
-                tooltip:AddLine("Right-click to allow it again.", 0.4, 1, 0.4)
+                tooltip:AddLine(L["Right-click to allow it again."], 0.4, 1, 0.4)
             end
             tooltip:Show()
         elseif not manage then
             return
         elseif CanSwitch(entry) then
             tooltip:AddLine(" ")
-            tooltip:AddLine("Right-click to ban it from your runs.", 1, 0.82, 0)
+            tooltip:AddLine(L["Right-click to ban it from your runs."], 1, 0.82, 0)
             tooltip:Show()
         elseif book and entry.owned and POOL_KINDS[entry.kind] then
             local pool = book.pool[entry.kind]
             tooltip:AddLine(" ")
-            tooltip:AddLine(pool.slots > 0 and ("All your ban slots are in use (" .. pool.used .. "/" .. pool.slots .. ").") or
-                "You have no ban slots yet.", 0.7, 0.7, 0.7, 1)
+            tooltip:AddLine(pool.slots > 0 and (L["All your ban slots are in use ("] .. pool.used .. "/" .. pool.slots .. ").") or
+                L["You have no ban slots yet."], 0.7, 0.7, 0.7, 1)
             tooltip:Show()
         end
     end
@@ -264,7 +265,7 @@ local UI = VanillaBonkUI
 
 local window = UI.Window("VanillaBonkSpellbook", WIDTH, HEIGHT)
 window:SetPoint("CENTER", UIParent, "CENTER", 0, 30)
-window.title:SetText("Spellbook")
+window.title:SetText(L["Spellbook"])
 window.subtitle = window.headerRight
 
 window.pane = UI.Pane(window, UI.CONTENT_LEFT, UI.CONTENT_TOP, WIDTH - UI.CONTENT_LEFT - UI.CONTENT_RIGHT,
@@ -290,12 +291,12 @@ window.empty:SetTextColor(0.6, 0.6, 0.6)
 local Refresh
 
 local TABS = {
-    { key = "spells",     label = "Spells" },
-    { key = "unlocks",    label = "Passives" },
-    { key = "debuffs",    label = "Debuffs" },
-    { key = "affixes",    label = "Affixes" },
-    { key = "evolutions", label = "Evolutions" },
-    { key = "rules",      label = "Rules" },
+    { key = "spells",     label = L["Spells"] },
+    { key = "unlocks",    label = L["Passives"] },
+    { key = "debuffs",    label = L["Debuffs"] },
+    { key = "affixes",    label = L["Affixes"] },
+    { key = "evolutions", label = L["Evolutions"] },
+    { key = "rules",      label = L["Rules"] },
 }
 
 local eliteAffixes = {}
@@ -375,11 +376,11 @@ local function CreateFilterButton(index, mask, name)
 end
 
 do
-    local all = CreateFilterButton(1, 0, "All classes")
+    local all = CreateFilterButton(1, 0, L["All classes"])
     all.label = all:CreateFontString(nil, "OVERLAY")
     SetFont(all.label, NUMBER_FONT, 11, "OUTLINE")
     all.label:SetPoint("CENTER", all, "CENTER", 0, 0)
-    all.label:SetText("All")
+    all.label:SetText(L["All"])
 
     for index, class in ipairs(CLASSES) do
         local button = CreateFilterButton(index + 1, class.mask, class.name)
@@ -483,7 +484,7 @@ local function CreateCard(index)
     card.offText = card:CreateFontString(nil, "OVERLAY")
     SetFont(card.offText, FONT, 10)
     card.offText:SetPoint("CENTER", card.offTag, "CENTER", 0, 0)
-    card.offText:SetText("OFF")
+    card.offText:SetText(L["OFF"])
     card.offTag:Hide()
     card.offText:Hide()
 
@@ -637,13 +638,13 @@ local function ShowCards(entries)
 
         local lock = book.locks[entry.kind .. entry.id]
         if entry.locked then
-            card.detail:SetText("Locked by " .. (lock and ("\"" .. lock.name .. "\"") or "a quest"))
+            card.detail:SetText(L["Locked by "] .. (lock and ("\"" .. lock.name .. "\"") or L["a quest"]))
         elseif entry.kind == "p" then
-            card.detail:SetText(entry.maxRank > 0 and "Unlocked, max rank " .. entry.maxRank or "Unlocked")
+            card.detail:SetText(entry.maxRank > 0 and L["Unlocked, max rank "] .. entry.maxRank or L["Unlocked"])
         else
             local text = ClassNames(entry.classMask)
             if entry.starterMask > 0 and (classFilter == 0 or HasFlag(entry.starterMask, classFilter)) then
-                text = text .. " starting spell"
+                text = text .. L[" starting spell"]
             end
             card.detail:SetText(text)
         end
@@ -657,7 +658,7 @@ local function ShowCards(entries)
         StyleCard(card, entry)
         if entry.off then
             card.name:SetTextColor(0.55, 0.55, 0.55)
-            card.detail:SetText("|cffff6060Switched off: never offered|r")
+            card.detail:SetText(L["|cffff6060Switched off: never offered|r"])
             SetDesaturation(card.icon, 1)
             card:SetBackdropColor(0.04, 0.04, 0.04, 0.6)
             card.offTag:Show()
@@ -722,10 +723,10 @@ end
 local function DescribeDebuffLimits(debuff)
     local parts = {}
     if debuff.maxStacks > 1 then
-        tinsert(parts, "Up to " .. debuff.maxStacks .. " stacks")
+        tinsert(parts, L["Up to "] .. debuff.maxStacks .. L[" stacks"])
     end
     if debuff.durationMs > 0 then
-        tinsert(parts, (getn(parts) > 0 and "lasts " or "Lasts ") .. format("%g", debuff.durationMs / 1000) .. " sec")
+        tinsert(parts, (getn(parts) > 0 and "lasts " or L["Lasts "]) .. format("%g", debuff.durationMs / 1000) .. L[" sec"])
     end
     return table.concat(parts, ", ")
 end
@@ -978,7 +979,7 @@ function Refresh(keepScroll)
         window.tally:SetText("")
         window.pool:SetText("")
         local name = rules.Show(book.rules)
-        window.header:SetText("Rules|cff9d9d9d: " .. name .. "|r")
+        window.header:SetText(L["Rules|cff9d9d9d: "] .. name .. "|r")
         return
     end
     rules.Hide()
@@ -1005,13 +1006,13 @@ function Refresh(keepScroll)
         else
             height, count = ShowInfoRows(book.debuffs, DescribeDebuffLimits)
         end
-        window.empty:SetText(count == 0 and "Nothing here yet." or "")
+        window.empty:SetText(count == 0 and L["Nothing here yet."] or "")
     elseif currentTab == "evolutions" then
         for _, card in ipairs(window.cards) do
             card:Hide()
         end
         height, count = ShowEvolutions()
-        window.empty:SetText(count == 0 and "No evolutions for this class." or "")
+        window.empty:SetText(count == 0 and L["No evolutions for this class."] or "")
     else
         for _, row in ipairs(window.evolutionRows) do
             row:Hide()
@@ -1026,9 +1027,9 @@ function Refresh(keepScroll)
         if table.getn(entries) > 0 then
             window.empty:SetText("")
         elseif TabHasClasses() and classFilter ~= 0 then
-            window.empty:SetText("Nothing here for this class.")
+            window.empty:SetText(L["Nothing here for this class."])
         else
-            window.empty:SetText("Nothing here yet.")
+            window.empty:SetText(L["Nothing here yet."])
         end
     end
 
@@ -1044,7 +1045,7 @@ function Refresh(keepScroll)
             end
         end
     end
-    window.subtitle:SetText("|cffffffff" .. locked .. " locked by quests|r")
+    window.subtitle:SetText("|cffffffff" .. locked .. L[" locked by quests|r"])
 
     if TabHasClasses() or TabHasInfoRows() then
         window.tally:SetText("")
@@ -1057,11 +1058,11 @@ function Refresh(keepScroll)
                 held = held + 1
             end
         end
-        window.tally:SetText("|cffffffff" .. owned .. " owned|r|cff9d9d9d,|r |cffff6666" .. held .. " locked by quests|r")
+        window.tally:SetText("|cffffffff" .. owned .. L[" owned|r|cff9d9d9d,|r |cffff6666"] .. held .. L[" locked by quests|r"])
     end
     window.pool:SetText("")
 
-    local className = "All classes"
+    local className = L["All classes"]
     if TabHasClasses() then
         for _, class in ipairs(CLASSES) do
             if class.mask == classFilter then
@@ -1069,7 +1070,7 @@ function Refresh(keepScroll)
             end
         end
     end
-    window.header:SetText(className .. "|cff9d9d9d: " .. book.spellCount .. " spells, " .. book.passiveCount .. " passives|r")
+    window.header:SetText(className .. "|cff9d9d9d: " .. book.spellCount .. L[" spells, "] .. book.passiveCount .. L[" passives|r"])
 end
 
 TogglePool = function(entry)
@@ -1372,7 +1373,7 @@ handlers["cdxend"] = function()
     received.glyphCount = 0
     for key, glyph in pairs(received.glyphs) do
         local text = VanillaBonkGlyphInfo and VanillaBonkGlyphInfo[key]
-        glyph.name = text and text.name or ("Glyph " .. key)
+        glyph.name = text and text.name or (L["Glyph "] .. key)
         glyph.icon = text and text.icon or ""
         glyph.rarity = text and text.rarity or 0
         glyph.description = text and text.description or ""

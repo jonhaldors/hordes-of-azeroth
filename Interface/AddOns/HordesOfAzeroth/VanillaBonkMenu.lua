@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local CARD_WIDTH = 220
@@ -59,7 +60,7 @@ end
 menu.hint = UI.Text(menu, 11)
 menu.hint:SetPoint("CENTER", menu, "CENTER", 0, CARD_Y - CARD_HEIGHT / 2 - 22)
 menu.hint:SetTextColor(0.78, 0.78, 0.78)
-menu.hint:SetText("Press Escape to resume.")
+menu.hint:SetText(L["Press Escape to resume."])
 
 local function Card(art)
     local card = CreateFrame("Frame", nil, menu)
@@ -103,7 +104,7 @@ local function Heading(card, text)
 end
 
 local runCard = Card("PaladinHoly")
-Heading(runCard, "This Run")
+Heading(runCard, L["This Run"])
 runCard.rows = {}
 
 local function StatRow(index, label, icon)
@@ -123,11 +124,11 @@ local function StatRow(index, label, icon)
     return row
 end
 
-local levelRow = StatRow(1, "Level", "Spell_Nature_TimeStop")
-local killsRow = StatRow(2, "Kills", "INV_Misc_Bone_HumanSkull_01")
-local valorRow = StatRow(3, "Valor", "INV_Misc_Coin_04")
-local ticketsRow = StatRow(4, "Tickets", "INV_Misc_Ticket_Darkmoon_01")
-local goldRow = StatRow(5, "Gold", "INV_Misc_Coin_02")
+local levelRow = StatRow(1, L["Level"], "Spell_Nature_TimeStop")
+local killsRow = StatRow(2, L["Kills"], "INV_Misc_Bone_HumanSkull_01")
+local valorRow = StatRow(3, L["Valor"], "INV_Misc_Coin_04")
+local ticketsRow = StatRow(4, L["Tickets"], "INV_Misc_Ticket_Darkmoon_01")
+local goldRow = StatRow(5, L["Gold"], "INV_Misc_Coin_02")
 
 local menuCard = Card("MageFire")
 
@@ -169,33 +170,33 @@ local function VideoSettings()
     end
 end
 
-menuCard.resume = Button("Resume", 28, function()
+menuCard.resume = Button(L["Resume"], 28, function()
     PlaySound("igMainMenuContinue")
     Close()
 end)
-menuCard.endRun = Button("|cffff5a4aEnd Run|r", 22, function()
+menuCard.endRun = Button(L["|cffff5a4aEnd Run|r"], 22, function()
     PlaySound("igMainMenuOption")
     confirm:Show()
 end)
-menuCard.video = Button("Video", 22, VideoSettings)
-menuCard.sound = Button("Sound", 22, Panel(SoundOptionsFrame))
+menuCard.video = Button(L["Video"], 22, VideoSettings)
+menuCard.sound = Button(L["Sound"], 22, Panel(SoundOptionsFrame))
 menuCard.interface = Button("Interface", 22, Panel(UIOptionsFrame))
-menuCard.bindings = Button("Key Bindings", 22, function()
+menuCard.bindings = Button(L["Key Bindings"], 22, function()
     PlaySound("igMainMenuOption")
     Close()
     VanillaBonkUI.ShowBindings(VanillaBonkController.kind ~= nil)
 end)
-menuCard.controller = Button("Controller", 22, function()
+menuCard.controller = Button(L["Controller"], 22, function()
     PlaySound("igMainMenuOption")
     Close()
     VanillaBonkControllerPanel:Show()
 end)
-menuCard.logout = Button("Logout", 22, function()
+menuCard.logout = Button(L["Logout"], 22, function()
     PlaySound("igMainMenuLogout")
     Close()
     Logout()
 end)
-menuCard.quit = Button("Exit Game", 22, function()
+menuCard.quit = Button(L["Exit Game"], 22, function()
     PlaySound("igMainMenuQuit")
     Close()
     Quit()
@@ -228,20 +229,20 @@ local function LayoutButtons()
 end
 
 local buildCard = Card("MageFrost")
-Heading(buildCard, "Your Build")
+Heading(buildCard, L["Your Build"])
 buildCard.spells = {}
 buildCard.passives = {}
 buildCard.passiveLabel = UI.Text(buildCard, 11)
 buildCard.passiveLabel:SetTextColor(0.62, 0.62, 0.62)
-buildCard.passiveLabel:SetText("Passives")
+buildCard.passiveLabel:SetText(L["Passives"])
 buildCard.cards = {}
 buildCard.cardLabel = UI.Text(buildCard, 11)
 buildCard.cardLabel:SetTextColor(0.62, 0.62, 0.62)
-buildCard.cardLabel:SetText("Darkmoon Cards")
+buildCard.cardLabel:SetText(L["Darkmoon Cards"])
 buildCard.empty = UI.Text(buildCard, 12)
 buildCard.empty:SetPoint("TOP", buildCard, "TOP", 0, -80)
 buildCard.empty:SetTextColor(0.62, 0.62, 0.62)
-buildCard.empty:SetText("Nothing learned yet")
+buildCard.empty:SetText(L["Nothing learned yet"])
 
 local function BuildSlot(list, index, size)
     local slot = list[index]
@@ -358,19 +359,19 @@ confirm.box:SetBackdrop({
 confirm.box:SetBackdropColor(0, 0, 0, 0.95)
 confirm.question = UI.Text(confirm.box, 14)
 confirm.question:SetPoint("TOP", confirm.box, "TOP", 0, -24)
-confirm.question:SetText("End this run?")
+confirm.question:SetText(L["End this run?"])
 confirm.text = UI.Text(confirm.box, 12)
 confirm.text:SetPoint("TOP", confirm.question, "BOTTOM", 0, -6)
 confirm.text:SetWidth(310)
 confirm.text:SetTextColor(1, 0.82, 0)
-confirm.text:SetText("You keep the gold and Darkmoon Tickets earned so far. Loot you haven't extracted is lost.")
-confirm.yes = UI.Button(confirm.box, 120, "|cffff5a4aEnd Run|r", function()
+confirm.text:SetText(L["You keep the gold and Darkmoon Tickets earned so far. Loot you haven't extracted is lost."])
+confirm.yes = UI.Button(confirm.box, 120, L["|cffff5a4aEnd Run|r"], function()
     PlaySound("igMainMenuOptionCheckBoxOn")
     Command("stop")
     Close()
 end)
 confirm.yes:SetPoint("BOTTOMRIGHT", confirm.box, "BOTTOM", -6, 18)
-confirm.no = UI.Button(confirm.box, 120, "Cancel", function()
+confirm.no = UI.Button(confirm.box, 120, L["Cancel"], function()
     PlaySound("igMainMenuOptionCheckBoxOff")
     confirm:Hide()
 end)
@@ -378,9 +379,9 @@ confirm.no:SetPoint("BOTTOMLEFT", confirm.box, "BOTTOM", 6, 18)
 
 local function Refresh()
     if run.inRun then
-        menu.title:SetText("Paused")
+        menu.title:SetText(L["Paused"])
         local difficulty = run.difficulty ~= "" and ("  |cff9d9d9d·|r  |cff" .. (DIFFICULTY_COLORS[run.difficulty] or "ffffff") .. run.difficulty .. "|r") or ""
-        menu.subtitle:SetText("|cffffd100" .. "Floor " .. run.stage .. "|r" .. difficulty .. "  |cff9d9d9d·|r  |cffffffff" .. UI.FormatTime(run.elapsed) .. "|r")
+        menu.subtitle:SetText("|cffffd100" .. L["Floor "] .. run.stage .. "|r" .. difficulty .. "  |cff9d9d9d·|r  |cffffffff" .. UI.FormatTime(run.elapsed) .. "|r")
         levelRow.value:SetText(run.level or "-")
         killsRow.value:SetText(run.kills or 0)
         valorRow.value:SetText("|cffffe873" .. (run.valor or 0) .. "|r")
@@ -396,8 +397,8 @@ local function Refresh()
         runCard:Show()
         buildCard:Show()
     else
-        menu.title:SetText("Game Menu")
-        menu.subtitle:SetText("Inn")
+        menu.title:SetText(L["Game Menu"])
+        menu.subtitle:SetText(L["Inn"])
         runCard:Hide()
         buildCard:Hide()
         menuCard:ClearAllPoints()

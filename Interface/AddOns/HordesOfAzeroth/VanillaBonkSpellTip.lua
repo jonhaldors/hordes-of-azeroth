@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 VanillaBonkSpellTip = {}
 local Tip = VanillaBonkSpellTip
 local UI = VanillaBonkUI
@@ -153,9 +154,9 @@ end
 function Tip.Yards(value)
     local tenths = floor(value * 10 + 0.5)
     if mod(tenths, 10) == 0 then
-        return format("%d", tenths / 10) .. " yd"
+        return format("%d", tenths / 10) .. L[" yd"]
     end
-    return format("%.1f", tenths / 10) .. " yd"
+    return format("%.1f", tenths / 10) .. L[" yd"]
 end
 
 local function Grown(base, current, word)
@@ -187,7 +188,7 @@ end
 function Tip:AddFooter(spec, school, aoe)
     local text = (spec and spec ~= "") and spec or (school or "")
     if aoe then
-        text = text ~= "" and (text .. "  ·  AoE") or "AoE"
+        text = text ~= "" and (text .. L["  ·  AoE"]) or "AoE"
     end
     if text ~= "" then
         self:AddSmallLine(text, Tip.GREY)

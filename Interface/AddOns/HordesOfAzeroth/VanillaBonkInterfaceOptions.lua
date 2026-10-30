@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local WIDTH = 980
@@ -30,6 +31,7 @@ local SECTION_ROWS = {
     {
         {
             name = "Interact Key",
+            title = L["Interact Key"],
             height = 3 * ROW + 20,
             columns = 3,
             own = {
@@ -43,6 +45,7 @@ local SECTION_ROWS = {
     {
         {
             name = "Controls",
+            title = L["Controls"],
             height = 88,
             columns = 2,
             sliders = { { 1, 1, 0 } },
@@ -51,6 +54,7 @@ local SECTION_ROWS = {
         },
         {
             name = "Camera",
+            title = L["Camera"],
             height = 6 * ROW + 20,
             columns = 2,
             dropdowns = { { "UIOptionsFrameCameraDropDown", 1, 0 } },
@@ -61,6 +65,7 @@ local SECTION_ROWS = {
     {
         {
             name = "Display",
+            title = L["Display"],
             height = 6 * ROW + 20,
             columns = 2,
             checks = {
@@ -71,6 +76,7 @@ local SECTION_ROWS = {
         },
         {
             name = "Floating Combat Text",
+            title = L["Floating Combat Text"],
             height = 6 * ROW + 20,
             columns = 2,
             checks = {
@@ -151,7 +157,7 @@ local function BuildHealthBarDropdown(box)
     local dropdown = CreateFrame("Frame", "VanillaBonkOptionsHealthBar", box, "UIDropDownMenuTemplate")
     local label = dropdown:CreateFontString(nil, "BACKGROUND", "GameFontNormalSmall")
     label:SetPoint("BOTTOMLEFT", dropdown, "TOPLEFT", 16, 3)
-    label:SetText("Your Health Bar")
+    label:SetText(L["Your Health Bar"])
     UIDropDownMenu_SetWidth(110, dropdown)
     UIDropDownMenu_Initialize(dropdown, function()
         for _, mode in ipairs(UI.HEALTH_BAR_MODES) do
@@ -204,8 +210,8 @@ local function BuildInteractKey(box)
     row:SetHeight(26)
     row.label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
-    row.label:SetText("Interact key")
-    row.change = UI.Button(row, 70, "Change", function()
+    row.label:SetText(L["Interact key"])
+    row.change = UI.Button(row, 70, L["Change"], function()
         PlaySound("igMainMenuOptionCheckBoxOn")
         UI.CaptureKey(binding)
     end)
@@ -226,7 +232,7 @@ local function BuildSection(section, width, height, x, y)
     box:SetHeight(height)
     box.columnWidth = (width - 20) / section.columns
     box:SetPoint("TOPLEFT", frame, "TOPLEFT", x, y)
-    getglobal(box:GetName() .. "Title"):SetText(section.name)
+    getglobal(box:GetName() .. "Title"):SetText(section.title or section.name)
     for _, check in ipairs(section.checks or {}) do
         Place(getglobal("UIOptionsFrameCheckButton" .. check[1]), box, check[2], check[3], check[4])
     end
@@ -275,7 +281,7 @@ end
 local function BuildButtons(last)
     local reset = CreateFrame("Button", "VanillaBonkOptionsResetTutorial", frame, "OptionsButtonTemplate")
     reset:SetWidth(130)
-    reset:SetText("Reset Tutorial")
+    reset:SetText(L["Reset Tutorial"])
     reset:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -12)
     reset:SetScript("OnClick", function()
         PlaySound("igMainMenuOptionCheckBoxOn")
@@ -285,7 +291,7 @@ local function BuildButtons(last)
     end)
     reset:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Shows the Hordes of Azeroth tips again from the start.", 1, 1, 1, 1, 1)
+        GameTooltip:SetText(L["Shows the Hordes of Azeroth tips again from the start."], 1, 1, 1, 1, 1)
     end)
     reset:SetScript("OnLeave", function()
         GameTooltip:Hide()

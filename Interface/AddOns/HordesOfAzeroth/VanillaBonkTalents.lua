@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 VanillaBonkTalents = {}
 
 local T = VanillaBonkTalents
@@ -140,14 +141,14 @@ local function Missing(node)
     local tree = TreeOf(node)
     local gate = Gate(tree, node.row)
     if tree.spent < gate then
-        return "Requires " .. gate .. " points in " .. tree.name .. "."
+        return L["Requires "] .. gate .. L[" points in "] .. tree.name .. "."
     end
     if not HasParent(node) then
-        return "Learn a talent that leads here first."
+        return L["Learn a talent that leads here first."]
     end
     local rival = Excluded(node)
     if rival then
-        return "Can't be learned with " .. rival.name .. "."
+        return L["Can't be learned with "] .. rival.name .. "."
     end
     return nil
 end
@@ -197,7 +198,7 @@ local function ShowTooltip(button)
     local node = button.node
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
     if button.pair then
-        GameTooltip:AddLine("Choose one", 1, 1, 1)
+        GameTooltip:AddLine(L["Choose one"], 1, 1, 1)
         for _, choice in ipairs(button.pair) do
             GameTooltip:AddLine(choice.name, 1, 0.82, 0)
             GameTooltip:AddLine(choice.description, 0.9, 0.9, 0.9, 1)
@@ -207,19 +208,19 @@ local function ShowTooltip(button)
         if missing then
             GameTooltip:AddLine(missing, 1, 0.1, 0.1, 1)
         elseif not VanillaBonkTalents.readOnly then
-            GameTooltip:AddLine("Click to choose", 0.1, 1, 0.1)
+            GameTooltip:AddLine(L["Click to choose"], 0.1, 1, 0.1)
         end
         GameTooltip:Show()
         return
     end
     GameTooltip:AddLine(node.name, 1, 1, 1)
     if not IsFree(node) then
-        GameTooltip:AddLine("Rank " .. node.rank .. "/" .. node.maxRank, 1, 1, 1)
+        GameTooltip:AddLine(L["Rank "] .. node.rank .. "/" .. node.maxRank, 1, 1, 1)
     end
     GameTooltip:AddLine(DescriptionAtRank(node, node.rank), 1, 0.82, 0, 1)
     if node.rank > 0 and node.rank < node.maxRank and not IsFree(node) then
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Next rank:", 1, 1, 1)
+        GameTooltip:AddLine(L["Next rank:"], 1, 1, 1)
         GameTooltip:AddLine(DescriptionAtRank(node, node.rank + 1), 1, 0.82, 0, 1)
     end
     VanillaBonkUI.AddGlossary(GameTooltip, { node.description })
@@ -227,12 +228,12 @@ local function ShowTooltip(button)
     if missing then
         GameTooltip:AddLine(missing, 1, 0.1, 0.1, 1)
     elseif IsFree(node) then
-        GameTooltip:AddLine("Always yours", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(L["Always yours"], 0.6, 0.6, 0.6)
     elseif node.rank < node.maxRank and not VanillaBonkTalents.readOnly then
-        GameTooltip:AddLine("Click to learn", 0.1, 1, 0.1)
+        GameTooltip:AddLine(L["Click to learn"], 0.1, 1, 0.1)
     end
     if node.rank > 0 and not IsFree(node) and not VanillaBonkTalents.readOnly then
-        GameTooltip:AddLine("Right-click to refund", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(L["Right-click to refund"], 0.7, 0.7, 0.7)
     end
     GameTooltip:Show()
 end
@@ -706,7 +707,7 @@ local function DrawTree(panel, tree, height)
         if tree.spent < gate then
             panel.gates[1] = panel.gates[1] or CreateGate(panel)
             local missing = gate - tree.spent
-            PlaceGate(panel, panel.gates[1], -Snap(TOP_PAD + (row - 0.5) * ROW_STEP), missing .. (missing == 1 and " point" or " points") .. " to unlock", false)
+            PlaceGate(panel, panel.gates[1], -Snap(TOP_PAD + (row - 0.5) * ROW_STEP), missing .. (missing == 1 and VanillaBonkL[" point"] or VanillaBonkL[" points"]) .. VanillaBonkL[" to unlock"], false)
             break
         end
     end
@@ -727,7 +728,7 @@ function T.Show(shop, data, top)
         panel:SetHeight(height)
         LayoutArt(panel, tree.background, PANEL_WIDTH, height)
         panel.name:SetText(tree.name)
-        panel.spent:SetText(tree.spent .. (tree.spent == 1 and " point" or " points"))
+        panel.spent:SetText(tree.spent .. (tree.spent == 1 and L[" point"] or L[" points"]))
         DrawTree(panel, tree, height)
         panel:Show()
     end

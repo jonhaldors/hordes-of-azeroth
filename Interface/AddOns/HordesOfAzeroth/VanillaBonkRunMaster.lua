@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 VanillaBonkRunMaster = {}
@@ -23,9 +24,9 @@ local SOFT = { 0.78, 0.75, 0.7 }
 local MUTED = { 0.51, 0.49, 0.44 }
 local HAIR = { 0.47, 0.39, 0.24 }
 local INVADED_COLOR = { 1, 0.6, 0.24 }
-local CHALLENGE_RISK = "Enemies have 30% more health and deal 20% more damage."
-local DUNGEON_REWARD = "Enemies drop 50% more gold, and loot is one quality higher."
-local INVASION_REWARD = "More enemies come at once. They drop 25% more gold, and loot has a 50% chance to be one quality higher."
+local CHALLENGE_RISK = L["Enemies have 30% more health and deal 20% more damage."]
+local DUNGEON_REWARD = L["Enemies drop 50% more gold, and loot is one quality higher."]
+local INVASION_REWARD = L["More enemies come at once. They drop 25% more gold, and loot has a 50% chance to be one quality higher."]
 local TIER_LOOKS = {
     normal = { color = { 1, 0.82, 0 }, emblem = "Ability_Warrior_DefensiveStance" },
     heroic = { color = { 0.38, 0.65, 1 }, emblem = "INV_Shield_05" },
@@ -33,9 +34,9 @@ local TIER_LOOKS = {
 }
 local DEFAULT_LOOK = TIER_LOOKS.normal
 local BANDS = {
-    { name = "Climb", color = { 0.91, 0.77, 0.41 } },
-    { name = "Push", color = { 0.94, 0.59, 0.24 } },
-    { name = "Peak", color = { 0.9, 0.31, 0.25 } },
+    { name = L["Climb"], color = { 0.91, 0.77, 0.41 } },
+    { name = L["Push"], color = { 0.94, 0.59, 0.24 } },
+    { name = L["Peak"], color = { 0.9, 0.31, 0.25 } },
 }
 local MILESTONE_ICONS = { affix = "Ability_Warrior_Challange", veteran = "INV_Helmet_03" }
 local CONTINENT_ART = {
@@ -47,7 +48,7 @@ local DUNGEON_ART = {
     zulgurub = "Interface\\Glues\\LoadingScreens\\LoadScreenZulGurub",
     ruinsaq = "Interface\\Glues\\LoadingScreens\\LoadScreenAhnQiraj20man",
 }
-local MAP_TYPES = { ["0"] = "Open zone", ["1"] = "Enclosed raid", ["2"] = "Dungeon room" }
+local MAP_TYPES = { ["0"] = L["Open zone"], ["1"] = L["Enclosed raid"], ["2"] = L["Dungeon room"] }
 local WORLD_MAP_PATH = "Interface\\WorldMap\\"
 local ZONE_MAP_WIDTH, ZONE_MAP_HEIGHT = 1002, 668
 local MAP_TILE = 256
@@ -60,17 +61,17 @@ local INVASION_TINT = {
 }
 local DEFAULT_TINT = { 1, 0.6, 0.45 }
 local MODES = { "zones", "dungeon", "invasion" }
-local MODE_LABELS = { zones = "Zones", dungeon = "Dungeon", invasion = "Invasion" }
+local MODE_LABELS = { zones = L["Zones"], dungeon = L["Dungeon"], invasion = L["Invasion"] }
 local STAT_ROWS = {
-    { group = "Enemies" },
-    { label = "Health", key = "health", format = "+%s%%", rising = true },
-    { label = "Damage", key = "damage", format = "+%s%%", rising = true },
-    { label = "Veterans", key = "veterans", format = "%s%%", rising = true },
-    { label = "Elite affixes", key = "affixes", format = "%s", rising = true },
+    { group = L["Enemies"] },
+    { label = L["Health"], key = "health", format = "+%s%%", rising = true },
+    { label = L["Damage"], key = "damage", format = "+%s%%", rising = true },
+    { label = L["Veterans"], key = "veterans", format = "%s%%", rising = true },
+    { label = L["Elite affixes"], key = "affixes", format = "%s", rising = true },
     { behavior = true },
-    { group = "Rewards", rewards = true },
-    { label = "Gold and Tickets per kill", key = "gold", format = "+%s%%", rewards = true },
-    { label = "Boss legendary drop chance", key = "legendary", format = "%s%%", rewards = true },
+    { group = L["Rewards"], rewards = true },
+    { label = L["Gold and Tickets per kill"], key = "gold", format = "+%s%%", rewards = true },
+    { label = L["Boss legendary drop chance"], key = "legendary", format = "%s%%", rewards = true },
 }
 
 local state = { zone = {}, dungeon = {}, mode = {}, floor = {}, start = {} }
@@ -80,7 +81,7 @@ local CHECKPOINT_BUTTON = 38
 local mapInfo = {}
 local floorInfo = {}
 local tierInfo = {}
-local BEHAVIOR_CELLS = { { "Caster aim", "aim" }, { "Boss attacks", "boss" }, { "Max enemies", "crowd" } }
+local BEHAVIOR_CELLS = { { L["Caster aim"], "aim" }, { L["Boss attacks"], "boss" }, { L["Max enemies"], "crowd" } }
 local zoneOverlays, overlaySeen = {}, {}
 local arena, content, tier, onTierClick
 local head, ladder, list, banner, preview
@@ -108,7 +109,7 @@ local function Info(key)
 end
 
 local function Floors(count)
-    return count .. (count == 1 and " floor" or " floors")
+    return count .. (count == 1 and L[" floor"] or L[" floors"])
 end
 
 local function FloorRow(shown, index)
@@ -228,15 +229,15 @@ end
 
 local function Progress(shown)
     if not shown.unlocked then
-        return "Locked"
+        return L["Locked"]
     end
     local stages = shown.stages or 1
     if shown.best > stages then
-        return "Cleared"
+        return L["Cleared"]
     elseif shown.best > 0 then
-        return "best " .. shown.best
+        return L("best {1}", shown.best)
     end
-    return "new"
+    return L["new"]
 end
 
 local function FillPlaque(plaque, shown, selected)
@@ -363,8 +364,8 @@ local function ZoneTooltip(row)
     local map = row.map
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
     if not map then
-        GameTooltip:AddLine("Random zone", 1, 0.82, 0)
-        GameTooltip:AddLine("Floor 1 takes you to any " .. tier.name .. " zone.", 1, 1, 1, 1)
+        GameTooltip:AddLine(L["Random zone"], 1, 0.82, 0)
+        GameTooltip:AddLine(L["Floor 1 takes you to any "] .. tier.name .. L[" zone."], 1, 1, 1, 1)
     else
         GameTooltip:AddLine(map.name, 1, 0.82, 0)
         if MAP_TYPES[map.type] then
@@ -375,7 +376,7 @@ local function ZoneTooltip(row)
             GameTooltip:AddLine(info.description, 1, 1, 1, 1)
         end
         if map.reward and map.reward ~= 100 then
-            GameTooltip:AddLine("Pays " .. Multiplier(map.reward) .. "x gold, Darkmoon Tickets and Mastery experience.", 0.25, 1, 0.25, 1)
+            GameTooltip:AddLine(L["Pays "] .. Multiplier(map.reward) .. L["x gold, Darkmoon Tickets and Mastery experience."], 0.25, 1, 0.25, 1)
         end
     end
     GameTooltip:Show()
@@ -392,7 +393,7 @@ local function DungeonTooltip(row)
     GameTooltip:AddLine(CHALLENGE_RISK, 1, 0.5, 0.5, 1)
     GameTooltip:AddLine(Mode() == "invasion" and INVASION_REWARD or DUNGEON_REWARD, 0.25, 1, 0.25, 1)
     if not dungeon.open then
-        GameTooltip:AddLine("Clear " .. tier.name .. " first.", 1, 0.3, 0.3, 1)
+        GameTooltip:AddLine(L["Clear "] .. tier.name .. L[" first."], 1, 0.3, 0.3, 1)
     end
     GameTooltip:Show()
 end
@@ -421,14 +422,14 @@ local function ShowList()
         local row = ListRow(1)
         row.map, row.dungeon, row.tooltip = nil, nil, ZoneTooltip
         row.pick = function() state.zone[tier.id] = nil end
-        FillRow(row, RANDOM_ICON, "Random zone", "Any " .. tier.name .. " zone, picked when the run starts", zone == nil, dimmed)
+        FillRow(row, RANDOM_ICON, L["Random zone"], L["Any "] .. tier.name .. L[" zone, picked when the run starts"], zone == nil, dimmed)
         for _, map in ipairs(tier.maps) do
             count = count + 1
             row = ListRow(count)
             row.map, row.dungeon, row.tooltip = map, nil, ZoneTooltip
             local key = map.key
             row.pick = function() state.zone[tier.id] = key end
-            local tag = map.reward and map.reward ~= 100 and ("|cff40ff40" .. Multiplier(map.reward) .. "x gold|r") or nil
+            local tag = map.reward and map.reward ~= 100 and ("|cff40ff40" .. Multiplier(map.reward) .. L["x gold|r"]) or nil
             FillRow(row, map.icon, map.name, Info(map.key).summary, zone == map, dimmed, tag)
         end
     else
@@ -440,7 +441,7 @@ local function ShowList()
             local key, open = dungeon.key, dungeon.open
             row.pick = open and function() state.dungeon[tier.id] = key end or nil
             FillRow(row, dungeon.icon, dungeon.name, Info(dungeon.key).summary, chosen == dungeon, dimmed or not open,
-                not open and "|cffff6060Locked|r" or nil)
+                not open and L["|cffff6060Locked|r"] or nil)
         end
     end
     list.child:SetHeight(max(1, count * ROW_STEP))
@@ -573,15 +574,15 @@ local function ShowBanner()
     banner.risk = nil
     if mode == "dungeon" and dungeon then
         SetArt(DUNGEON_ART[dungeon.key] or tier.art, false, locked)
-        banner.tag:SetText(Hex(INVADED_COLOR) .. "Dungeon challenge  ·  every floor inside|r")
+        banner.tag:SetText(Hex(INVADED_COLOR) .. L["Dungeon challenge  ·  every floor inside|r"])
         banner.name:SetText(dungeon.name)
         banner.description:SetText(Info(dungeon.key).summary or "")
         banner.risk = DUNGEON_REWARD
     elseif mode ~= "zones" and not dungeon then
         SetArt(tier.art, false, true)
         banner.tag:SetText("")
-        banner.name:SetText(mode == "dungeon" and "Dungeon" or "Invasion")
-        banner.description:SetText("Clear " .. tier.name .. " to unlock challenges.")
+        banner.name:SetText(mode == "dungeon" and L["Dungeon"] or L["Invasion"])
+        banner.description:SetText(L["Clear "] .. tier.name .. L[" to unlock challenges."])
     else
         local invader = mode == "invasion" and dungeon or nil
         local info = Info(zone and zone.key)
@@ -591,18 +592,18 @@ local function ShowBanner()
             local art = zone and CONTINENT_ART[info.continent or ""] or tier.art
             SetArt(art ~= "" and art or CONTINENT_ART["0"], invader ~= nil, locked)
         end
-        banner.name:SetText(zone and zone.name or "Random zone")
+        banner.name:SetText(zone and zone.name or L["Random zone"])
         if invader then
-            banner.tag:SetText(Hex(INVADED_COLOR) .. "Invaded by " .. invader.name .. "|r")
-            banner.description:SetText((Info(invader.key).summary or "Its enemies") .. " roam the zone.")
+            banner.tag:SetText(Hex(INVADED_COLOR) .. L["Invaded by "] .. invader.name .. "|r")
+            banner.description:SetText((Info(invader.key).summary or L["Its enemies"]) .. L[" roam the zone."])
             banner.risk = INVASION_REWARD
         else
             if zone and zone.reward and zone.reward ~= 100 then
-                banner.tag:SetText("|cff40ff40Pays " .. Multiplier(zone.reward) .. "x gold, Tickets and Mastery|r")
+                banner.tag:SetText(L["|cff40ff40Pays "] .. Multiplier(zone.reward) .. L["x gold, Tickets and Mastery|r"])
             else
                 banner.tag:SetText("")
             end
-            banner.description:SetText(zone and (info.description or "") or ("Floor 1 takes you to any " .. tier.name .. " zone."))
+            banner.description:SetText(zone and (info.description or "") or (L["Floor 1 takes you to any "] .. tier.name .. L[" zone."]))
         end
     end
 end
@@ -705,10 +706,10 @@ local function MakePin()
             return
         end
         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-        GameTooltip:AddLine("Floor " .. this.floor .. " milestone", 1, 0.82, 0)
+        GameTooltip:AddLine(L["Floor "] .. this.floor .. L[" milestone"], 1, 0.82, 0)
         GameTooltip:AddLine(row.change, 1, 1, 1, 1)
         if row.reward ~= "" then
-            GameTooltip:AddLine("First clear: " .. row.reward .. ".", 0.25, 1, 0.25, 1)
+            GameTooltip:AddLine(L["First clear: "] .. row.reward .. ".", 0.25, 1, 0.25, 1)
         end
         GameTooltip:Show()
     end)
@@ -972,14 +973,14 @@ local function ShowMilestone(current, count, y)
     local row = FloorRow(tier, current)
     local reward = row and row.reward or ""
     local done = row and row.cleared == "1"
-    local rewardLine = reward ~= "" and ((done and "|cff9d9d9dFirst clear (done): " or "|cff40ff40First clear: ") .. reward .. ".|r") or ""
+    local rewardLine = reward ~= "" and ((done and L["|cff9d9d9dFirst clear (done): "] or L["|cff40ff40First clear: "]) .. reward .. ".|r") or ""
     local onMilestone = row and MILESTONE_ICONS[row.kind or ""]
     local nextFloor, nextRow = NextMilestone(current, count)
     local harder = ""
     if onMilestone then
-        harder = HARDER .. "From here on: " .. LowerFirst(row.change) .. "|r"
+        harder = HARDER .. L["From here on: "] .. LowerFirst(row.change) .. "|r"
     elseif nextFloor then
-        harder = Hex(MUTED) .. "Floor " .. nextFloor .. ":|r " .. HARDER .. LowerFirst(nextRow.change) .. "|r"
+        harder = Hex(MUTED) .. L["Floor "] .. nextFloor .. ":|r " .. HARDER .. LowerFirst(nextRow.change) .. "|r"
     end
     if rewardLine == "" and harder == "" then
         footer:Hide()
@@ -1006,11 +1007,11 @@ local function ShowPreview()
     local current = sliding and Clamp(state.floor[tier.id] or 1, 1, count) or count
     state.floor[tier.id] = current
     if sliding then
-        preview.title:SetText("Floor difficulty preview")
-        preview.note:SetText("Drag the slider to see any floor.")
+        preview.title:SetText(L["Floor difficulty preview"])
+        preview.note:SetText(L["Drag the slider to see any floor."])
     else
-        preview.title:SetText("Floor difficulty")
-        preview.note:SetText(count == 2 and "Floor 2 compared with floor 1." or "")
+        preview.title:SetText(L["Floor difficulty"])
+        preview.note:SetText(count == 2 and L["Floor 2 compared with floor 1."] or "")
     end
     ShowSlider(sliding and count or 1, current)
     local top = sliding and SLIDER_Y + 30 or PREVIEW_TOP + 40
@@ -1040,7 +1041,7 @@ local function BuildHead()
     head.label = UI.Text(content, 11)
     head.label:SetPoint("TOPLEFT", arena, "TOPLEFT", LEFT_X, -38)
     head.label:SetTextColor(1, 0.82, 0)
-    head.label:SetText("Difficulty")
+    head.label:SetText(L["Difficulty"])
     head.name = UI.Text(content, 30, UI.TITLE_FONT)
     head.name:SetPoint("TOPLEFT", arena, "TOPLEFT", MID_X, -34)
     head.description = UI.Text(content, 10)
@@ -1387,11 +1388,11 @@ function RunMaster.Caption()
     local mode = Mode()
     local dungeon = ChosenDungeon()
     local zone = ChosenZone()
-    local place = zone and zone.name or "Random zone"
+    local place = zone and zone.name or L["Random zone"]
     if mode == "dungeon" and dungeon then
         place = dungeon.name
     elseif mode == "invasion" and dungeon then
-        place = place .. ", invaded"
+        place = place .. L[", invaded"]
     end
     local start = StartFloor()
     if start > 1 and mode == "zones" then
@@ -1470,7 +1471,7 @@ UI.Listen({
     end,
     tierinfo = function(f)
         if f[2] then
-            tierInfo[f[2]] = { aim = f[3] or "", boss = f[4] or "", charge = (f[5] and f[5] ~= "") and ("every " .. f[5] .. " sec") or "",
+            tierInfo[f[2]] = { aim = f[3] or "", boss = f[4] or "", charge = (f[5] and f[5] ~= "") and L("every {1} sec", f[5]) or "",
                 crowd = f[6] or "" }
         end
     end,

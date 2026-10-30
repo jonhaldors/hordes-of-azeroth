@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 VanillaBonkController = { kind = nil, focus = 1, window = nil }
 
 local Controller = VanillaBonkController
@@ -602,7 +603,7 @@ local function AnyCardDetails(window)
 end
 
 local function ChoicePrompts(window)
-    local prompts = { { "leftright", "Choose" }, { "a", "Pick" } }
+    local prompts = { { "leftright", L["Choose"] }, { "a", L["Pick"] } }
     if window == VanillaBonkOffer then
         ButtonPrompt(prompts, "x", window.reroll)
         ButtonPrompt(prompts, "y", window.banish)
@@ -611,7 +612,7 @@ local function ChoicePrompts(window)
     if AnyCardDetails(window) then
         local card = window.cards[Controller.focus]
         local hasDetails = card and card:IsShown() and table.getn(CardKeywords(card)) > 0
-        table.insert(prompts, { "lt", "Hold for details", not hasDetails })
+        table.insert(prompts, { "lt", L["Hold for details"], not hasDetails })
     end
     return prompts
 end
@@ -1068,7 +1069,7 @@ local function Unequip(slot)
 end
 
 StaticPopupDialogs["HOA_CONTROLLER_DELETE"] = {
-    text = "Delete %s?",
+    text = L["Delete %s?"],
     button1 = YES,
     button2 = NO,
     OnAccept = function()
@@ -1262,13 +1263,18 @@ local function TooltipVerb(button, prefix)
             return nil
         end
     end
+    local pattern = "^" .. string.gsub(prefix, "%-", "%%-") .. " to (.+)"
+    local translated = L[prefix]
     for index = 1, tip:NumLines() do
         local text = TooltipLineText(tip, index)
         if text then
             text = string.gsub(string.gsub(text, "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
-            local _, _, rest = string.find(text, "^" .. prefix .. " to (.+)")
+            local _, _, rest = string.find(text, pattern)
             if rest then
                 return VerbLabel(rest)
+            end
+            if translated ~= prefix and string.find(text, translated, 1, true) == 1 then
+                return translated
             end
         end
     end
@@ -1360,7 +1366,7 @@ local function NavButton(name, windows)
         end
         if bag then
             AskDelete(bag, slot)
-        elseif target and target:IsVisible() and TooltipVerb(target, "Right%-click") then
+        elseif target and target:IsVisible() and TooltipVerb(target, "Right-click") then
             RightClick(target)
             RefreshTooltip(target)
         end
@@ -1422,7 +1428,7 @@ local function WindowPrompts(windows)
     local prompts = {}
     local target = navGlow.target
     if target then
-        table.insert(prompts, { "dpad", "Move" })
+        table.insert(prompts, { "dpad", L["Move"] })
     end
     local bag, slot, inventory
     if target then
@@ -1430,16 +1436,16 @@ local function WindowPrompts(windows)
         inventory = InventorySlot(target)
     end
     if target and IsSlider(target) then
-        table.insert(prompts, { "leftright", "Adjust" })
+        table.insert(prompts, { "leftright", L["Adjust"] })
     elseif bag then
         local link = GetContainerItemLink(bag, slot)
         if link then
-            table.insert(prompts, { "a", IsGear(link) and "Equip" or "Use" })
-            table.insert(prompts, { "x", "Delete" })
+            table.insert(prompts, { "a", IsGear(link) and L["Equip"] or L["Use"] })
+            table.insert(prompts, { "x", L["Delete"] })
         end
     elseif inventory then
         if GetInventoryItemLink("player", inventory) then
-            table.insert(prompts, { "a", "Unequip" })
+            table.insert(prompts, { "a", L["Unequip"] })
         end
     elseif target and IsMerchantItem(target) then
         local buyback = target.buysOnRightClick and target.item and target.item.buyback
@@ -1447,23 +1453,23 @@ local function WindowPrompts(windows)
             buyback = MerchantFrame.selectedTab == 2
         end
         local upgrade = target.buysOnRightClick and target.item and target.item.upgrade
-        table.insert(prompts, { "a", upgrade and "Upgrade" or buyback and "Buy back" or "Buy" })
+        table.insert(prompts, { "a", upgrade and L["Upgrade"] or buyback and L["Buy back"] or L["Buy"] })
     elseif target and not target.navTooltip then
-        table.insert(prompts, { "a", TooltipVerb(target, "Click") or "Select" })
-        local rightVerb = TooltipVerb(target, "Right%-click")
+        table.insert(prompts, { "a", TooltipVerb(target, "Click") or L["Select"] })
+        local rightVerb = TooltipVerb(target, "Right-click")
         if rightVerb then
             table.insert(prompts, { "x", rightVerb })
         end
     end
-    table.insert(prompts, { "b", "Close" })
+    table.insert(prompts, { "b", L["Close"] })
     if table.getn(windows) > 1 then
-        table.insert(prompts, { "rt", "Next window" })
+        table.insert(prompts, { "rt", L["Next window"] })
     end
     if Controller.scrollMode then
-        table.insert(prompts, { "rs", "Scroll" })
-        table.insert(prompts, { "r3", "Cursor" })
+        table.insert(prompts, { "rs", L["Scroll"] })
+        table.insert(prompts, { "r3", L["Cursor"] })
     else
-        table.insert(prompts, { "rs", "Cursor" })
+        table.insert(prompts, { "rs", L["Cursor"] })
     end
     return prompts
 end
@@ -1569,7 +1575,7 @@ local function UpdateScroll(windows)
     Controller.scrollAt = now + SCROLL_REPEAT / math.abs(ry)
 end
 
-local CURSOR_PROMPTS = { { "rs", "Move cursor" }, { "a", "Click" }, { "x", "Right-click" }, { "dpad", "Buttons" }, { "b", "Close" } }
+local CURSOR_PROMPTS = { { "rs", L["Move cursor"] }, { "a", L["Click"] }, { "x", L["Right-click"] }, { "dpad", L["Buttons"] }, { "b", L["Close"] } }
 
 local function HideNavForCursor()
     local button = navGlow.target
@@ -1662,8 +1668,8 @@ local INTERACT_FADE = 6
 local INTERACT_PLATE_GAP = 4
 local INTERACT_KEYCAP = 26
 local INTERACT_COMMAND = "VANILLABONK_INTERACT"
-local OBJECT_VERBS = { [900001] = "Open", [900002] = "Open", [900003] = "Enter", [900041] = "Open", [900060] = "Search" }
-local OBJECT_TYPE_VERBS = { [3] = "Open", [19] = "Mail" }
+local OBJECT_VERBS = { [900001] = L["Open"], [900002] = L["Open"], [900003] = L["Enter"], [900041] = L["Open"], [900060] = L["Search"] }
+local OBJECT_TYPE_VERBS = { [3] = L["Open"], [19] = L["Mail"] }
 local NPC_FLAG_GOSSIP = 1
 local NPC_FLAG_VENDOR = 4
 local NPC_FLAG_BANKER = 256
@@ -1688,18 +1694,18 @@ end
 
 local function InteractVerb(kind, entry, detail)
     if kind == "object" then
-        return OBJECT_VERBS[entry] or OBJECT_TYPE_VERBS[detail] or "Use"
+        return OBJECT_VERBS[entry] or OBJECT_TYPE_VERBS[detail] or L["Use"]
     end
     if HasFlag(detail, NPC_FLAG_GOSSIP) then
-        return "Talk"
+        return L["Talk"]
     end
     if HasFlag(detail, NPC_FLAG_BANKER) then
-        return "Bank"
+        return L["Bank"]
     end
     if HasFlag(detail, NPC_FLAG_VENDOR) then
-        return "Shop"
+        return L["Shop"]
     end
-    return "Talk"
+    return L["Talk"]
 end
 
 local function HideInteract()

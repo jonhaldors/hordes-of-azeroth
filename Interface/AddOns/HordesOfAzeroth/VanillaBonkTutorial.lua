@@ -1,17 +1,18 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 
 local RUN_MASTER = 900001
-local RUN_MASTER_NAME = "Gizzik Bonkwhistle"
+local RUN_MASTER_NAME = L["Gizzik Bonkwhistle"]
 local RUN_MASTER_TARGETS = { { entry = RUN_MASTER, name = RUN_MASTER_NAME } }
 local INNKEEPER_TARGETS = { { entry = UI.INNKEEPER_ENTRY, name = UI.INNKEEPER_NAME } }
 local UPSTAIRS_TARGETS = {
-    { entry = 900002, name = "Nix Sparkwrench" },
-    { entry = 900008, name = "Theron Ashveil" },
+    { entry = 900002, name = L["Nix Sparkwrench"] },
+    { entry = 900008, name = L["Theron Ashveil"] },
 }
 local STAIRS_FOOT = { x = 16248.695, y = 16313.784, z = 20.844 }
 local DECK_SPOT = { x = 16256.1, y = 16312.2, z = 20.865 }
 local QUARTERMASTER = 900150
-local QUARTERMASTER_NAME = "Varrok Steelbrand"
+local QUARTERMASTER_NAME = L["Varrok Steelbrand"]
 local QUARTERMASTER_TARGETS = { { entry = QUARTERMASTER, name = QUARTERMASTER_NAME } }
 local QUARTERMASTER_CHECK = 1
 local WAYPOINT_REACH = 3
@@ -31,31 +32,31 @@ local GUIDE_WIDTH = 430
 local GUIDE_PLATE_COLUMN = 150
 local GUIDE_ROW_GAP = 14
 local PAD_BUTTON_NAMES = {
-    xbox = { dash = "RT", interact = "X", menu = "Menu" },
-    ps = { dash = "R2", interact = "Square", menu = "Options" },
-    deck = { dash = "R2", interact = "X", menu = "Menu" },
+    xbox = { dash = "RT", interact = "X", menu = L["Menu"] },
+    ps = { dash = "R2", interact = L["Square"], menu = L["Options"] },
+    deck = { dash = "R2", interact = "X", menu = L["Menu"] },
 }
 local PLATE_KINDS = {
-    { kind = 0, name = "Normal", text = "Regular enemies." },
-    { kind = 5, name = "Bruiser", text = "A big enemy with four times the health that hits twice as hard." },
-    { kind = 6, name = "Veteran", text = "A stronger version of a regular enemy, with more health and harder hits.",
-        note = "Only appears on Heroic and Mythic." },
-    { kind = 1, name = "Elite", text = "Named, with special powers called affixes. The Spellbook Keeper in town lists what each one does.",
-        sample = "Kolkar Pack Runner" },
-    { kind = 0, name = "Your debuffs", text = "Shown under an enemy's bar with their stacks. On a boss's bar, each icon wipes away as its time runs out unless you hit the boss again.",
+    { kind = 0, name = L["Normal"], text = L["Regular enemies."] },
+    { kind = 5, name = L["Bruiser"], text = L["A big enemy with four times the health that hits twice as hard."] },
+    { kind = 6, name = L["Veteran"], text = L["A stronger version of a regular enemy, with more health and harder hits."],
+        note = L["Only appears on Heroic and Mythic."] },
+    { kind = 1, name = L["Elite"], text = L["Named, with special powers called affixes. The Spellbook Keeper in town lists what each one does."],
+        sample = L["Kolkar Pack Runner"] },
+    { kind = 0, name = L["Your debuffs"], text = L["Shown under an enemy's bar with their stacks. On a boss's bar, each icon wipes away as its time runs out unless you hit the boss again."],
         debuffs = { { 3, 12 }, { 4, 5 } } },
-    { kind = 0, name = "You", text = "Your own health, shown over your character. A bright cyan glow on it is your Shield.", own = true },
+    { kind = 0, name = L["You"], text = L["Your own health, shown over your character. A bright cyan glow on it is your Shield."], own = true },
 }
 local OWN_BAR_COLOR = { 0.24, 0.70, 0.28 }
 local CURRENCY_WIDTH = 400
 local CURRENCY_ICON_SIZE = 32
 local CURRENCIES = {
-    { icon = "INV_Misc_Coin_02", name = "Gold", color = { 1, 0.82, 0 },
-        text = "Buys gear and upgrades at the Inn. You keep it between runs." },
-    { icon = "INV_Misc_Ticket_Darkmoon_01", name = "Darkmoon Tickets", color = { 0.75, 0.5, 1 },
-        text = "Spent at the Darkmoon vendors. You keep them between runs." },
-    { icon = "INV_Misc_Coin_04", name = "Valor", color = { 1, 0.91, 0.45 },
-        text = "Spent during a run to open chests and buy from shops. Resets every run, it's not kept." },
+    { icon = "INV_Misc_Coin_02", name = L["Gold"], color = { 1, 0.82, 0 },
+        text = L["Buys gear and upgrades at the Inn. You keep it between runs."] },
+    { icon = "INV_Misc_Ticket_Darkmoon_01", name = L["Darkmoon Tickets"], color = { 0.75, 0.5, 1 },
+        text = L["Spent at the Darkmoon vendors. You keep them between runs."] },
+    { icon = "INV_Misc_Coin_04", name = L["Valor"], color = { 1, 0.91, 0.45 },
+        text = L["Spent during a run to open chests and buy from shops. Resets every run, it's not kept."] },
 }
 
 local tutorial = CreateFrame("Frame")
@@ -163,7 +164,7 @@ local function BuildControllerTip()
     box:EnableMouse(true)
     DialogBackdrop(box)
     Title(box)
-    box.title:SetText("Playing with a controller?")
+    box.title:SetText(L["Playing with a controller?"])
     box.art = box:CreateTexture(nil, "ARTWORK")
     box.art:SetWidth(CONTROLLER_ART_WIDTH)
     box.art:SetPoint("TOP", box.title, "BOTTOM", 0, -10)
@@ -175,9 +176,9 @@ local function BuildControllerTip()
     box.hint:SetWidth(CONTROLLER_TIP_WIDTH - 52)
     box.hint:SetTextColor(1, 0.82, 0)
     box.hint:SetPoint("TOP", box.body, "BOTTOM", 0, -8)
-    box.settings = UI.Button(box, 150, "Controller settings", function() tutorial:OpenControllerSettings() end)
+    box.settings = UI.Button(box, 150, L["Controller settings"], function() tutorial:OpenControllerSettings() end)
     box.settings:SetPoint("BOTTOMRIGHT", box, "BOTTOM", -4, 18)
-    box.next = UI.Button(box, 96, "Next", function() box:Hide() end)
+    box.next = UI.Button(box, 96, L["Next"], function() box:Hide() end)
     box.next:SetPoint("BOTTOMLEFT", box, "BOTTOM", 4, 18)
     UI.NavPrompt(box, box.next, box.settings)
     box:SetScript("OnHide", function()
@@ -221,7 +222,7 @@ local function BuildCurrencyTip()
     box:EnableMouse(true)
     DialogBackdrop(box)
     Title(box)
-    box.title:SetText("Your currencies")
+    box.title:SetText(L["Your currencies"])
     local top = CreateFrame("Frame", nil, box)
     top:SetWidth(1)
     top:SetHeight(1)
@@ -240,7 +241,7 @@ local function BuildCurrencyTip()
         end
         height = height + GUIDE_ROW_GAP + rowHeight
     end
-    box.next = UI.Button(box, 96, "Next", function() tutorial:ShowInnkeeper() end)
+    box.next = UI.Button(box, 96, L["Next"], function() tutorial:ShowInnkeeper() end)
     box.next:SetPoint("BOTTOM", box, "BOTTOM", 0, 18)
     UI.NavPrompt(box, box.next)
     box:SetHeight(height + 16 + 22 + 18)
@@ -253,7 +254,7 @@ local currencyTip = BuildCurrencyTip()
 local dashBox = Callout()
 local dashArrow = Arrow(DASH_ARROW_SIZE)
 RotateTexture(dashArrow.texture, math.pi)
-dashBox.next = UI.Button(dashBox, 96, "Next", function() tutorial:ShowCurrencies() end)
+dashBox.next = UI.Button(dashBox, 96, L["Next"], function() tutorial:ShowCurrencies() end)
 dashBox.next:SetPoint("BOTTOM", dashBox, "BOTTOM", 0, 18)
 UI.NavPrompt(dashBox, dashBox.next)
 
@@ -273,29 +274,29 @@ end
 
 local function DashText()
     local verb = IsBlink() and "teleport" or "dash"
-    local safety = "You can't be hurt while you " .. verb .. ", so use it to get out of trouble."
+    local safety = L["You can't be hurt while you "] .. verb .. L[", so use it to get out of trouble."]
     if PadStyle() then
-        return "Pull " .. PadButton("dash") .. " to " .. verb .. " a short way in the direction you're moving. " .. safety .. "\n\nTry it now!"
+        return L["Pull "] .. PadButton("dash") .. L[" to "] .. verb .. L[" a short way in the direction you're moving. "] .. safety .. L["\n\nTry it now!"]
     end
     local key = UI.DashKeyText and UI.DashKeyText() or ""
     if key == "" then
-        return "Your hero can " .. verb .. " a short way in the direction you're moving. Give it a key under Key Bindings, at the top of the list."
+        return L["Your hero can "] .. verb .. L[" a short way in the direction you're moving. Give it a key under Key Bindings, at the top of the list."]
     end
-    return "Press |cffffffff" .. key .. "|r to " .. verb .. " a short way in the direction you're moving. " .. safety
-        .. "\n\nTry it now! You can change the key under Key Bindings."
+    return L["Press |cffffffff"] .. key .. L["|r to "] .. verb .. L[" a short way in the direction you're moving. "] .. safety
+        .. L["\n\nTry it now! You can change the key under Key Bindings."]
 end
 
 local function ControllerTipText()
-    return "Hordes of Azeroth supports Xbox and PlayStation controllers. Plug one in and press any button to play with it. There is nothing to set up."
-        .. "\n\nThe Controller page in the pause menu shows what every button does. You can also change the camera speed, the stick deadzone and the button prompts there."
+    return L["Hordes of Azeroth supports Xbox and PlayStation controllers. Plug one in and press any button to play with it. There is nothing to set up."]
+        .. L["\n\nThe Controller page in the pause menu shows what every button does. You can also change the camera speed, the stick deadzone and the button prompts there."]
 end
 
 local function ControllerTipHint()
     local style = PadStyle()
     if style then
-        return "Press " .. PadButton("menu", style) .. " to open the pause menu."
+        return L["Press "] .. PadButton("menu", style) .. L[" to open the pause menu."]
     end
-    return "Press |cffffffffEscape|r to open the pause menu."
+    return L["Press |cffffffffEscape|r to open the pause menu."]
 end
 
 local function FitControllerTip()
@@ -417,7 +418,7 @@ function tutorial:ShowDash()
     step = "dash"
     dashedAt = nil
     controllerTip:Hide()
-    dashBox.title:SetText(IsBlink() and "Blink" or "Dash")
+    dashBox.title:SetText(IsBlink() and L["Blink"] or L["Dash"])
     dashBox.body:SetText("")
     SetBody(dashBox, DashText(), 30)
     dashArrow:ClearAllPoints()
@@ -448,8 +449,8 @@ function tutorial:ShowInnkeeper()
     dashBox:Hide()
     dashArrow:Hide()
     currencyTip:Hide()
-    ShowGuide("Make yourself at home", "Talk to " .. UI.INNKEEPER_NAME .. ", the Innkeeper. He keeps your settings: "
-        .. "the interact key and what it works on, chests that open by themselves, where your health bar sits and more.")
+    ShowGuide(L["Make yourself at home"], L["Talk to "] .. UI.INNKEEPER_NAME .. L[", the Innkeeper. He keeps your settings: "]
+        .. L["the interact key and what it works on, chests that open by themselves, where your health bar sits and more."])
 end
 
 function tutorial:InnkeeperSeen()
@@ -466,28 +467,28 @@ function tutorial:ShowRunMaster()
     dashBox:Hide()
     dashArrow:Hide()
     currencyTip:Hide()
-    ShowGuide("Start a run", "Talk to " .. RUN_MASTER_NAME .. ", the Run Master. He lets you pick a map and starts your first run.")
+    ShowGuide(L["Start a run"], L["Talk to "] .. RUN_MASTER_NAME .. L[", the Run Master. He lets you pick a map and starts your first run."])
 end
 
 function tutorial:ShowVendors()
     step = "vendors"
     waypointReached = false
-    ShowGuide("Spend your gold", "The gold you bring back is yours to keep. Upstairs, Nix Sparkwrench sells upgrades that last through every run, "
-        .. "and Theron Ashveil, the Talent Trainer, is where you spend your talent points.")
+    ShowGuide(L["Spend your gold"], L["The gold you bring back is yours to keep. Upstairs, Nix Sparkwrench sells upgrades that last through every run, "]
+        .. L["and Theron Ashveil, the Talent Trainer, is where you spend your talent points."])
 end
 
 function tutorial:ShowDeck()
     step = "deck"
     waypointReached = false
-    ShowGuide("The Darkmoon Deck", "The Darkmoon Deck table at the foot of the stairs shows every Darkmoon Card and Glyph you own. "
-        .. "Ban the ones you don't want to see in your runs.")
+    ShowGuide(L["The Darkmoon Deck"], L["The Darkmoon Deck table at the foot of the stairs shows every Darkmoon Card and Glyph you own. "]
+        .. L["Ban the ones you don't want to see in your runs."])
 end
 
 function tutorial:ShowQuartermaster()
     step = "quartermaster"
     waypointReached = false
-    ShowGuide("The Mythic Quartermaster", QUARTERMASTER_NAME .. " has arrived at the Inn. He sells Mythic tier gear for your class, "
-        .. "two tiers below your best Mythic floor cleared, and never below Tier 1.")
+    ShowGuide(L["The Mythic Quartermaster"], QUARTERMASTER_NAME .. L[" has arrived at the Inn. He sells Mythic tier gear for your class, "]
+        .. L["two tiers below your best Mythic floor cleared, and never below Tier 1."])
 end
 
 local function MarkStepSeen()
@@ -582,38 +583,38 @@ end
 
 local function TalkHint(name)
     if PadStyle() then
-        return "Press " .. PadButton("interact") .. " to talk to " .. name .. "."
+        return L["Press "] .. PadButton("interact") .. L[" to talk to "] .. name .. "."
     end
-    return "Right-click " .. name .. " to talk."
+    return L["Right-click "] .. name .. L[" to talk."]
 end
 
 local GUIDES = {
     innkeeper = {
         targets = INNKEEPER_TARGETS,
-        far = "Follow the arrow to find him.",
-        lost = "Look for " .. UI.INNKEEPER_NAME .. " <Innkeeper> at the Inn.",
+        far = L["Follow the arrow to find him."],
+        lost = L["Look for "] .. UI.INNKEEPER_NAME .. L[" <Innkeeper> at the Inn."],
     },
     runmaster = {
         targets = RUN_MASTER_TARGETS,
-        far = "Follow the arrow to find him.",
-        lost = "Look for " .. RUN_MASTER_NAME .. " <Run Master> at the Inn.",
+        far = L["Follow the arrow to find him."],
+        lost = L["Look for "] .. RUN_MASTER_NAME .. L[" <Run Master> at the Inn."],
     },
     deck = {
         spot = DECK_SPOT,
-        spotName = "the Darkmoon Deck table",
-        far = "Follow the arrow to the Darkmoon Deck.",
+        spotName = L["the Darkmoon Deck table"],
+        far = L["Follow the arrow to the Darkmoon Deck."],
     },
     quartermaster = {
         targets = QUARTERMASTER_TARGETS,
-        far = "Follow the arrow to find him.",
-        lost = "Look for " .. QUARTERMASTER_NAME .. " <Mythic Quartermaster> at the Inn.",
+        far = L["Follow the arrow to find him."],
+        lost = L["Look for "] .. QUARTERMASTER_NAME .. L[" <Mythic Quartermaster> at the Inn."],
     },
     vendors = {
         targets = UPSTAIRS_TARGETS,
         waypoint = STAIRS_FOOT,
-        toWaypoint = "Follow the arrow to the stairs.",
-        far = "Follow the arrow up the stairs.",
-        lost = "Look for them on the top floor of the Inn.",
+        toWaypoint = L["Follow the arrow to the stairs."],
+        far = L["Follow the arrow up the stairs."],
+        lost = L["Look for them on the top floor of the Inn."],
     },
 }
 
@@ -622,7 +623,7 @@ local function PointArrow(angle, distance)
     local bob = Bob()
     guideArrow:ClearAllPoints()
     guideArrow:SetPoint("TOP", guideBox, "BOTTOM", -math.sin(angle) * bob, -8 + math.cos(angle) * bob - BOB_HEIGHT / 2)
-    guideArrow.distance:SetText(floor(distance + 0.5) .. " yd")
+    guideArrow.distance:SetText(floor(distance + 0.5) .. L[" yd"])
     guideArrow:Show()
 end
 
@@ -645,9 +646,9 @@ end
 
 local function OpenHint(name)
     if PadStyle() then
-        return "Press " .. PadButton("interact") .. " to open " .. name .. "."
+        return L["Press "] .. PadButton("interact") .. L[" to open "] .. name .. "."
     end
-    return "Right-click " .. name .. " to open it."
+    return L["Right-click "] .. name .. L[" to open it."]
 end
 
 local function UpdateSpot(guide)
@@ -814,10 +815,10 @@ end)
 local gearTip = {}
 local GEAR_TIP_WIDTH = 270
 local GEAR_TIPS = {
-    Heroic = { title = "Heroic gear",
-        body = "Durgan now sells Heroic gear as well. It is a lot stronger than Normal gear, so look here before you spend your gold." },
-    Mythic = { title = "Mythic gear",
-        body = "Durgan now sells Mythic gear, the strongest he has. Look here before you spend your gold." },
+    Heroic = { title = L["Heroic gear"],
+        body = L["Durgan now sells Heroic gear as well. It is a lot stronger than Normal gear, so look here before you spend your gold."] },
+    Mythic = { title = L["Mythic gear"],
+        body = L["Durgan now sells Mythic gear, the strongest he has. Look here before you spend your gold."] },
 }
 
 local function BuildGearTip()
@@ -836,7 +837,7 @@ local function BuildGearTip()
     box.close = CreateFrame("Button", nil, box, "UIPanelCloseButton")
     box.close:SetPoint("TOPRIGHT", box, "TOPRIGHT", -6, -6)
     box.close:SetScript("OnClick", function() gearTip.Seen() end)
-    box.done = UI.Button(box, 96, "Got it", function() gearTip.Seen() end)
+    box.done = UI.Button(box, 96, L["Got it"], function() gearTip.Seen() end)
     box.done:SetPoint("BOTTOM", box, "BOTTOM", 0, 18)
     UI.NavPrompt(box, box.done)
     box.arrow = Arrow(DASH_ARROW_SIZE)
@@ -876,7 +877,7 @@ function gearTip.Show(tab, name)
     gearTip.tab, gearTip.name = tab, name
     box.title:SetText(tip.title)
     box.body:SetText(tip.body)
-    box.hint:SetText("Click the " .. name .. " tab.")
+    box.hint:SetText(L["Click the "] .. name .. L[" tab."])
     box:SetHeight(22 + box.title:GetHeight() + 10 + box.body:GetHeight() + 8 + box.hint:GetHeight() + 16 + 22 + 18)
     box.arrow:ClearAllPoints()
     box.arrow:SetPoint("TOP", tab, "BOTTOM", 0, -2)
@@ -922,9 +923,9 @@ local plateGuide
 local function PlateKeyText()
     local key = GetBindingKey("NAMEPLATES")
     if not key or key == "" then
-        return "Turn enemy health bars on and off under Key Bindings."
+        return L["Turn enemy health bars on and off under Key Bindings."]
     end
-    return "Hit |cffffd100" .. key .. "|r to toggle enemy health bars."
+    return L["Hit |cffffd100"] .. key .. L["|r to toggle enemy health bars."]
 end
 
 local function SampleDebuffs(entries)
@@ -948,13 +949,13 @@ local function BuildPlateGuide()
     box.title = UI.Text(box, 15)
     box.title:SetTextColor(1, 0.82, 0)
     box.title:SetPoint("TOP", box, "TOP", 0, -22)
-    box.title:SetText("Health bars")
+    box.title:SetText(L["Health bars"])
     box.hint = UI.Text(box, 12)
     box.hint:SetPoint("TOP", box.title, "BOTTOM", 0, -10)
     box.close = CreateFrame("Button", nil, box, "UIPanelCloseButton")
     box.close:SetPoint("TOPRIGHT", box, "TOPRIGHT", -6, -6)
     box.close:SetScript("OnClick", function() plateGuide.Close() end)
-    box.done = UI.Button(box, 96, "Got it", function() plateGuide.Close() end)
+    box.done = UI.Button(box, 96, L["Got it"], function() plateGuide.Close() end)
     box.done:SetPoint("BOTTOM", box, "BOTTOM", 0, 18)
     UI.NavPrompt(box, box.done)
 

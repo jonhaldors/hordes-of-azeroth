@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 VanillaBonkUI = {}
 local UI = VanillaBonkUI
 
@@ -8,30 +9,30 @@ UI.FLAT = "Interface\\Buttons\\WHITE8X8"
 UI.ICON_PATH = "Interface\\Icons\\"
 
 UI.RARITY = {
-    [0] = { name = "Common", r = 1, g = 1, b = 1 },
-    [1] = { name = "Uncommon", r = 0.12, g = 1, b = 0 },
-    [2] = { name = "Rare", r = 0, g = 0.44, b = 0.87 },
-    [3] = { name = "Epic", r = 0.64, g = 0.21, b = 0.93 },
-    [4] = { name = "Legendary", r = 1, g = 0.5, b = 0 },
+    [0] = { name = L["Common"], r = 1, g = 1, b = 1 },
+    [1] = { name = L["Uncommon"], r = 0.12, g = 1, b = 0 },
+    [2] = { name = L["Rare"], r = 0, g = 0.44, b = 0.87 },
+    [3] = { name = L["Epic"], r = 0.64, g = 0.21, b = 0.93 },
+    [4] = { name = L["Legendary"], r = 1, g = 0.5, b = 0 },
 }
 
 UI.DAMAGE_TYPES = {
-    phys = { name = "Physical", r = 0.78, g = 0.61, b = 0.43, icon = "Ability_MeleeDamage" },
-    bleed = { name = "Bleed", r = 0.83, g = 0.16, b = 0.16, icon = "Ability_BackStab", note = "Physical damage over time." },
-    poison = { name = "Poison", r = 0.3, g = 0.76, b = 0.23, icon = "Spell_Nature_CorrosiveBreath", note = "Nature damage over time." },
-    fire = { name = "Fire", r = 1, g = 0.49, b = 0.1, icon = "Spell_Fire_FlameBolt" },
-    burn = { name = "Burning", r = 1, g = 0.71, b = 0.24, icon = "Spell_Fire_Incinerate", note = "Fire damage over time." },
-    frost = { name = "Frost", r = 0.41, g = 0.8, b = 0.94, icon = "Spell_Frost_FrostBolt02" },
-    arcane = { name = "Arcane", r = 0.82, g = 0.49, b = 1, icon = "Spell_Nature_StarFall" },
-    shadow = { name = "Shadow", r = 0.56, g = 0.42, b = 0.85, icon = "Spell_Shadow_ShadowBolt" },
-    nature = { name = "Nature", r = 0.25, g = 0.78, b = 0.71, icon = "Spell_Nature_Lightning" },
-    holy = { name = "Holy", r = 1, g = 0.9, b = 0.5, icon = "Spell_Holy_HolyBolt" },
-    decay = { name = "Decay", r = 0.45, g = 0.3, b = 0.7, icon = "Spell_Shadow_ChillTouch", note = "Shadow damage over time." },
-    agony = { name = "Agony", r = 0.55, g = 0.2, b = 0.55, icon = "Spell_Shadow_CurseOfSargeras", note = "Shadow damage over time that grows." },
-    moonkin = { name = "Moonkin Form", r = 0.55, g = 0.6, b = 1, icon = "Spell_Nature_ForceOfNature", note = "Wrath and Starfall." },
-    cat = { name = "Cat Form", r = 1, g = 0.82, b = 0.25, icon = "Ability_Druid_CatForm", note = "Claw." },
-    bear = { name = "Bear Form", r = 0.75, g = 0.45, b = 0.25, icon = "Ability_Racial_BearForm", note = "Maul." },
-    tree = { name = "Tree of Life", r = 0.35, g = 0.85, b = 0.35, icon = "Spell_Nature_ProtectionformNature", note = "Vines." },
+    phys = { name = L["Physical"], r = 0.78, g = 0.61, b = 0.43, icon = "Ability_MeleeDamage" },
+    bleed = { name = L["Bleed"], r = 0.83, g = 0.16, b = 0.16, icon = "Ability_BackStab", note = L["Physical damage over time."] },
+    poison = { name = L["Poison"], r = 0.3, g = 0.76, b = 0.23, icon = "Spell_Nature_CorrosiveBreath", note = L["Nature damage over time."] },
+    fire = { name = L["Fire"], r = 1, g = 0.49, b = 0.1, icon = "Spell_Fire_FlameBolt" },
+    burn = { name = L["Burning"], r = 1, g = 0.71, b = 0.24, icon = "Spell_Fire_Incinerate", note = L["Fire damage over time."] },
+    frost = { name = L["Frost"], r = 0.41, g = 0.8, b = 0.94, icon = "Spell_Frost_FrostBolt02" },
+    arcane = { name = L["Arcane"], r = 0.82, g = 0.49, b = 1, icon = "Spell_Nature_StarFall" },
+    shadow = { name = L["Shadow"], r = 0.56, g = 0.42, b = 0.85, icon = "Spell_Shadow_ShadowBolt" },
+    nature = { name = L["Nature"], r = 0.25, g = 0.78, b = 0.71, icon = "Spell_Nature_Lightning" },
+    holy = { name = L["Holy"], r = 1, g = 0.9, b = 0.5, icon = "Spell_Holy_HolyBolt" },
+    decay = { name = L["Decay"], r = 0.45, g = 0.3, b = 0.7, icon = "Spell_Shadow_ChillTouch", note = L["Shadow damage over time."] },
+    agony = { name = L["Agony"], r = 0.55, g = 0.2, b = 0.55, icon = "Spell_Shadow_CurseOfSargeras", note = L["Shadow damage over time that grows."] },
+    moonkin = { name = L["Moonkin Form"], r = 0.55, g = 0.6, b = 1, icon = "Spell_Nature_ForceOfNature", note = L["Wrath and Starfall."] },
+    cat = { name = L["Cat Form"], r = 1, g = 0.82, b = 0.25, icon = "Ability_Druid_CatForm", note = L["Claw."] },
+    bear = { name = L["Bear Form"], r = 0.75, g = 0.45, b = 0.25, icon = "Ability_Racial_BearForm", note = L["Maul."] },
+    tree = { name = L["Tree of Life"], r = 0.35, g = 0.85, b = 0.35, icon = "Spell_Nature_ProtectionformNature", note = L["Vines."] },
 }
 UI.DAMAGE_TYPE_BY_KEYWORD = { Bleed = "bleed", Poison = "poison", Burning = "burn", Decay = "decay", Agony = "agony" }
 
@@ -109,12 +110,12 @@ function UI.FormatGold(copper)
     copper = tonumber(copper) or 0
     local gold = floor(copper / 10000)
     local silver = floor(mod(copper, 10000) / 100)
-    local text = format("|cffeda55f%dc|r", mod(copper, 100))
+    local text = format(L["|cffeda55f%dc|r"], mod(copper, 100))
     if silver > 0 or gold > 0 then
-        text = format("|cffc7c7cf%ds|r ", silver) .. text
+        text = format(L["|cffc7c7cf%ds|r "], silver) .. text
     end
     if gold > 0 then
-        text = format("|cffffd700%dg|r ", gold) .. text
+        text = format(L["|cffffd700%dg|r "], gold) .. text
     end
     return text
 end
@@ -131,7 +132,7 @@ end
 
 function UI.AddQuestProgress(tooltip, lock)
     if lock and lock.amount and lock.amount > 1 then
-        tooltip:AddLine("Progress: " .. UI.Thousands(math.min(lock.progress, lock.amount)) .. "/" .. UI.Thousands(lock.amount), 0.62, 0.62, 0.62)
+        tooltip:AddLine(L["Progress: "] .. UI.Thousands(math.min(lock.progress, lock.amount)) .. "/" .. UI.Thousands(lock.amount), 0.62, 0.62, 0.62)
     end
 end
 
@@ -781,7 +782,7 @@ function UI.PanelTabs(panel, x, onClick)
 end
 
 UI.INNKEEPER_ENTRY = 900140
-UI.INNKEEPER_NAME = "Tarn Oakhoof"
+UI.INNKEEPER_NAME = L["Tarn Oakhoof"]
 
 local KEYCAP_TEXTURE = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\KeyCap"
 local KEYCAP_CAP_SHARE = 0.5

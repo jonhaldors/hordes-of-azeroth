@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local CHECK_DELAY = 0.5
 local CAPTURE_DELAY = 1
 local MODIFIERS = { "", "SHIFT-", "CTRL-", "ALT-", "CTRL-SHIFT-", "ALT-SHIFT-", "ALT-CTRL-", "ALT-CTRL-SHIFT-" }

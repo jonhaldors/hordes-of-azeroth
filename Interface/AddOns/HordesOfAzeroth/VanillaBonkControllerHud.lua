@@ -1,3 +1,4 @@
+local L = VanillaBonkL
 local UI = VanillaBonkUI
 local Controller = VanillaBonkController
 
@@ -15,11 +16,11 @@ local METER_LIFT = HUD_HEIGHT + 6
 local KEY_REFRESH = 1
 local PAIR_GAP = 2
 local ITEMS = {
-    { button = "lt", with = "rs", label = "Zoom", padOnly = true },
-    { action = "dash", label = "Dash", dash = true },
-    { button = "a", label = "Jump", command = "JUMP" },
-    { action = "character", label = "Character", command = "TOGGLECHARACTER0", click = function() Controller.ToggleCharacterAndBags() end },
-    { action = "map", label = "Map", command = "TOGGLEWORLDMAP", click = function() ToggleWorldMap() end },
+    { button = "lt", with = "rs", label = L["Zoom"], padOnly = true },
+    { action = "dash", label = L["Dash"], dash = true },
+    { button = "a", label = L["Jump"], command = "JUMP" },
+    { action = "character", label = L["Character"], command = "TOGGLECHARACTER0", click = function() Controller.ToggleCharacterAndBags() end },
+    { action = "map", label = L["Map"], command = "TOGGLEWORLDMAP", click = function() ToggleWorldMap() end },
 }
 
 local hud = CreateFrame("Frame", "VanillaBonkControllerHud", UIParent)
