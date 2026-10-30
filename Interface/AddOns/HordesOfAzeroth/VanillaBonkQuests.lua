@@ -187,7 +187,7 @@ function RefreshBoard()
     end
     if present["class"] then
         tinsert(keys, "class")
-        tinsert(labels, (UnitClass("player") or L["Class"]) .. L[" quests"])
+        tinsert(labels, L("{1} quests", UI.PlayerClassName() or L["Class"]))
     end
     if table.getn(keys) == 0 then
         tinsert(keys, "all")

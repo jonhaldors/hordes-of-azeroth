@@ -217,7 +217,7 @@ function UI.CaptureKey(binding)
     capture.binding = binding
     capture.modifier = nil
     capture.title:SetText(binding.label)
-    capture.body:SetText(L["Press the key you want for "] .. binding.label .. L[". Escape keeps the current key."])
+    capture.body:SetText(L("Press the key you want for {1}. Escape keeps the current key.", binding.label))
     capture:Show()
 end
 

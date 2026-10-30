@@ -910,7 +910,7 @@ local function JoinNames(names)
     if count == 1 then
         return names[1]
     end
-    return table.concat(names, ", ", 1, count - 1) .. L[" and "] .. names[count]
+    return L("{1} and {2}", table.concat(names, L[", "], 1, count - 1), names[count])
 end
 
 local function Sections(shown)
@@ -1061,7 +1061,7 @@ local function PlaceRows(shown)
     end
     local count = table.getn(pages)
     if count > 1 then
-        panel.pageText:SetText(L["Page "] .. qm.page .. L[" of "] .. count)
+        panel.pageText:SetText(L("Page {1} of {2}", qm.page, count))
         panel.pageText:Show()
         panel.prevPage:Show()
         panel.nextPage:Show()
@@ -1102,7 +1102,7 @@ local function LayoutRefit()
     end
     local count = qm.refitCount
     if count > 0 then
-        frame.refit:SetText(count == 1 and L["Refit 1 set piece"] or (L["Refit "] .. count .. L[" set pieces"]))
+        frame.refit:SetText(count == 1 and L["Refit 1 set piece"] or L("Refit {1} set pieces", count))
         frame.refitNote:SetText(L["Set pieces from other classes in your bags become your class's. Costs "] .. UI.FormatGold(qm.refitFee) .. ".")
         frame.refit:Enable()
     else

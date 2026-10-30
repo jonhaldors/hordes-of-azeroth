@@ -147,7 +147,7 @@ local function Layout()
     frame:SetWidth(PADDING * 2 + COLUMNS * SLOT + (COLUMNS - 1) * SPACING)
     frame:SetHeight(TITLE_HEIGHT + rows * SLOT + (rows - 1) * SPACING + FOOTER_HEIGHT + 4)
     frame.title:SetText((UnitName("player") or L["Hero"]) .. L["'s Bags"])
-    frame.free:SetText(free .. L[" of "] .. total .. L[" slots free"])
+    frame.free:SetText(L("{1} of {2} slots free", free, total))
     MoneyFrame_Update("VanillaBonkBagsMoney", GetMoney())
 end
 

@@ -66,7 +66,7 @@ end)
 local valor = Row(2, L["Valor"], "INV_Misc_Coin_04", function()
     GameTooltip:AddDoubleLine(L["Valor"], run.valor or 0, 1, 1, 1, 1, 0.9, 0.45)
     GameTooltip:AddLine(L["Collected during the run and spent to open chests and buy from shops."], 1, 0.82, 0, 1)
-    GameTooltip:AddLine(L["Next chest: "] .. (run.chest or "?") .. L[" Valor"], 1, 1, 1)
+    GameTooltip:AddLine(L("Next chest: {1} Valor", run.chest or "?"), 1, 1, 1)
     GameTooltip:AddLine(L["Resets every run, it's not kept."], 0.6, 0.6, 0.6)
 end)
 local shards = Row(3, L["Tickets"], "INV_Misc_Ticket_Darkmoon_01", function()
@@ -167,7 +167,7 @@ callout.alpha, callout.want = 0, 0
 
 local function CalloutText()
     local left = max(1, (callout.at or 0) - (run.elapsed or 0))
-    callout.text:SetText(callout.name .. L[" |cffffffffin "] .. left .. "s|r")
+    callout.text:SetText(L("{1} |cffffffffin {2}s|r", callout.name, left))
 end
 
 callout:SetScript("OnUpdate", function()

@@ -273,16 +273,16 @@ local function IsBlink()
 end
 
 local function DashText()
-    local verb = IsBlink() and "teleport" or "dash"
-    local safety = L["You can't be hurt while you "] .. verb .. L[", so use it to get out of trouble."]
+    local verb = IsBlink() and L["teleport"] or L["dash"]
+    local safety = L("You can't be hurt while you {1}, so use it to get out of trouble.", verb)
     if PadStyle() then
-        return L["Pull "] .. PadButton("dash") .. L[" to "] .. verb .. L[" a short way in the direction you're moving. "] .. safety .. L["\n\nTry it now!"]
+        return L("Pull {1} to {2} a short way in the direction you're moving. {3}\n\nTry it now!", PadButton("dash"), verb, safety)
     end
     local key = UI.DashKeyText and UI.DashKeyText() or ""
     if key == "" then
-        return L["Your hero can "] .. verb .. L[" a short way in the direction you're moving. Give it a key under Key Bindings, at the top of the list."]
+        return L("Your hero can {1} a short way in the direction you're moving. Give it a key under Key Bindings, at the top of the list.", verb)
     end
-    return L["Press |cffffffff"] .. key .. L["|r to "] .. verb .. L[" a short way in the direction you're moving. "] .. safety
+    return L("Press |cffffffff{1}|r to {2} a short way in the direction you're moving. {3}", key, verb, safety)
         .. L["\n\nTry it now! You can change the key under Key Bindings."]
 end
 
@@ -294,7 +294,7 @@ end
 local function ControllerTipHint()
     local style = PadStyle()
     if style then
-        return L["Press "] .. PadButton("menu", style) .. L[" to open the pause menu."]
+        return L("Press {1} to open the pause menu.", PadButton("menu", style))
     end
     return L["Press |cffffffffEscape|r to open the pause menu."]
 end
@@ -449,8 +449,7 @@ function tutorial:ShowInnkeeper()
     dashBox:Hide()
     dashArrow:Hide()
     currencyTip:Hide()
-    ShowGuide(L["Make yourself at home"], L["Talk to "] .. UI.INNKEEPER_NAME .. L[", the Innkeeper. He keeps your settings: "]
-        .. L["the interact key and what it works on, chests that open by themselves, where your health bar sits and more."])
+    ShowGuide(L["Make yourself at home"], L("Talk to {1}, the Innkeeper. He keeps your settings: the interact key and what it works on, chests that open by themselves, where your health bar sits and more.", UI.INNKEEPER_NAME))
 end
 
 function tutorial:InnkeeperSeen()
@@ -467,7 +466,7 @@ function tutorial:ShowRunMaster()
     dashBox:Hide()
     dashArrow:Hide()
     currencyTip:Hide()
-    ShowGuide(L["Start a run"], L["Talk to "] .. RUN_MASTER_NAME .. L[", the Run Master. He lets you pick a map and starts your first run."])
+    ShowGuide(L["Start a run"], L("Talk to {1}, the Run Master. He lets you pick a map and starts your first run.", RUN_MASTER_NAME))
 end
 
 function tutorial:ShowVendors()
@@ -487,8 +486,7 @@ end
 function tutorial:ShowQuartermaster()
     step = "quartermaster"
     waypointReached = false
-    ShowGuide(L["The Mythic Quartermaster"], QUARTERMASTER_NAME .. L[" has arrived at the Inn. He sells Mythic tier gear for your class, "]
-        .. L["two tiers below your best Mythic floor cleared, and never below Tier 1."])
+    ShowGuide(L["The Mythic Quartermaster"], L("{1} has arrived at the Inn. He sells Mythic tier gear for your class, two tiers below your best Mythic floor cleared, and never below Tier 1.", QUARTERMASTER_NAME))
 end
 
 local function MarkStepSeen()
@@ -583,21 +581,21 @@ end
 
 local function TalkHint(name)
     if PadStyle() then
-        return L["Press "] .. PadButton("interact") .. L[" to talk to "] .. name .. "."
+        return L("Press {1} to talk to {2}.", PadButton("interact"), name)
     end
-    return L["Right-click "] .. name .. L[" to talk."]
+    return L("Right-click {1} to talk.", name)
 end
 
 local GUIDES = {
     innkeeper = {
         targets = INNKEEPER_TARGETS,
         far = L["Follow the arrow to find him."],
-        lost = L["Look for "] .. UI.INNKEEPER_NAME .. L[" <Innkeeper> at the Inn."],
+        lost = L("Look for {1} <Innkeeper> at the Inn.", UI.INNKEEPER_NAME),
     },
     runmaster = {
         targets = RUN_MASTER_TARGETS,
         far = L["Follow the arrow to find him."],
-        lost = L["Look for "] .. RUN_MASTER_NAME .. L[" <Run Master> at the Inn."],
+        lost = L("Look for {1} <Run Master> at the Inn.", RUN_MASTER_NAME),
     },
     deck = {
         spot = DECK_SPOT,
@@ -607,7 +605,7 @@ local GUIDES = {
     quartermaster = {
         targets = QUARTERMASTER_TARGETS,
         far = L["Follow the arrow to find him."],
-        lost = L["Look for "] .. QUARTERMASTER_NAME .. L[" <Mythic Quartermaster> at the Inn."],
+        lost = L("Look for {1} <Mythic Quartermaster> at the Inn.", QUARTERMASTER_NAME),
     },
     vendors = {
         targets = UPSTAIRS_TARGETS,
@@ -646,9 +644,9 @@ end
 
 local function OpenHint(name)
     if PadStyle() then
-        return L["Press "] .. PadButton("interact") .. L[" to open "] .. name .. "."
+        return L("Press {1} to open {2}.", PadButton("interact"), name)
     end
-    return L["Right-click "] .. name .. L[" to open it."]
+    return L("Right-click {1} to open it.", name)
 end
 
 local function UpdateSpot(guide)
@@ -877,7 +875,7 @@ function gearTip.Show(tab, name)
     gearTip.tab, gearTip.name = tab, name
     box.title:SetText(tip.title)
     box.body:SetText(tip.body)
-    box.hint:SetText(L["Click the "] .. name .. L[" tab."])
+    box.hint:SetText(L("Click the {1} tab.", name))
     box:SetHeight(22 + box.title:GetHeight() + 10 + box.body:GetHeight() + 8 + box.hint:GetHeight() + 16 + 22 + 18)
     box.arrow:ClearAllPoints()
     box.arrow:SetPoint("TOP", tab, "BOTTOM", 0, -2)

@@ -164,11 +164,11 @@ local function ShowSpellTooltip(owner, spell)
 
     Tip:AddRule()
     if base then
-        Tip:AddSmallLine(base.name .. L[" evolves into this through a Legendary rank, offered from rank "] .. EVOLVE_RANK .. ".", Tip.ORANGE)
+        Tip:AddSmallLine(L("{1} evolves into this through a Legendary rank, offered from rank {2}.", base.name, EVOLVE_RANK), Tip.ORANGE)
     else
         local evolutions = book.evolutionOf[spell.id]
         if evolutions then
-            Tip:AddSmallLine(L["From rank "] .. EVOLVE_RANK .. L[", a Legendary rank can evolve it into "] .. EvolutionNames(evolutions) .. ".", Tip.ORANGE)
+            Tip:AddSmallLine(L("From rank {1}, a Legendary rank can evolve it into {2}.", EVOLVE_RANK, EvolutionNames(evolutions)), Tip.ORANGE)
         end
     end
     if spell.starterMask > 0 then
@@ -723,12 +723,12 @@ end
 local function DescribeDebuffLimits(debuff)
     local parts = {}
     if debuff.maxStacks > 1 then
-        tinsert(parts, L["Up to "] .. debuff.maxStacks .. L[" stacks"])
+        tinsert(parts, L("Up to {1} stacks", debuff.maxStacks))
     end
     if debuff.durationMs > 0 then
-        tinsert(parts, (getn(parts) > 0 and "lasts " or L["Lasts "]) .. format("%g", debuff.durationMs / 1000) .. L[" sec"])
+        tinsert(parts, L(getn(parts) > 0 and "lasts {1} sec" or "Lasts {1} sec", format("%g", debuff.durationMs / 1000)))
     end
-    return table.concat(parts, ", ")
+    return table.concat(parts, L[", "])
 end
 
 local function ShowInfoRows(entries, describe)
@@ -1058,7 +1058,7 @@ function Refresh(keepScroll)
                 held = held + 1
             end
         end
-        window.tally:SetText("|cffffffff" .. owned .. L[" owned|r|cff9d9d9d,|r |cffff6666"] .. held .. L[" locked by quests|r"])
+        window.tally:SetText(L("|cffffffff{1} owned|r|cff9d9d9d,|r |cffff6666{2} locked by quests|r", owned, held))
     end
     window.pool:SetText("")
 
@@ -1070,7 +1070,7 @@ function Refresh(keepScroll)
             end
         end
     end
-    window.header:SetText(className .. "|cff9d9d9d: " .. book.spellCount .. L[" spells, "] .. book.passiveCount .. L[" passives|r"])
+    window.header:SetText(L("{1}|cff9d9d9d: {2} spells, {3} passives|r", className, book.spellCount, book.passiveCount))
 end
 
 TogglePool = function(entry)

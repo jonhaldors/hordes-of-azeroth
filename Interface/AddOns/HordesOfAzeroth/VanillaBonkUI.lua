@@ -35,6 +35,15 @@ UI.DAMAGE_TYPES = {
     tree = { name = L["Tree of Life"], r = 0.35, g = 0.85, b = 0.35, icon = "Spell_Nature_ProtectionformNature", note = L["Vines."] },
 }
 UI.DAMAGE_TYPE_BY_KEYWORD = { [L["Bleed"]] = "bleed", [L["Poison"]] = "poison", [L["Burning"]] = "burn", [L["Decay"]] = "decay", [L["Agony"]] = "agony" }
+UI.CLASS_NAMES = {
+    WARRIOR = L["Warrior"], PALADIN = L["Paladin"], HUNTER = L["Hunter"], ROGUE = L["Rogue"], PRIEST = L["Priest"],
+    SHAMAN = L["Shaman"], MAGE = L["Mage"], WARLOCK = L["Warlock"], DRUID = L["Druid"],
+}
+
+function UI.PlayerClassName()
+    local name, token = UnitClass("player")
+    return UI.CLASS_NAMES[token or ""] or name
+end
 
 local ICON_SCHOOLS = {
     { "_FIRE_", "fire" }, { "FIREBALL", "fire" }, { "_FROST_", "frost" }, { "_ARCANE_", "arcane" }, { "STARFALL", "arcane" },

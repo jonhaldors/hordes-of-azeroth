@@ -383,7 +383,7 @@ local function ShowDetail()
     StyleCardFace(side.big, entry)
     side.name:SetText(entry.name)
     side.name:SetTextColor(rarity.r, rarity.g, rarity.b)
-    side.rarity:SetText(rarity.name .. (Kind().key == "g" and L[" Glyph"] or L[" Darkmoon Card"]))
+    side.rarity:SetText(L(Kind().key == "g" and "{1} Glyph" or "{1} Darkmoon Card", rarity.name))
     side.source:SetText(UnlockText(entry))
     local text = entry.description or ""
     if entry.drawback and entry.drawback ~= "" then
@@ -461,10 +461,10 @@ local function ShowSlots()
     for index = getn(sources) + 1, getn(side.pips) do
         side.pips[index]:Hide()
     end
-    side.slotText:SetText(pool.used .. L[" used, "] .. max(0, pool.slots - pool.used) .. L[" free"])
+    side.slotText:SetText(L("{1} used, {2} free", pool.used, max(0, pool.slots - pool.used)))
     local sale = NextSale()
     if sale then
-        side.buy:SetText(L["Buy a ban slot: "] .. sale.tickets .. L[" tickets"])
+        side.buy:SetText(L("Buy a ban slot: {1} tickets", sale.tickets))
         if (book.tickets or 0) >= sale.tickets then
             side.buy:Enable()
         else

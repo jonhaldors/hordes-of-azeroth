@@ -1269,9 +1269,9 @@ local function ShowOffer(level)
     if getn(keys) > 0 then
         local text = keys[1]
         for index = 2, getn(keys) do
-            text = text .. (index == getn(keys) and L[" or "] or ", ") .. keys[index]
+            text = text .. (index == getn(keys) and L[" or "] or L[", "]) .. keys[index]
         end
-        hint = L["Press "] .. text .. "."
+        hint = L("Press {1}.", text)
     end
     offerFrame.hintText = hint
 
@@ -1697,7 +1697,7 @@ arena:SetScript("OnShow", function()
     if color then
         name = format("|cff%02x%02x%02x%s|r", color.r * 255, color.g * 255, color.b * 255, name)
     end
-    arena.hero:SetText(name .. "|cffffffff, " .. (UnitClass("player") or "") .. "|r")
+    arena.hero:SetText(name .. "|cffffffff, " .. (UI.PlayerClassName() or "") .. "|r")
 end)
 
 arena:SetScript("OnHide", function()
@@ -2058,11 +2058,11 @@ local function MissingRequirement(node)
     end
     local gate = VB.shop.gates and VB.shop.gates[node.row]
     if gate and gate.above < gate.need then
-        return L["Requires "] .. gate.need .. L[" Darkmoon Tickets spent in the rows above"]
+        return L("Requires {1} Darkmoon Tickets spent in the rows above", gate.need)
     end
     local perRow = VB.shop.pointsPerRow or 0
     if perRow > 0 and node.row > 1 and TreeSpent(node.tree) < (node.row - 1) * perRow then
-        return L["Requires "] .. ((node.row - 1) * perRow) .. L[" points in "] .. TreeName(node.tree)
+        return L("Requires {1} points in {2}", (node.row - 1) * perRow, TreeName(node.tree))
     end
     local required = VB.shop.nodes[node.requiredId]
     if not required or node.requiredRank < 1 or required.rank >= node.requiredRank then
@@ -2071,7 +2071,7 @@ local function MissingRequirement(node)
     if required.maxRank <= 1 then
         return L["Requires "] .. required.name
     end
-    return L["Requires "] .. node.requiredRank .. (node.requiredRank == 1 and L[" rank in "] or L[" ranks in "]) .. required.name
+    return L(node.requiredRank == 1 and "Requires {1} rank in {2}" or "Requires {1} ranks in {2}", node.requiredRank, required.name)
 end
 
 function VB.IsEndless(node)
@@ -2117,11 +2117,11 @@ local function RefundBlocker(node)
     for _, other in pairs(VB.shop.nodes) do
         if other ~= node and other.rank > 0 then
             if other.requiredId == node.id and node.rank - 1 < other.requiredRank then
-                return L["Refund "] .. other.name .. L[" first. It depends on this one."]
+                return L("Refund {1} first. It depends on this one.", other.name)
             end
             local gate = VB.shop.gates and VB.shop.gates[other.row]
             if gate and other.row > node.row and gate.above - node.refund < gate.need then
-                return L["Refund "] .. other.name .. L[" first. It needs the tickets you spent here."]
+                return L("Refund {1} first. It needs the tickets you spent here.", other.name)
             end
             if perRow > 0 and other.tree == node.tree and other.row > node.row then
                 local above = 0
@@ -2131,7 +2131,7 @@ local function RefundBlocker(node)
                     end
                 end
                 if above - 1 < (other.row - 1) * perRow then
-                    return L["Refund "] .. other.name .. L[" first. It needs the points you spent in "] .. TreeName(node.tree) .. "."
+                    return L("Refund {1} first. It needs the points you spent in {2}.", other.name, TreeName(node.tree))
                 end
             end
         end
@@ -2416,7 +2416,7 @@ local function DrawTree(panel, tree)
             if gates[row].need > gates[row - 1].need then
                 count = count + 1
                 local lit = gates[row].above >= gates[row].need
-                local text = lit and (L["Unlocked at "] .. gates[row].need .. L[" tickets spent"]) or (gates[row].need .. L[" tickets spent to unlock"])
+                local text = lit and L("Unlocked at {1} tickets spent", gates[row].need) or L("{1} tickets spent to unlock", gates[row].need)
                 VanillaBonkTalents.ShopGate(panel, panel.arrows, count, -(TREE_OFFSET_Y + (row - 1.5) * TREE_SPACING + SHOP_NODE_HALF), text, lit)
             end
         end
@@ -2739,8 +2739,8 @@ handlers["end"] = function(f)
     else
         results.title:SetText(L["|cffff3030Defeated|r"])
     end
-    results.body:SetText(L["Reached floor "] .. (f[7] or "1") .. L[" in "] .. FormatTime(f[3]) .. "\n" ..
-        L["Kills: "] .. f[4] .. L["    Level: "] .. f[6] .. "\n" ..
+    results.body:SetText(L("Reached floor {1} in {2}", f[7] or "1", FormatTime(f[3])) .. "\n" ..
+        L("Kills: {1}    Level: {2}", f[4], f[6]) .. "\n" ..
         L["Gold earned: "] .. FormatGold(f[5]) .. "\n" ..
         L["Darkmoon Tickets: |cffc080ff"] .. (f[8] or "0") .. "|r\n\n" ..
         L["|cffaaaaaaReturning to the Inn...|r"])

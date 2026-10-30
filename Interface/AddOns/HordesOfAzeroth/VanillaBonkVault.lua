@@ -146,7 +146,7 @@ local function ShowItemTooltip(owner, find, line)
     end
     if not vault.pillar then
         local text = LeftOutText(find.sell, find.scrap)
-        GameTooltip:AddLine(strupper(strsub(text, 1, 1)) .. strsub(text, 2) .. L[" if you leave it out of the vault."], 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(L("{1} if you leave it out of the vault.", strupper(strsub(text, 1, 1)) .. strsub(text, 2)), 0.7, 0.7, 0.7)
     end
     if getn(find.saved) == 0 then
         GameTooltip:AddLine(L["You have nothing saved in this slot."], 0.7, 0.7, 0.7)
@@ -565,7 +565,7 @@ function Refresh()
 
     local anchor = frame.cards
     if pages > 1 then
-        frame.pageText:SetText(L["Page "] .. vault.page .. L[" of "] .. pages .. "  (" .. total .. L[" items)"])
+        frame.pageText:SetText(L("Page {1} of {2}  ({3} items)", vault.page, pages, total))
         frame.pageText:ClearAllPoints()
         frame.pageText:SetPoint("TOP", frame.cards, "BOTTOM", 0, -12)
         frame.prev:ClearAllPoints()

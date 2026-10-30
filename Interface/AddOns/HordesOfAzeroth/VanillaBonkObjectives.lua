@@ -71,7 +71,7 @@ local function ShowTooltip()
         tooltip:AddLine(floor(sqrt(dn * dn + dw * dw)) .. L[" yards away"], 0.7, 0.7, 0.7)
     end
     if objective.leaves then
-        tooltip:AddLine(L["Gone in "] .. max(0, ceil(objective.leaves - GetTime())) .. L[" sec"], 0.7, 0.7, 0.7)
+        tooltip:AddLine(L("Gone in {1} sec", max(0, ceil(objective.leaves - GetTime()))), 0.7, 0.7, 0.7)
     end
     tooltip:Show()
 end

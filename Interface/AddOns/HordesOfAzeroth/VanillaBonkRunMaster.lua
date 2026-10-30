@@ -365,7 +365,7 @@ local function ZoneTooltip(row)
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
     if not map then
         GameTooltip:AddLine(L["Random zone"], 1, 0.82, 0)
-        GameTooltip:AddLine(L["Floor 1 takes you to any "] .. tier.name .. L[" zone."], 1, 1, 1, 1)
+        GameTooltip:AddLine(L("Floor 1 takes you to any {1} zone.", tier.name), 1, 1, 1, 1)
     else
         GameTooltip:AddLine(map.name, 1, 0.82, 0)
         if MAP_TYPES[map.type] then
@@ -393,7 +393,7 @@ local function DungeonTooltip(row)
     GameTooltip:AddLine(CHALLENGE_RISK, 1, 0.5, 0.5, 1)
     GameTooltip:AddLine(Mode() == "invasion" and INVASION_REWARD or DUNGEON_REWARD, 0.25, 1, 0.25, 1)
     if not dungeon.open then
-        GameTooltip:AddLine(L["Clear "] .. tier.name .. L[" first."], 1, 0.3, 0.3, 1)
+        GameTooltip:AddLine(L("Clear {1} first.", tier.name), 1, 0.3, 0.3, 1)
     end
     GameTooltip:Show()
 end
@@ -422,7 +422,7 @@ local function ShowList()
         local row = ListRow(1)
         row.map, row.dungeon, row.tooltip = nil, nil, ZoneTooltip
         row.pick = function() state.zone[tier.id] = nil end
-        FillRow(row, RANDOM_ICON, L["Random zone"], L["Any "] .. tier.name .. L[" zone, picked when the run starts"], zone == nil, dimmed)
+        FillRow(row, RANDOM_ICON, L["Random zone"], L("Any {1} zone, picked when the run starts", tier.name), zone == nil, dimmed)
         for _, map in ipairs(tier.maps) do
             count = count + 1
             row = ListRow(count)
@@ -582,7 +582,7 @@ local function ShowBanner()
         SetArt(tier.art, false, true)
         banner.tag:SetText("")
         banner.name:SetText(mode == "dungeon" and L["Dungeon"] or L["Invasion"])
-        banner.description:SetText(L["Clear "] .. tier.name .. L[" to unlock challenges."])
+        banner.description:SetText(L("Clear {1} to unlock challenges.", tier.name))
     else
         local invader = mode == "invasion" and dungeon or nil
         local info = Info(zone and zone.key)
@@ -603,7 +603,7 @@ local function ShowBanner()
             else
                 banner.tag:SetText("")
             end
-            banner.description:SetText(zone and (info.description or "") or (L["Floor 1 takes you to any "] .. tier.name .. L[" zone."]))
+            banner.description:SetText(zone and (info.description or "") or L("Floor 1 takes you to any {1} zone.", tier.name))
         end
     end
 end
@@ -706,7 +706,7 @@ local function MakePin()
             return
         end
         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-        GameTooltip:AddLine(L["Floor "] .. this.floor .. L[" milestone"], 1, 0.82, 0)
+        GameTooltip:AddLine(L("Floor {1} milestone", this.floor), 1, 0.82, 0)
         GameTooltip:AddLine(row.change, 1, 1, 1, 1)
         if row.reward ~= "" then
             GameTooltip:AddLine(L["First clear: "] .. row.reward .. ".", 0.25, 1, 0.25, 1)
@@ -973,7 +973,7 @@ local function ShowMilestone(current, count, y)
     local row = FloorRow(tier, current)
     local reward = row and row.reward or ""
     local done = row and row.cleared == "1"
-    local rewardLine = reward ~= "" and ((done and L["|cff9d9d9dFirst clear (done): "] or L["|cff40ff40First clear: "]) .. reward .. ".|r") or ""
+    local rewardLine = reward ~= "" and L(done and "|cff9d9d9dFirst clear (done): {1}.|r" or "|cff40ff40First clear: {1}.|r", reward) or ""
     local onMilestone = row and MILESTONE_ICONS[row.kind or ""]
     local nextFloor, nextRow = NextMilestone(current, count)
     local harder = ""

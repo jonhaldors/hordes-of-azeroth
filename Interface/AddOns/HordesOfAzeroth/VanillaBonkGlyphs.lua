@@ -3,7 +3,7 @@ local UI = VanillaBonkUI
 
 local SOCKET_SIZE = 26
 local SOCKETS = 7
-local ORDINALS = { "first", "second", "third", "fourth", "fifth", "sixth", "seventh" }
+local ORDINALS = { L["first"], L["second"], L["third"], L["fourth"], L["fifth"], L["sixth"], L["seventh"] }
 local FADE = 0.2
 local BAD = { 1, 0.25, 0.2 }
 local MAX_CARDS = 4
@@ -300,7 +300,7 @@ local function FillMine()
 end
 
 local function Fill()
-    frame.subtitle:SetText(L["Your "] .. (ORDINALS[offer.pick] or "next") .. L[" Glyph lasts the whole run. The run is paused while you choose."])
+    frame.subtitle:SetText(L("Your {1} Glyph lasts the whole run. The run is paused while you choose.", ORDINALS[offer.pick] or L["next"]))
     local glyphs = {}
     for index = 1, MAX_CARDS do
         local glyph = info[offer.ids[index]]

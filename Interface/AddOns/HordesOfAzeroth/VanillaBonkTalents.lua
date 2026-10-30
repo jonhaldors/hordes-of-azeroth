@@ -141,7 +141,7 @@ local function Missing(node)
     local tree = TreeOf(node)
     local gate = Gate(tree, node.row)
     if tree.spent < gate then
-        return L["Requires "] .. gate .. L[" points in "] .. tree.name .. "."
+        return L("Requires {1} points in {2}.", gate, tree.name)
     end
     if not HasParent(node) then
         return L["Learn a talent that leads here first."]
@@ -707,7 +707,7 @@ local function DrawTree(panel, tree, height)
         if tree.spent < gate then
             panel.gates[1] = panel.gates[1] or CreateGate(panel)
             local missing = gate - tree.spent
-            PlaceGate(panel, panel.gates[1], -Snap(TOP_PAD + (row - 0.5) * ROW_STEP), missing .. (missing == 1 and VanillaBonkL[" point"] or VanillaBonkL[" points"]) .. VanillaBonkL[" to unlock"], false)
+            PlaceGate(panel, panel.gates[1], -Snap(TOP_PAD + (row - 0.5) * ROW_STEP), VanillaBonkL(missing == 1 and "{1} point to unlock" or "{1} points to unlock", missing), false)
             break
         end
     end

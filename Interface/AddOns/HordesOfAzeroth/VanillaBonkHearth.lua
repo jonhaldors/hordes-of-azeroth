@@ -64,7 +64,7 @@ button:SetScript("OnEnter", function()
     GameTooltip:SetBagItem(bag, slot)
     local key = UI.BindingText(HEARTH)
     if key ~= "" then
-        GameTooltip:AddLine(L["Hit "] .. key .. L[" to use it."], 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(L("Hit {1} to use it.", key), 0.6, 0.6, 0.6)
     end
     GameTooltip:Show()
 end)
@@ -118,7 +118,7 @@ local function KeyLine()
     if key == "" then
         return L["Pick a key for it under Key Bindings, Hordes of Azeroth, Use Hearthstone."]
     end
-    return L["Hit "] .. key .. L[" or click the stone to use it. You can change the key under Key Bindings."]
+    return L("Hit {1} or click the stone to use it. You can change the key under Key Bindings.", key)
 end
 
 tip:SetScript("OnShow", function()

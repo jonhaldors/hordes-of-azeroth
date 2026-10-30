@@ -296,7 +296,7 @@ local function ShowSpellTip(owner, anchor, entry, stat)
         end
         local share = total > 0 and floor(stat.damage / total * 100 + 0.5) or 0
         Tip:AddRule()
-        Tip:AddDoubleLine(VanillaBonkUI.Short(stat.damage) .. L[" damage · "] .. share .. L["% of total"], (stat.kills or 0) .. L[" kills"],
+        Tip:AddDoubleLine(L("{1} damage · {2}% of total", VanillaBonkUI.Short(stat.damage), share), (stat.kills or 0) .. L[" kills"],
             0.62, 0.62, 0.62, 0.62, 0.62, 0.62, 11)
     end
     Tip:Show()
@@ -321,14 +321,14 @@ local function ShowSlotTooltip()
         local unlock = LOCKED_SLOTS[kind]
         local rank = max(1, slot.slotIndex - unlock.start)
         local need = unlock.ranks[rank] or unlock.ranks[getn(unlock.ranks)]
-        GameTooltip:AddLine(L["Locked "] .. kind .. L[" slot"], 1, 1, 1)
+        GameTooltip:AddLine(slot.isSpell and L["Locked spell slot"] or L["Locked passive slot"], 1, 1, 1)
         if rank == 1 then
-            GameTooltip:AddLine(L["Buy "] .. unlock.talent .. L[" from Sayge at the Inn to unlock it."], 1, 0.82, 0, 1)
-            GameTooltip:AddLine(L["Sayge sells it once you finish the quest \""] .. need.quest .. L["\" (complete "] ..
-                need.quests .. L[" quests)."], 0.6, 0.6, 0.6, 1)
+            GameTooltip:AddLine(L("Buy {1} from Sayge at the Inn to unlock it.", unlock.talent), 1, 0.82, 0, 1)
+            GameTooltip:AddLine(L("Sayge sells it once you finish the quest \"{1}\" (complete {2} quests).", need.quest, need.quests),
+                0.6, 0.6, 0.6, 1)
         else
-            GameTooltip:AddLine(L["Buy rank "] .. rank .. L[" of "] .. unlock.talent .. L[" from Sayge at the Inn to unlock it."], 1, 0.82, 0, 1)
-            GameTooltip:AddLine(L["Sayge sells rank "] .. rank .. L[" once you have completed "] .. need.quests .. L[" quests."], 0.6, 0.6, 0.6, 1)
+            GameTooltip:AddLine(L("Buy rank {1} of {2} from Sayge at the Inn to unlock it.", rank, unlock.talent), 1, 0.82, 0, 1)
+            GameTooltip:AddLine(L("Sayge sells rank {1} once you have completed {2} quests.", rank, need.quests), 0.6, 0.6, 0.6, 1)
         end
         GameTooltip:Show()
         return
@@ -337,10 +337,10 @@ local function ShowSlotTooltip()
         if slot.isSpell then
             GameTooltip:AddLine(L["Empty spell slot"], 1, 1, 1)
             GameTooltip:AddLine(L["Level-ups can offer a new spell while a slot is free."], 1, 0.82, 0, 1)
-            GameTooltip:AddLine(L["Up to "] .. SPELL_SLOTS .. L[" spells per run."], 0.6, 0.6, 0.6)
+            GameTooltip:AddLine(L("Up to {1} spells per run.", SPELL_SLOTS), 0.6, 0.6, 0.6)
         else
             GameTooltip:AddLine(L["Empty passive slot"], 1, 1, 1)
-            GameTooltip:AddLine(L["Up to "] .. PASSIVE_SLOTS .. L[" passives per run."], 0.6, 0.6, 0.6)
+            GameTooltip:AddLine(L("Up to {1} passives per run.", PASSIVE_SLOTS), 0.6, 0.6, 0.6)
         end
         GameTooltip:Show()
         return
@@ -698,12 +698,12 @@ local function ShowMasteryTooltip()
     if mastery.next > 0 then
         GameTooltip:AddLine(mastery.xp .. " / " .. mastery.next .. L[" experience"], 1, 1, 1)
     end
-    GameTooltip:AddLine(L["Runs as a "] .. strlower(mastery.class) .. L[" earn Mastery experience for every minute you survive and every mini-boss and floor boss you kill. Harder difficulties earn more."], 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L("Runs as a {1} earn Mastery experience for every minute you survive and every mini-boss and floor boss you kill. Harder difficulties earn more.", strlower(mastery.class)), 1, 0.82, 0, 1)
     if not mastery.trees then
         GameTooltip:AddLine(L["Your class's talent trees aren't available yet. The experience you earn is saved for them."], 0.6, 0.6, 0.6, 1)
     elseif mastery.unspent > 0 then
-        GameTooltip:AddLine(L["You have "] .. mastery.unspent .. L[" unspent talent "] .. (mastery.unspent == 1 and L["point. Spend it"] or L["points. Spend them"])
-            .. L[" at the talent trainer."], 0.25, 1, 0.25, 1)
+        GameTooltip:AddLine(L(mastery.unspent == 1 and "You have {1} unspent talent point. Spend it at the talent trainer."
+            or "You have {1} unspent talent points. Spend them at the talent trainer.", mastery.unspent), 0.25, 1, 0.25, 1)
     end
     GameTooltip:Show()
 end
@@ -737,7 +737,7 @@ local function RefreshMastery()
     if not mastery.trees then
         masteryPoints:SetText(L["|cffaaaaaaTrees coming soon|r"])
     elseif mastery.unspent > 0 then
-        masteryPoints:SetText(mastery.unspent .. (mastery.unspent == 1 and L[" talent point"] or L[" talent points"]) .. L[" to spend"])
+        masteryPoints:SetText(L(mastery.unspent == 1 and "{1} talent point to spend" or "{1} talent points to spend", mastery.unspent))
     else
         masteryPoints:SetText("")
     end

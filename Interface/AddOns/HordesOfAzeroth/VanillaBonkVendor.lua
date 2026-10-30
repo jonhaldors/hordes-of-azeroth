@@ -485,7 +485,7 @@ local function ShowShelf()
     end
 
     frame.title:SetText(shop.name)
-    frame.subtitle:SetText(L["Wandering vendor  |cff9d9d9d·|r  You have "] .. VALOR_COLOR .. shop.valor .. L[" Valor|r"])
+    frame.subtitle:SetText(L("Wandering vendor  |cff9d9d9d·|r  You have {1}{2} Valor|r", VALOR_COLOR, shop.valor))
 
     local gap, apart = 12, 36
     local width = min(200, floor((UIParent:GetWidth() - 40 - 2 * gap - apart) / SLOTS))
@@ -528,7 +528,7 @@ local function ShowShelf()
     end
 
     if shop.restocks > 0 then
-        frame.reroll:SetText(L["Restock ("] .. (shop.valor >= shop.rerollCost and VALOR_COLOR or "") .. shop.rerollCost .. L[" Valor|r)"])
+        frame.reroll:SetText(L("Restock ({1}{2} Valor|r)", shop.valor >= shop.rerollCost and VALOR_COLOR or "", shop.rerollCost))
     else
         frame.reroll:SetText(L["No restocks"])
     end

@@ -678,7 +678,7 @@ local function AddEventLines(indexes)
             GameTooltip:AddDoubleLine(source and BlowText(source) or L["Unknown"], "-" .. Thousands(event.amount), color[1] + 0.25, color[2] + 0.25, color[3] + 0.25, 1, 0.42, 0.31)
         end
         if index == count and recap.overkill > 0 then
-            GameTooltip:AddLine(L["Killing blow, "] .. Thousands(recap.overkill) .. L[" overkill"], 1, 0.42, 0.31)
+            GameTooltip:AddLine(L("Killing blow, {1} overkill", Thousands(recap.overkill)), 1, 0.42, 0.31)
         end
     end
     GameTooltip:AddLine(HealthLine(recap.events[indexes[getn(indexes)]].health), 1, 1, 1)
@@ -1146,16 +1146,16 @@ local function FillHeading()
     if run.victory then
         color = TITLE_VICTORY
         panel.title:SetText(L["Victory"])
-        panel.subtitle:SetText(run.floors and (L["You climbed to floor "] .. (run.stage or "1") .. L[" of "] .. Place() .. L[" in "] .. UI.FormatTime(run.seconds) .. ".") or
-            (L["You cleared every floor of "] .. Place() .. L[" in "] .. UI.FormatTime(run.seconds) .. "."))
+        panel.subtitle:SetText(run.floors and L("You climbed to floor {1} of {2} in {3}.", run.stage or "1", Place(), UI.FormatTime(run.seconds)) or
+            L("You cleared every floor of {1} in {2}.", Place(), UI.FormatTime(run.seconds)))
     elseif run.wentHome then
         color = TITLE_HOME
         panel.title:SetText(L["Run Complete"])
-        panel.subtitle:SetText(L["You left "] .. Place() .. L[" on floor "] .. (run.stage or "1") .. L[" after "] .. UI.FormatTime(run.seconds) .. ".")
+        panel.subtitle:SetText(L("You left {1} on floor {2} after {3}.", Place(), run.stage or "1", UI.FormatTime(run.seconds)))
     else
         color = TITLE_DEFEAT
         panel.title:SetText(L["Defeat"])
-        panel.subtitle:SetText(L["You fell on floor "] .. (run.stage or "1") .. L[" in "] .. Place() .. L[" after "] .. UI.FormatTime(run.seconds) .. ".")
+        panel.subtitle:SetText(L("You fell on floor {1} in {2} after {3}.", run.stage or "1", Place(), UI.FormatTime(run.seconds)))
     end
     panel.title:SetTextColor(color[1], color[2], color[3])
     FillBestFloor()
@@ -1168,9 +1168,9 @@ local function FillHeading()
     local shards = tonumber(run.shards or "") or 0
     local tickets = "|cffc080ff" .. shards .. (shards == 1 and L[" Darkmoon Ticket"] or L[" Darkmoon Tickets"]) .. "|r"
     if run.wentHome then
-        panel.earned:SetText(L["You earned "] .. UI.FormatGold(run.gold) .. ", " .. tickets .. L[" and the gear in the Extraction Vault."])
+        panel.earned:SetText(L("You earned {1}, {2} and the gear in the Extraction Vault.", UI.FormatGold(run.gold), tickets))
     else
-        panel.earned:SetText(L["You earned "] .. UI.FormatGold(run.gold) .. L[" and "] .. tickets .. ".")
+        panel.earned:SetText(L("You earned {1} and {2}.", UI.FormatGold(run.gold), tickets))
     end
 end
 
