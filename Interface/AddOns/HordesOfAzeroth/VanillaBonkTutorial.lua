@@ -770,9 +770,9 @@ tutorial:SetScript("OnUpdate", function()
     end
 end)
 
-local function IsUpstairsVendor(name)
+local function TalkingToUpstairsVendor()
     for _, target in ipairs(UPSTAIRS_TARGETS) do
-        if target.name == name then
+        if UI.TalkingTo(target.name) then
             return true
         end
     end
@@ -788,19 +788,19 @@ tutorial:SetScript("OnEvent", function()
         inWorld = true
     elseif event == "PLAYER_LEAVING_WORLD" then
         inWorld = false
-    elseif event == "GOSSIP_SHOW" and UnitName("npc") == UI.INNKEEPER_NAME then
+    elseif event == "GOSSIP_SHOW" and UI.TalkingTo(UI.INNKEEPER_NAME) then
         if step == "innkeeper" then
             step = "innkeeperopen"
             HideCallouts()
         else
             VanillaBonkInnkeeperTip = true
         end
-    elseif (event == "GOSSIP_SHOW" or event == "MERCHANT_SHOW") and UnitName("npc") == QUARTERMASTER_NAME then
+    elseif (event == "GOSSIP_SHOW" or event == "MERCHANT_SHOW") and UI.TalkingTo(QUARTERMASTER_NAME) then
         VanillaBonkQuartermasterTip = true
         if step == "quartermaster" then
             EndLesson()
         end
-    elseif event == "GOSSIP_SHOW" and IsUpstairsVendor(UnitName("npc")) then
+    elseif event == "GOSSIP_SHOW" and TalkingToUpstairsVendor() then
         if VanillaBonkVendorTip == "waiting" or VanillaBonkVendorTip == "ready" then
             VanillaBonkVendorTip = true
         end

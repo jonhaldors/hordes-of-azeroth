@@ -793,6 +793,28 @@ end
 UI.INNKEEPER_ENTRY = 900140
 UI.INNKEEPER_NAME = L["Tarn Oakhoof"]
 
+UI.npcNames = {}
+
+function UI.TalkingTo(name)
+    local current = UnitName("npc")
+    if not current or not name or name == "" then
+        return false
+    end
+    if current == name or current == UI.npcNames[name] then
+        return true
+    end
+    local english = VanillaBonkLocale.English(name)
+    if current == english then
+        return true
+    end
+    for _, strings in pairs(VanillaBonkLocale.tables) do
+        if strings[english] == current then
+            return true
+        end
+    end
+    return false
+end
+
 local KEYCAP_TEXTURE = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\KeyCap"
 local KEYCAP_CAP_SHARE = 0.5
 local KEYCAP_PAD_SHARE = 7 / 22

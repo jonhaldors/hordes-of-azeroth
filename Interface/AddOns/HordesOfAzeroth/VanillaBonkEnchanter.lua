@@ -186,7 +186,7 @@ end)
 
 local PreviousGossipOnEvent = GossipFrame_OnEvent
 function GossipFrame_OnEvent()
-    if event == "GOSSIP_SHOW" and UnitName("npc") == UI.ENCHANTER_NAME then
+    if event == "GOSSIP_SHOW" and UI.TalkingTo(UI.ENCHANTER_NAME) then
         window.fromGossip = true
         SendChatMessage(".bonk gear enchant open", "SAY")
         return

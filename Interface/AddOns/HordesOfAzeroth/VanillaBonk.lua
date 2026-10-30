@@ -1470,7 +1470,7 @@ end
 
 local function ReplaceNextGossip(frame, npc, refresh)
     local pending = { frame = frame, npc = npc, refresh = refresh }
-    if GossipFrame:IsShown() and UnitName("npc") == npc then
+    if GossipFrame:IsShown() and VanillaBonkUI.TalkingTo(npc) then
         VB.gossipPending = nil
         VB.HideBlizzardGossipKeepingItOpen()
         VB.TakeOverGossip(pending)
@@ -1494,7 +1494,7 @@ function GossipFrame_OnEvent()
     if event == "GOSSIP_SHOW" then
         local pending = VB.gossipPending
         VB.gossipPending = nil
-        if pending and UnitName("npc") == pending.npc then
+        if pending and VanillaBonkUI.TalkingTo(pending.npc) then
             VB.TakeOverGossip(pending)
             return
         end
@@ -2538,6 +2538,11 @@ handlers["kwd"] = function(f)
     end
     VB.keywords[id] = { name = f[3] or "", icon = f[4] or "", description = f[5] or "" }
     VB.keywordTerms = nil
+end
+
+handlers["npcname"] = function(f)
+    UI.npcNames[f[2]] = f[3]
+    UI.npcNames[f[3]] = f[2]
 end
 
 handlers["arena"] = function(f)

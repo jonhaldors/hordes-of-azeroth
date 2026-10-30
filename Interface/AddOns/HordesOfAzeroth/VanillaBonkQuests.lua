@@ -276,7 +276,7 @@ function GossipFrame_OnEvent()
     if event == "GOSSIP_SHOW" and pendingNpc then
         local npc = pendingNpc
         pendingNpc = nil
-        if UnitName("npc") == npc then
+        if UI.TalkingTo(npc) then
             RefreshBoard()
             board.fromGossip = true
             board:Show()

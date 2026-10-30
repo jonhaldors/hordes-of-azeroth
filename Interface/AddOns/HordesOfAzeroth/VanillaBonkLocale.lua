@@ -25,6 +25,20 @@ function VanillaBonkLocale.Text(language, text)
     return strings and strings[text] or WithoutNote(text)
 end
 
+function VanillaBonkLocale.English(text)
+    local strings = VanillaBonkLocale.tables[VanillaBonkLocale.language]
+    if not strings then
+        return text
+    end
+    if not VanillaBonkLocale.reverse then
+        VanillaBonkLocale.reverse = {}
+        for english, translated in pairs(strings) do
+            VanillaBonkLocale.reverse[translated] = WithoutNote(english)
+        end
+    end
+    return VanillaBonkLocale.reverse[text] or text
+end
+
 local function Fill(text, values)
     return (string.gsub(text, "{(%d)}", function(index)
         local value = values[tonumber(index)]

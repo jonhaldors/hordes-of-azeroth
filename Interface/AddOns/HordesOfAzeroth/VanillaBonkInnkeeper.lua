@@ -276,7 +276,7 @@ end)
 
 local PreviousGossipOnEvent = GossipFrame_OnEvent
 function GossipFrame_OnEvent()
-    if event == "GOSSIP_SHOW" and UnitName("npc") == UI.INNKEEPER_NAME then
+    if event == "GOSSIP_SHOW" and UI.TalkingTo(UI.INNKEEPER_NAME) then
         window.fromGossip = true
         window:Show()
         Refresh()

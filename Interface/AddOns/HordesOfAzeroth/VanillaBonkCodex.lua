@@ -1127,7 +1127,7 @@ function GossipFrame_OnEvent()
     if event == "GOSSIP_SHOW" and pendingNpc then
         local npc = pendingNpc
         pendingNpc = nil
-        if UnitName("npc") == npc then
+        if UI.TalkingTo(npc) then
             OpenFromGossip()
             return
         end
@@ -1407,7 +1407,7 @@ handlers["cdxend"] = function()
         Refresh(true)
     elseif received.npc ~= "" then
         classFilter = received.classMask
-        if GossipFrame:IsVisible() and UnitName("npc") == received.npc then
+        if GossipFrame:IsVisible() and UI.TalkingTo(received.npc) then
             VanillaBonkCodex.TakeOverGossip()
         else
             pendingNpc = received.npc
