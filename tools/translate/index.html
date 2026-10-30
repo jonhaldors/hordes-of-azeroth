@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HoA translations</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="bar">
+    <h1>HoA translations <span id="locale" class="locale"></span></h1>
+    <div id="progress" class="progress" aria-live="polite"></div>
+    <div class="actions">
+        <button id="save" class="primary" disabled title="Ctrl+S">Save</button>
+        <button id="import" title="Merge a .bonk strings export: new and changed database text and names">Import server export</button>
+        <button id="apply" title="Write the translations into the local database">Apply to database</button>
+        <button id="migration" title="Write a server migration with every finished translation">Write migration</button>
+        <button id="glossary-toggle" aria-pressed="false">Glossary</button>
+    </div>
+</header>
+<nav class="filters">
+    <input id="search" type="search" placeholder="Search English, translation, id or file" aria-label="Search">
+    <select id="section" aria-label="Section">
+        <option value="all">All sections</option>
+        <option value="strings">Server text</option>
+        <option value="fields">Database text</option>
+        <option value="names">Item and creature names</option>
+        <option value="addon">Addon</option>
+    </select>
+    <select id="status" aria-label="Status">
+        <option value="all">Any status</option>
+        <option value="missing">Missing</option>
+        <option value="outdated">English changed</option>
+        <option value="problem">Has problems</option>
+        <option value="translated">Translated</option>
+        <option value="edited">Edited, not saved</option>
+        <option value="unused">Unused (addon)</option>
+    </select>
+    <span id="count" class="count"></span>
+</nav>
+<main>
+    <section id="list" class="list" aria-live="polite"><p class="loading">Loading…</p></section>
+    <aside id="glossary" class="glossary" hidden>
+        <input id="glossary-search" type="search" placeholder="Find a term" aria-label="Find a glossary term">
+        <p class="hint">Click a term to put it into the translation you are editing.</p>
+        <ul id="glossary-list"></ul>
+    </aside>
+</main>
+<footer class="pager">
+    <button id="prev">Previous</button>
+    <span id="page"></span>
+    <button id="next">Next</button>
+</footer>
+<input id="import-file" type="file" accept=".json,application/json" hidden>
+<dialog id="dialog">
+    <form method="dialog">
+        <h2 id="dialog-title"></h2>
+        <pre id="dialog-body"></pre>
+        <div class="dialog-actions">
+            <button id="dialog-cancel" value="cancel">Cancel</button>
+            <button id="dialog-ok" value="ok" class="primary">OK</button>
+        </div>
+    </form>
+</dialog>
+<div id="toast" class="toast" role="status"></div>
+<script src="logic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
