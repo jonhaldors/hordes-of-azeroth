@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +14,7 @@ namespace HordesOfAzeroth.Launcher
         const string Account = "player";
         const string Password = "player";
         const string OwnAddon = "HordesOfAzeroth";
+        const string OldBindingsFile = "bindings-cache.wtf";
 
         readonly GameFolder m_folder;
         StreamWriter m_log;
@@ -47,6 +50,7 @@ namespace HordesOfAzeroth.Launcher
             ClearObjectCache();
             InstallAddon();
             CarryOverSavedVariables();
+            CarryOverBindings();
             GameConfig.EnsureDefaults(m_folder, RealmName);
         }
 
@@ -78,6 +82,68 @@ namespace HordesOfAzeroth.Launcher
                 return;
             Directory.CreateDirectory(m_folder.ClientSaved);
             File.Copy(old, target);
+        }
+
+        void CarryOverBindings()
+        {
+            CarryOverBindingFile(Path.Combine(m_folder.OldAccount, OldBindingsFile), Path.Combine(m_folder.ClientBindings, "account.txt"));
+            string realm = Path.Combine(m_folder.OldAccount, RealmName);
+            if (!Directory.Exists(realm))
+                return;
+            foreach (string character in Directory.GetDirectories(realm))
+            {
+                string name = $"{FileToken(RealmName)}-{FileToken(Path.GetFileName(character))}.txt";
+                CarryOverBindingFile(Path.Combine(character, OldBindingsFile), Path.Combine(m_folder.ClientBindings, name));
+            }
+        }
+
+        static void CarryOverBindingFile(string old, string target)
+        {
+            if (!File.Exists(old))
+                return;
+            List<(string Command, List<string> Keys)> oldBindings = ReadOldBindings(old);
+            if (oldBindings.Count > 0)
+            {
+                List<string> newer = File.Exists(target)
+                    ? File.ReadAllLines(target).Where(line => line.StartsWith("bind ")).ToList()
+                    : new List<string>();
+                HashSet<string> newerCommands = new HashSet<string>(
+                    newer.Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Where(parts => parts.Length > 1).Select(parts => parts[1]),
+                    StringComparer.OrdinalIgnoreCase);
+                List<string> lines = new List<string> { "# benilla key bindings" };
+                lines.AddRange(oldBindings
+                    .Where(binding => !newerCommands.Contains(binding.Command))
+                    .Select(binding => "bind " + binding.Command + " " + string.Join(" ", binding.Keys)));
+                lines.AddRange(newer);
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                File.WriteAllLines(target, lines, new UTF8Encoding(false));
+            }
+            File.Move(old, old + ".imported", true);
+        }
+
+        static List<(string Command, List<string> Keys)> ReadOldBindings(string path)
+        {
+            List<(string Command, List<string> Keys)> bindings = new List<(string, List<string>)>();
+            foreach (string line in File.ReadAllLines(path))
+            {
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length != 3 || parts[0] != "bind")
+                    continue;
+                string key = parts[1].ToUpperInvariant();
+                string command = parts[2].ToUpperInvariant();
+                int index = bindings.FindIndex(binding => binding.Command == command);
+                if (index < 0)
+                    bindings.Add((command, new List<string> { key }));
+                else
+                    bindings[index].Keys.Add(key);
+            }
+            return bindings;
+        }
+
+        static string FileToken(string name)
+        {
+            string token = new string(name.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+            return token.Length == 0 ? "unknown" : token;
         }
 
         static bool IsLink(string path) =>

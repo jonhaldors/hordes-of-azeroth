@@ -16,10 +16,10 @@ local KEY_REFRESH = 1
 local PAIR_GAP = 2
 local ITEMS = {
     { button = "lt", with = "rs", label = "Zoom", padOnly = true },
-    { button = "rt", label = "Dash", dash = true },
+    { action = "dash", label = "Dash", dash = true },
     { button = "a", label = "Jump", command = "JUMP" },
-    { button = "y", label = "Character", command = "TOGGLECHARACTER0", click = function() Controller.ToggleCharacterAndBags() end },
-    { button = "view", label = "Map", command = "TOGGLEWORLDMAP", click = function() ToggleWorldMap() end },
+    { action = "character", label = "Character", command = "TOGGLECHARACTER0", click = function() Controller.ToggleCharacterAndBags() end },
+    { action = "map", label = "Map", command = "TOGGLEWORLDMAP", click = function() ToggleWorldMap() end },
 }
 
 local hud = CreateFrame("Frame", "VanillaBonkControllerHud", UIParent)
@@ -127,7 +127,7 @@ end
 
 local function RefreshIcons()
     local keyboard = Controller.kind == nil
-    local signature = keyboard and "keys" or Controller.Style()
+    local signature = keyboard and "keys" or Controller.PadSignature()
     for _, frame in ipairs(hud.items) do
         local item = frame.item
         frame.icon = ShowIcon(frame, keyboard)
@@ -140,7 +140,7 @@ local function RefreshIcons()
                 signature = signature .. "|" .. text
             end
         else
-            Controller.SetGlyph(frame.glyph, item.button)
+            Controller.SetGlyph(frame.glyph, item.action and Controller.ButtonFor(item.action) or item.button)
             if frame.glyph2 then
                 Controller.SetGlyph(frame.glyph2, item.with)
             end
@@ -187,7 +187,7 @@ watcher:SetScript("OnUpdate", function()
     hud.keysAt = (hud.keysAt or 0) + arg1
     local keyboard = Controller.kind == nil
     local changed = hud.keyboard ~= keyboard
-    if changed or (not keyboard and Controller.Style() ~= hud.signature) or (keyboard and hud.keysAt >= KEY_REFRESH) then
+    if changed or (not keyboard and Controller.PadSignature() ~= hud.signature) or (keyboard and hud.keysAt >= KEY_REFRESH) then
         hud.keysAt = 0
         hud.keyboard = keyboard
         RefreshIcons()

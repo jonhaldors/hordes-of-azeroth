@@ -17,7 +17,7 @@ WHERE = r"\(stage (\d+), (\w+), (\w+), class (\d+)\)"
 LOADOUT = re.compile(r"starts a run at run minute 0 " + WHERE + r": mastery level (\d+), talent points (\d+) of (\d+), best floor (\d+), "
                      r"determination (\d+); talents \[([^\]]*)\]; upgrades \[([^\]]*)\]; fortunes \[([^\]]*)\]; gear \[([^\]]*)\]")
 BUILD = re.compile(r"at run minute ([\d.]+) " + WHERE + r": level (\d+); (spells .*)$")
-END = re.compile(r"at run minute ([\d.]+) " + WHERE + r": (\w+), level (\d+), (\d+) kills, gold earned (\d+); (spells .*)$")
+END = re.compile(r"at run minute ([\d.]+) " + WHERE + r": (\w+), level (\d+), (\d+) kills, gold earned (\d+)(?:, tickets earned (\d+), scrap earned (\d+))?; (spells .*)$")
 TOTALS = re.compile(r"spells \[([^\]]*)\]; passives \[([^\]]*)\]; cards \[([^\]]*)\]")
 PICK = re.compile(r"takes (.+?) rank (\d+) \(([^,]+), (\w+)\) at run minute ([\d.]+), level (\d+)")
 BOSS = re.compile(r"kills (.+?) \(([\w -]+)\) at run minute ([\d.]+) " + WHERE + r", level (\d+): ([\d.]+) s after it arrived")
@@ -90,7 +90,10 @@ def read_runs(path):
                 if found:
                     run["end"] = {"minute": float(found[1]), "floor": int(found[2]), "map": found[3], "outcome": found[6],
                                   "level": int(found[7]), "kills": int(found[8]), "gold": int(found[9])}
-                    run["end"].update(parse_totals(found[10]))
+                    if found[10] is not None:
+                        run["end"]["tickets"] = int(found[10])
+                        run["end"]["scrap"] = int(found[11])
+                    run["end"].update(parse_totals(found[12]))
                     del open_runs[name]
     return [run for run in runs if run["end"]]
 

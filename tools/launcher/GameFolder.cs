@@ -19,13 +19,15 @@ namespace HordesOfAzeroth.Launcher
         public string VersionFile => Path.Combine(Root, "VERSION");
         public string LatestVersionFile => Path.Combine(ServerRun, "latest-version.txt");
         public string ConfigWtf => Path.Combine(Root, "WTF", "Config.wtf");
-        public string OldSavedVariables => Path.Combine(Root, "WTF", "Account", "PLAYER", "SavedVariables");
+        public string OldAccount => Path.Combine(Root, "WTF", "Account", "PLAYER");
+        public string OldSavedVariables => Path.Combine(OldAccount, "SavedVariables");
         public string GlueXml => Path.Combine(Root, "Interface", "GlueXML");
         public string AddOns => Path.Combine(Root, "Interface", "AddOns");
         public string ClientState => Path.Combine(Root, "benilla-config");
         public string ClientConfig => Path.Combine(ClientState, "config.toml");
         public string ClientAddOns => Path.Combine(ClientState, "AddOns");
         public string ClientSaved => Path.Combine(ClientState, "saved");
+        public string ClientBindings => Path.Combine(ClientState, "bindings");
         public string ClientCache => Path.Combine(ClientState, "cache");
         public string ClientLog => Path.Combine(Root, "Logs", "client.log");
 

@@ -184,12 +184,28 @@ function Write-Manifest([object[]]$BuildList, [hashtable]$Spells, [string]$Hero,
     [System.IO.File]::WriteAllText($manifestFile, ($manifest | ConvertTo-Json -Depth 6))
 }
 
+function Find-LastHero([string]$Text) {
+    $block = [regex]::Escape("BONK_STATS_ACCOUNTS[""$($Account.ToUpper())""]")
+    [regex]::Match($Text, "$block = \{\s*gold = \d+,\s*lastHero = ""([^""]*)""")
+}
+
 function Set-LastHero([string]$Name) {
+    if (-not (Test-Path $statsFile)) { return $null }
     $text = [System.IO.File]::ReadAllText($statsFile)
-    $match = [regex]::Match($text, 'lastHero = "([^"]*)"')
-    if (-not $match.Success) { throw "BonkStats.lua has no lastHero." }
-    [System.IO.File]::WriteAllText($statsFile, $text.Remove($match.Groups[1].Index, $match.Groups[1].Length).Insert($match.Groups[1].Index, $Name))
-    $match.Groups[1].Value
+    $match = Find-LastHero $text
+    if (-not $match.Success) { return $null }
+    $group = $match.Groups[1]
+    [System.IO.File]::WriteAllText($statsFile, $text.Remove($group.Index, $group.Length).Insert($group.Index, $Name))
+    $group.Value
+}
+
+function Get-StatsStamp {
+    if (Test-Path $statsFile) { (Get-Item $statsFile).LastWriteTimeUtc } else { [datetime]::MinValue }
+}
+
+function Wait-LogoutWrite([datetime]$Before) {
+    $deadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $deadline -and (Get-StatsStamp) -le $Before) { Start-Sleep -Milliseconds 500 }
 }
 
 
@@ -284,18 +300,24 @@ if (-not $hero) { throw "Account $Account has no $(if ($Hero) { "hero named $Her
 Write-Host "Bench: $Class on $hero, builds $(($buildList | ForEach-Object { $_.Key }) -join ', ')"
 $since = (Get-Date).ToString('MM/dd HH:mm:ss')
 $lastHero = $null
+$statsBefore = [datetime]::MinValue
 $game = $null
 try {
     if (Test-Path $addonTarget) { Remove-Item $addonTarget -Recurse -Force }
     Copy-Item $addonSource $addonTarget -Recurse
     Write-AddonBuilds $buildList $spells
-    if (-not $Benilla) { $lastHero = Set-LastHero $hero }
+    $lastHero = Set-LastHero $hero
+    $statsBefore = Get-StatsStamp
     $chatStart = if (Test-Path $chatLog) { (Get-Item $chatLog).Length } else { 0 }
     $game = if ($Benilla) { Enter-BenillaWorld $hero } else { Enter-World $chatStart }
     Wait-BenchDone $game $chatStart $(if ($Crowd) { 1 } else { $buildList.Count })
 } finally {
+    $wasInWorld = $null -ne $game
     Get-GameProcess | Stop-Process -Force -ErrorAction SilentlyContinue
-    if ($null -ne $lastHero) { Set-LastHero $lastHero | Out-Null }
+    if ($null -ne $lastHero) {
+        if ($wasInWorld) { Wait-LogoutWrite $statsBefore }
+        Set-LastHero $lastHero | Out-Null
+    }
     if (Test-Path $addonTarget) { Remove-Item $addonTarget -Recurse -Force }
 }
 

@@ -23,14 +23,16 @@ ART.deck = ART.xbox
 local KIND_NAMES = { xbox = "Xbox controller connected", ps = "PlayStation controller connected", deck = "Steam Deck controls connected" }
 local LEFT_LABELS = {
     { "lt", "Zoom", "Hold with right stick or d-pad" },
+    { "lb", "Shapeshift", "Druid forms", "shapeshift" },
     { "ls", "Move", "Full 360 degrees" },
-    { "view", "Run map" },
+    { "view", "Run map", nil, "map" },
     { "dpad", "Menus and cards", "Move the focus" },
 }
 local RIGHT_LABELS = {
-    { "rt", "Dash", "Dash where you are moving" },
-    { "y", "Character and bags" },
-    { "x", "Interact", "Talk, open, use" },
+    { "rt", "Dash", "Dash where you are moving", "dash" },
+    { "rb", "Hearthstone", nil, "hearth" },
+    { "y", "Character and bags", nil, "character" },
+    { "x", "Interact", "Talk, open, use", "interact" },
     { "b", "Close or cancel" },
     { "a", "Jump" },
     { "rs", "Camera", "Press to recenter" },
@@ -48,6 +50,10 @@ panel.labels = {}
 panel.status = UI.Text(panel, 12)
 panel.status:SetPoint("TOP", panel, "TOP", 0, -44)
 panel.status:SetTextColor(0.78, 0.75, 0.66)
+panel.hint = UI.Text(panel, 10)
+panel.hint:SetPoint("TOP", panel.status, "BOTTOM", 0, -4)
+panel.hint:SetTextColor(0.66, 0.63, 0.56)
+panel.hint:SetText("Select a highlighted action, then press the button you want for it")
 
 panel.art = panel:CreateTexture(nil, "ARTWORK")
 panel.art:SetPoint("TOP", panel, "TOP", 0, ART_TOP)
@@ -57,8 +63,11 @@ local function ArtHeight(style)
     return ART_WIDTH * ART[style].height / 512
 end
 
-local function MakeLabel(rightSide)
-    local label = CreateFrame("Frame", nil, panel)
+local LISTEN_TEXT = "Press a button"
+local LISTEN_HELP = "B cancels"
+
+local function MakeLabel(rightSide, rebindable)
+    local label = CreateFrame(rebindable and "Button" or "Frame", nil, panel)
     label.rightSide = rightSide
     label:SetWidth(LABEL_WIDTH)
     label:SetHeight(GLYPH_SIZE)
@@ -78,11 +87,20 @@ local function MakeLabel(rightSide)
         label.glyph:SetPoint("LEFT", label, "LEFT", 0, 0)
         label.help:SetPoint("TOPLEFT", label.title, "BOTTOMLEFT", 0, -1)
     end
+    if rebindable then
+        label:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        label:GetHighlightTexture():SetBlendMode("ADD")
+        label:SetScript("OnClick", function()
+            panel:Listen(this)
+        end)
+    end
     return label
 end
 
 local function FillLabel(label, entry)
+    label.entry = entry
     label.button = entry[1]
+    label.action = entry[4]
     label.title:SetText(entry[2])
     label.help:SetText(entry[3] or "")
     label.title:ClearAllPoints()
@@ -115,12 +133,12 @@ local function PlaceLabels(style)
 end
 
 for index, entry in ipairs(LEFT_LABELS) do
-    local label = MakeLabel(false)
+    local label = MakeLabel(false, entry[4] ~= nil)
     FillLabel(label, entry)
     panel.labels["left" .. index] = label
 end
 for index, entry in ipairs(RIGHT_LABELS) do
-    local label = MakeLabel(true)
+    local label = MakeLabel(true, entry[4] ~= nil)
     FillLabel(label, entry)
     panel.labels["right" .. index] = label
 end
@@ -245,6 +263,7 @@ rightY = rightY - ChoiceRow(COLUMN_RIGHT, rightY, "prompts", "Button prompts", "
 CheckRow(COLUMN_RIGHT, rightY, "interactPrompts", "Show interact prompts", "\"X Talk\" above NPCs, chests and portals")
 
 panel.reset = UI.Button(panel, 150, "Reset to defaults", function()
+    panel:StopListening()
     Controller.ResetSettings()
     panel:Refresh()
 end)
@@ -275,10 +294,45 @@ function panel:Refresh()
     self.art:SetHeight(ArtHeight(style))
     PlaceLabels(style)
     for _, label in pairs(self.labels) do
-        Controller.SetGlyph(label.glyph, label.button)
+        FillLabel(label, label.entry)
+        Controller.SetGlyph(label.glyph, label.action and Controller.ButtonFor(label.action) or label.button)
     end
     self.status:SetText(StatusText())
     self.style = style
+    self:ShowListening()
+end
+
+function panel:StopListening()
+    Controller.listening = nil
+    self.listeningTo = nil
+end
+
+function panel:ShowListening()
+    local label = self.listeningTo
+    if not label then
+        return
+    end
+    local entry = label.entry
+    FillLabel(label, { entry[1], LISTEN_TEXT, LISTEN_HELP, entry[4] })
+    label.entry = entry
+end
+
+function panel:Listen(label)
+    self:StopListening()
+    self:Refresh()
+    self.listeningTo = label
+    self:ShowListening()
+    Controller.listening = function(name)
+        if name ~= "b" and not Controller.REBINDABLE[name] then
+            return
+        end
+        if name ~= "b" then
+            Controller.BindButton(label.action, name)
+            PlaySound("igMainMenuOptionCheckBoxOn")
+        end
+        panel:StopListening()
+        panel:Refresh()
+    end
 end
 
 panel:SetScript("OnShow", function()
@@ -301,6 +355,7 @@ end)
 
 local BasePanelHide = panel:GetScript("OnHide")
 panel:SetScript("OnHide", function()
+    this:StopListening()
     this.asBindings = nil
     if BasePanelHide then
         BasePanelHide()

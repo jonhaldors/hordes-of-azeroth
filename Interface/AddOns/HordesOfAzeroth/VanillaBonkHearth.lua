@@ -44,6 +44,11 @@ button.glow:SetPoint("CENTER", button, "CENTER", 0, 0)
 button.key = UI.Text(button, 11, UI.NUMBER_FONT, "OUTLINE")
 button.key:SetPoint("TOPRIGHT", button, "TOPRIGHT", -2, -3)
 button.key:SetTextColor(0.75, 0.75, 0.75)
+button.keyGlyph = button:CreateTexture(nil, "OVERLAY")
+button.keyGlyph:SetWidth(16)
+button.keyGlyph:SetHeight(16)
+button.keyGlyph:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -1)
+button.keyGlyph:Hide()
 
 button:SetScript("OnClick", VanillaBonk_UseHearthstone)
 button:SetScript("OnEnter", function()
@@ -141,7 +146,7 @@ local function Refresh()
         button.icon:SetTexture(GetContainerItemInfo(FindHearthstone()))
         UI.CropIcon(button.icon)
         button.icon:SetVertexColor(1, 1, 1)
-        button.key:SetText(UI.BindingText(HEARTH))
+        VanillaBonkController.ShowKey(button.key, button.keyGlyph, VanillaBonkController.ButtonFor("hearth"), UI.BindingText(HEARTH))
         button.glow:Show()
         if not button.found and not VanillaBonkHearthTipDone then
             tip:Show()
@@ -151,11 +156,14 @@ local function Refresh()
         UI.CropIcon(button.icon)
         button.icon:SetVertexColor(0.3, 0.3, 0.3)
         button.key:SetText("")
+        button.keyGlyph:Hide()
         button.glow:Hide()
         tip:Hide()
     end
     button.found = found
 end
+
+UI.RefreshHearthKey = Refresh
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_ENTERING_WORLD")

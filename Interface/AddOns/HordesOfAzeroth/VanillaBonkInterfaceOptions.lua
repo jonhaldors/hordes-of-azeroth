@@ -14,6 +14,7 @@ local INTERACT = UI.INTERACT_SETTINGS
 local checks = {}
 
 local healthBar = { pending = nil }
+local language = { pending = nil }
 
 local SECTION_ROWS = {
     {
@@ -23,6 +24,7 @@ local SECTION_ROWS = {
             columns = 3,
             own = { { DISPLAY[1], 1, 0 }, { DISPLAY[2], 1, 1 }, { DISPLAY[3], 1, 2 }, { DISPLAY[4], 2, 2 }, { DISPLAY[5], 3, 0 } },
             healthBar = { 2, 0, -22 },
+            language = { 3, 1, -22 },
         },
     },
     {
@@ -166,6 +168,33 @@ local function BuildHealthBarDropdown(box)
     return dropdown
 end
 
+local function SelectLanguage(value)
+    language.pending = value
+    UIDropDownMenu_SetSelectedValue(language.dropdown, value)
+    UIDropDownMenu_SetText(UI.LanguageLabel(value), language.dropdown)
+end
+
+local function BuildLanguageDropdown(box)
+    local dropdown = CreateFrame("Frame", "VanillaBonkOptionsLanguage", box, "UIDropDownMenuTemplate")
+    local label = dropdown:CreateFontString(nil, "BACKGROUND", "GameFontNormalSmall")
+    label:SetPoint("BOTTOMLEFT", dropdown, "TOPLEFT", 16, 3)
+    label:SetText("Language")
+    UIDropDownMenu_SetWidth(110, dropdown)
+    UIDropDownMenu_Initialize(dropdown, function()
+        for _, choice in ipairs(UI.LANGUAGES) do
+            local info = {}
+            info.text = choice.label
+            info.value = choice.value
+            info.func = function()
+                SelectLanguage(this.value)
+            end
+            info.checked = language.pending == choice.value
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+    return dropdown
+end
+
 local interactKey
 
 local function BuildInteractKey(box)
@@ -218,6 +247,10 @@ local function BuildSection(section, width, height, x, y)
     if section.healthBar then
         healthBar.dropdown = BuildHealthBarDropdown(box)
         Place(healthBar.dropdown, box, section.healthBar[1], section.healthBar[2], -16, section.healthBar[3] or -14)
+    end
+    if section.language then
+        language.dropdown = BuildLanguageDropdown(box)
+        Place(language.dropdown, box, section.language[1], section.language[2], -16, section.language[3])
     end
     for _, slider in ipairs(section.sliders or {}) do
         Place(getglobal("UIOptionsFrameSlider" .. slider[1]), box, slider[2], slider[3], 14, -16)
@@ -302,6 +335,9 @@ local function LoadOwnOptions()
     if healthBar.dropdown then
         SelectHealthBar(UI.HealthBarMode())
     end
+    if language.dropdown then
+        SelectLanguage(UI.Language())
+    end
     for setting, check in pairs(checks) do
         check:SetChecked(UI.SettingValue(setting))
     end
@@ -315,6 +351,9 @@ function UIOptionsFrame_Save()
     BaseSave()
     if healthBar.pending then
         UI.ChangeHealthBar(healthBar.pending)
+    end
+    if language.pending then
+        UI.ChangeLanguage(language.pending)
     end
     for setting, check in pairs(checks) do
         UI.ChangeSetting(setting, check:GetChecked() and true or false)

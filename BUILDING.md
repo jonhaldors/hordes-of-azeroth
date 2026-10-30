@@ -155,7 +155,7 @@ Game-mode changes to the core go on the `vanilla-bonk` branch of the fork: commi
 | `tools/create-account.ps1 -Name -Password [-GmLevel]` | Create a game account (world server must be stopped) |
 | `tools/extract-client-data.ps1` | Extract dbc, maps and vmaps into `server/data` and build the nav tiles in `config/navtiles.json`, camp and Normal zones first (`-AllTiles` builds every tile, `-MmapsOnly` skips the extraction) |
 | `tools/build-navtiles.ps1` | Rewrite `config/navtiles.json` from the run zones, start spots and tiers in the world database (after zone changes, before a release) |
-| `tools/build-telegraphs.ps1` | Build `Data/patch-3.MPQ` and copy its tables into `server/data`; rerun after extracting client data, client closed |
+| `tools/build-telegraphs.ps1` | Build `Data/patch-z.MPQ` and copy its tables into `server/data`; rerun after extracting client data, client closed |
 | `tools/release.ps1 [-Publish]` | Stage a release into `release/<version>`; `-Publish` creates the GitHub release |
 
 To change a server setting, add it to `config/mangosd.overrides.conf` (or `realmd.overrides.conf`), run `tools/apply-config.ps1`, and restart the server.

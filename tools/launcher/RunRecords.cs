@@ -27,6 +27,7 @@ namespace HordesOfAzeroth.Launcher
             public DateTime Started;
             public string Name;
             public uint Character;
+            public int LastSecond;
             public readonly List<string> Lines = new List<string>();
         }
 
@@ -75,6 +76,8 @@ namespace HordesOfAzeroth.Launcher
                 lineStart = i + 1;
             }
             long consumed = offset + lineStart;
+            foreach (OpenRun abandoned in open.Values.Where(run => DateTime.Now - run.Started >= AbandonedAfter))
+                SaveInterrupted(folder, settings, abandoned);
             List<OpenRun> unfinished = open.Values.Where(run => DateTime.Now - run.Started < AbandonedAfter).ToList();
             return unfinished.Count == 0 ? consumed : Math.Min(consumed, unfinished.Min(run => run.StartOffset));
         }
@@ -93,17 +96,26 @@ namespace HordesOfAzeroth.Launcher
 
             if (kind == "loadout")
             {
+                if (open.TryGetValue(character, out OpenRun interrupted))
+                    SaveInterrupted(folder, settings, interrupted);
                 open[character] = new OpenRun { StartOffset = lineOffset, Started = stamp, Name = name, Character = character };
             }
             if (!open.TryGetValue(character, out OpenRun run))
                 return;
             int seconds = (int)(stamp - run.Started).TotalSeconds;
+            run.LastSecond = seconds;
             run.Lines.Add(seconds.ToString(CultureInfo.InvariantCulture) + " " + kind + ": " + Anonymize(body, run.Name));
             if (kind != "end")
                 return;
             open.Remove(character);
             if (RunMinutes(body) >= MinRunMinutes)
-                Save(folder, settings, run, body);
+                Save(folder, settings, run, body, true);
+        }
+
+        static void SaveInterrupted(GameFolder folder, LauncherSettings settings, OpenRun run)
+        {
+            if (run.LastSecond >= MinRunMinutes * 60 && run.Lines.Count > 0)
+                Save(folder, settings, run, run.Lines[0], false);
         }
 
         static string Anonymize(string body, string name) => body.StartsWith(name + " ", StringComparison.Ordinal) ? "hero" + body.Substring(name.Length) : body;
@@ -114,7 +126,7 @@ namespace HordesOfAzeroth.Launcher
             return match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double minutes) ? minutes : 0;
         }
 
-        static void Save(GameFolder folder, LauncherSettings settings, OpenRun run, string endBody)
+        static void Save(GameFolder folder, LauncherSettings settings, OpenRun run, string endBody, bool finished)
         {
             Match classMatch = RunClass.Match(endBody);
             string outbox = Outbox(folder);
@@ -134,6 +146,7 @@ namespace HordesOfAzeroth.Launcher
                 json.WriteString("os", Platform.SystemName);
                 json.WriteString("started", run.Started.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
                 json.WriteNumber("character", run.Character);
+                json.WriteBoolean("finished", finished);
                 json.WriteNumber("class", classMatch.Success ? int.Parse(classMatch.Groups[1].Value, CultureInfo.InvariantCulture) : 0);
                 json.WriteStartArray("lines");
                 foreach (string line in run.Lines)

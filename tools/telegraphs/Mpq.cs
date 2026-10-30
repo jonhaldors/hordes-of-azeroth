@@ -227,17 +227,35 @@ namespace BonkTelegraphs
         public ClientData(string dataDir, IEnumerable<string> skip)
         {
             HashSet<string> skipped = new HashSet<string>(skip, StringComparer.OrdinalIgnoreCase);
-            string[] order = { "patch-9.MPQ", "patch-8.MPQ", "patch-7.MPQ", "patch-6.MPQ", "patch-5.MPQ", "patch-4.MPQ", "patch-3.MPQ",
-                "patch-2.MPQ", "patch.MPQ", "dbc.MPQ", "model.MPQ", "texture.MPQ", "misc.MPQ", "interface.MPQ", "sound.MPQ", "base.MPQ" };
+            string[] baseOrder = { "patch.MPQ", "dbc.MPQ", "model.MPQ", "texture.MPQ", "misc.MPQ", "interface.MPQ", "sound.MPQ", "base.MPQ" };
             Dictionary<string, string> present = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (string path in Directory.GetFiles(dataDir))
                 present[System.IO.Path.GetFileName(path)] = path;
+            List<string> order = NumberedPatches(dataDir);
+            order.AddRange(baseOrder);
             foreach (string file in order)
             {
                 string path;
                 if (present.TryGetValue(file, out path) && !skipped.Contains(file))
                     m_archives.Add(new MpqReader(path));
             }
+        }
+
+        public static List<string> NumberedPatches(string dataDir)
+        {
+            List<string> patches = new List<string>();
+            foreach (string path in Directory.GetFiles(dataDir))
+                if (IsNumberedPatch(System.IO.Path.GetFileName(path)))
+                    patches.Add(System.IO.Path.GetFileName(path));
+            patches.Sort((a, b) => string.CompareOrdinal(b.ToLowerInvariant(), a.ToLowerInvariant()));
+            return patches;
+        }
+
+        static bool IsNumberedPatch(string name)
+        {
+            return name.Length == "patch-?.MPQ".Length
+                && name.StartsWith("patch-", StringComparison.OrdinalIgnoreCase)
+                && name.EndsWith(".MPQ", StringComparison.OrdinalIgnoreCase);
         }
 
         public byte[] Read(string name)

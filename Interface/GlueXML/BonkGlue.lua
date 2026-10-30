@@ -488,7 +488,14 @@ local function SelectClassToken(classToken)
 	end
 end
 
+function BonkHero_AccountKey()
+	return strupper(BONK_ACCOUNT or "");
+end
+
 function BonkHero_OnCharacterList()
+	if ( BONK_STATS_ACCOUNTS ) then
+		BONK_STATS = BONK_STATS_ACCOUNTS[BonkHero_AccountKey()];
+	end
 	BonkHero_ReadHeroes();
 
 	if ( Bonk.wiping ) then
@@ -1069,6 +1076,8 @@ end
 function BonkHero_FinishWipe()
 	Bonk.wiping = nil;
 	BONK_STATS = { gold = 0, lastHero = "", heroes = {} };
+	BONK_STATS_ACCOUNTS = BONK_STATS_ACCOUNTS or {};
+	BONK_STATS_ACCOUNTS[BonkHero_AccountKey()] = BONK_STATS;
 	Bonk.classIndex = 1;
 	Bonk.raceIndex = 1;
 	Bonk.specIndex = 1;

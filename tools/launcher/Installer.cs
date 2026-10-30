@@ -46,6 +46,7 @@ namespace HordesOfAzeroth.Launcher
         const string WorldPackage = "world-db";
         const string SpellEffectsPackage = "telegraphkit";
         const string SpellEffectsApplied = "spell-effects";
+        const string RetiredPatchApplied = "retired-patch";
         const string VersionEntry = "VERSION";
 
         static readonly string[] SpellEffectFiles =
@@ -557,6 +558,19 @@ namespace HordesOfAzeroth.Launcher
         {
             GameConfig.EnsureDefaults(m_folder, manifest.RealmName);
             RemoveRetiredClientFiles();
+            RemoveRetiredPatch();
+        }
+
+        void RemoveRetiredPatch()
+        {
+            Dictionary<string, string> applied = AppliedPackages();
+            if (m_folder.IsDevelopmentTree || !Directory.Exists(m_folder.Data) || applied.ContainsKey(RetiredPatchApplied))
+                return;
+            string retired = GameFiles.Child(m_folder.Data, Kit.RetiredPatchName);
+            if (File.Exists(retired))
+                TryDelete(() => File.Delete(retired));
+            applied[RetiredPatchApplied] = Kit.RetiredPatchName;
+            WritePairs(AppliedFile, applied);
         }
 
         static readonly string[] RetiredClientFiles =
@@ -638,7 +652,16 @@ namespace HordesOfAzeroth.Launcher
             MarkSpellEffectsBuilt();
         }
 
-        string SpellEffectsKey => InstalledHash(LauncherPackage) + "+" + InstalledHash(SpellEffectsPackage);
+        string SpellEffectsKey => InstalledHash(LauncherPackage) + "+" + InstalledHash(SpellEffectsPackage) + "+" + PlayerPatchesKey();
+
+        string PlayerPatchesKey()
+        {
+            if (!Directory.Exists(m_folder.Data))
+                return "";
+            return string.Join(",", ClientData.NumberedPatches(m_folder.Data)
+                .Where(name => !Kit.OwnPatches.Contains(name, StringComparer.OrdinalIgnoreCase))
+                .Select(name => name.ToLowerInvariant() + ":" + new FileInfo(Path.Combine(m_folder.Data, name)).Length));
+        }
 
         void MarkSpellEffectsBuilt()
         {

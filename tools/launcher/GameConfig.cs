@@ -14,6 +14,15 @@ namespace HordesOfAzeroth.Launcher
         static readonly Regex Setting = new Regex(@"^\s*(\w+)\s*=\s*""((?:[^""\\]|\\.)*)""");
         static readonly Regex Section = new Regex(@"^\s*\[");
 
+        const string LanguageSetting = "hoaLanguage";
+        const string DefaultLanguage = "enUS";
+
+        public static readonly (string Code, string Name)[] Languages =
+        {
+            ("enUS", "English"),
+            ("zhCN", "简体中文"),
+        };
+
         static readonly string[] CarriedOver =
         {
             "MasterVolume", "SoundVolume", "MusicVolume", "AmbienceVolume", "EnableSound", "EnableMusic", "EnableAmbience",
@@ -51,6 +60,18 @@ namespace HordesOfAzeroth.Launcher
             if (missing.Count > 0)
                 Write(folder, missing);
         }
+
+        public static string ReadLanguage(GameFolder folder)
+        {
+            string code = Read(folder).TryGetValue(LanguageSetting, out string value) ? value : DefaultLanguage;
+            return Languages.Any(language => language.Code == code) ? code : DefaultLanguage;
+        }
+
+        public static void WriteLanguage(GameFolder folder, string code) =>
+            Write(folder, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [LanguageSetting] = code });
+
+        public static string LanguageName(string code) =>
+            Languages.FirstOrDefault(language => language.Code == code).Name ?? Languages[0].Name;
 
         static void CarryOverOldSettings(GameFolder folder)
         {

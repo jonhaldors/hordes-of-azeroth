@@ -73,7 +73,10 @@ local STAT_ROWS = {
     { label = "Boss legendary drop chance", key = "legendary", format = "%s%%", rewards = true },
 }
 
-local state = { zone = {}, dungeon = {}, mode = {}, floor = {} }
+local state = { zone = {}, dungeon = {}, mode = {}, floor = {}, start = {} }
+local checkpoints = {}
+local CHECKPOINT_Y = 404
+local CHECKPOINT_BUTTON = 38
 local mapInfo = {}
 local floorInfo = {}
 local tierInfo = {}
@@ -1004,7 +1007,7 @@ local function ShowPreview()
     state.floor[tier.id] = current
     if sliding then
         preview.title:SetText("Floor difficulty preview")
-        preview.note:SetText("Every run starts on floor 1. Drag the slider to see any floor.")
+        preview.note:SetText("Drag the slider to see any floor.")
     else
         preview.title:SetText("Floor difficulty")
         preview.note:SetText(count == 2 and "Floor 2 compared with floor 1." or "")
@@ -1257,6 +1260,102 @@ local function BuildPreview()
     preview.milestone = footer
 end
 
+local startRow
+
+local function StartFloor()
+    local chosen = tier and state.start[tier.id] or 1
+    for _, floorNumber in ipairs(tier and checkpoints[tier.id] or {}) do
+        if floorNumber == chosen then
+            return chosen
+        end
+    end
+    return 1
+end
+
+local function CheckpointButton(index)
+    local button = startRow.buttons[index]
+    if button then
+        return button
+    end
+    button = UI.Button(startRow, CHECKPOINT_BUTTON, "", function()
+        PlaySound("igMainMenuOptionCheckBoxOn")
+        state.start[tier.id] = this.floor
+        if this.floor > 1 then
+            state.floor[tier.id] = this.floor
+        end
+        RunMaster.Refresh()
+    end)
+    startRow.buttons[index] = button
+    return button
+end
+
+local function ShowCheckpoints()
+    local list = tier and checkpoints[tier.id]
+    if not list or table.getn(list) == 0 or Mode() ~= "zones" then
+        startRow:Hide()
+        return
+    end
+    local chosen = StartFloor()
+    local floors = { 1 }
+    for _, floorNumber in ipairs(list) do
+        tinsert(floors, floorNumber)
+    end
+    local x = 2
+    for index, floorNumber in ipairs(floors) do
+        local button = CheckpointButton(index)
+        button.floor = floorNumber
+        button:SetText(floorNumber)
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", x - 2, -6)
+        if floorNumber == chosen then
+            button:LockHighlight()
+        else
+            button:UnlockHighlight()
+        end
+        button:Show()
+        x = x + CHECKPOINT_BUTTON + 4
+    end
+    for index = table.getn(floors) + 1, table.getn(startRow.buttons) do
+        startRow.buttons[index]:Hide()
+    end
+    startRow.note:SetText(chosen > 1 and ("You start at level " .. (RunMaster.CheckpointLevel(chosen)) .. " and pick your build first. Skipped floors give only their glyph choices.")
+        or "Checkpoints open 15 floors below your best floor for this class.")
+    startRow:Show()
+end
+
+local function BuildCheckpoints()
+    startRow = CreateFrame("Frame", nil, content)
+    startRow:SetPoint("TOPLEFT", arena, "TOPLEFT", LEFT_X, -CHECKPOINT_Y)
+    startRow:SetWidth(LEFT_WIDTH)
+    startRow:SetHeight(60)
+    startRow.label = UI.Text(startRow, 12)
+    startRow.label:SetPoint("TOPLEFT", startRow, "TOPLEFT", 0, 0)
+    startRow.label:SetTextColor(1, 0.82, 0)
+    startRow.label:SetText("Start on floor")
+    startRow.note = UI.Text(startRow, 9)
+    startRow.note:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", 0, -34)
+    startRow.note:SetWidth(LEFT_WIDTH)
+    startRow.note:SetJustifyH("LEFT")
+    startRow.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    startRow.buttons = {}
+    startRow:Hide()
+end
+
+function RunMaster.CheckpointLevel(floorNumber)
+    local steps = { { 1, 1 }, { 5, 69 }, { 10, 89 }, { 15, 96 }, { 20, 104 } }
+    local last = steps[getn(steps)]
+    if floorNumber >= last[1] then
+        return last[2] + floor((floorNumber - last[1]) * 0.5 + 0.5)
+    end
+    for index = 2, getn(steps) do
+        local low, high = steps[index - 1], steps[index]
+        if floorNumber <= high[1] then
+            return low[2] + floor((floorNumber - low[1]) / (high[1] - low[1]) * (high[2] - low[2]) + 0.5)
+        end
+    end
+    return 1
+end
+
 local function Build()
     arena = VanillaBonkArena
     content = arena.content
@@ -1265,6 +1364,7 @@ local function Build()
     BuildList()
     BuildBanner()
     BuildPreview()
+    BuildCheckpoints()
 end
 
 function RunMaster.SetTiers(tiers, selectedId, onClick)
@@ -1293,6 +1393,10 @@ function RunMaster.Caption()
     elseif mode == "invasion" and dungeon then
         place = place .. ", invaded"
     end
+    local start = StartFloor()
+    if start > 1 and mode == "zones" then
+        place = place .. ", floor " .. start
+    end
     return tier.name .. "  ·  " .. place
 end
 
@@ -1304,6 +1408,7 @@ function RunMaster.Refresh()
     ShowList()
     ShowBanner()
     ShowPreview()
+    ShowCheckpoints()
     if arena.tier == tier and arena.button then
         if tier.unlocked and RunMaster.CanStart(tier) then
             arena.button:Enable()
@@ -1344,6 +1449,10 @@ function RunMaster.StartArgs(startTier)
     if dungeon then
         args = args .. " " .. dungeon.key .. (mode == "invasion" and " invade" or "")
     end
+    local start = StartFloor()
+    if start > 1 and mode == "zones" then
+        args = args .. " floor" .. start
+    end
     return args
 end
 
@@ -1364,6 +1473,20 @@ UI.Listen({
             tierInfo[f[2]] = { aim = f[3] or "", boss = f[4] or "", charge = (f[5] and f[5] ~= "") and ("every " .. f[5] .. " sec") or "",
                 crowd = f[6] or "" }
         end
+    end,
+    checkpoints = function(f)
+        local tierId = f[2]
+        if not tierId or tierId == "" then
+            return
+        end
+        local list = {}
+        for _, text in ipairs(UI.Split(f[3] or "", ",")) do
+            local floorNumber = tonumber(text)
+            if floorNumber then
+                tinsert(list, floorNumber)
+            end
+        end
+        checkpoints[tierId] = list
     end,
     floor = function(f)
         local tierId, floorNumber = f[2], tonumber(f[3] or "")

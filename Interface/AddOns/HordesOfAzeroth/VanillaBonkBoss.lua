@@ -19,7 +19,9 @@ local LOOKS = {
 }
 
 local function Short(value)
-    if value >= 1000000 then
+    if value >= 1000000000 then
+        return format("%.2fb", value / 1000000000)
+    elseif value >= 1000000 then
         return format("%.2fm", value / 1000000)
     elseif value >= 10000 then
         return format("%.1fk", value / 1000)

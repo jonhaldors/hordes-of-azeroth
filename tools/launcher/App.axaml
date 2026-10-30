@@ -137,6 +137,35 @@
                 </Style>
             </ControlTheme>
 
+            <ControlTheme x:Key="LanguageLink" TargetType="Button">
+                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Background="Transparent" Padding="4,8">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Viewbox Width="15" Height="15" VerticalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Ellipse Canvas.Left="2.5" Canvas.Top="2.5" Width="19" Height="19" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8" />
+                                        <Path Data="M2.5,12 H21.5 M12,2.5 C14.8,5.5 16,8.7 16,12 C16,15.3 14.8,18.5 12,21.5 C9.2,18.5 8,15.3 8,12 C8,8.7 9.2,5.5 12,2.5 Z"
+                                              Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8" />
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Name="Label" Text="{TemplateBinding Content}" Foreground="#D8C8BE" FontSize="13" VerticalAlignment="Center" />
+                                <Path Data="M0,0 L8,0 L4,5 Z" Fill="{TemplateBinding Foreground}" VerticalAlignment="Center" Margin="0,1,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover">
+                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                </Style>
+                <Style Selector="^:pointerover /template/ TextBlock#Label">
+                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                </Style>
+            </ControlTheme>
+
             <ControlTheme x:Key="BarLink" TargetType="Button">
                 <Setter Property="Foreground" Value="{StaticResource Muted}" />
                 <Setter Property="FontSize" Value="12" />

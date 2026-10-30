@@ -19,7 +19,7 @@ UI.DISPLAY_SETTINGS = {
     { key = "damageMeter", label = "Damage Meter", default = true,
         tooltip = "Shows how much damage each of your spells has done this run.", apply = function() UI.ApplyDamageMeter() end },
     { key = "incomingNumbers", label = "Damage Taken Numbers", default = true,
-        tooltip = "Shows the damage you take as numbers beside your hero." },
+        tooltip = "Shows the damage you take as numbers beside your character." },
     { key = "healthNumbers", label = "Health Bar Numbers", default = true,
         tooltip = "Shows your health as numbers on your health bars.", apply = function() UI.ApplyHealthNumbers() end },
     { key = "cooldownNumbers", label = "Cooldown Numbers", default = true,
@@ -40,7 +40,8 @@ UI.KEYS = {
     { command = "VANILLABONK_INTERACT", label = "Interact", default = "F" },
     { command = "VANILLABONK_HEARTH", label = "Use Hearthstone", default = "T" },
     { command = "VANILLABONK_DASH", label = "Dash", modifierAllowed = true },
-    { command = "VANILLABONK_SHAPESHIFT", label = "Shapeshift (Druid)" },
+    { command = "VANILLABONK_SHAPESHIFT", label = "Shapeshift (Druid)", default = "R", class = "Druid", replaces = { REPLY = true } },
+    { command = "VANILLABONK_INSPECT", label = "Inspect talents (in a run)", default = "N", replaces = { TOGGLETALENTS = true } },
 }
 
 local settingsWatchers = {}
@@ -67,6 +68,36 @@ function UI.ChangeSetting(setting, value)
     SettingsChanged()
 end
 
+UI.LANGUAGES = {
+    { value = "enUS", label = "English" },
+    { value = "zhCN", label = "简体中文" },
+}
+
+UI.LANGUAGE_CVAR = "hoaLanguage"
+RegisterCVar(UI.LANGUAGE_CVAR, "enUS")
+
+function UI.Language()
+    return GetCVar(UI.LANGUAGE_CVAR) or "enUS"
+end
+
+function UI.LanguageLabel(value)
+    for _, language in ipairs(UI.LANGUAGES) do
+        if language.value == value then
+            return language.label
+        end
+    end
+    return value
+end
+
+function UI.ChangeLanguage(value)
+    if value == UI.Language() then
+        return
+    end
+    SetCVar(UI.LANGUAGE_CVAR, value)
+    SendChatMessage(".bonk lang " .. value, "SAY")
+    SettingsChanged()
+end
+
 function UI.ChangeHealthBar(mode)
     UI.SetOption("healthBar", mode)
     UI.ApplyHealthBarMode(mode)
@@ -83,13 +114,30 @@ local function SetKeyBinding(binding, key)
     SettingsChanged()
 end
 
-local function GiveDefaultKeys()
+local function DefaultKeyFree(binding)
+    local action = GetBindingAction(binding.default) or ""
+    return not binding.replaces or action == "" or binding.replaces[action]
+end
+
+local function KeysGivenThisClient()
     VanillaBonkKeysGiven = VanillaBonkKeysGiven or {}
+    if BenillaOptionsFrame and not VanillaBonkKeysGiven.benilla then
+        VanillaBonkKeysGiven = { benilla = true }
+    end
+    return VanillaBonkKeysGiven
+end
+
+local function GiveDefaultKeys()
+    if VanillaBonkChoiceKeys then
+        return
+    end
+    local given = KeysGivenThisClient()
     local changed = false
     for _, binding in ipairs(UI.KEYS) do
-        if binding.default and not VanillaBonkKeysGiven[binding.command] then
-            VanillaBonkKeysGiven[binding.command] = true
-            if not GetBindingKey(binding.command) then
+        local forClass = not binding.class or UnitClass("player") == binding.class
+        if binding.default and forClass and not given[binding.command] then
+            given[binding.command] = true
+            if not GetBindingKey(binding.command) and DefaultKeyFree(binding) then
                 SetBinding(binding.default, binding.command)
                 changed = true
             end

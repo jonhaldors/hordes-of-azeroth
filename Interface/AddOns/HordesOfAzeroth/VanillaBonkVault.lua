@@ -112,8 +112,29 @@ local function ShowSaved(find)
     end
 end
 
+local function WorthText(find)
+    local parts = {}
+    if find.sell > 0 then
+        tinsert(parts, UI.FormatGold(find.sell))
+    end
+    if find.scrap > 0 then
+        tinsert(parts, find.scrap .. " Scrap")
+    end
+    return table.concat(parts, " and ")
+end
+
+local function LeftOutText(gold, scrap)
+    if gold > 0 and scrap > 0 then
+        return "sells for " .. UI.FormatGold(gold) .. " and gives " .. scrap .. " Scrap"
+    elseif scrap > 0 then
+        return "gives " .. scrap .. " Scrap"
+    end
+    return "sells for " .. UI.FormatGold(gold)
+end
+
 local function ShowItemTooltip(owner, find, line)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    UI.nextFound = find.found
     GameTooltip:SetHyperlink("item:" .. find.entry .. ":0:0:0")
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(line, 1, 0.82, 0)
@@ -123,7 +144,8 @@ local function ShowItemTooltip(owner, find, line)
         GameTooltip:AddLine("Your best for this slot: Tier " .. find.best .. ".", 0.7, 0.7, 0.7)
     end
     if not vault.pillar then
-        GameTooltip:AddLine("Sells for " .. UI.FormatGold(find.sell) .. " if you leave it out of the vault.", 0.7, 0.7, 0.7)
+        local text = LeftOutText(find.sell, find.scrap)
+        GameTooltip:AddLine(strupper(strsub(text, 1, 1)) .. strsub(text, 2) .. " if you leave it out of the vault.", 0.7, 0.7, 0.7)
     end
     if getn(find.saved) == 0 then
         GameTooltip:AddLine("You have nothing saved in this slot.", 0.7, 0.7, 0.7)
@@ -166,6 +188,83 @@ local function VaultSlot(index)
     slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
     frame.box.slots[index] = slot
     return slot
+end
+
+local SENT_SLOT_SIZE = 40
+local SENT_SPACING = 70
+local SENT_SHOWN = 8
+
+frame.sent = CreateFrame("Frame", nil, frame)
+frame.sent:SetHeight(128)
+frame.sent:SetPoint("CENTER", frame, "CENTER", 0, 132)
+frame.sent:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", tile = true, tileSize = 32,
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Gold-Border", edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 },
+})
+frame.sent.label = UI.Text(frame.sent, 12)
+frame.sent.label:SetPoint("TOP", frame.sent, "TOP", 0, -16)
+frame.sent.label:SetTextColor(1, 0.82, 0)
+frame.sent.label:SetText("Sent home this run")
+frame.sent.empty = UI.Text(frame.sent, 11)
+frame.sent.empty:SetPoint("CENTER", frame.sent, "CENTER", 0, -8)
+frame.sent.empty:SetTextColor(0.62, 0.62, 0.62)
+frame.sent.empty:SetText("Nothing yet. Each pillar sends 1 piece.")
+frame.sent.slots = {}
+frame.sent:Hide()
+
+local function SentSlot(index)
+    local slot = frame.sent.slots[index]
+    if slot then
+        return slot
+    end
+    slot = UI.Slot(frame.sent, SENT_SLOT_SIZE)
+    slot.caption = UI.Text(frame.sent, 10)
+    slot.caption:SetPoint("TOP", slot, "BOTTOM", 0, -5)
+    slot.caption:SetTextColor(0.8, 0.8, 0.8)
+    slot:SetScript("OnEnter", function()
+        if this.piece then
+            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            GameTooltip:SetHyperlink("item:" .. this.piece.entry .. ":0:0:0")
+            GameTooltip:AddLine("Sent home on floor " .. this.piece.floor .. ".", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end
+    end)
+    slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    frame.sent.slots[index] = slot
+    return slot
+end
+
+local function ShowSent()
+    local pieces = vault.sent or {}
+    local count = getn(pieces)
+    local first = max(1, count - SENT_SHOWN + 1)
+    local shown = count - first + 1
+    frame.sent:SetWidth(max(300, 40 + max(shown, 1) * SENT_SPACING))
+    if count == 0 then
+        frame.sent.empty:Show()
+    else
+        frame.sent.empty:Hide()
+    end
+    for index = 1, max(SENT_SHOWN, getn(frame.sent.slots)) do
+        local slot = SentSlot(index)
+        local piece = index <= shown and pieces[first + index - 1] or nil
+        slot.piece = piece
+        if piece then
+            local _, _, _, _, _, _, _, _, texture = GetItemInfo(piece.entry)
+            slot.icon:SetTexture(texture or (UI.ICON_PATH .. "INV_Misc_QuestionMark"))
+            slot.icon:Show()
+            slot:ClearAllPoints()
+            slot:SetPoint("TOP", frame.sent, "TOP", (index - (shown + 1) / 2) * SENT_SPACING, -40)
+            slot.caption:SetText("Floor " .. piece.floor)
+            slot:Show()
+            slot.caption:Show()
+        else
+            slot:Hide()
+            slot.caption:Hide()
+        end
+    end
+    frame.sent:Show()
 end
 
 frame.cards = CreateFrame("Frame", nil, frame)
@@ -300,9 +399,10 @@ local function FillCard(card, find)
     card.where:SetText(find.worn and "Equipped" or "In bags")
     local saved, savedKnown = SavedText(find)
     card.saved:SetText(saved)
-    card.price:SetText(vault.pillar and "" or UI.FormatGold(find.sell))
+    card.price:SetText(vault.pillar and "" or WorthText(find))
     if find.tier > 0 then
-        card.tier:SetText("Tier " .. find.tier)
+        local lines = find.found and table.getn(find.found.lines) or 0
+        card.tier:SetText(UI.TierText(find.tier) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or ""))
         card.tier:Show()
     else
         card.tier:Hide()
@@ -346,7 +446,10 @@ local function ShownOrder()
         if a.quality ~= b.quality then
             return a.quality > b.quality
         end
-        return a.sell > b.sell
+        if a.sell ~= b.sell then
+            return a.sell > b.sell
+        end
+        return a.scrap > b.scrap
     end)
     return shown
 end
@@ -368,9 +471,10 @@ function Refresh()
     if vault.pillar then
         frame.subtitle:SetText("1 piece goes home right now. It leaves your character.")
         frame.box:Hide()
+        ShowSent()
     else
-        frame.subtitle:SetText(slots == 1 and "1 piece comes home with you. The rest sells for gold."
-            or "2 pieces come home with you. The rest sells for gold.")
+        frame.sent:Hide()
+        frame.subtitle:SetText(slots == 1 and "1 piece comes home with you." or slots .. " pieces come home with you.")
         frame.box:Show()
     end
 
@@ -432,12 +536,14 @@ function Refresh()
     frame.cards:ClearAllPoints()
     frame.cards:SetPoint("TOP", frame, "CENTER", 0, CARDS_TOP / scale)
     local missing = false
-    local rest = 0
-    for _, find in ipairs(shown) do
+    local rest, restScrap = 0, 0
+    for _, find in ipairs(vault.finds) do
         if not vault.chosen[find.guid] then
             rest = rest + find.sell
+            restScrap = restScrap + find.scrap
         end
     end
+    restScrap = floor(restScrap * (1 + (vault.scrapBonus or 0) / 100) + 0.5)
     for index = 1, count do
         local find = shown[first + index]
         local card = Card(index)
@@ -484,14 +590,19 @@ function Refresh()
     elseif vault.pillar then
         frame.rest:SetText("The pillar can send 1 piece.")
     else
-        frame.rest:SetText("The rest sells for " .. UI.FormatGold(rest))
+        frame.rest:SetText("The rest " .. LeftOutText(rest, restScrap) .. ".")
     end
-    frame.hint:ClearAllPoints()
-    frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
-    frame.hint:SetText(vault.pillar and "Click an item to send it home now. It leaves your character for the rest of the run."
-        or "Click an item to put it in the vault. Click it in the vault to take it out.")
     frame.done:ClearAllPoints()
-    frame.done:SetPoint("TOP", frame.hint, "BOTTOM", 0, -12)
+    if vault.pillar then
+        frame.hint:ClearAllPoints()
+        frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
+        frame.hint:SetText("Click an item to send it home now. It leaves your character for the rest of the run.")
+        frame.hint:Show()
+        frame.done:SetPoint("TOP", frame.hint, "BOTTOM", 0, -12)
+    else
+        frame.hint:Hide()
+        frame.done:SetPoint("TOP", frame.rest, "BOTTOM", 0, -12)
+    end
 
     if missing then
         frame.retries = frame.retries or RETRIES
@@ -556,6 +667,16 @@ local function SavedEntries(field)
     return entries
 end
 
+handlers["vaultsent"] = function(f)
+    vault.sent = {}
+    for _, text in ipairs(UI.Split(f[2] or "", ",")) do
+        local _, _, entry, floor = string.find(text, "^(%d+):(%d+)$")
+        if entry then
+            tinsert(vault.sent, { entry = tonumber(entry), floor = tonumber(floor) })
+        end
+    end
+end
+
 handlers["vaultitem"] = function(f)
     local guid, entry = f[2], tonumber(f[3] or "")
     if not incoming or not guid or guid == "" or not entry then
@@ -571,12 +692,15 @@ handlers["vaultitem"] = function(f)
         tier = tonumber(f[8] or "") or 0,
         best = tonumber(f[9] or "") or 0,
         owned = f[10] == "1",
+        scrap = tonumber(f[11] or "") or 0,
+        found = UI.ParseFound(f[8], f[12], f[13]),
     })
 end
 
 handlers["vaultopen"] = function(f)
     vault.slots = tonumber(f[2] or "") or 1
     vault.pillar = f[4] == "pillar"
+    vault.scrapBonus = tonumber(f[5] or "") or 0
     vault.chosen, vault.order = {}, {}
     for _, guid in ipairs(UI.Split(f[3] or "", ",")) do
         if guid ~= "" then

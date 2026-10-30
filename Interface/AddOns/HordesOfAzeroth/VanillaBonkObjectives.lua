@@ -6,12 +6,18 @@ local KIND_ICONS = {
     event = "Ability_Warrior_BattleShout",
     extract = "Spell_Arcane_PortalStormWind",
     chest = "INV_Box_02",
+    boss = "INV_Misc_Bone_HumanSkull_01",
+    miniboss = "INV_Misc_Bone_ElfSkull_01",
 }
 local PIN_SIZE = 20
 local MAP_PIN_SIZE = 24
 local SMALL_PIN_SIZE = 14
 local SMALL_MAP_PIN_SIZE = 18
 local SMALL_KINDS = { chest = true }
+local LARGE_KINDS = { boss = true }
+local LARGE_PIN_SIZE = 26
+local LARGE_MAP_PIN_SIZE = 30
+local RED_RING_KINDS = { boss = true, miniboss = true }
 local OUTDOOR_YARDS = { [0] = 466.67, 400, 333.33, 266.67, 200, 133.33 }
 local INDOOR_YARDS = { [0] = 300, 240, 180, 120, 80, 50 }
 local UPDATE_INTERVAL = 0.03
@@ -95,9 +101,12 @@ local function MakePin(parent, size)
     return pin
 end
 
-local spare = { normal = {}, small = {} }
+local spare = { normal = {}, small = {}, large = {} }
 
 local function PinPool(kind)
+    if LARGE_KINDS[kind] then
+        return "large"
+    end
     return SMALL_KINDS[kind] and "small" or "normal"
 end
 
@@ -109,6 +118,8 @@ local function TakePins(kind)
     end
     if pool == "small" then
         return MakePin(Minimap, SMALL_PIN_SIZE), MakePin(WorldMapButton, SMALL_MAP_PIN_SIZE)
+    elseif pool == "large" then
+        return MakePin(Minimap, LARGE_PIN_SIZE), MakePin(WorldMapButton, LARGE_MAP_PIN_SIZE)
     end
     return MakePin(Minimap, PIN_SIZE), MakePin(WorldMapButton, MAP_PIN_SIZE)
 end
@@ -290,6 +301,15 @@ handlers["objective"] = function(f)
     objective.leaves = leaves
     objective.pin.icon:SetTexture(Icon(objective))
     objective.mapPin.icon:SetTexture(Icon(objective))
+    for _, pin in ipairs({ objective.pin, objective.mapPin }) do
+        if pin.border then
+            if RED_RING_KINDS[objective.kind] then
+                pin.border:SetVertexColor(1, 0.25, 0.2)
+            else
+                pin.border:SetVertexColor(1, 1, 1)
+            end
+        end
+    end
     elapsed = UPDATE_INTERVAL
     updater:Show()
 end

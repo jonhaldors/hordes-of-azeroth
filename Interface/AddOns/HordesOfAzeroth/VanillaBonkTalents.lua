@@ -33,6 +33,22 @@ local GREY = { 0.35, 0.35, 0.35 }
 local LINE_LIT = { 1, 0.75, 0.2 }
 local LINE_OPEN = { 0.7, 0.7, 0.7 }
 local LINE_DARK = { 0.4, 0.4, 0.4 }
+T.PRESET_GOLD = { 0.6, 0.49, 0 }
+
+do
+    local MUTED_SHADE = 0.6
+    local mutedColours = {}
+
+    function T.Shown(colour)
+        if not T.muted then
+            return colour
+        end
+        if not mutedColours[colour] then
+            mutedColours[colour] = { colour[1] * MUTED_SHADE, colour[2] * MUTED_SHADE, colour[3] * MUTED_SHADE }
+        end
+        return mutedColours[colour]
+    end
+end
 
 local state = { panels = {}, data = nil }
 
@@ -146,10 +162,13 @@ local function StateOf(node)
     if Missing(node) then
         return "locked"
     end
-    return state.data.balance > 0 and "open" or "locked"
+    return (state.data.balance > 0 and not T.muted) and "open" or "locked"
 end
 
 local function Colour(which)
+    if T.muted then
+        return (which == "max" or which == "part") and T.PRESET_GOLD or GREY
+    end
     if which == "max" then
         return GOLD
     elseif which == "part" or which == "open" then
@@ -187,7 +206,7 @@ local function ShowTooltip(button)
         local missing = Missing(button.pair[1])
         if missing then
             GameTooltip:AddLine(missing, 1, 0.1, 0.1, 1)
-        else
+        elseif not VanillaBonkTalents.readOnly then
             GameTooltip:AddLine("Click to choose", 0.1, 1, 0.1)
         end
         GameTooltip:Show()
@@ -209,10 +228,10 @@ local function ShowTooltip(button)
         GameTooltip:AddLine(missing, 1, 0.1, 0.1, 1)
     elseif IsFree(node) then
         GameTooltip:AddLine("Always yours", 0.6, 0.6, 0.6)
-    elseif node.rank < node.maxRank then
+    elseif node.rank < node.maxRank and not VanillaBonkTalents.readOnly then
         GameTooltip:AddLine("Click to learn", 0.1, 1, 0.1)
     end
-    if node.rank > 0 and not IsFree(node) then
+    if node.rank > 0 and not IsFree(node) and not VanillaBonkTalents.readOnly then
         GameTooltip:AddLine("Right-click to refund", 0.7, 0.7, 0.7)
     end
     GameTooltip:Show()
@@ -291,6 +310,9 @@ end
 local function OnClick()
     local button = this
     GameTooltip:Hide()
+    if VanillaBonkTalents.readOnly then
+        return
+    end
     if button.pair then
         local chosen = button.pair[1].rank > 0 and button.pair[1] or button.pair[2].rank > 0 and button.pair[2]
         if arg1 == "RightButton" then
@@ -567,7 +589,7 @@ local function DrawTree(panel, tree, height)
                     line:SetTexture(LINE)
                     panel.lines[lineIndex] = line
                 end
-                local colour = (parent.rank > 0 and node.rank > 0) and LINE_LIT or parent.rank > 0 and LINE_OPEN or LINE_DARK
+                local colour = VanillaBonkTalents.Shown((parent.rank > 0 and node.rank > 0) and LINE_LIT or parent.rank > 0 and LINE_OPEN or LINE_DARK)
                 line:SetVertexColor(colour[1], colour[2], colour[3])
                 DrawLine(line, panel, sx, sy, ex, ey, LINE_WIDTH)
             end

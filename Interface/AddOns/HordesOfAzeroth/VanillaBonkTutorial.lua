@@ -44,7 +44,7 @@ local PLATE_KINDS = {
         sample = "Kolkar Pack Runner" },
     { kind = 0, name = "Your debuffs", text = "Shown under an enemy's bar with their stacks. On a boss's bar, each icon wipes away as its time runs out unless you hit the boss again.",
         debuffs = { { 3, 12 }, { 4, 5 } } },
-    { kind = 0, name = "You", text = "Your own health, shown over your hero. A bright cyan glow on it is your Shield.", own = true },
+    { kind = 0, name = "You", text = "Your own health, shown over your character. A bright cyan glow on it is your Shield.", own = true },
 }
 local OWN_BAR_COLOR = { 0.24, 0.70, 0.28 }
 local CURRENCY_WIDTH = 400

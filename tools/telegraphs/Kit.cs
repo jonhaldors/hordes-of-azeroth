@@ -6,7 +6,9 @@ namespace BonkTelegraphs
 {
     static class Kit
     {
-        public const string PatchName = "patch-3.MPQ";
+        public const string PatchName = "patch-z.MPQ";
+        public const string RetiredPatchName = "patch-3.MPQ";
+        public static readonly string[] OwnPatches = { PatchName, RetiredPatchName };
         const uint FirstDisplayId = 7000;
         const string Folder = "World\\Generic\\BonkTelegraph\\";
         public static readonly uint[] FillMs = { 1000, 1500, 2000, 2500, 3000 };
@@ -31,7 +33,7 @@ namespace BonkTelegraphs
             int standIns, landmarks;
             string hearthRings, hearthTide;
             List<string> addonTextures;
-            using (ClientData client = new ClientData(dataDir, new[] { PatchName }))
+            using (ClientData client = new ClientData(dataDir, OwnPatches))
             {
                 addonTextures = AddonTextures.Write(client, root);
                 creatureDisplays = new Dbc(client.Read("DBFilesClient\\CreatureDisplayInfo.dbc"));
@@ -64,13 +66,12 @@ namespace BonkTelegraphs
                 castVisuals.AddRange(GroundlessVisuals.AddGroundlessVisuals(spells, spellVisuals));
                 castVisuals.AddRange(BoltVisuals.AddBoltVisuals(spells, spellVisuals));
                 castVisuals.AddRange(ExploderVisuals.AddExploderVisuals(spells, spellVisuals, spellVisualKits));
-                castVisuals.AddRange(MutedSounds.MuteMeleeSwings(spellVisualKits));
-                castVisuals.AddRange(MutedSounds.MuteCatClaws(spellVisualKits));
                 castVisuals.AddRange(MutedSounds.SwapKitSounds(spellVisualKits));
                 castVisuals.Add(MutedSounds.ClearHearthstoneCast(spells));
                 castVisuals.AddRange(QuietKits.AddQuietCopies(spellVisualKits));
                 castVisuals.AddRange(QuietKits.AddStillClawCopies(spellVisualKits));
                 castVisuals.AddRange(QuietKits.AddAreaFreeCopies(spellVisualKits));
+                castVisuals.AddRange(SoundKits.AddSoundKits(spellVisualKits));
                 castVisuals.AddRange(BossLooks.AddLooks(spellVisualKits, spellEffectNames));
                 castVisuals.AddRange(AuraLooks.AddAuraLooks(spells, spellVisuals, spellVisualKits, spellEffectNames, new Dbc(client.Read("DBFilesClient\\SpellIcon.dbc"))));
                 castVisuals.AddRange(AuraRings.AddSpells(spells, spellVisuals, spellVisualKits, spellEffectNames));

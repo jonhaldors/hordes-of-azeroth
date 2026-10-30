@@ -90,6 +90,13 @@ local function Restore(saved)
     SaveBindings(GetCurrentBindingSet())
 end
 
+local function KeepGameMenuKey()
+    if GetBindingAction("ESCAPE") ~= "TOGGLEGAMEMENU" then
+        SetBinding("ESCAPE", "TOGGLEGAMEMENU")
+        SaveBindings(GetCurrentBindingSet())
+    end
+end
+
 local function Store()
     if not checked or VanillaBonkChoiceKeys then
         return
@@ -104,6 +111,7 @@ local function Check()
     if saved and not VanillaBonkChoiceKeys and Differs(saved, Capture()) then
         Restore(saved)
     end
+    KeepGameMenuKey()
     Store()
 end
 
@@ -130,6 +138,9 @@ events:SetScript("OnUpdate", function()
     end
     if captureAt and now >= captureAt then
         captureAt = nil
+        if checked then
+            KeepGameMenuKey()
+        end
         Store()
     end
 end)

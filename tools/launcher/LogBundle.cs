@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -12,19 +13,28 @@ namespace HordesOfAzeroth.Launcher
         const long MaxBytesPerFile = 2 * 1024 * 1024;
         const int NewestCrashes = 3;
         static readonly string[] SkippedLogs = { "Chat.log", "WoWChatLog.txt" };
+        static readonly string[] GamePrograms = { "mangosd.exe", "realmd.exe", "mariadbd.exe", "HordesOfAzeroth.exe", "HoALauncher.exe", "WoW.exe" };
+        static readonly string[] PrivateEventLines = { "User:", "User Name:", "Computer:" };
+        const int NewestCrashEvents = 10;
 
         public static string Save(GameFolder folder)
         {
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (string.IsNullOrEmpty(desktop) || !Directory.Exists(desktop))
                 desktop = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string zip = Path.Combine(desktop, $"Hordes of Azeroth logs {DateTime.Now:yyyy-MM-dd HH.mm}.zip");
+            return SaveTo(folder, Path.Combine(desktop, $"Hordes of Azeroth logs {DateTime.Now:yyyy-MM-dd HH.mm}.zip"), "bug report");
+        }
+
+        public static string SaveTo(GameFolder folder, string zip, string reason)
+        {
             if (File.Exists(zip))
                 File.Delete(zip);
             using (ZipArchive archive = ZipFile.Open(zip, ZipArchiveMode.Create))
             {
-                AddText(archive, "about.txt", About(folder));
+                AddText(archive, "about.txt", About(folder, reason));
                 foreach (string file in Logs(folder.ServerLogs, "*.log"))
+                    AddTail(archive, "server/" + Path.GetFileName(file), file);
+                foreach (string file in Logs(folder.ServerLogs, "*.dmp").Where(dump => new FileInfo(dump).Length <= MaxBytesPerFile))
                     AddTail(archive, "server/" + Path.GetFileName(file), file);
                 foreach (string file in Logs(folder.MariaDbData, "*.err"))
                     AddTail(archive, "server/mariadb/" + Path.GetFileName(file), file);
@@ -32,6 +42,9 @@ namespace HordesOfAzeroth.Launcher
                     AddTail(archive, "client/" + Path.GetFileName(file), file);
                 foreach (string file in NewestCrashFiles(folder))
                     AddTail(archive, "crashes/" + Path.GetFileName(file), file);
+                string crashEvents = WindowsCrashEvents();
+                if (!string.IsNullOrEmpty(crashEvents))
+                    AddText(archive, "crashes/windows-events.txt", crashEvents);
                 foreach (string file in Logs(folder.LauncherData, "*.txt"))
                     AddTail(archive, "launcher/" + Path.GetFileName(file), file);
                 AddTail(archive, "client/config.toml", folder.ClientConfig);
@@ -63,9 +76,50 @@ namespace HordesOfAzeroth.Launcher
             return reports;
         }
 
-        static string About(GameFolder folder)
+        static string WindowsCrashEvents()
+        {
+            if (!Platform.IsWindows)
+                return null;
+            string text;
+            try
+            {
+                ProcessStartInfo info = new ProcessStartInfo("wevtutil",
+                    "qe Application \"/q:*[System[Provider[@Name='Application Error'] and (EventID=1000)]]\" /c:200 /rd:true /f:text")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                };
+                using (Process process = Process.Start(info))
+                {
+                    text = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit(10000);
+                }
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is IOException)
+            {
+                return null;
+            }
+
+            IEnumerable<string> events = System.Text.RegularExpressions.Regex.Split(text, @"(?m)^Event\[\d+\]")
+                .Where(IsGameCrashEvent)
+                .Take(NewestCrashEvents)
+                .Select(PublicEventText);
+            return HideUserNameInText(string.Join(Environment.NewLine, events));
+        }
+
+        static bool IsGameCrashEvent(string crashEvent) =>
+            GamePrograms.Any(program => crashEvent.IndexOf("Faulting application name: " + program, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        static string PublicEventText(string crashEvent) =>
+            string.Join(Environment.NewLine, crashEvent.Split('\n')
+                .Select(line => line.TrimEnd('\r'))
+                .Where(line => !PrivateEventLines.Any(hidden => line.TrimStart().StartsWith(hidden, StringComparison.Ordinal))));
+
+        static string About(GameFolder folder, string reason)
         {
             StringBuilder text = new StringBuilder();
+            text.AppendLine($"Sent for: {reason}");
             text.AppendLine($"Launcher: {typeof(LogBundle).Assembly.GetName().Version}");
             text.AppendLine($"Installed: {folder.InstalledVersion?.ToString() ?? "unknown"}");
             text.AppendLine($"{Platform.SystemName}: {Environment.OSVersion.VersionString}, {(Environment.Is64BitOperatingSystem ? "64" : "32")}-bit");
@@ -81,6 +135,15 @@ namespace HordesOfAzeroth.Launcher
             return profile.Length > 0 && path.StartsWith(profile, StringComparison.OrdinalIgnoreCase)
                 ? (Platform.IsWindows ? "%USERPROFILE%" : "~") + path.Substring(profile.Length)
                 : path;
+        }
+
+        static string HideUserNameInText(string text)
+        {
+            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return profile.Length > 0
+                ? System.Text.RegularExpressions.Regex.Replace(text, System.Text.RegularExpressions.Regex.Escape(profile), "%USERPROFILE%",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                : text;
         }
 
         static void AddText(ZipArchive archive, string name, string text)

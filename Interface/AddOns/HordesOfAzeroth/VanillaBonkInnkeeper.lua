@@ -8,6 +8,13 @@ local COLUMN = CONTENT_WIDTH / 2
 local ROW = 24
 local SECTION_GAP = 14
 local KEY_BUTTON_WIDTH = 74
+local PAD_GLYPH_SIZE = 24
+local PAD_ACTIONS = {
+    VANILLABONK_INTERACT = "interact",
+    VANILLABONK_HEARTH = "hearth",
+    VANILLABONK_DASH = "dash",
+    VANILLABONK_SHAPESHIFT = "shapeshift",
+}
 local GREETING = "Make yourself at home, friend. Tell old Tarn how you like things, and the Inn will keep it that way."
 
 local window = UI.Window("VanillaBonkInnkeeper", WIDTH, 600)
@@ -16,6 +23,50 @@ window.title:SetText(UI.INNKEEPER_NAME)
 window.checks = {}
 window.radios = {}
 window.keys = {}
+
+local LISTEN_TEXT = "Press a button"
+
+local function PadAction(row)
+    local controller = VanillaBonkController
+    if not (controller and controller.kind) then
+        return nil
+    end
+    return PAD_ACTIONS[row.binding.command]
+end
+
+local function StopPadListen()
+    if not window.listeningRow then
+        return
+    end
+    window.listeningRow = nil
+    VanillaBonkController.listening = nil
+    window.Refresh()
+end
+
+local function ListenForPadButton(row, action)
+    local controller = VanillaBonkController
+    window.listeningRow = row
+    controller.listening = function(name)
+        if name ~= "b" and not controller.REBINDABLE[name] then
+            return
+        end
+        if name ~= "b" then
+            controller.BindButton(action, name)
+            PlaySound("igMainMenuOptionCheckBoxOn")
+        end
+        StopPadListen()
+    end
+    window.Refresh()
+end
+
+local function ChangeKey(row)
+    local action = PadAction(row)
+    if action then
+        ListenForPadButton(row, action)
+    else
+        UI.CaptureKey(row.binding)
+    end
+end
 
 window.greeting = UI.Text(window, 12)
 window.greeting:SetWidth(CONTENT_WIDTH)
@@ -78,11 +129,21 @@ local function KeyRow(binding, label)
     row.label:SetText(label or binding.label)
     row.change = UI.Button(row, KEY_BUTTON_WIDTH, "Change", function()
         PlaySound("igMainMenuOptionCheckBoxOn")
-        UI.CaptureKey(this:GetParent().binding)
+        ChangeKey(this:GetParent())
     end)
     row.change:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     row.cap = UI.KeyCap(row)
     row.cap:SetPoint("RIGHT", row.change, "LEFT", -8, 0)
+    row.glyph = row:CreateTexture(nil, "ARTWORK")
+    row.glyph:SetWidth(PAD_GLYPH_SIZE)
+    row.glyph:SetHeight(PAD_GLYPH_SIZE)
+    row.glyph:SetPoint("RIGHT", row.change, "LEFT", -8, 0)
+    row.glyph:Hide()
+    row.listen = UI.Text(row, 11)
+    row.listen:SetTextColor(1, 0.82, 0)
+    row.listen:SetPoint("RIGHT", row.change, "LEFT", -8, 0)
+    row.listen:SetText(LISTEN_TEXT)
+    row.listen:Hide()
     Place(row, 1, 30)
     tinsert(window.keys, row)
     return row
@@ -146,6 +207,33 @@ window.settings:SetPoint("TOPLEFT", window, "TOPLEFT", LEFT, -footerTop)
 window.goodbye:SetPoint("TOPRIGHT", window, "TOPRIGHT", -RIGHT, -footerTop)
 UI.SetWindowSize(window, WIDTH, footerTop + 22 + 24)
 
+local function ShowPadButton(row)
+    local controller = VanillaBonkController
+    local action = PadAction(row)
+    if not action then
+        return false
+    end
+    return controller.SetGlyph(row.glyph, controller.ButtonFor(action))
+end
+
+local function RefreshKeyRow(row)
+    row.change:Show()
+    if window.listeningRow == row then
+        row.glyph:Hide()
+        row.cap:Hide()
+        row.listen:Show()
+        return
+    end
+    row.listen:Hide()
+    if ShowPadButton(row) then
+        row.cap:Hide()
+        return
+    end
+    row.glyph:Hide()
+    row.cap:Show()
+    UI.SetKeyCap(row.cap, UI.KeyText(row.binding))
+end
+
 local function Refresh()
     if not window:IsShown() then
         return
@@ -158,10 +246,11 @@ local function Refresh()
         radio:SetChecked(radio.mode == mode)
     end
     for _, row in ipairs(window.keys) do
-        UI.SetKeyCap(row.cap, UI.KeyText(row.binding))
+        RefreshKeyRow(row)
     end
 end
 
+window.Refresh = Refresh
 UI.WatchSettings(Refresh)
 window:RegisterEvent("UPDATE_BINDINGS")
 window:SetScript("OnEvent", Refresh)
@@ -174,6 +263,7 @@ end)
 
 window:SetScript("OnHide", function()
     PlaySound("igCharacterInfoClose")
+    StopPadListen()
     if this.fromGossip then
         this.fromGossip = nil
         if not this.gossipClosed then

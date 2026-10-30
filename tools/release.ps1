@@ -214,6 +214,15 @@ function Copy-Runtime([string]$Instance, [string[]]$Targets, [string]$Architectu
     }
 }
 
+function Save-ServerSymbols([string]$Commit) {
+    $symbols = Join-Path $releaseRoot "symbols\$($Commit.Substring(0, 9))"
+    New-Item -ItemType Directory -Force $symbols | Out-Null
+    $pdb = Get-ChildItem @($serverBuild, (Join-Path $serverSource 'bin')) -Recurse -Filter 'mangosd.pdb' -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -like '*Release*' } | Select-Object -First 1
+    if (-not $pdb) { throw 'mangosd.pdb was not built; crash dumps from this release could not be read.' }
+    Copy-Item $pdb.FullName $symbols -Force
+    Copy-Item (Join-Path $serverInstall 'mangosd.exe') $symbols -Force
+}
+
 function Invoke-ServerBuild {
     $commit = (git -C $RepoRoot rev-parse HEAD:server/core).Trim()
     $stamp = Join-Path $serverInstall 'commit.txt'
@@ -231,12 +240,15 @@ function Invoke-ServerBuild {
     Invoke-Native 'CMake configure' $cmake.Exe @(
         '-S', $serverSource, '-B', $serverBuild, '-G', 'Visual Studio 17 2022', '-A', 'x64',
         "-DCMAKE_GENERATOR_INSTANCE=$($cmake.Instance)",
-        '-DBUILD_EXTRACTORS=1', '-DBUILD_FOR_HOST_CPU=OFF', "-DCMAKE_INSTALL_PREFIX=$serverInstall"
+        '-DBUILD_EXTRACTORS=1', '-DBUILD_FOR_HOST_CPU=OFF', "-DCMAKE_INSTALL_PREFIX=$serverInstall",
+        '-DCMAKE_CXX_FLAGS_RELEASE=/MD /O2 /Ob2 /DNDEBUG /Zi', '-DCMAKE_C_FLAGS_RELEASE=/MD /O2 /Ob2 /DNDEBUG /Zi',
+        '-DCMAKE_EXE_LINKER_FLAGS_RELEASE=/DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF'
     )
     Invoke-Native 'Server build' $cmake.Exe @('--build', $serverBuild, '--config', 'Release', '--', '/m', '/v:minimal')
     if (Test-Path $serverInstall) { Remove-Item $serverInstall -Recurse -Force }
     Invoke-Native 'Server install' $cmake.Exe @('--install', $serverBuild, '--config', 'Release')
     Copy-Runtime $cmake.Instance @($serverInstall, (Join-Path $serverInstall 'Extractors'))
+    Save-ServerSymbols $commit
     [System.IO.File]::WriteAllText($stamp, $commit)
 }
 
@@ -287,7 +299,7 @@ function Invoke-LinuxBuild([string]$Part) {
     $stamp = Join-Path $linuxOut "$Part-commit.txt"
     if ((Test-Path $stamp) -and (Get-Content $stamp -Raw).Trim() -eq $commit) { return }
     Sync-ReleaseSource (Join-Path $RepoRoot $submodule) $source $commit
-    Write-Host "Building the Linux $Part from fork commit $($commit.Substring(0, 9)) in Docker..."
+    Write-Host "Building the Linux $Part from fork commit $($commit.Substring(0, 9)) in WSL..."
     & (Join-Path $PSScriptRoot 'build-linux.ps1') -Part $Part -ClientSource $clientSource -ServerSource $serverSource -Out $linuxOut
     [System.IO.File]::WriteAllText($stamp, $commit)
 }

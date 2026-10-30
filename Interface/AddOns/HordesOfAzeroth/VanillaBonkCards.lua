@@ -4,11 +4,15 @@ local SIZE = 24
 local GAP = 4
 local PER_ROW = 10
 local NUMBER_COLOR = { 1, 1, 1 }
+local LABEL_HEIGHT = 16
+local LEY_RARITY = 2
 
 local held = {}
 local tips = {}
 local cooldowns = {}
 local states = {}
+local leys = {}
+local incomingLeys
 
 local holder = CreateFrame("Frame", "VanillaBonkCards", UIParent)
 holder:SetWidth(PER_ROW * (SIZE + GAP))
@@ -30,7 +34,12 @@ holder.label:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
 holder.label:SetTextColor(1, 0.82, 0)
 holder.label:SetText("Darkmoon Cards")
 
+holder.leyLabel = UI.Text(holder, 11)
+holder.leyLabel:SetTextColor(1, 0.82, 0)
+holder.leyLabel:SetText("Ley Lines")
+
 local buttons = {}
+local leyButtons = {}
 
 local function CardTooltip(owner, index, anchor)
     local card = held[index]
@@ -69,14 +78,21 @@ function UI.HeldDarkmoonCards()
     return held
 end
 
-local function Button(index)
+local function PlaceInGrid(button, index, top)
+    local row = floor((index - 1) / PER_ROW)
+    local column = mod(index - 1, PER_ROW)
+    button:ClearAllPoints()
+    button:SetPoint("TOPLEFT", holder, "TOPLEFT", column * (SIZE + GAP) + 2, -top - LABEL_HEIGHT - row * (SIZE + GAP))
+end
+
+local function GridHeight(count)
+    return LABEL_HEIGHT + ceil(count / PER_ROW) * (SIZE + GAP)
+end
+
+local function StyledButton()
     local button = CreateFrame("Button", nil, holder)
     button:SetWidth(SIZE)
     button:SetHeight(SIZE)
-    local row = floor((index - 1) / PER_ROW)
-    local column = mod(index - 1, PER_ROW)
-    button:SetPoint("TOPLEFT", holder, "TOPLEFT", column * (SIZE + GAP) + 2, -16 - row * (SIZE + GAP))
-    button.index = index
 
     button.rarity = button:CreateTexture(nil, "BACKGROUND")
     button.rarity:SetTexture(UI.FLAT)
@@ -114,10 +130,36 @@ local function Button(index)
     button.value = UI.Text(top, 10, UI.NUMBER_FONT, "OUTLINE")
     button.value:SetPoint("BOTTOM", button, "BOTTOM", 0, -2)
     button.value:SetTextColor(0.1, 1, 0.1)
-
-    button:SetScript("OnEnter", function() ShowTooltip(this) end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return button
+end
+
+local function Button(index)
+    local button = StyledButton()
+    PlaceInGrid(button, index, 0)
+    button.index = index
+    button:SetScript("OnEnter", function() ShowTooltip(this) end)
     buttons[index] = button
+    return button
+end
+
+local function LeyTooltip(button)
+    local ley = leys[button.index]
+    if not ley then
+        return
+    end
+    GameTooltip:SetOwner(button, "ANCHOR_BOTTOMRIGHT")
+    GameTooltip:AddLine(ley.name, 1, 1, 1)
+    GameTooltip:AddLine("Ley Line blessing", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine(ley.text, 1, 0.82, 0, 1)
+    GameTooltip:Show()
+end
+
+local function LeyButton(index)
+    local button = StyledButton()
+    button.index = index
+    button:SetScript("OnEnter", function() LeyTooltip(this) end)
+    leyButtons[index] = button
     return button
 end
 
@@ -152,8 +194,36 @@ local function Refresh()
             button:Hide()
         end
     end
+    local leyTop = count > 0 and GridHeight(count) or 0
+    local leyCount = getn(leys)
+    local leyColor = UI.RARITY[LEY_RARITY]
+    for index = 1, max(leyCount, getn(leyButtons)) do
+        local ley = leys[index]
+        local button = leyButtons[index] or (ley and LeyButton(index))
+        if ley then
+            PlaceInGrid(button, index, leyTop)
+            button.rarity:SetVertexColor(leyColor.r, leyColor.g, leyColor.b)
+            button.icon:SetTexture(UI.ICON_PATH .. (ley.icon ~= "" and ley.icon or "INV_Misc_QuestionMark"))
+            button.value:SetText(ValueOf(ley.text))
+            button:Show()
+        elseif button then
+            button:Hide()
+        end
+    end
+    holder.leyLabel:ClearAllPoints()
+    holder.leyLabel:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -leyTop)
     if count > 0 then
-        holder:SetHeight(16 + ceil(count / PER_ROW) * (SIZE + GAP))
+        holder.label:Show()
+    else
+        holder.label:Hide()
+    end
+    if leyCount > 0 then
+        holder.leyLabel:Show()
+    else
+        holder.leyLabel:Hide()
+    end
+    if count > 0 or leyCount > 0 then
+        holder:SetHeight(leyTop + (leyCount > 0 and GridHeight(leyCount) or 0))
         holder:Show()
     else
         holder:Hide()
@@ -234,10 +304,29 @@ handlers["cardnow"] = function(f)
     end
 end
 
+handlers["leyblessings"] = function()
+    incomingLeys = {}
+end
+
+handlers["leybless"] = function(f)
+    if incomingLeys then
+        tinsert(incomingLeys, { name = f[2] or "", icon = f[3] or "", text = f[4] or "" })
+    end
+end
+
+handlers["leyblessend"] = function()
+    if incomingLeys then
+        leys = incomingLeys
+        incomingLeys = nil
+        Refresh()
+    end
+end
+
 local function Clear()
     held = {}
     cooldowns = {}
     states = {}
+    leys = {}
     Refresh()
 end
 handlers["start"] = Clear

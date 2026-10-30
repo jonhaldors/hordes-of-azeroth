@@ -969,26 +969,27 @@ handlers["start"] = function()
     SetMode(true)
 end
 
-local XP_PICKUP_SOUNDS = {
-    "Interface\\AddOns\\HordesOfAzeroth\\Sounds\\XpCoin1.wav",
-    "Interface\\AddOns\\HordesOfAzeroth\\Sounds\\XpCoin2.wav",
-    "Interface\\AddOns\\HordesOfAzeroth\\Sounds\\XpCoin3.wav",
-    "Interface\\AddOns\\HordesOfAzeroth\\Sounds\\XpCoin4.wav",
-}
+local XP_STREAK_SOUND = "Interface\\AddOns\\HordesOfAzeroth\\Sounds\\XpStreak%d_%d.wav"
 local XP_SOUND_GAP = 0.08
 local XP_SOUND_MAX_QUEUED = 5
 local xpSounds = CreateFrame("Frame")
-xpSounds.last = 0
 xpSounds.queued = 0
 xpSounds.wait = 0
+xpSounds.step = 0
+xpSounds.steps = 8
+xpSounds.streakAt = 0
+xpSounds.streakReset = 1.0
+xpSounds.coin = 2
 
 local function PlayXpPickupSound()
-    local pick = math.random(getn(XP_PICKUP_SOUNDS) - 1)
-    if pick >= xpSounds.last then
-        pick = pick + 1
+    local now = GetTime()
+    if now - xpSounds.streakAt > xpSounds.streakReset then
+        xpSounds.step = 0
     end
-    xpSounds.last = pick
-    PlaySoundFile(XP_PICKUP_SOUNDS[pick])
+    xpSounds.streakAt = now
+    xpSounds.step = min(xpSounds.step + 1, xpSounds.steps)
+    xpSounds.coin = xpSounds.coin == 2 and 4 or 2
+    PlaySoundFile(format(XP_STREAK_SOUND, xpSounds.coin, xpSounds.step))
 end
 
 xpSounds:SetScript("OnUpdate", function()

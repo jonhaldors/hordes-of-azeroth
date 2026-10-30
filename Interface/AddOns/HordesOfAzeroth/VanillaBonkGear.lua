@@ -145,11 +145,16 @@ frame.loot:SetScript("OnLeave", function()
     GameTooltip:Hide()
 end)
 
-local function Fill(card, entry)
+local function WornFound(slot, entry)
+    return slot and UI.FoundAt("inv", slot + 1) or UI.FoundWorn(entry)
+end
+
+local function Fill(card, entry, found)
     local tip = card.tip
     local r, g, b = 0.85, 0.75, 0.5
     if entry and entry > 0 then
         tip:SetOwner(card, "ANCHOR_NONE")
+        UI.nextFound = found
         tip:SetHyperlink("item:" .. entry .. ":0:0:0")
         tip:SetBackdropColor(0, 0, 0, 0)
         tip:SetBackdropBorderColor(0, 0, 0, 0)
@@ -238,7 +243,7 @@ local function RefreshOneSlot()
     frame.equipOther:Hide()
     wornCard.label:SetText(ReplacesTwoHander() and "Main Hand" or "Equipped")
     frame.equip:SetText(offer.replaced > 0 and "Replace" or "Equip")
-    local tallest = max(Fill(newCard, offer.entry), Fill(wornCard, offer.replaced))
+    local tallest = max(Fill(newCard, offer.entry, offer.found), Fill(wornCard, offer.replaced, WornFound(offer.slot, offer.replaced)))
     local center = LayoutRow({ wornCard, newCard })
     local below = CARD_TOP - tallest
     PlaceButtonUnder(frame.equip, wornCard, below)
@@ -251,7 +256,8 @@ local function RefreshTwoSlots()
     otherCard.label:SetText(SLOT_NAMES[offer.otherSlot] or "Equipped")
     frame.equip:SetText(offer.replaced > 0 and "Replace" or "Equip")
     frame.equipOther:SetText(offer.otherReplaced > 0 and "Replace" or "Equip")
-    local tallest = max(Fill(newCard, offer.entry), Fill(wornCard, offer.replaced), Fill(otherCard, offer.otherReplaced))
+    local tallest = max(Fill(newCard, offer.entry, offer.found), Fill(wornCard, offer.replaced, WornFound(offer.slot, offer.replaced)),
+        Fill(otherCard, offer.otherReplaced, WornFound(offer.otherSlot, offer.otherReplaced)))
     local center = LayoutRow({ wornCard, otherCard, newCard })
     local below = CARD_TOP - tallest
     PlaceButtonUnder(frame.equip, wornCard, below)
@@ -367,9 +373,10 @@ handlers["gearoffer"] = function(f)
         replaced = tonumber(f[3] or "") or 0,
         valor = tonumber(f[4] or "") or 0,
         quality = tonumber(f[5] or "") or 2,
-        slot = tonumber(f[6] or ""),
-        otherSlot = tonumber(f[7] or ""),
-        otherReplaced = tonumber(f[8] or "") or 0,
+        found = UI.ParseFound(f[6], f[7]),
+        slot = tonumber(f[8] or ""),
+        otherSlot = tonumber(f[9] or ""),
+        otherReplaced = tonumber(f[10] or "") or 0,
     }
     Open()
 end

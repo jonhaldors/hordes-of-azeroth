@@ -2,9 +2,8 @@ local UI = VanillaBonkUI
 
 local SHAPESHIFT = "VANILLABONK_SHAPESHIFT"
 local SPELL_NAME = "Shapeshift"
-local DEFAULT_KEY = "R"
-local FREE_ACTIONS = { [""] = true, REPLY = true }
 local SEND_INTERVAL = 0.25
+local GLYPH_SIZE = 16
 BINDING_NAME_VANILLABONK_SHAPESHIFT = "Shapeshift"
 
 local FORM_ICONS = {
@@ -47,8 +46,18 @@ local function KeyLabel(slot)
     local text = UI.Text(layer, 11, UI.NUMBER_FONT, "OUTLINE")
     text:SetPoint("TOPLEFT", slot, "TOPLEFT", 2, -2)
     text:SetTextColor(0.85, 0.85, 0.85)
+    text.glyph = layer:CreateTexture(nil, "OVERLAY")
+    text.glyph:SetWidth(GLYPH_SIZE)
+    text.glyph:SetHeight(GLYPH_SIZE)
+    text.glyph:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
+    text.glyph:Hide()
     slot.shapeshiftKey = text
     return text
+end
+
+local function ShowKey(slot)
+    local text = KeyLabel(slot)
+    VanillaBonkController.ShowKey(text, text.glyph, VanillaBonkController.ButtonFor("shapeshift"), UI.BindingText(SHAPESHIFT))
 end
 
 local marked
@@ -56,6 +65,7 @@ local marked
 local function Unmark()
     if marked and marked.shapeshiftKey then
         marked.shapeshiftKey:SetText("")
+        marked.shapeshiftKey.glyph:Hide()
     end
     marked = nil
 end
@@ -108,33 +118,13 @@ driver:SetScript("OnUpdate", function()
         return
     end
     marked = slot
-    KeyLabel(slot):SetText(UI.BindingText(SHAPESHIFT))
+    ShowKey(slot)
     local icon = FORM_ICONS[current]
     if icon and slot.icon:GetTexture() ~= icon then
         slot.icon:SetTexture(icon)
         UI.CropIcon(slot.icon)
     end
 end)
-
-local function BindDefaultKey()
-    if UnitClass("player") ~= "Druid" or VanillaBonkChoiceKeys then
-        return
-    end
-    VanillaBonkKeysGiven = VanillaBonkKeysGiven or {}
-    if VanillaBonkKeysGiven[SHAPESHIFT] then
-        return
-    end
-    VanillaBonkKeysGiven[SHAPESHIFT] = true
-    if GetBindingKey(SHAPESHIFT) or not FREE_ACTIONS[GetBindingAction(DEFAULT_KEY) or ""] then
-        return
-    end
-    SetBinding(DEFAULT_KEY, SHAPESHIFT)
-    SaveBindings(GetCurrentBindingSet())
-end
-
-local events = CreateFrame("Frame")
-events:RegisterEvent("PLAYER_ENTERING_WORLD")
-events:SetScript("OnEvent", BindDefaultKey)
 
 UI.Listen({
     druidform = function(f)

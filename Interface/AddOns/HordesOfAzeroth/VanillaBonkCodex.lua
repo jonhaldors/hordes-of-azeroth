@@ -219,7 +219,7 @@ local function ShowGlyphTooltip(owner, glyph)
         tooltip:AddLine(glyph.drawback, 1, 0.29, 0.23, 1)
     end
     tooltip:AddLine(" ")
-    tooltip:AddLine("Offered after the first timed mini-boss of a run and after every floor boss except the last. The Foresight upgrade adds one at the start of a run.", 1, 0.82, 0, 1)
+    tooltip:AddLine("Offered after the first timed mini-boss and some floor bosses, up to 2 per run (6 on Mythic). Foresight adds one at the start of a run.", 1, 0.82, 0, 1)
     AddState(glyph)
     tooltip:Show()
 end

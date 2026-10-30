@@ -1,5 +1,96 @@
 # Changelog
 
+## 0.5.1
+
+### Found gear
+- Mythic bosses and mini-bosses drop gear at the floor's tier, sometimes higher. There is no tier cap.
+- Some found items roll bonus stats.
+- Upgrade extracted gear at the Mythic Quartermaster with Scrap.
+- Reroll one bonus stat per item at the Mythic Quartermaster for gold. Each reroll on the same item costs more, up to 1,000g.
+- The Quartermaster sells gear up to Tier 10.
+- Existing gear has half its tier and can now be upgraded.
+- Elites drop Scrap on Mythic difficulty.
+- The Extraction Pillar shows a log of what has already been extracted on the current run.
+- The Extraction Vault shows how much Scrap each item is worth.
+- Mythic runs no longer give gold for unextracted gear, only Scrap.
+
+### Trinkets
+- All 8 Mythic trinkets have new effects.
+- Trinkets are Unique-Equipped: you can wear only one of each, whatever its tier.
+- Worn trinkets move to your bags on your first login after the update.
+
+### Enchanter
+- An Enchanter waits by the portal at the end of each floor.
+- Spend Valor to enchant an item slot, not the item itself, from Minor to Godly. Each roll costs more.
+- Enchants last for the run.
+
+### Mythic checkpoints
+- You can start Mythic runs from checkpoints every 5 floors, up to 15 below your best floor. Pick them at the Run Master.
+- Checkpoint runs start at a matching level with extra level-ups to pick. (Will need to be adjusted)
+- New Auto-pick button for those extra level-ups, letting you choose when everything is new, and auto-selecting already picked ones.
+
+### Talents
+- Talent presets: save up to three builds per class at the Talent Trainer. Can't be switched during a run.
+- Inspect your talents during a run (N by default).
+
+### Mythic balance
+- Mythic bosses and mini-bosses have much more health.
+- Enemies have more health from Mythic floors 11 and 16. (Old system, will be changed)
+- Leveling past 60 is a bit slower.
+- Rested no longer has a minimum value.
+- Sayge's Might, Insight and Fortune favors no longer have a maximum rank.
+
+### Cards and passives
+- Fixed some Card and passive tooltips not showing your current total.
+- Magnets also pick up Darkmoon Tickets and Valor Pouches.
+
+### Glyphs
+- Glyph of the Windseeker strikes up to 5 enemies for 60% of a normal enemy's health (was 8 enemies for 200%).
+- Glyph of Shadowmourne strikes for 3 times a normal enemy's health (was 5 times).
+
+### Combat feel (still WIP)
+- New weapon hit sounds, weapon glows and kill effects.
+- Your hits knock enemies back. Bigger enemies move less.
+- Melee swing and cat claw sounds.
+- Smoke Bomb, Caltrops, Cheap Shot, Frost Trap and treants now have sounds.
+
+### Enemies and bosses
+- Enemy pools and void zones deal more damage.
+- Bosses and mini-bosses show on the minimap and world map.
+- Fixed: Runs can start anywhere in the zone, instead of one area.
+
+### Controller
+- Rebind controller buttons.
+- The controller now works in the Darkmoon vendor and Quartermaster windows.
+
+### Languages
+- Choose the game's language in the launcher, next to Play, or in Interface Options.
+- The game can now show Chinese (Simplified) text. Translations are being worked on, thanks to xenoglossy-asyncio.
+
+### Launcher
+- Open your AddOns folder from the ··· menu next to Play.
+- Key bindings from 0.4 carry over.
+- After a crash, the launcher asks whether to send a crash report, then shows its reference for your bug report. Turn the question off in the ··· menu.
+
+### Fixes
+- Fixed: The Extraction Pillar was missing on floors ended early by a Summoning Stone.
+- Fixed: Cooldown resets on kill sometimes failed after an instant cast.
+- Fixed: Unextracted gear was kept after a server crash.
+- Fixed: Run enemies in dungeons sometimes behaved like normal dungeon enemies.
+- Fixed: The character screen forgot your last played character.
+- Fixed: Escape stopped opening the game menu after unbinding it.
+- Fixed: The interact key couldn't reach some objects properly.
+- Fixed: The game crashed on PCs that only support OpenGL.
+- Fixed: The launcher could update itself while the game was running.
+- Fixed: The boss health bar showed wrong values on Mythic bosses.
+- Fixed: Blink now teleports the way you face, even in midair.
+- Fixed: Blade Flurry can rank up to its evolutions again.
+- Fixed: The Druid's Shapeshift tooltip now shows the range of each form.
+
+### Other changes
+- Bug reports now include more crash information.
+- Your dodge chance is now exactly your Dodge stat. The hidden dodge every class got from its class and Agility is gone, and Dodge on gear is 25% higher to make up for it.
+
 ## 0.5.0
 
 ### Hotfix 2

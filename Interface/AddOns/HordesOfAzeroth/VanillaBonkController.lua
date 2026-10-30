@@ -26,8 +26,47 @@ function Controller.SetSetting(key, value)
     Controller.restyled = true
 end
 
+local ACTION_BUTTONS = { dash = "rt", shapeshift = "lb", hearth = "rb", interact = "x", character = "y", map = "view" }
+Controller.REBINDABLE = { rt = true, lb = true, rb = true, x = true, y = true, view = true, l3 = true, up = true, down = true, left = true, right = true }
+Controller.bindingsVersion = 0
+
+function Controller.ButtonFor(action)
+    local buttons = Controller.Setting("buttons")
+    return buttons and buttons[action] or ACTION_BUTTONS[action]
+end
+
+function Controller.ActionFor(button)
+    for action in pairs(ACTION_BUTTONS) do
+        if Controller.ButtonFor(action) == button then
+            return action
+        end
+    end
+end
+
+function Controller.BindButton(action, button)
+    local buttons = {}
+    for each in pairs(ACTION_BUTTONS) do
+        buttons[each] = Controller.ButtonFor(each)
+    end
+    local displaced = Controller.ActionFor(button)
+    if displaced and displaced ~= action then
+        buttons[displaced] = buttons[action]
+    end
+    buttons[action] = button
+    Controller.SetSetting("buttons", buttons)
+    Controller.bindingsVersion = Controller.bindingsVersion + 1
+    if VanillaBonkUI.RefreshHearthKey then
+        VanillaBonkUI.RefreshHearthKey()
+    end
+end
+
+function Controller.PadSignature()
+    return Controller.Style() .. Controller.bindingsVersion
+end
+
 function Controller.ResetSettings()
     VanillaBonkControllerSettings = {}
+    Controller.bindingsVersion = Controller.bindingsVersion + 1
     for key in pairs(DLL_OPTIONS) do
         PushOption(key)
     end
@@ -227,6 +266,13 @@ local function CloseOrClear()
     end
 end
 
+local function Shapeshift()
+    local saved = keystate
+    keystate = "down"
+    VanillaBonk_Shapeshift()
+    keystate = saved
+end
+
 local function Interact()
     if HoAController_Interact then
         HoAController_Interact()
@@ -245,14 +291,28 @@ end
 
 Controller.ToggleCharacterAndBags = ToggleCharacterAndBags
 
+local PLAY_ACTIONS = {
+    dash = Dash,
+    shapeshift = Shapeshift,
+    hearth = function() VanillaBonk_UseHearthstone() end,
+    interact = Interact,
+    character = ToggleCharacterAndBags,
+    map = function() ToggleWorldMap() end,
+}
+
 local PLAY = {
-    rt = Dash,
-    x = Interact,
-    y = ToggleCharacterAndBags,
-    view = function() ToggleWorldMap() end,
     menu = function() ToggleGameMenu() end,
     b = CloseOrClear,
 }
+
+local ZOOM_DPAD = { up = true, down = true }
+
+local function PlayAction(name)
+    if Controller.inspectHeld and ZOOM_DPAD[name] then
+        return nil
+    end
+    return PLAY[name] or PLAY_ACTIONS[Controller.ActionFor(name) or ""]
+end
 
 local GLYPH_FILE = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\ControllerGlyphs"
 local GLYPH_GRID = 8
@@ -299,6 +359,15 @@ function Controller.SetGlyph(texture, name)
     texture:SetTexCoord(cell[1] / GLYPH_GRID, (cell[1] + 1) / GLYPH_GRID, cell[2] / GLYPH_GRID, (cell[2] + 1) / GLYPH_GRID)
     texture:Show()
     return true
+end
+
+function Controller.ShowKey(text, glyph, button, keyText)
+    if Controller.kind and Controller.SetGlyph(glyph, button) then
+        text:SetText("")
+        return
+    end
+    glyph:Hide()
+    text:SetText(keyText)
 end
 
 local function MakePromptRow(strata)
@@ -627,7 +696,7 @@ local NAV_DIRECTIONS = { up = { 0, 1 }, down = { 0, -1 }, left = { -1, 0 }, righ
 local NAV_ACROSS_WEIGHT = 2.5
 local NAV_MIN_SIZE = 10
 local POPUP_COUNT = 4
-local EXTRA_WINDOWS = { "VanillaBonkGear", "VanillaBonkMenu", "GameMenuFrame" }
+local EXTRA_WINDOWS = { "VanillaBonkGear", "VanillaBonkMenu", "VanillaBonkVendor", "GameMenuFrame" }
 local KEEP_OPEN = { VanillaBonkGear = true }
 local SKIPPED_WINDOWS = { VanillaBonkBanishEscape = true, VanillaBonkVendorEscape = true, VanillaBonkOffer = true, VanillaBonkGlyphs = true, VanillaBonkMap = true }
 
@@ -778,7 +847,7 @@ local function HasTabs(window)
 end
 
 local function AddWindow(list, seen, frame)
-    if not frame or seen[frame] or not frame:IsVisible() then
+    if not frame or seen[frame] or not frame:IsVisible() or frame:GetAlpha() < 0.05 then
         return
     end
     local name = frame:GetName()
@@ -1055,6 +1124,9 @@ local function RightClick(button)
 end
 
 local function IsMerchantItem(button)
+    if button.buysOnRightClick then
+        return true
+    end
     local name = button:GetName()
     return name ~= nil and string.find(name, "^MerchantItem%d+ItemButton$") ~= nil
 end
@@ -1370,7 +1442,12 @@ local function WindowPrompts(windows)
             table.insert(prompts, { "a", "Unequip" })
         end
     elseif target and IsMerchantItem(target) then
-        table.insert(prompts, { "a", MerchantFrame.selectedTab == 2 and "Buy back" or "Buy" })
+        local buyback = target.buysOnRightClick and target.item and target.item.buyback
+        if not target.buysOnRightClick then
+            buyback = MerchantFrame.selectedTab == 2
+        end
+        local upgrade = target.buysOnRightClick and target.item and target.item.upgrade
+        table.insert(prompts, { "a", upgrade and "Upgrade" or buyback and "Buy back" or "Buy" })
     elseif target and not target.navTooltip then
         table.insert(prompts, { "a", TooltipVerb(target, "Click") or "Select" })
         local rightVerb = TooltipVerb(target, "Right%-click")
@@ -1505,6 +1582,23 @@ local function HideNavForCursor()
     end
 end
 
+local function NearestTo(button, windows)
+    local window = WindowOf(button, windows)
+    if not window then
+        return nil
+    end
+    local fromX, fromY = Center(button)
+    local best, bestDistance
+    for _, candidate in ipairs(Collect(window, {})) do
+        local x, y = Center(candidate)
+        local distance = (x - fromX) * (x - fromX) + (y - fromY) * (y - fromY)
+        if not best or distance < bestDistance then
+            best, bestDistance = candidate, distance
+        end
+    end
+    return best
+end
+
 local function UpdateWindows(windows)
     if not Controller.kind then
         Unfocused()
@@ -1540,6 +1634,13 @@ local function UpdateWindows(windows)
         local first = FirstIn(windows[1])
         if first then
             NavFocus(first)
+        else
+            Unfocused()
+        end
+    elseif target.IsEnabled and target:IsEnabled() ~= 1 then
+        local nearest = NearestTo(target, windows)
+        if nearest then
+            NavFocus(nearest)
         else
             Unfocused()
         end
@@ -1624,7 +1725,7 @@ local function DressInteract(keyText)
         mark = interactPrompt.cap
     else
         interactPrompt.cap:Hide()
-        Controller.SetGlyph(interactPrompt.glyph, "x")
+        Controller.SetGlyph(interactPrompt.glyph, Controller.ButtonFor("interact"))
         interactPrompt.glyph:Show()
     end
     interactPrompt.label:ClearAllPoints()
@@ -1691,6 +1792,10 @@ function HoAController_OnButton(name, down)
     if not down then
         return
     end
+    if Controller.listening then
+        Controller.listening(name)
+        return
+    end
     local window = ChoiceWindow()
     if window then
         ChoiceButton(window, name)
@@ -1707,7 +1812,7 @@ function HoAController_OnButton(name, down)
     if prompt and PromptPress(prompt, name) then
         return
     end
-    local action = PLAY[name]
+    local action = PlayAction(name)
     if action then
         action()
     end
@@ -1752,6 +1857,9 @@ function HoAController_OnDevice(kind)
     Controller.kind = kind
     ShowFocus(ChoiceWindow())
     Controller.SwapBindings(kind)
+    if VanillaBonkUI.RefreshHearthKey then
+        VanillaBonkUI.RefreshHearthKey()
+    end
 end
 
 local KEYBOARD_REFRESH = 0.1
@@ -1770,6 +1878,9 @@ watcher:SetScript("OnUpdate", function()
     end
     if not Controller.optionsPushed and HoAController_SetOption then
         Controller.optionsPushed = true
+        if HoAController_GetType and HoAController_GetType() ~= Controller.kind then
+            HoAController_OnDevice(HoAController_GetType())
+        end
         for key in pairs(DLL_OPTIONS) do
             PushOption(key)
         end

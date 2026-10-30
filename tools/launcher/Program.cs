@@ -30,6 +30,7 @@ namespace HordesOfAzeroth.Launcher
                 AskRunningLauncherToShow();
                 return 0;
             }
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => CrashReports.RecordLauncherCrash(e.ExceptionObject as Exception ?? new Exception(e.ExceptionObject?.ToString()));
             ListenForShowRequests();
             try
             {

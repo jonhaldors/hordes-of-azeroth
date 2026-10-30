@@ -283,6 +283,26 @@ offerFrame.banish:SetWidth(120)
 offerFrame.banish:SetHeight(24)
 offerFrame.banish:SetScript("OnClick", ToggleBanish)
 
+offerFrame.autopick = VanillaBonkUI.SliceButton(CreateFrame("Button", nil, offerFrame.chrome, "UIPanelButtonTemplate"))
+offerFrame.autopick:SetWidth(120)
+offerFrame.autopick:SetHeight(24)
+offerFrame.autopick:SetScript("OnClick", function()
+    if VB.picking then
+        return
+    end
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    Command("pick auto")
+end)
+offerFrame.autopick:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(this, "ANCHOR_TOP")
+    GameTooltip:SetText("Auto-pick")
+    GameTooltip:AddLine("Picks your remaining " .. (VB.catchUp or 0) .. " level-ups.", 1, 1, 1, 1)
+    GameTooltip:AddLine("Prioritizes spells and passives you have already chosen.", 1, 1, 1, 1)
+    GameTooltip:AddLine("Will stop when the selection only shows new cards.", 1, 1, 1, 1)
+    GameTooltip:Show()
+end)
+offerFrame.autopick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
 local CardArt = VanillaBonkUI.CardArt
 
 local CARD_HEIGHT = 300
@@ -432,6 +452,14 @@ local function ColorKeywords(text)
         end
     end
     return table.concat(pieces)
+end
+
+function VanillaBonkUI.InspectShown()
+    return VanillaBonkShop:IsShown() and VB.shop ~= nil and VB.shop.inspect == true
+end
+
+function VanillaBonkUI.HideInspect()
+    VanillaBonkShop:Hide()
 end
 
 function VanillaBonkUI.InRun()
@@ -1247,6 +1275,12 @@ local function ShowOffer(level)
     offerFrame.hintText = hint
 
     local buttons = {}
+    if (VB.catchUp or 0) > 0 and VB.offerSource == "level" then
+        offerFrame.autopick:SetText("Auto-pick (" .. VB.catchUp .. ")")
+        tinsert(buttons, offerFrame.autopick)
+    else
+        offerFrame.autopick:Hide()
+    end
     if (VB.rerolls or 0) > 0 then
         offerFrame.reroll:SetText("Reroll (" .. VB.rerolls .. ")")
         tinsert(buttons, offerFrame.reroll)
@@ -1755,7 +1789,7 @@ SlashCmdList["VANILLABONK"] = function(message)
         arena:Hide()
     else
         VB.arenaRequested = true
-        Command("hello")
+        Command("hello " .. UI.Language())
     end
 end
 
@@ -1821,6 +1855,150 @@ shop.respec:SetScript("OnEnter", function()
 end)
 shop.respec:SetScript("OnLeave", function() GameTooltip:Hide() end)
 shop.respec:Hide()
+
+do
+    local bar = CreateFrame("Frame", nil, shop)
+    bar:SetWidth(1)
+    bar:SetHeight(22)
+    bar:SetPoint("BOTTOMRIGHT", shop.respec, "BOTTOMLEFT", -14, 0)
+    bar:Hide()
+    shop.presetBar = bar
+
+    local function SendPreset()
+        if VB.shopBusy or not shop.presetSlot then
+            return
+        end
+        VB.shopBusy = GetTime()
+        Command("preset " .. shop.presetSlot)
+    end
+
+    local function ShowTip(title, text)
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:AddLine(title, 1, 1, 1)
+        GameTooltip:AddLine(text, 1, 0.82, 0, 1)
+        GameTooltip:Show()
+    end
+
+    local function AddButton(width, label, anchor)
+        local button = VanillaBonkUI.SliceButton(CreateFrame("Button", nil, bar, "UIPanelButtonTemplate"))
+        button:SetWidth(width)
+        button:SetHeight(22)
+        if anchor then
+            button:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
+        else
+            button:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+        end
+        button:SetText(label)
+        button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        return button
+    end
+
+    bar.activate = AddButton(84, "Set active")
+    bar.activate:SetScript("OnClick", SendPreset)
+    bar.activate:SetScript("OnEnter", function()
+        ShowTip("Set active", "Switches to the talents saved in the selected preset. Your current talents stay in their preset.")
+    end)
+
+    bar.slots = {}
+    local anchor = bar.activate
+    for slot = 3, 1, -1 do
+        local button = AddButton(26, tostring(slot), anchor)
+        button.slot = slot
+        button:SetScript("OnClick", function()
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            shop.presetSlot = this.slot
+            shop.Refresh()
+        end)
+        button:SetScript("OnEnter", function()
+            local points = shop.presets and shop.presets.points[this.slot] or 0
+            local text = points > 0 and (points .. (points == 1 and " talent point" or " talent points")) or "Empty"
+            if shop.presets and shop.presets.active == this.slot then
+                text = text .. "\n|cff20ff20Active. Talent changes save here.|r"
+            end
+            ShowTip("Preset " .. this.slot, text)
+        end)
+        bar.slots[slot] = button
+        anchor = button
+    end
+
+    bar.label = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    bar.label:SetPoint("RIGHT", bar.slots[1], "LEFT", -6, 0)
+    bar.label:SetText("Presets")
+
+    shop.PreviewSlot = function(data)
+        local presets = not data.inspect and data.presets
+        local slot = presets and (shop.presetSlot or presets.active)
+        if not slot or slot == presets.active then
+            return nil
+        end
+        return slot
+    end
+
+    shop.PreviewData = function(data, slot)
+        local ranks = data.presets.ranks[slot]
+        local view = {}
+        for key, value in pairs(data) do
+            view[key] = value
+        end
+        view.nodes = {}
+        local spentByTree, spent = {}, 0
+        for id, node in pairs(data.nodes) do
+            local copy = {}
+            for key, value in pairs(node) do
+                copy[key] = value
+            end
+            copy.rank = ranks[id] or 0
+            if copy.rank > 0 then
+                spentByTree[copy.tree] = (spentByTree[copy.tree] or 0) + copy.rank
+                spent = spent + copy.rank
+            end
+            view.nodes[id] = copy
+        end
+        view.trees = {}
+        for index, tree in ipairs(data.trees) do
+            local copy = {}
+            for key, value in pairs(tree) do
+                copy[key] = value
+            end
+            copy.spent = spentByTree[tree.id] or 0
+            view.trees[index] = copy
+        end
+        view.balance = max(0, (data.earned or 0) - spent)
+        return view
+    end
+
+    shop.RefreshPresets = function()
+        local presets = shop.presets
+        if not presets then
+            bar:Hide()
+            return
+        end
+        shop.presetSlot = shop.presetSlot or presets.active
+        for slot, button in pairs(bar.slots) do
+            if slot == shop.presetSlot then
+                button:LockHighlight()
+            else
+                button:UnlockHighlight()
+            end
+            if slot == presets.active then
+                button:SetTextColor(1, 0.82, 0)
+                button:SetHighlightTextColor(1, 0.82, 0)
+            elseif presets.points[slot] > 0 then
+                button:SetTextColor(0.6, 0.49, 0)
+                button:SetHighlightTextColor(1, 1, 1)
+            else
+                button:SetTextColor(0.5, 0.5, 0.5)
+                button:SetHighlightTextColor(1, 1, 1)
+            end
+        end
+        if presets.active ~= shop.presetSlot then
+            bar.activate:Enable()
+        else
+            bar.activate:Disable()
+        end
+        bar:Show()
+    end
+end
 
 shop.panels = {}
 
@@ -1895,6 +2073,11 @@ local function MissingRequirement(node)
     return "Requires " .. node.requiredRank .. (node.requiredRank == 1 and " rank in " or " ranks in ") .. required.name
 end
 
+function VB.IsEndless(node)
+    return node.maxRank >= VB.ENDLESS_RANKS
+end
+VB.ENDLESS_RANKS = 255
+
 local function DescribeRanks(node, ranks)
     local perRank = tonumber(node.valuePerRank)
     if not perRank or perRank == 0 then
@@ -1962,7 +2145,7 @@ local function ShowNodeTooltip(button)
     if node.toggle then
         GameTooltip:AddLine("Dark Fortune", 1, 1, 1)
     else
-        GameTooltip:AddLine("Rank " .. node.rank .. "/" .. node.maxRank, 1, 1, 1)
+        GameTooltip:AddLine(VB.IsEndless(node) and ("Rank " .. node.rank) or ("Rank " .. node.rank .. "/" .. node.maxRank), 1, 1, 1)
     end
 
     local missing = MissingRequirement(node)
@@ -1976,7 +2159,9 @@ local function ShowNodeTooltip(button)
     if nextRank then
         if node.rank > 0 then
             GameTooltip:AddLine(DescribeRanks(node, node.rank), 1, 0.82, 0, 1)
-            if node.rank < node.maxRank then
+            if VB.IsEndless(node) then
+                GameTooltip:AddLine("Next rank: |cff20ff20" .. nextRank .. "|r", 1, 1, 1, 1)
+            elseif node.rank < node.maxRank then
                 GameTooltip:AddLine("Next rank: |cff20ff20" .. nextValue .. "|r", 1, 1, 1)
             end
         else
@@ -2088,7 +2273,7 @@ local function SetNode(button, node)
     button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT",
         treeLayout.left + (node.column - 1) * treeLayout.column, -(TREE_OFFSET_Y + (node.row - 1) * TREE_SPACING))
     local missing = MissingRequirement(node)
-    local which, text, colour = "locked", node.rank .. "/" .. node.maxRank, nil
+    local which, text, colour = "locked", VB.IsEndless(node) and tostring(node.rank) or (node.rank .. "/" .. node.maxRank), nil
     if node.toggle and node.rank > 0 then
         which = node.enabled and "on" or "off"
         text = node.enabled and "On" or "Off"
@@ -2207,8 +2392,11 @@ local function DrawTree(panel, tree)
         return treeLayout.left + (node.column - 1) * treeLayout.column + SHOP_NODE_HALF,
             height - TREE_OFFSET_Y - (node.row - 1) * TREE_SPACING - SHOP_NODE_HALF
     end
-    local lines = 0
+    local lines, treeRows = 0, 0
     for _, node in pairs(nodes) do
+        if node.tree == tree.id then
+            treeRows = max(treeRows, node.row)
+        end
         local required = nodes[node.requiredId]
         if node.tree == tree.id and required and required.tree == tree.id then
             local sx, sy = Centre(required)
@@ -2223,7 +2411,7 @@ local function DrawTree(panel, tree)
     local gates = VB.shop.gates
     if gates then
         local count = 0
-        for row = 2, table.getn(gates) do
+        for row = 2, min(table.getn(gates), treeRows) do
             if gates[row].need > gates[row - 1].need then
                 count = count + 1
                 local lit = gates[row].above >= gates[row].need
@@ -2243,6 +2431,13 @@ end
 
 RefreshShop = function()
     local data = VB.shop
+    local previewSlot = shop.PreviewSlot(data)
+    if previewSlot then
+        data = shop.PreviewData(data, previewSlot)
+    end
+    if VanillaBonkTalents then
+        VanillaBonkTalents.muted = previewSlot ~= nil
+    end
     UpdateShopTabs(data)
     TREE_SPACING = data.gates and 84 or 63
     local rows = TREE_MIN_ROWS
@@ -2281,7 +2476,11 @@ RefreshShop = function()
     end
     shop.title:SetText((data.className and (data.className .. " ") or "") .. (SHOP_TITLES[data.kind] or ""))
     shop.header:SetText(data.npc)
-    shop.hint:SetText(SHOP_HINTS[data.kind] or "")
+    shop.hint:SetText(data.inspect and "Talents can only be changed at the Inn." or
+        previewSlot and ("Preset " .. previewSlot .. ". Click Set active to use these talents.") or SHOP_HINTS[data.kind] or "")
+    if VanillaBonkTalents then
+        VanillaBonkTalents.readOnly = data.inspect or previewSlot ~= nil
+    end
     if data.currency == "shards" then
         shop.gold:SetText(FormatShards(data.balance))
     elseif data.currency == "points" then
@@ -2294,14 +2493,18 @@ RefreshShop = function()
         shop.gold:SetText(FormatGold(GetMoney()))
     end
     shop.kind = data.kind
-    local refund = SHOP_REFUNDS[data.kind]
+    local refund = not data.inspect and not previewSlot and SHOP_REFUNDS[data.kind]
     if refund then
         shop.respec:SetText(refund.label)
         shop.respec:Show()
     else
         shop.respec:Hide()
     end
+    shop.presets = not data.inspect and data.presets or nil
+    shop.RefreshPresets()
 end
+
+shop.Refresh = RefreshShop
 
 shop:SetScript("OnShow", function()
     PlaySound("TalentScreenOpen")
@@ -2311,6 +2514,7 @@ end)
 shop:SetScript("OnHide", function()
     PlaySound("TalentScreenClose")
     VB.shopBusy = nil
+    shop.presetSlot = nil
     GossipWindowHidden(shop)
 end)
 
@@ -2444,6 +2648,7 @@ handlers["offer"] = function(f)
     VB.rerolls = tonumber(f[5]) or 0
     VB.banishes = tonumber(f[6]) or 0
     VB.skips = tonumber(f[7]) or 0
+    VB.catchUp = tonumber(f[8] or "") or 0
 end
 
 handlers["opt"] = function(f)
@@ -2518,6 +2723,9 @@ end
 
 handlers["end"] = function(f)
     VB.inRun = false
+    if VanillaBonkUI.InspectShown() then
+        shop:Hide()
+    end
     SetCombatLogQuiet(false)
     VB.offer = {}
     offerFrame:Hide()
@@ -2568,6 +2776,7 @@ handlers["shop"] = function(f)
         data.fromQuests = tonumber(f[12]) or 0
         data.className = f[13]
         data.pointsPerRow = tonumber(f[14]) or 0
+        data.inspect = f[15] == "1"
     elseif f[2] == FORTUNE_SHOP and f[7] and f[7] ~= "" then
         local data = VB.shopIncoming
         data.gates = {}
@@ -2587,6 +2796,24 @@ handlers["tree"] = function(f)
             VanillaBonkTalents.ParseTree(tree, f)
         end
         tinsert(VB.shopIncoming.trees, tree)
+    end
+end
+
+handlers["presets"] = function(f)
+    if VB.shopIncoming then
+        VB.shopIncoming.presets = { active = tonumber(f[2]) or 0, points = { tonumber(f[3]) or 0, tonumber(f[4]) or 0, tonumber(f[5]) or 0 },
+            ranks = { {}, {}, {} } }
+    end
+end
+
+handlers["presetranks"] = function(f)
+    local presets = VB.shopIncoming and VB.shopIncoming.presets
+    local ranks = presets and presets.ranks[tonumber(f[2])]
+    if not ranks then
+        return
+    end
+    for id, rank in string.gfind(f[3] or "", "(%d+):(%d+)") do
+        ranks[id] = tonumber(rank)
     end
 end
 
@@ -2671,7 +2898,12 @@ handlers["shopend"] = function()
     end
 
     VB.shopBusy = nil
-    if incoming.open then
+    if incoming.inspect then
+        shop.tab = nil
+        VB.shop = incoming
+        RefreshShop()
+        shop:Show()
+    elseif incoming.open then
         shop.tab = nil
         VB.shop = incoming
         ReplaceNextGossip(shop, incoming.npc, RefreshShop)
@@ -2703,7 +2935,7 @@ local STATS = {
     [11] = { name = "Duration", pct = true, text = "Increases the duration of your spells by %s." },
     [12] = { name = "Armor", text = "Reduces damage taken by %s." },
     [14] = { name = "Dodge chance", short = "Dodge", pct = true, cap = 60, text = "Increases your chance to dodge attacks by %s." },
-    [15] = { name = "Critical strike chance", short = "Crit chance", pct = true, text = "Increases your chance to critically hit by %s." },
+    [15] = { name = "Critical strike chance", short = "Crit chance", pct = true, text = "Increases your critical strike chance by %s." },
     [16] = { name = "Critical strike damage", short = "Crit damage", pct = true, text = "Increases critical strike damage by %s." },
     [17] = { name = "Shield", pct = true, text = "Absorbs damage equal to %s of maximum health.", note = "Shield is restored after 4 sec without taking damage." },
     [18] = { name = "Luck", text = "Improves the rarity of chest and level-up choices." },
@@ -2719,11 +2951,11 @@ VB.statTips = {
     s4 = { name = "Maximum health", text = "Increases maximum health." },
     s5 = { name = "Health regeneration", text = "Restores a share of maximum health every sec." },
     s7 = { name = "Experience", text = "Increases experience gained." },
-    s8 = { name = "Pickup range", text = "Increases the range you collect experience and food from." },
+    s8 = { name = "Pickup range", text = "Increases the range you collect experience, food and gear from." },
     s10 = { name = "Area", text = "Increases the size of your AoE spells." },
     s12 = { name = "Armor", text = "Reduces damage taken." },
     s14 = { name = "Dodge chance", text = "Increases your chance to dodge attacks." },
-    s15 = { name = "Critical strike chance", text = "Increases your chance to critically hit." },
+    s15 = { name = "Critical strike chance", text = "Increases your critical strike chance." },
     s16 = { name = "Critical strike damage", text = "Increases critical strike damage." },
     s18 = { name = "Luck", text = "Improves the rarity of chest and level-up choices." },
 }
@@ -2844,6 +3076,19 @@ local function GearTotals()
                 counts[stat.set] = (counts[stat.set] or 0) + 1
             end
         end
+        local enchant = VanillaBonkUI.enchants and VanillaBonkUI.enchants[slot]
+        if enchant then
+            totals[enchant.stat] = (totals[enchant.stat] or 0) + enchant.value
+        end
+        local found = VanillaBonkUI.FoundAt and VanillaBonkUI.FoundAt("inv", slot)
+        if found then
+            for statId, value in pairs(found.extra) do
+                totals[statId] = (totals[statId] or 0) + value
+            end
+            for _, line in ipairs(found.lines) do
+                totals[line.stat] = (totals[line.stat] or 0) + line.value
+            end
+        end
     end
 
     local active = {}
@@ -2882,22 +3127,47 @@ function PRIMARY_STATS.AddLine(tooltip, statId, value, r, g, b)
     tooltip:AddLine(sign .. FormatStat(statId, value) .. " " .. STATS[statId].name, r, g, b)
 end
 
-local function AddGearLines(tooltip, link)
+function VanillaBonkUI.StatText(statId, value)
+    local stat = STATS[statId]
+    if not stat or not value then
+        return ""
+    end
+    return (value > 0 and "+" or "") .. FormatStat(statId, value) .. " " .. stat.name
+end
+
+function VanillaBonkUI.StatRangeText(statId, low, high)
+    if not STATS[statId] or not low or not high then
+        return ""
+    end
+    return "(" .. FormatStat(statId, low) .. "-" .. FormatStat(statId, high) .. ")"
+end
+
+local function AddGearLines(tooltip, link, found, enchantLine)
     local id = ItemIdFromLink(link)
     local stat = id and VB.gear[id]
     if not stat then
         return
     end
 
+    local extra = found and found.extra or {}
     for _, statId in ipairs(PRIMARY_STATS) do
-        PRIMARY_STATS.AddLine(tooltip, statId, stat.stats[statId], 1, 1, 1)
+        PRIMARY_STATS.AddLine(tooltip, statId, (stat.stats[statId] or 0) + (extra[statId] or 0), 1, 1, 1)
     end
     for _, statId in ipairs(STAT_ORDER) do
         if not PRIMARY_STATS.Has(statId) then
-            PRIMARY_STATS.AddLine(tooltip, statId, stat.stats[statId], 0.12, 1, 0.12)
+            PRIMARY_STATS.AddLine(tooltip, statId, (stat.stats[statId] or 0) + (extra[statId] or 0), 0.12, 1, 0.12)
         end
     end
-    local tier = VanillaBonkUI.GearTier and VanillaBonkUI.GearTier(id)
+    if found then
+        local color = VanillaBonkUI.FOUND_LINE_COLOR
+        for _, line in ipairs(found.lines) do
+            PRIMARY_STATS.AddLine(tooltip, line.stat, line.value, color[1], color[2], color[3])
+        end
+    end
+    if enchantLine then
+        tooltip:AddLine(enchantLine, 0.12, 1, 0.12)
+    end
+    local tier = found and found.tier or (VanillaBonkUI.GearTier and VanillaBonkUI.GearTier(id))
     local tierText = tier and tooltip:GetName() and getglobal(tooltip:GetName() .. "TextRight1")
     if tierText then
         tierText:SetText("Tier " .. tier)
@@ -2906,6 +3176,13 @@ local function AddGearLines(tooltip, link)
     end
     local proc = VanillaBonkUI.trinketTips and VanillaBonkUI.trinketTips[id]
     if proc then
+        local bindLine = tooltip:GetName() and getglobal(tooltip:GetName() .. "TextLeft2")
+        local bindText = bindLine and bindLine:GetText()
+        if bindText == ITEM_BIND_ON_PICKUP then
+            bindLine:SetText(bindText .. "\nUnique-Equipped (1)")
+        elseif not (bindText and strfind(bindText, "Unique-Equipped", 1, true)) then
+            tooltip:AddLine("Unique-Equipped (1)", 1, 1, 1)
+        end
         tooltip:AddLine("Equip: " .. proc, 0.12, 1, 0.12, 1)
     end
 
@@ -2973,11 +3250,16 @@ do
     MakeTooltipSolid(ItemRefTooltip)
 end
 
-HookTooltip(GameTooltip, "SetBagItem", function(bag, slot) return GetContainerItemLink(bag, slot) end)
-HookTooltip(GameTooltip, "SetInventoryItem", function(unit, slot) return GetInventoryItemLink(unit, slot) end)
+HookTooltip(GameTooltip, "SetBagItem", function(bag, slot) return GetContainerItemLink(bag, slot), VanillaBonkUI.FoundAt(bag, slot) end)
+HookTooltip(GameTooltip, "SetInventoryItem", function(unit, slot)
+    if unit ~= "player" then
+        return GetInventoryItemLink(unit, slot)
+    end
+    return GetInventoryItemLink(unit, slot), VanillaBonkUI.FoundAt("inv", slot), VanillaBonkUI.EnchantLine and VanillaBonkUI.EnchantLine(slot)
+end)
 HookTooltip(GameTooltip, "SetMerchantItem", function(index) return GetMerchantItemLink(index) end)
 HookTooltip(GameTooltip, "SetLootItem", function(slot) return GetLootSlotLink(slot) end)
-HookTooltip(GameTooltip, "SetHyperlink", function(link) return link end)
+HookTooltip(GameTooltip, "SetHyperlink", function(link) return link, VanillaBonkUI.TakeHyperlinkFound() end)
 HookTooltip(ItemRefTooltip, "SetHyperlink", function(link) return link end)
 
 local function GearLinkNamed(name)
@@ -3090,7 +3372,7 @@ local function WornLinkNamed(tooltip)
             for slot = 1, EQUIPPED_SLOTS do
                 local link = GetInventoryItemLink("player", slot)
                 if link and strfind(link, "[" .. name .. "]", 1, true) then
-                    return link, name
+                    return link, name, slot
                 end
             end
         end
@@ -3105,10 +3387,10 @@ for _, name in ipairs({ "ShoppingTooltip1", "ShoppingTooltip2" }) do
             if onUpdate then
                 onUpdate()
             end
-            local link, itemName = WornLinkNamed(this)
+            local link, itemName, slot = WornLinkNamed(this)
             if link and (itemName ~= this.bonkItem or this:NumLines() < (this.bonkLines or 0)) then
                 this.bonkItem = itemName
-                AddGearLines(this, link)
+                AddGearLines(this, link, VanillaBonkUI.FoundAt("inv", slot))
                 this.bonkLines = this:NumLines()
             end
         end)
@@ -3124,11 +3406,11 @@ for _, name in ipairs({ "ShoppingTooltip1", "ShoppingTooltip2" }) do
 end
 
 function VanillaBonk_HookItemTooltip(tooltip)
-    HookTooltip(tooltip, "SetHyperlink", function(link) return link end)
+    HookTooltip(tooltip, "SetHyperlink", function(link) return link, VanillaBonkUI.TakeHyperlinkFound() end)
 end
 
-function VanillaBonk_AddGearLines(tooltip, link)
-    AddGearLines(tooltip, link)
+function VanillaBonk_AddGearLines(tooltip, link, found)
+    AddGearLines(tooltip, link, found)
     local name = getglobal(tooltip:GetName() .. "TextLeft1")
     tooltip.bonkItem = name and name:GetText()
     tooltip.bonkLines = tooltip:NumLines()
@@ -3200,18 +3482,28 @@ local function RefreshHeroStats()
         local fromGear = stat.gearCap and min(gearTotal, stat.gearCap) or gearTotal
         local fromRest = VB.stats[statId] or 0
         local total = fromGear + fromRest
+        if statId == 0 then
+            total = ((1 + fromRest / 100) * (1 + fromGear / 200) - 1) * 100
+        end
         local shown = stat.cap and min(total, stat.cap) or total
         if stat.curve and total > 0 then
             shown = floor(10 * stat.curve * (1 - math.exp(-total / stat.curve)) + 0.5) / 10
         end
 
-        line.value:SetText(FormatStat(statId, shown))
+        local compact = math.abs(shown) >= 100 and floor(shown + 0.5) or floor(10 * shown + 0.5) / 10
+        line.value:SetText(FormatStat(statId, compact))
         line.title = stat.name
         local explained = FormatStat(statId, shown)
         if statId == 12 then
             explained = Percent(floor(1000 * min(0.6, max(0, shown) / (max(0, shown) * 4 / 3 + 100)) + 0.5) / 10)
         end
         line.lines = { format(stat.text, explained) }
+        if statId == 9 and shown > 0 then
+            tinsert(line.lines, "Heals at most " .. Percent(floor(3 * shown + 0.5) / 100) .. " of maximum health per sec.")
+        end
+        if statId == 12 and shown > 300 then
+            tinsert(line.lines, "Armor past 300 gives " .. Percent(floor(5 * (shown - 300) + 0.5) / 10) .. " maximum health.")
+        end
         if stat.cap then
             tinsert(line.lines, "Maximum " .. FormatStat(statId, stat.cap) .. ".")
         end
@@ -3433,7 +3725,7 @@ events:SetScript("OnEvent", function()
         VB.lastMoney = GetMoney()
         if not VB.helloSent then
             VB.helloSent = true
-            Command("hello")
+            Command("hello " .. UI.Language())
         end
     end
 end)

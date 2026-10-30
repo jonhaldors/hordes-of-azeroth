@@ -154,6 +154,18 @@ Yes. Plug in an Xbox or PlayStation controller and play. Button prompts switch t
 </details>
 
 <details>
+<summary><b>Can I use my own addons?</b></summary>
+<br>
+Yes. Addons go in <code>benilla-config\AddOns</code> inside the game folder, not in <code>Interface\AddOns</code>. In the launcher, click the <b>···</b> button next to Play, then <b>Open AddOns folder</b>. Put each addon there in its own folder. The client is new, so not every 1.12 addon works yet, and addons that change the unit frames or action bars may clash with the game's own interface.
+</details>
+
+<details>
+<summary><b>Can I use HD model or texture packs?</b></summary>
+<br>
+Packs that come as <code>patch-?.MPQ</code> files go in the game's <code>Data</code> folder, the same as for 1.12.1. Name them <code>patch-4.MPQ</code> to <code>patch-9.MPQ</code> or <code>patch-A.MPQ</code> to <code>patch-Y.MPQ</code>. <code>patch-z.MPQ</code> is the game's own. The launcher rebuilds the game's spell effects on top of your packs the next time you press Play. They are untested, and packs made for modified clients may not show.
+</details>
+
+<details>
 <summary><b>Does it run on Mac or Linux?</b></summary>
 <br>
 Linux and Steam Deck are supported in beta, see <a href="#install">Install</a>. Mac isn't supported.

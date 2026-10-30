@@ -18,6 +18,8 @@ namespace HordesOfAzeroth.Launcher
         public CoreShare BackgroundCores = CoreShare.Half;
         public bool SendRunData = true;
         public bool RunDataAsked;
+        public bool AskToSendCrashes = true;
+        public long CrashCheckedAt;
         public string InstallId = Guid.NewGuid().ToString("N");
         public long RunLogOffset;
 
@@ -53,6 +55,10 @@ namespace HordesOfAzeroth.Launcher
                 settings.SendRunData = send != "0";
             if (values.TryGetValue("RunDataAsked", out string asked))
                 settings.RunDataAsked = asked == "1";
+            if (values.TryGetValue("AskToSendCrashes", out string crashes))
+                settings.AskToSendCrashes = crashes != "0";
+            if (values.TryGetValue("CrashCheckedAt", out string checkedAt) && long.TryParse(checkedAt, out long crashCheckedAt))
+                settings.CrashCheckedAt = crashCheckedAt;
             if (values.TryGetValue("InstallId", out string id) && id.Length > 0)
                 settings.InstallId = id;
             if (values.TryGetValue("RunLogOffset", out string offset) && long.TryParse(offset, out long runLogOffset))
@@ -72,6 +78,8 @@ namespace HordesOfAzeroth.Launcher
                 "BackgroundCores=" + BackgroundCores,
                 "SendRunData=" + (SendRunData ? "1" : "0"),
                 "RunDataAsked=" + (RunDataAsked ? "1" : "0"),
+                "AskToSendCrashes=" + (AskToSendCrashes ? "1" : "0"),
+                "CrashCheckedAt=" + CrashCheckedAt,
                 "InstallId=" + InstallId,
                 "RunLogOffset=" + RunLogOffset,
             });

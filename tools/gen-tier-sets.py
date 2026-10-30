@@ -20,7 +20,7 @@ CLASS_SETS = [
     (9, (203, 212, 529)),
     (11, (205, 214, 521)),
 ]
-LOOK_BANDS = [(1, 7), (8, 14), (15, 20)]
+LOOK_BANDS = [(1, 10), (11, 19), (20, 20)]
 
 VENDOR_ENTRY = 900150
 VENDOR_GUID = 900013
@@ -33,7 +33,7 @@ SOURCE_VENDOR_GUID = 900004
 
 GROWTH = 1.12
 GROWING = {"power": 6.0, "max_health": 7.0, "armor": 3.5}
-FLAT = {"dodge": 1.5, "crit": 2.0, "crit_damage": 3.0, "shield": 3.5}
+FLAT = {"dodge": 1.9, "crit": 2.0, "crit_damage": 3.0, "shield": 3.5}
 UNLOCK_TIER = 3
 PRICE_FIRST = 60000
 PRICE_GROWTH = 1.11

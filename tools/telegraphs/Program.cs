@@ -27,7 +27,7 @@ namespace BonkTelegraphs
                         uint[] row = dbc.Find(7000);
                         Console.WriteLine("rows {0}, 7000 -> {1}", dbc.Records.Count, row == null ? "missing" : dbc.GetString(row[1]));
 
-                        using (ClientData client = new ClientData(Path.Combine(args[1], "Data"), new[] { Kit.PatchName }))
+                        using (ClientData client = new ClientData(Path.Combine(args[1], "Data"), Kit.OwnPatches))
                         {
                             byte[] beforeBytes = client.Read("DBFilesClient\\Spell.dbc"), afterBytes = patch.Read("DBFilesClient\\Spell.dbc");
                             Dbc before = new Dbc(beforeBytes), after = new Dbc(afterBytes);
@@ -63,7 +63,7 @@ namespace BonkTelegraphs
                 }
                 if (args.Length >= 3)
                 {
-                    using (ClientData client = new ClientData(Path.Combine(args[1], "Data"), new[] { Kit.PatchName }))
+                    using (ClientData client = new ClientData(Path.Combine(args[1], "Data"), Kit.OwnPatches))
                     {
                         byte[] data = client.Read(args[2]);
                         if (data == null)

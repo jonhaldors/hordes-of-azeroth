@@ -19,16 +19,16 @@ PRICE_GROWTH = 1.11
 WEAPONS = [902262, 902265, 902268, 902271, 902274, 902277, 902280, 902283, 902286]
 ACCESSORIES = [902111, 902102, 902105]
 TRINKET_SOURCE = 902108
-TRINKET_STATS = {"power": 22.5, "armor": 1.7, "dodge": 2.25}
+TRINKET_STATS = {"power": 22.5, "armor": 1.7, "dodge": 2.8}
 TRINKETS = [
-    ("Stormcaller's Fetish", 23718),
-    ("Smoldering Ember", 2935),
-    ("Shard of Hastened Time", 23715),
-    ("Bulwark Sigil", 20984),
-    ("Bloodvine Charm", 3110),
-    ("Frostbound Idol", 34261),
+    ("Gnomish Battle Goggles", 22420),
+    ("Goblin Land Mine", 7626),
+    ("Nifty Stopwatch", 6540),
+    ("Goblin Rocket Boots", 20622),
+    ("Demonic Rune", 22952),
+    ("Rumsey Rum", 18119),
     ("Grinning Skull of Wrath", 5215),
-    ("Windrunner's Compass", 23719),
+    ("Goblin Pocket Gold", 9649),
 ]
 
 
@@ -103,7 +103,7 @@ def write_migration(gear_kinds):
         "CREATE TEMPORARY TABLE `mythic_items` AS SELECT m.`new_entry`, m.`tier`, m.`new_name`, m.`new_display`, m.`price`, t.* FROM `mythic_map` m "
         "JOIN `item_template` t ON t.`entry` = m.`src_entry`;",
         "UPDATE `mythic_items` SET `entry` = `new_entry`, `patch` = 0, `name` = `new_name`, `display_id` = COALESCE(`new_display`, `display_id`),",
-        "    `description` = CONCAT('Tier ', `tier`), `quality` = 4, `flags` = 0, `buy_count` = 1, `buy_price` = `price`, `sell_price` = ROUND(`price` / 10),",
+        "    `description` = CONCAT('Tier ', `tier`), `quality` = 4, `flags` = IF(`new_display` IS NULL, 0, 524288), `buy_count` = 1, `buy_price` = `price`, `sell_price` = ROUND(`price` / 10),",
         "    `item_level` = 60 + `tier`, `required_level` = 0, `max_count` = 0, `bonding` = 1, `random_property` = 0, `set_id` = 0, `disenchant_id` = 0;",
         "ALTER TABLE `mythic_items` DROP COLUMN `new_entry`, DROP COLUMN `tier`, DROP COLUMN `new_name`, DROP COLUMN `new_display`, DROP COLUMN `price`;",
         "INSERT INTO `item_template` SELECT * FROM `mythic_items`;",

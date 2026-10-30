@@ -72,6 +72,7 @@ namespace HordesOfAzeroth.Launcher
             TitleText.FontFamily = ClientFonts.Title;
             Tagline.FontFamily = ClientFonts.Body;
             LoadArt();
+            ShowLanguage();
             CreateTray();
 
             m_latest = m_updates.LoadCached();
@@ -85,6 +86,7 @@ namespace HordesOfAzeroth.Launcher
 
             await AskAboutRunDataAsync();
             await ShareRunsAsync();
+            await OfferCrashReportAsync();
 
             if (m_game.IsRunning)
                 await WatchRunningGameAsync();
@@ -102,6 +104,34 @@ namespace HordesOfAzeroth.Launcher
             m_settings.SendRunData = await Dialog.AskAsync(this, question);
             m_settings.RunDataAsked = true;
             m_settings.Save();
+        }
+
+        async Task OfferCrashReportAsync()
+        {
+            DateTime since = new DateTime(m_settings.CrashCheckedAt, DateTimeKind.Utc);
+            bool firstCheck = m_settings.CrashCheckedAt == 0;
+            m_settings.CrashCheckedAt = DateTime.UtcNow.Ticks;
+            m_settings.Save();
+            if (firstCheck || !m_settings.AskToSendCrashes || !RunUpload.IsConfigured)
+                return;
+            List<string> crashed = CrashReports.CrashedSince(m_folder, since);
+            if (crashed.Count == 0)
+                return;
+            string what = string.Join(" and ", crashed);
+            string question = $"{char.ToUpperInvariant(what[0])}{what.Substring(1)} crashed last time. Send a crash report to the developer?\n\n"
+                + "It holds the game's server and client logs, your character names and your game settings. You'll get a reference to put in your bug report.";
+            if (!await Dialog.AskAsync(this, question))
+                return;
+            try
+            {
+                string reference = await CrashReports.SendAsync(m_folder, crashed);
+                await Dialog.TellAsync(this, $"Your crash report was sent. Reference: {reference}\n\nPut this reference in your bug report on GitHub or Discord.");
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
+            {
+                LauncherLog.Write(m_folder, "Crash report: " + e.Message);
+                ShowProblem("The crash report couldn't be sent", "Use Report a bug to save your logs and attach them to your bug report.");
+            }
         }
 
         async Task ShareRunsAsync()
@@ -368,7 +398,7 @@ namespace HordesOfAzeroth.Launcher
 
         async Task<bool> RefreshLauncherFirstAsync(Manifest manifest)
         {
-            if (!IsInstalled() || (m_state != LauncherState.Ready && m_state != LauncherState.UpdateAvailable) || !m_installer.LauncherOutdated(manifest))
+            if (!IsInstalled() || (m_state != LauncherState.Ready && m_state != LauncherState.UpdateAvailable) || m_game.IsRunning || !m_installer.LauncherOutdated(manifest))
                 return false;
             StatusText.Text = "Updating the launcher";
             StatusDetail.Text = "";
@@ -1052,6 +1082,7 @@ namespace HordesOfAzeroth.Launcher
                 RefreshState();
             }
             await ShareRunsAsync();
+            await OfferCrashReportAsync();
         }
 
         async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
@@ -1063,6 +1094,12 @@ namespace HordesOfAzeroth.Launcher
 
         void OpenGameFolder_Click(object sender, RoutedEventArgs e) => Platform.OpenFolder(m_folder.Root);
 
+        void OpenAddOns_Click(object sender, RoutedEventArgs e)
+        {
+            Directory.CreateDirectory(m_folder.ClientAddOns);
+            Platform.OpenFolder(m_folder.ClientAddOns);
+        }
+
         void OpenLogs_Click(object sender, RoutedEventArgs e)
         {
             Directory.CreateDirectory(m_folder.ServerLogs);
@@ -1071,7 +1108,7 @@ namespace HordesOfAzeroth.Launcher
 
         async void ReportBug_Click(object sender, RoutedEventArgs e)
         {
-            if (RunUpload.IsConfigured && await Dialog.AskAsync(this, "Send your logs to the developer with this bug report?\n\nThey hold the game's server and client logs, your character names and your settings. You'll get a reference to put in your report."))
+            if (RunUpload.IsConfigured && await Dialog.AskAsync(this, "Send your logs to the developer with this bug report?\n\nThey hold the game's server and client logs, your character names and your game settings. You'll get a reference to put in your report."))
             {
                 await SendLogsAsync();
                 return;
@@ -1118,6 +1155,31 @@ namespace HordesOfAzeroth.Launcher
 
         void Coffee_Click(object sender, RoutedEventArgs e) => Platform.OpenUrl(CoffeeUrl);
 
+        void ShowLanguage() => LanguageButton.Content = GameConfig.LanguageName(GameConfig.ReadLanguage(m_folder));
+
+        void LanguageButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (LanguageMenu.IsOpen)
+            {
+                LanguageMenu.Close();
+                return;
+            }
+            string current = GameConfig.ReadLanguage(m_folder);
+            LanguageMenu.ItemsSource = GameConfig.Languages.Select(language => LanguageItem(language.Code, language.Name, current)).ToList();
+            LanguageMenu.Open(LanguageButton);
+        }
+
+        MenuItem LanguageItem(string code, string name, string current)
+        {
+            MenuItem item = new MenuItem { Header = name, ToggleType = MenuItemToggleType.Radio, IsChecked = code == current };
+            item.Click += (sender, e) =>
+            {
+                GameConfig.WriteLanguage(m_folder, code);
+                ShowLanguage();
+            };
+            return item;
+        }
+
         void MoreButton_Click(object sender, RoutedEventArgs e)
         {
             if (OptionsMenu.IsOpen)
@@ -1132,6 +1194,7 @@ namespace HordesOfAzeroth.Launcher
             TrayItem.IsChecked = m_settings.KeepInTray;
             BuildItem.IsChecked = m_settings.BuildWhilePlaying;
             RunDataItem.IsChecked = m_settings.SendRunData;
+            CrashReportItem.IsChecked = m_settings.AskToSendCrashes;
             RepairItem.IsVisible = !m_folder.IsDevelopmentTree;
             RepairItem.IsEnabled = m_state == LauncherState.Ready || m_state == LauncherState.UpdateAvailable || (m_state == LauncherState.NotInstalled && m_installer.IsComplete);
         }
@@ -1161,6 +1224,12 @@ namespace HordesOfAzeroth.Launcher
         {
             m_settings.SendRunData = RunDataItem.IsChecked;
             m_settings.RunDataAsked = true;
+            m_settings.Save();
+        }
+
+        void CrashReportItem_Click(object sender, RoutedEventArgs e)
+        {
+            m_settings.AskToSendCrashes = CrashReportItem.IsChecked;
             m_settings.Save();
         }
     }
