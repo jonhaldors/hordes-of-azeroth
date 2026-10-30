@@ -29,11 +29,15 @@ namespace HordesOfAzeroth.Launcher
             "gamma", "cameraDistanceMaxFactor", "cameraSmoothStyle", "UnitNameNPC",
         };
 
+        const string WindowRowsRetiredFile = "window-settings-reset.txt";
+        static readonly string[] LauncherWindowRows = { "gxWindow", "gxMaximize", "gxResolution" };
+
         public static void EnsureDefaults(GameFolder folder, string realmName)
         {
             bool fresh = !File.Exists(folder.ClientConfig);
             if (fresh)
                 CarryOverOldSettings(folder);
+            RetireLauncherWindowRows(folder);
             Dictionary<string, string> values = Read(folder);
             Dictionary<string, string> missing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, string> required = new Dictionary<string, string>
@@ -90,6 +94,37 @@ namespace HordesOfAzeroth.Launcher
                     carried[name] = value;
             if (carried.Count > 0)
                 Write(folder, carried);
+        }
+
+        static void RetireLauncherWindowRows(GameFolder folder)
+        {
+            string marker = Path.Combine(folder.LauncherData, WindowRowsRetiredFile);
+            if (File.Exists(marker))
+                return;
+            Dictionary<string, string> values = Read(folder);
+            bool launcherMade = values.TryGetValue("gxWindow", out string window) && window == "1" &&
+                values.TryGetValue("gxMaximize", out string maximize) && maximize == "0";
+            if (launcherMade)
+                Remove(folder, LauncherWindowRows);
+            Directory.CreateDirectory(folder.LauncherData);
+            File.WriteAllText(marker, "1");
+        }
+
+        static void Remove(GameFolder folder, IEnumerable<string> names)
+        {
+            HashSet<string> removed = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+            bool inCvars = false;
+            List<string> kept = new List<string>();
+            foreach (string line in File.ReadAllLines(folder.ClientConfig))
+            {
+                if (Section.IsMatch(line))
+                    inCvars = line.Trim() == CvarSection;
+                Match match = Setting.Match(line);
+                if (inCvars && match.Success && removed.Contains(match.Groups[1].Value))
+                    continue;
+                kept.Add(line);
+            }
+            File.WriteAllLines(folder.ClientConfig, kept, new UTF8Encoding(false));
         }
 
         static Dictionary<string, string> Read(GameFolder folder)

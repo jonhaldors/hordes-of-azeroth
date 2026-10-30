@@ -11,7 +11,7 @@ $MariaData = Join-Path $ServerDir 'mariadb-data'
 
 $DbHost = '127.0.0.1'
 $DbPort = 3306
-$DbRootArgs = @('-h', $DbHost, '-P', $DbPort, '-u', 'root', '-proot')
+$DbRootArgs = @('--skip-ssl', '-h', $DbHost, '-P', $DbPort, '-u', 'root', '-proot')
 
 function Test-PortOpen([int]$Port) {
     $client = New-Object System.Net.Sockets.TcpClient

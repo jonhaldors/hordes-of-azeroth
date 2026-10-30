@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory)][ValidateSet('warrior', 'paladin', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'warlock', 'druid')][string]$Class,
     [string[]]$Builds = @(),
     [string]$Account = 'player',
+    [string]$Password = '',
     [string]$Hero = '',
     [switch]$Dummies,
     [switch]$DummyCrowd,
@@ -25,6 +26,9 @@ param(
     [int]$Level = 20,
     [string]$Tag = '',
     [int]$DummyCount = 10,
+    [int]$ProbeTalent = 0,
+    [string[]]$AfterPack = @(),
+    [string]$Pack = '',
     [switch]$Benilla
 )
 . "$PSScriptRoot\..\common.ps1"
@@ -145,9 +149,14 @@ function Write-AddonBuilds([object[]]$BuildList, [hashtable]$Spells) {
     $lines = @("BenchSetup = { $setup }", "BenchBuildSeconds = $BuildSeconds", '')
     if ($Dummies) { $lines += "BenchDummies = `"$DummyCount $DummyRingYards`"" }
     if ($Dummies -and $DummyCrowd) { $lines += 'BenchDummyVerb = "crowddummies"' }
-    if ($Melee -or $Crowd) { $lines += 'BenchPack = "pack 150 1"' }
+    $packVerb = if ($Pack) { $Pack } elseif ($Melee -or $Crowd) { 'pack 150 1' }
+    if ($packVerb) { $lines += "BenchPack = $(ConvertTo-LuaString $packVerb)" }
     if ($Crowd) { $lines += 'BenchCrowdProbeEvery = 2' }
     if ($Waves) { $lines += "BenchWaveEvery = $WaveSeconds" }
+    if ($afterPackSteps.Count) {
+        $after = ($afterPackSteps | ForEach-Object { "{ $($_.Seconds.ToString([Globalization.CultureInfo]::InvariantCulture)), $(ConvertTo-LuaString $_.Command) }" }) -join ', '
+        $lines += "BenchAfterPack = { $after }"
+    }
     if ($Mortal) {
         $setup += ', "god"'
         $lines[0] = "BenchSetup = { $setup }"
@@ -162,6 +171,7 @@ function Write-AddonBuilds([object[]]$BuildList, [hashtable]$Spells) {
     foreach ($build in $BuildList) {
         $stepList = @($build.Ids | ForEach-Object { $Spells[$_].Verb + ' ' + $_ })
         if ($Rank -gt 1) { $stepList += @($build.Ids | ForEach-Object { "maxrank $_ $Rank" }) }
+        if ($build.PSObject.Properties['Extra']) { $stepList += @($build.Extra) }
         if ($build.Class -eq 'druid' -and $DruidForms.ContainsKey($build.Key)) { $stepList += "form $($DruidForms[$build.Key])" }
         if ($build.Class -eq 'druid' -and $DruidCycles.ContainsKey($build.Key)) { $stepList += "formcycle $($DruidCycles[$build.Key])" }
         $steps = ($stepList | ForEach-Object { '"' + $_ + '"' }) -join ', '
@@ -177,6 +187,8 @@ function Write-Manifest([object[]]$BuildList, [hashtable]$Spells, [string]$Hero,
         date = (Get-Date).ToString('yyyy-MM-dd')
         class = $Class
         hero = $Hero
+        pack = $Pack
+        afterPack = @($afterPackSteps | ForEach-Object { [ordered]@{ seconds = $_.Seconds; command = $_.Command } })
         builds = @($BuildList | ForEach-Object {
             [ordered]@{ key = $_.Key; label = $_.Label; spells = @($_.Ids | ForEach-Object { [ordered]@{ id = $_; name = $Spells[$_].Name } }) }
         })
@@ -251,7 +263,7 @@ function Wait-BenchDone([System.Diagnostics.Process]$Game, [long]$ChatStart, [in
 function Enter-BenillaWorld([string]$HeroName) {
     $realmStart = if (Test-Path $realmLog) { (Get-Item $realmLog).Length } else { 0 }
     $env:WOW_USER = $Account.ToUpper()
-    $env:WOW_PASS = $Account.ToUpper()
+    $env:WOW_PASS = if ($Password) { $Password } else { $Account.ToUpper() }
     $env:WOW_CHAR = $HeroName
     $env:WOW_UNATTENDED = '1'
     $env:WOW_ALLOW_ACCOUNT = '1'
@@ -286,11 +298,36 @@ function Enter-World([long]$ChatStart) {
     $game
 }
 
+function ConvertTo-LuaString([string]$Text) {
+    '"' + ($Text -replace '\\', '\\' -replace '"', '\"') + '"'
+}
+
+function Read-AfterPack([string[]]$Entries) {
+    @($Entries | ForEach-Object {
+        $seconds, $command = $_ -split '=', 2
+        $offset = 0.0
+        if (-not $command -or -not [double]::TryParse($seconds, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$offset)) {
+            throw "-AfterPack '$_' must be seconds=command, for example 5=.bonk crowd."
+        }
+        if ($offset -lt 0 -or $offset -ge $BuildSeconds - 1) { throw "-AfterPack '$_' must fire between 0 and $($BuildSeconds - 1) seconds." }
+        [pscustomobject]@{ Seconds = $offset; Command = $command }
+    })
+}
+
+if ($Pack -and $Dummies) { throw '-Pack has no effect with -Dummies.' }
+$afterPackSteps = Read-AfterPack $AfterPack
+
 for ($wait = 0; $wait -lt 20 -and (Get-GameProcess); $wait++) { Start-Sleep -Seconds 1 }
 if (Get-GameProcess) { throw 'The game client is running. Close it (or wait for the session using it) first.' }
 if (-not (Get-Process mangosd -ErrorAction SilentlyContinue)) { throw 'mangosd is not running (tools\start-server.ps1).' }
 
 $buildList = Read-Builds
+if ($ProbeTalent) {
+    $buildList = @($buildList | ForEach-Object {
+        $_
+        [pscustomobject]@{ Class = $_.Class; Key = "$($_.Key)+$ProbeTalent"; Ids = $_.Ids; Label = "$($_.Label) + talent $ProbeTalent"; Extra = @("talent $ProbeTalent 1") }
+    })
+}
 $spells = Get-Spells $buildList
 $accountId = @(Invoke-Sql "SELECT id FROM account WHERE username = '$($Account.ToUpper())'" 'realmd')[0]
 $heroFilter = if ($Hero) { "name = '$Hero'" } else { "class = $($ClassIds[$Class])" }

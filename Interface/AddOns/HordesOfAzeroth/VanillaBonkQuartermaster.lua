@@ -16,6 +16,7 @@ local PANE_ART = "Interface\\Glues\\LoadingScreens\\LoadScreenMoltenCore"
 local PANE_DIM = 0.72
 local PANE_FOCUS = 0.85
 local INFO_RETRY_SECONDS, INFO_RETRIES = 0.5, 10
+local TAB_SWITCH_GRACE = 2
 
 local SET_FIRST, MYTHIC_FIRST, MYTHIC_TIERS = 903000, 904500, 20
 local SET_PIECES_PER_TIER = 8
@@ -23,6 +24,7 @@ local MYTHIC_KINDS = 20
 local FIRST_ACCESSORY_KIND, FIRST_TRINKET_KIND = 9, 12
 local LEGENDARY_FIRST, LEGENDARY_KINDS = 905000, 8
 local LEGACY_LEGENDARY_FIRST = 901420
+local EPIC_OFFSET = 7000
 local UPGRADE_ARROW = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
 local COIN_ICONS = "Interface\\MoneyFrame\\UI-MoneyIcons"
 local NO_STAT = 255
@@ -83,10 +85,18 @@ function UI.QualityColor(link)
     return tonumber(strsub(hex, 1, 2), 16) / 255, tonumber(strsub(hex, 3, 4), 16) / 255, tonumber(strsub(hex, 5, 6), 16) / 255
 end
 
+local function BlueEntry(id)
+    if id and id >= SET_FIRST + EPIC_OFFSET and id < MYTHIC_FIRST + MYTHIC_KINDS * MYTHIC_TIERS + EPIC_OFFSET then
+        return id - EPIC_OFFSET
+    end
+    return id
+end
+
 function UI.GearTier(id)
     if not id then
         return nil
     end
+    id = BlueEntry(id)
     if id >= SET_FIRST and id < MYTHIC_FIRST then
         return floor(mod(id - SET_FIRST, MYTHIC_TIERS * SET_PIECES_PER_TIER) / SET_PIECES_PER_TIER) + 1
     end
@@ -245,6 +255,7 @@ local tierTabs = UI.PanelTabs(panel, 0, function(index)
     PlaySound("igCharacterInfoTab")
     qm.currentTab = entry.group
     qm.page = 1
+    qm.switchedAt = GetTime()
     Command("tab " .. entry.group)
     Refresh()
 end)
@@ -504,6 +515,7 @@ local function ClassifyMythic(id)
     if not id then
         return nil
     end
+    id = BlueEntry(id)
     if id >= SET_FIRST and id < MYTHIC_FIRST then
         return "sets"
     end
@@ -738,6 +750,10 @@ local function Card(index)
         elseif IsControlKeyDown() and DressUpItemLink and item.link then
             DressUpItemLink(item.link)
             DressUpFrame:SetFrameStrata("FULLSCREEN")
+            if not CharacterFrame:IsShown() then
+                DressUpFrame:ClearAllPoints()
+                DressUpFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, -104)
+            end
         elseif item.upgrade then
             SelectRerollPiece(item)
         end
@@ -1278,6 +1294,9 @@ events:SetScript("OnEvent", function()
             Refresh()
         end
     elseif event == "MERCHANT_CLOSED" then
+        if qm.open and qm.switchedAt and GetTime() - qm.switchedAt < TAB_SWITCH_GRACE then
+            return
+        end
         qm.pending = nil
         if qm.open then
             qm.open = nil

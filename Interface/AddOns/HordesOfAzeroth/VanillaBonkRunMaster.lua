@@ -4,7 +4,7 @@ local UI = VanillaBonkUI
 VanillaBonkRunMaster = {}
 local RunMaster = VanillaBonkRunMaster
 
-local W, H = 920, 600
+local W, H = 920, 660
 local LEFT_X, LEFT_WIDTH = 22, 214
 local PLAQUE_TOP, PLAQUE_HEIGHT, PLAQUE_STEP = 56, 48, 56
 local MID_X, LIST_WIDTH = 256, 290
@@ -71,13 +71,17 @@ local STAT_ROWS = {
     { behavior = true },
     { group = L["Rewards"], rewards = true },
     { label = L["Gold and Tickets per kill"], key = "gold", format = "+%s%%", rewards = true },
-    { label = L["Boss legendary drop chance"], key = "legendary", format = "%s%%", rewards = true },
+    { label = L["Boss drops blue"], key = "blue", format = "%s%%", rewards = true, color = { 0, 0.44, 0.87 } },
+    { label = L["Boss drops epic"], key = "epic", format = "%s%%", rewards = true, color = { 0.64, 0.21, 0.93 } },
+    { label = L["Boss drops legendary"], key = "legendary", format = "%s%%", rewards = true, color = { 1, 0.5, 0 } },
 }
 
 local state = { zone = {}, dungeon = {}, mode = {}, floor = {}, start = {} }
 local checkpoints = {}
 local CHECKPOINT_Y = 404
-local CHECKPOINT_BUTTON = 38
+local START_MENU_WIDTH = 170
+local START_MENU_ROWS = 8
+local START_ROW_HEIGHT = 20
 local mapInfo = {}
 local floorInfo = {}
 local tierInfo = {}
@@ -936,7 +940,9 @@ local function ShowStats(current, count)
                     line.base:Hide()
                     line.arrow:Hide()
                 end
-                if spec.rewards then
+                if spec.color then
+                    line.value:SetTextColor(spec.color[1], spec.color[2], spec.color[3])
+                elseif spec.rewards then
                     line.value:SetTextColor(0.25, 1, 0.25)
                 elseif value ~= base then
                     line.value:SetTextColor(1, 0.55, 0.47)
@@ -1129,7 +1135,7 @@ local function BuildPreview()
     preview = CreateFrame("Frame", nil, content)
     preview:SetPoint("TOPLEFT", arena, "TOPLEFT", RIGHT_X, -PREVIEW_TOP)
     preview:SetWidth(RIGHT_WIDTH)
-    preview:SetHeight(300)
+    preview:SetHeight(360)
     preview:EnableMouseWheel(true)
     preview:SetScript("OnMouseWheel", function()
         SetFloor((state.floor[tier.id] or 1) + (arg1 > 0 and 1 or -1))
@@ -1273,55 +1279,123 @@ local function StartFloor()
     return 1
 end
 
-local function CheckpointButton(index)
-    local button = startRow.buttons[index]
-    if button then
-        return button
+local function PickStartFloor(floorNumber)
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    state.start[tier.id] = floorNumber
+    if floorNumber > 1 then
+        state.floor[tier.id] = floorNumber
     end
-    button = UI.Button(startRow, CHECKPOINT_BUTTON, "", function()
-        PlaySound("igMainMenuOptionCheckBoxOn")
-        state.start[tier.id] = this.floor
-        if this.floor > 1 then
-            state.floor[tier.id] = this.floor
-        end
-        RunMaster.Refresh()
+    startRow.menu:Hide()
+    RunMaster.Refresh()
+end
+
+local function StartFloorRow(index)
+    local menu = startRow.menu
+    local row = menu.rows[index]
+    if row then
+        return row
+    end
+    row = CreateFrame("Button", nil, menu.child)
+    row:SetWidth(START_MENU_WIDTH - 36)
+    row:SetHeight(START_ROW_HEIGHT)
+    row:SetPoint("TOPLEFT", menu.child, "TOPLEFT", 0, -(index - 1) * START_ROW_HEIGHT)
+    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    row.selected = Flat(row, "BACKGROUND", 1, 0.82, 0, 0.16)
+    row.selected:SetAllPoints(row)
+    row.floorText = UI.Text(row, 10)
+    row.floorText:SetPoint("LEFT", row, "LEFT", 8, 0)
+    row.levelText = UI.Text(row, 9)
+    row.levelText:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.levelText:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    row:SetScript("OnClick", function()
+        PickStartFloor(this.floor)
     end)
-    startRow.buttons[index] = button
-    return button
+    menu.rows[index] = row
+    return row
+end
+
+local function StartFloors()
+    local floors = { 1 }
+    for _, floorNumber in ipairs(tier and checkpoints[tier.id] or {}) do
+        tinsert(floors, floorNumber)
+    end
+    return floors
+end
+
+local function OpenStartMenu()
+    local menu = startRow.menu
+    local floors = StartFloors()
+    local chosen = StartFloor()
+    local chosenIndex = 1
+    for index, floorNumber in ipairs(floors) do
+        local row = StartFloorRow(index)
+        row.floor = floorNumber
+        row.floorText:SetText(L("Floor {1}", floorNumber))
+        row.levelText:SetText(L("Level {1}", RunMaster.CheckpointLevel(floorNumber)))
+        if floorNumber == chosen then
+            row.selected:Show()
+            row.floorText:SetTextColor(1, 0.82, 0)
+            chosenIndex = index
+        else
+            row.selected:Hide()
+            row.floorText:SetTextColor(1, 1, 1)
+        end
+        row:Show()
+    end
+    for index = table.getn(floors) + 1, table.getn(menu.rows) do
+        menu.rows[index]:Hide()
+    end
+    local count = table.getn(floors)
+    local shown = math.min(count, START_MENU_ROWS)
+    menu:SetHeight(shown * START_ROW_HEIGHT + 16)
+    menu.child:SetHeight(count * START_ROW_HEIGHT)
+    menu.scroll:UpdateScrollChildRect()
+    local range = math.max(0, (count - shown) * START_ROW_HEIGHT)
+    local offset = math.max(0, math.min(range, (chosenIndex - math.ceil(shown / 2)) * START_ROW_HEIGHT))
+    menu.scroll:SetVerticalScroll(offset)
+    if count > shown then
+        menu.bar:Show()
+    else
+        menu.bar:Hide()
+    end
+    menu:Show()
 end
 
 local function ShowCheckpoints()
     local list = tier and checkpoints[tier.id]
     if not list or table.getn(list) == 0 or Mode() ~= "zones" then
+        startRow.menu:Hide()
         startRow:Hide()
         return
     end
     local chosen = StartFloor()
-    local floors = { 1 }
-    for _, floorNumber in ipairs(list) do
-        tinsert(floors, floorNumber)
-    end
-    local x = 2
-    for index, floorNumber in ipairs(floors) do
-        local button = CheckpointButton(index)
-        button.floor = floorNumber
-        button:SetText(floorNumber)
-        button:ClearAllPoints()
-        button:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", x - 2, -6)
-        if floorNumber == chosen then
-            button:LockHighlight()
-        else
-            button:UnlockHighlight()
-        end
-        button:Show()
-        x = x + CHECKPOINT_BUTTON + 4
-    end
-    for index = table.getn(floors) + 1, table.getn(startRow.buttons) do
-        startRow.buttons[index]:Hide()
-    end
+    startRow.toggle:SetText(L("Floor {1}", chosen))
     startRow.note:SetText(chosen > 1 and L("You start at level {1} and pick your build first. Skipped floors give only their glyph choices.", RunMaster.CheckpointLevel(chosen))
         or L["Checkpoints open 15 floors below your best floor for this class."])
+    if startRow.menu:IsShown() then
+        OpenStartMenu()
+    end
     startRow:Show()
+end
+
+local function BuildStartMenu()
+    local menu = UI.Panel(startRow)
+    menu:SetFrameStrata("FULLSCREEN_DIALOG")
+    menu:SetBackdropColor(UI.WINDOW_BG[1], UI.WINDOW_BG[2], UI.WINDOW_BG[3], 1)
+    menu:SetWidth(START_MENU_WIDTH)
+    menu:SetPoint("TOPLEFT", startRow.toggle, "BOTTOMLEFT", 0, -2)
+    menu:EnableMouse(true)
+    menu.scroll = CreateFrame("ScrollFrame", "VanillaBonkRunMasterStartScroll", menu, "UIPanelScrollFrameTemplate")
+    menu.scroll:SetPoint("TOPLEFT", menu, "TOPLEFT", 6, -8)
+    menu.scroll:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -28, 8)
+    menu.child = CreateFrame("Frame", nil, menu.scroll)
+    menu.child:SetWidth(START_MENU_WIDTH - 36)
+    menu.child:SetHeight(1)
+    menu.scroll:SetScrollChild(menu.child)
+    menu.bar = getglobal("VanillaBonkRunMasterStartScrollScrollBar")
+    menu.rows = {}
+    menu:Hide()
+    startRow.menu = menu
 end
 
 local function BuildCheckpoints()
@@ -1333,12 +1407,26 @@ local function BuildCheckpoints()
     startRow.label:SetPoint("TOPLEFT", startRow, "TOPLEFT", 0, 0)
     startRow.label:SetTextColor(1, 0.82, 0)
     startRow.label:SetText(L["Start on floor"])
+    startRow.toggle = UI.Button(startRow, START_MENU_WIDTH, "", function()
+        PlaySound("igMainMenuOptionCheckBoxOn")
+        if startRow.menu:IsShown() then
+            startRow.menu:Hide()
+        else
+            OpenStartMenu()
+        end
+    end)
+    startRow.toggle:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", 0, -6)
+    startRow.arrow = startRow.toggle:CreateTexture(nil, "OVERLAY")
+    startRow.arrow:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
+    startRow.arrow:SetWidth(20)
+    startRow.arrow:SetHeight(20)
+    startRow.arrow:SetPoint("RIGHT", startRow.toggle, "RIGHT", -2, 0)
     startRow.note = UI.Text(startRow, 9)
     startRow.note:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", 0, -34)
     startRow.note:SetWidth(LEFT_WIDTH)
     startRow.note:SetJustifyH("LEFT")
     startRow.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
-    startRow.buttons = {}
+    BuildStartMenu()
     startRow:Hide()
 end
 
@@ -1497,7 +1585,7 @@ UI.Listen({
         floorInfo[tierId] = floorInfo[tierId] or {}
         floorInfo[tierId][floorNumber] = { health = f[4] or "", damage = f[5] or "", veterans = f[6] or "", affixes = f[7] or "",
             gold = f[8] or "", legendary = f[9] or "", change = f[10] or "", reward = f[11] or "", cleared = f[12] or "0",
-            band = f[13] or "1", kind = f[14] or "" }
+            band = f[13] or "1", kind = f[14] or "", epic = f[15] or "", blue = f[16] or "" }
     end,
     zoneart = function(f)
         local file, texture = f[2], f[3]

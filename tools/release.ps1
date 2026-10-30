@@ -373,6 +373,23 @@ function Get-CommittedCopy([string]$Relative, [string]$WorkingCopy) {
     Join-Path (Get-CommittedTree) $path
 }
 
+function Get-CommittedCore {
+    if (-not $script:committedCoreReady) {
+        $commit = (git -C $RepoRoot rev-parse HEAD:server/core).Trim()
+        Sync-ReleaseSource (Join-Path $ServerDir 'core') $serverSource $commit
+        $script:committedCoreReady = $true
+    }
+    $serverSource
+}
+
+function Resolve-PackageSource([string]$From) {
+    $relative = $From -replace '\\', '/'
+    if ($relative.StartsWith('server/core/')) {
+        return [pscustomobject]@{ Root = Get-CommittedCore; Path = $relative.Substring('server/core/'.Length); Committed = $true }
+    }
+    [pscustomobject]@{ Root = $RepoRoot; Path = $From; Committed = $false }
+}
+
 function Resolve-PackageFiles($Package) {
     $files = [System.Collections.Generic.List[object]]::new()
     foreach ($path in @($Package.git)) {
@@ -385,19 +402,22 @@ function Resolve-PackageFiles($Package) {
     }
     foreach ($entry in @($Package.files)) {
         if (-not $entry) { continue }
-        $pattern = Join-Path $RepoRoot $entry.from
+        $source = Resolve-PackageSource $entry.from
+        $pattern = Join-Path $source.Root $source.Path
         if ($entry.from -match '[*?]') {
             $matched = @(Get-ChildItem $pattern -File | Sort-Object Name)
             if (-not $matched) { return $null }
             $folder = if ($entry.to) { $entry.to } else { Split-Path $entry.from }
             foreach ($file in $matched) {
                 $relative = $file.FullName.Substring($RepoRoot.TrimEnd('\').Length + 1)
-                $files.Add([pscustomobject]@{ Source = (Get-CommittedCopy $relative $file.FullName); Target = "$folder/$($file.Name)" })
+                $copy = if ($source.Committed) { $file.FullName } else { Get-CommittedCopy $relative $file.FullName }
+                $files.Add([pscustomobject]@{ Source = $copy; Target = "$folder/$($file.Name)" })
             }
         } else {
             if (-not (Test-Path $pattern -PathType Leaf)) { return $null }
             $target = if ($entry.to) { $entry.to } else { $entry.from }
-            $files.Add([pscustomobject]@{ Source = (Get-CommittedCopy $entry.from $pattern); Target = $target })
+            $copy = if ($source.Committed) { $pattern } else { Get-CommittedCopy $entry.from $pattern }
+            $files.Add([pscustomobject]@{ Source = $copy; Target = $target })
         }
     }
     foreach ($file in $files) { $file.Target = $file.Target -replace '\\', '/' }
@@ -517,7 +537,7 @@ if (-not (Test-DbUp)) { throw 'MariaDB is not running. Start it with tools\start
 git -C $RepoRoot update-index -q --refresh -- config/navtiles.json
 if (git -C $RepoRoot status --porcelain -- config/navtiles.json) { throw 'config/navtiles.json did not match the run zones and has been rebuilt: commit it, then release again.' }
 
-if ($Publish -and -not $testChannel -and (git -C $RepoRoot status --porcelain)) { throw 'Commit or stash every change before publishing: the release is built from the working tree.' }
+if ($Publish -and -not $testChannel -and (git -C $RepoRoot status --porcelain --ignore-submodules=all)) { throw 'Commit or stash every change before publishing: the release is built from the working tree.' }
 
 if (Test-Path $outDir) { Remove-Item $outDir -Recurse -Force }
 New-Item -ItemType Directory -Force $assetsDir | Out-Null

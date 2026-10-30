@@ -264,7 +264,8 @@ namespace HordesOfAzeroth.Launcher
             Directory.CreateDirectory(folder);
             await m_server.BackUpAsync(Path.Combine(folder, "characters and accounts.sql"), databases);
             foreach (DirectoryInfo old in new DirectoryInfo(Backups).GetDirectories().OrderByDescending(d => d.Name).Skip(BackupsKept))
-                old.Delete(true);
+                if (!await Folders.DeleteAsync(old.FullName, cancel))
+                    LauncherLog.Write(m_folder, $"An old backup couldn't be removed yet: {old.FullName}");
         }
 
         async Task ClearWorldDatabaseAsync()
@@ -756,7 +757,7 @@ namespace HordesOfAzeroth.Launcher
             MarkApplied(WorldPackage);
         }
 
-        async Task ApplyMigrationsAsync(IProgress<InstallProgress> progress, string step)
+        public async Task ApplyMigrationsAsync(IProgress<InstallProgress> progress, string step)
         {
             string folder = Path.Combine(SqlDir, "migrations");
             if (!Directory.Exists(folder))

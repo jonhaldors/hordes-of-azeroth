@@ -35,17 +35,37 @@ namespace HordesOfAzeroth.Launcher
             {
                 if (!Directory.Exists(path))
                     return true;
-                try
-                {
-                    Directory.Delete(path, true);
+                if (TryDelete(path))
                     return true;
-                }
-                catch (Exception e) when (IsLocked(e))
-                {
-                    await Task.Delay(RetryDelay, cancel);
-                }
+                await Task.Delay(RetryDelay, cancel);
             }
             return !Directory.Exists(path);
+        }
+
+        public static bool TryDelete(string path)
+        {
+            try
+            {
+                ClearReadOnly(path);
+                Directory.Delete(path, true);
+                return true;
+            }
+            catch (Exception e) when (IsLocked(e))
+            {
+                return !Directory.Exists(path);
+            }
+        }
+
+        public static void ClearReadOnly(string path)
+        {
+            DirectoryInfo root = new DirectoryInfo(path);
+            if (!root.Exists)
+                return;
+            foreach (FileSystemInfo entry in root.EnumerateFileSystemInfos("*", SearchOption.AllDirectories))
+                if (entry.Attributes.HasFlag(FileAttributes.ReadOnly))
+                    entry.Attributes &= ~FileAttributes.ReadOnly;
+            if (root.Attributes.HasFlag(FileAttributes.ReadOnly))
+                root.Attributes &= ~FileAttributes.ReadOnly;
         }
 
         static void CopyTree(string from, string to)

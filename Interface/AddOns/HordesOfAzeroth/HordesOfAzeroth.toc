@@ -15,6 +15,7 @@ VanillaBonkRunMaster.lua
 VanillaBonkBars.lua
 VanillaBonkPlates.lua
 VanillaBonkBoss.lua
+VanillaBonkMusic.lua
 VanillaBonkTracker.lua
 VanillaBonkObjectives.lua
 VanillaBonkMap.lua
@@ -40,10 +41,12 @@ VanillaBonkDetermination.lua
 VanillaBonkTalents.lua
 VanillaBonkDeath.lua
 VanillaBonkTutorial.lua
+VanillaBonkUpdateNotice.lua
 VanillaBonkHurt.lua
 VanillaBonkSelfBar.lua
 VanillaBonkTargeting.lua
 VanillaBonkMenu.lua
+VanillaBonkMail.lua
 VanillaBonkPauseWatch.lua
 VanillaBonkBindingGuard.lua
 VanillaBonkSettings.lua

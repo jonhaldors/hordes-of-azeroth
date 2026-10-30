@@ -276,7 +276,7 @@ local function ShowSpellTip(owner, anchor, entry, stat)
     end
 
     local headerColor = info.faster and Tip.GREEN or Tip.WHITE
-    Tip:AddDoubleLine(L["Rank "] .. entry.rank, Tip.ReachText(info.radius, info.range, info.currentRadius, info.currentRange),
+    Tip:AddDoubleLine(((entry.max or 0) > 0 and entry.rank >= entry.max) and L["Max rank"] or (L["Rank "] .. entry.rank), Tip.ReachText(info.radius, info.range, info.currentRadius, info.currentRange),
         0.62, 0.62, 0.62, 1, 1, 1)
     if info.header and info.header ~= "" then
         Tip:AddDoubleLine(L["Instant"], info.header, 1, 1, 1, headerColor[1], headerColor[2], headerColor[3])

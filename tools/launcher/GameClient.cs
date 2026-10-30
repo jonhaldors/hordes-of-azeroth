@@ -11,8 +11,6 @@ namespace HordesOfAzeroth.Launcher
 {
     sealed class GameClient
     {
-        const string Account = "player";
-        const string Password = "player";
         const string OwnAddon = "HordesOfAzeroth";
         const string OldBindingsFile = "bindings-cache.wtf";
 
@@ -32,7 +30,7 @@ namespace HordesOfAzeroth.Launcher
 
         public DateTime LaunchedAt { get; private set; }
 
-        public void Prepare()
+        public void Prepare(Account account)
         {
             if (!File.Exists(m_folder.GameExe))
                 throw new FileNotFoundException($"{m_folder.GameExeName} is missing. {LocalServer.RepairAdvice}");
@@ -40,8 +38,8 @@ namespace HordesOfAzeroth.Launcher
             Directory.CreateDirectory(m_folder.GlueXml);
             File.WriteAllLines(Path.Combine(m_folder.GlueXml, "BonkAccount.lua"), new[]
             {
-                $"BONK_ACCOUNT = {LuaString(Account)};",
-                $"BONK_PASSWORD = {LuaString(Password)};",
+                $"BONK_ACCOUNT = {LuaString(account.Login)};",
+                $"BONK_PASSWORD = {LuaString(account.Password)};",
             }, new UTF8Encoding(false));
             string stats = Path.Combine(m_folder.GlueXml, "BonkStats.lua");
             if (!File.Exists(stats))
@@ -68,8 +66,8 @@ namespace HordesOfAzeroth.Launcher
             string target = Path.Combine(m_folder.ClientAddOns, OwnAddon);
             if (!Directory.Exists(source) || IsLink(target))
                 return;
-            if (Directory.Exists(target))
-                Directory.Delete(target, true);
+            if (Directory.Exists(target) && !Folders.TryDelete(target))
+                Folders.ClearReadOnly(target);
             CopyTree(source, target);
         }
 

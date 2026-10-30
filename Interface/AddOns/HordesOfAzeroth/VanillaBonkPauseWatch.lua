@@ -5,7 +5,7 @@ local RETRY_SECONDS = 5
 local CHOICE_FRAMES = {
     "VanillaBonkOffer", "VanillaBonkGlyphs", "VanillaBonkGear", "VanillaBonkVendor", "VanillaBonkVault",
     "VanillaBonkMenu", "VanillaBonkHearthTip", "VanillaBonkControllerTip", "VanillaBonkCurrencyTip", "VanillaBonkPlateGuide",
-    "GameMenuFrame", "OptionsFrame", "SoundOptionsFrame", "UIOptionsFrame", "KeyBindingFrame",
+    "GameMenuFrame", "OptionsFrame", "SoundOptionsFrame", "UIOptionsFrame", "KeyBindingFrame", "BenillaOptionsFrame",
 }
 
 local inRun, paused = false, false

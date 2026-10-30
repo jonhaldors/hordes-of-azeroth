@@ -3,7 +3,7 @@ local UI = VanillaBonkUI
 local Controller = VanillaBonkController
 
 local PANEL_WIDTH = 820
-local PANEL_HEIGHT = 646
+local PANEL_HEIGHT = 696
 local ART_WIDTH = 320
 local ART_TOP = -92
 local LABEL_ROW = 34
@@ -16,6 +16,10 @@ local COLUMN_LEFT = 34
 local COLUMN_RIGHT = 434
 local SLIDER_WIDTH = 270
 local STATUS_INTERVAL = 0.5
+local CARD_BUTTON_WIDTH = 104
+local CARD_ACTIONS = { { "reroll", "Reroll" }, { "banish", "Banish" }, { "skip", "Skip" } }
+local CARD_HINT_TEXT = L["Level-up and chest cards"]
+local CARD_CANCEL_TEXT = L["Menu cancels."]
 local ART = {
     xbox = { file = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\ControllerXbox", height = 329 },
     ps = { file = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\ControllerPlayStation", height = 331 },
@@ -165,7 +169,7 @@ local function Heading(x, y, title, help)
     hint:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -2)
     hint:SetTextColor(0.66, 0.63, 0.56)
     hint:SetText(help)
-    return name
+    return name, hint
 end
 
 local function Percent(value)
@@ -258,10 +262,58 @@ leftY = leftY - SliderRow(COLUMN_LEFT, leftY, "pitchSpeed", L["Camera up and dow
 leftY = leftY - CheckRow(COLUMN_LEFT, leftY, "invertPitch", L["Invert camera up and down"], L["Push up to look down"])
 SliderRow(COLUMN_LEFT, leftY, "deadzone", L["Stick deadzone"], L["Raise it if your hero drifts on its own"], 0.1, 0.4, 0.01, L["Small"], L["Large"], Percent)
 
+local function CardButton(x, y, action, title)
+    local button = CreateFrame("Button", nil, panel)
+    button:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
+    button:SetWidth(CARD_BUTTON_WIDTH)
+    button:SetHeight(GLYPH_SIZE)
+    button.action = action
+    button.text = title
+    button.glyph = button:CreateTexture(nil, "ARTWORK")
+    button.glyph:SetWidth(GLYPH_SIZE)
+    button.glyph:SetHeight(GLYPH_SIZE)
+    button.glyph:SetPoint("LEFT", button, "LEFT", 0, 0)
+    button.title = UI.Text(button, 12)
+    button.title:SetTextColor(1, 0.82, 0)
+    button.title:SetPoint("LEFT", button.glyph, "RIGHT", 5, 0)
+    button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    button:GetHighlightTexture():SetBlendMode("ADD")
+    button:SetScript("OnClick", function()
+        panel:ListenCard(this)
+    end)
+    button.Load = function(self)
+        Controller.SetGlyph(self.glyph, Controller.CardButtonFor(self.action))
+        self.title:SetText(self.text)
+        if panel.listeningTo == self then
+            self.title:SetTextColor(1, 1, 1)
+            self:LockHighlight()
+            panel.cardHint:SetText(LISTEN_TEXT .. " for " .. self.text .. ". " .. CARD_CANCEL_TEXT)
+        else
+            self.title:SetTextColor(1, 0.82, 0)
+            self:UnlockHighlight()
+        end
+    end
+    table.insert(panel.controls, button)
+end
+
+local function CardRow(x, y)
+    local _, hint = Heading(x, y, L["Card buttons"], CARD_HINT_TEXT)
+    panel.cardHint = hint
+    hint.Load = function(self)
+        self:SetText(CARD_HINT_TEXT)
+    end
+    table.insert(panel.controls, 1, hint)
+    for index, entry in ipairs(CARD_ACTIONS) do
+        CardButton(x + (index - 1) * (CARD_BUTTON_WIDTH + CHOICE_GAP), y - 32, entry[1], entry[2])
+    end
+    return 64
+end
+
 local rightY = SETTINGS_TOP - 24
 rightY = rightY - SliderRow(COLUMN_RIGHT, rightY, "cursorSpeed", L["Cursor speed"], L["Right stick cursor in Blizzard windows"], 0.5, 2, 0.05, L["Slow"], L["Fast"], Percent)
 rightY = rightY - ChoiceRow(COLUMN_RIGHT, rightY, "prompts", L["Button prompts"], L["Automatic follows the controller you pick up"], PROMPT_CHOICES)
-CheckRow(COLUMN_RIGHT, rightY, "interactPrompts", L["Show interact prompts"], L["\"X Talk\" above NPCs, chests and portals"])
+rightY = rightY - CheckRow(COLUMN_RIGHT, rightY, "interactPrompts", L["Show interact prompts"], L["\"X Talk\" above NPCs, chests and portals"])
+CardRow(COLUMN_RIGHT, rightY)
 
 panel.reset = UI.Button(panel, 150, L["Reset to defaults"], function()
     panel:StopListening()
@@ -310,7 +362,7 @@ end
 
 function panel:ShowListening()
     local label = self.listeningTo
-    if not label then
+    if not label or not label.entry then
         return
     end
     local entry = label.entry
@@ -329,6 +381,23 @@ function panel:Listen(label)
         end
         if name ~= "b" then
             Controller.BindButton(label.action, name)
+            PlaySound("igMainMenuOptionCheckBoxOn")
+        end
+        panel:StopListening()
+        panel:Refresh()
+    end
+end
+
+function panel:ListenCard(button)
+    self:StopListening()
+    self.listeningTo = button
+    self:Refresh()
+    Controller.listening = function(name)
+        if name ~= "menu" and not Controller.CARD_REBINDABLE[name] then
+            return
+        end
+        if name ~= "menu" then
+            Controller.BindCardButton(button.action, name)
             PlaySound("igMainMenuOptionCheckBoxOn")
         end
         panel:StopListening()

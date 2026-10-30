@@ -325,6 +325,13 @@ local function HideNow()
     shop.slots = {}
 end
 
+frame:SetScript("OnHide", function()
+    if frame.open then
+        Command("close")
+        HideNow()
+    end
+end)
+
 local function LevelText(slot)
     local rarity = slot.rarity and UI.RARITY[slot.rarity]
     local rarityName = rarity and UI.RarityText(slot.rarity, rarity.name) .. " " or ""

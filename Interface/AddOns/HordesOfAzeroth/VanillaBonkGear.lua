@@ -139,7 +139,7 @@ frame.loot:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOP")
     GameTooltip:SetText(L["Loot"])
     GameTooltip:AddLine(L["Carry it in your bags and equip it whenever you like."], 1, 1, 1, 1)
-    GameTooltip:AddLine(L["Found gear is only kept if you put it in the Extraction Vault and extract."], 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L["Found gear is only kept if you put it in the Extraction Vault."], 1, 0.82, 0, 1)
     GameTooltip:Show()
 end)
 frame.loot:SetScript("OnLeave", function()
@@ -309,9 +309,9 @@ end
 
 local function Open()
     frame.salvage:SetText(L["Salvage  |cffffe873+"] .. offer.valor .. L[" Valor|r"])
-    local keep = L["Worn or looted, found gear is only kept if you put it in the Extraction Vault and leave through a floor portal or the Hearthstone."]
+    local keep = L["Worn or looted, found gear is only kept if you put it in the Extraction Vault at a floor portal or the Hearthstone."]
     if offer.quality >= QUALITY_EPIC then
-        frame.ruleText = "|cffffd100" .. keep .. L[" A permanent copy then arrives by mail. If you die, it is lost.|r"]
+        frame.ruleText = "|cffffd100" .. keep .. L[" A permanent copy arrives by mail when the run ends, even if you die.|r"]
     else
         frame.ruleText = "|cffbbbbbb" .. keep .. L[" Otherwise it sells for gold when the run ends.|r"]
     end

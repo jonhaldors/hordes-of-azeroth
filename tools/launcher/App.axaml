@@ -166,6 +166,25 @@
                 </Style>
             </ControlTheme>
 
+            <ControlTheme x:Key="AccountPill" TargetType="Button">
+                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Name="Face" Height="32" CornerRadius="16" Padding="5,0,12,0" Background="#1E1514" BorderThickness="1" BorderBrush="{StaticResource Line}">
+                            <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover /template/ Border#Face">
+                    <Setter Property="Background" Value="{StaticResource Hover}" />
+                </Style>
+                <Style Selector="^:disabled">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Style>
+            </ControlTheme>
+
             <ControlTheme x:Key="BarLink" TargetType="Button">
                 <Setter Property="Foreground" Value="{StaticResource Muted}" />
                 <Setter Property="FontSize" Value="12" />

@@ -34,6 +34,21 @@ local function scheduleBuild(build, start)
     at(ready, function() sandbox("heal") end)
     at(ready + 1.5, function() sandbox(BenchDummies and ((BenchDummyVerb or "dummies") .. " " .. BenchDummies) or BenchPack or "pack 150") end)
     at(ready + 2.7, function() mark("window pack " .. build.name) end)
+    if BenchAfterPack then
+        for i = 1, table.getn(BenchAfterPack) do
+            local fireAt = ready + 1.5 + BenchAfterPack[i][1]
+            local command = BenchAfterPack[i][2]
+            if fireAt < start + BUILD_SECONDS - 1 then
+                at(fireAt, function()
+                    if string.sub(command, 1, 5) == "/run " then
+                        RunScript(string.sub(command, 6))
+                    else
+                        SendChatMessage(command, "SAY")
+                    end
+                end)
+            end
+        end
+    end
     if BenchWaveEvery and not BenchDummies then
         for wave = ready + 1.5 + BenchWaveEvery, start + BUILD_SECONDS - 1, BenchWaveEvery do
             at(wave, function() sandbox(BenchPack or "pack 150") end)

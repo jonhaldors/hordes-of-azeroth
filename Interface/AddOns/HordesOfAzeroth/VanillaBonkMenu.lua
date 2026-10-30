@@ -364,17 +364,31 @@ confirm.text = UI.Text(confirm.box, 12)
 confirm.text:SetPoint("TOP", confirm.question, "BOTTOM", 0, -6)
 confirm.text:SetWidth(310)
 confirm.text:SetTextColor(1, 0.82, 0)
-confirm.text:SetText(L["You keep the gold and Darkmoon Tickets earned so far. Loot you haven't extracted is lost."])
+confirm.text:SetText(L["You keep the gold and Darkmoon Tickets earned so far. Loot outside your Extraction Vault is lost."])
 confirm.yes = UI.Button(confirm.box, 120, L["|cffff5a4aEnd Run|r"], function()
     PlaySound("igMainMenuOptionCheckBoxOn")
-    Command("stop")
+    Command(confirm.command or "stop")
     Close()
 end)
 confirm.yes:SetPoint("BOTTOMRIGHT", confirm.box, "BOTTOM", -6, 18)
 confirm.no = UI.Button(confirm.box, 120, L["Cancel"], function()
     PlaySound("igMainMenuOptionCheckBoxOff")
-    confirm:Hide()
+    if confirm.command then
+        Close()
+    else
+        confirm:Hide()
+    end
 end)
+
+local function SetConfirm(question, text, command)
+    confirm.question:SetText(question)
+    confirm.text:SetText(text)
+    confirm.command = command
+end
+
+local function SetEndRunConfirm()
+    SetConfirm(L["End this run?"], L["You keep the gold and Darkmoon Tickets earned so far. Loot outside your Extraction Vault is lost."])
+end
 confirm.no:SetPoint("BOTTOMLEFT", confirm.box, "BOTTOM", 6, 18)
 
 local function Refresh()
@@ -454,6 +468,7 @@ local function Open()
         HideUIPanel(GameMenuFrame)
     end
     confirm:Hide()
+    SetEndRunConfirm()
     Refresh()
     menu:Show()
     if not paused then
@@ -468,6 +483,11 @@ menu:SetScript("OnShow", function()
 end)
 
 function ToggleGameMenu(clicked)
+    if confirm:IsShown() and confirm.command then
+        PlaySound("igMainMenuQuit")
+        Close()
+        return
+    end
     if confirm:IsShown() then
         confirm:Hide()
         return
@@ -557,6 +577,16 @@ handlers["end"] = function()
     if menu:IsShown() then
         Refresh()
     end
+end
+
+handlers["portalhome"] = function(f)
+    Open()
+    local text = L["This ends your run. Gear in your Extraction Vault waits in your mailbox; everything else you found is sold for gold."]
+    if f[2] == "1" then
+        text = L["This ends your run. Your Extraction Vault is empty, so everything you found will be sold for gold."]
+    end
+    SetConfirm(L["Return to the Inn?"], text, "home")
+    confirm:Show()
 end
 
 UI.Listen(handlers)

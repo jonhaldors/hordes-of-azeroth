@@ -13,6 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
 namespace HordesOfAzeroth.Launcher
@@ -35,6 +36,12 @@ namespace HordesOfAzeroth.Launcher
         readonly LauncherSettings m_settings;
         readonly Installer m_installer;
         readonly NavBuilder m_nav;
+        readonly AccountSync m_accountSync;
+        readonly SaveBackups m_saves;
+        Accounts m_accounts;
+        string m_busyButton;
+        static readonly TimeSpan MenuReclickWindow = TimeSpan.FromMilliseconds(300);
+        readonly Dictionary<ContextMenu, DateTime> m_menuClosedAt = new Dictionary<ContextMenu, DateTime>();
         CancellationTokenSource m_background;
         NavProgress m_backgroundProgress;
         readonly DispatcherTimer m_updateTimer = new DispatcherTimer();
@@ -58,6 +65,10 @@ namespace HordesOfAzeroth.Launcher
             m_settings = LauncherSettings.Load(m_folder);
             m_installer = new Installer(m_folder, m_server);
             m_nav = new NavBuilder(m_folder);
+            m_accounts = Accounts.Load(m_folder);
+            m_accountSync = new AccountSync(m_server, m_folder);
+            m_saves = new SaveBackups(m_folder, m_server, m_installer);
+            WatchMenuClosing(AccountMenu, LanguageMenu, OptionsMenu);
             Opened += OnOpened;
             Closing += OnClosing;
             Program.ShowRequested += () => Dispatcher.UIThread.Post(ShowFromTray);
@@ -73,6 +84,7 @@ namespace HordesOfAzeroth.Launcher
             Tagline.FontFamily = ClientFonts.Body;
             LoadArt();
             ShowLanguage();
+            ShowAccount();
             CreateTray();
 
             m_latest = m_updates.LoadCached();
@@ -336,7 +348,7 @@ namespace HordesOfAzeroth.Launcher
                     PrimaryButton.IsEnabled = true;
                     break;
                 case LauncherState.Installing:
-                    PrimaryButton.Content = m_repairing ? "Repairing…" : m_updating ? "Updating…" : "Installing…";
+                    PrimaryButton.Content = m_busyButton ?? (m_repairing ? "Repairing…" : m_updating ? "Updating…" : "Installing…");
                     PrimaryButton.IsEnabled = false;
                     break;
                 case LauncherState.UpdateAvailable:
@@ -360,6 +372,7 @@ namespace HordesOfAzeroth.Launcher
                     PrimaryButton.IsEnabled = true;
                     break;
             }
+            AccountButton.IsEnabled = !busy && state != LauncherState.Playing;
         }
 
         void ShowProblem(string status, string detail)
@@ -1003,8 +1016,9 @@ namespace HordesOfAzeroth.Launcher
             try
             {
                 await RepairBeforePlayAsync();
-                m_game.Prepare();
+                m_game.Prepare(m_accounts.Selected);
                 await StartServerAsync(progress);
+                await m_accountSync.PrepareAsync(m_accounts);
                 StatusDetail.Text = "   Starting the game";
                 await m_game.StartAsync(CancellationToken.None);
             }
@@ -1072,6 +1086,7 @@ namespace HordesOfAzeroth.Launcher
             await m_game.WaitForAllToCloseAsync(CancellationToken.None);
             ShowFromTray();
             SetState(LauncherState.Stopping, "Closing", "saving and stopping the game's server");
+            await CountCharactersAsync();
             try
             {
                 await m_server.StopAsync();
@@ -1157,17 +1172,30 @@ namespace HordesOfAzeroth.Launcher
 
         void ShowLanguage() => LanguageButton.Content = GameConfig.LanguageName(GameConfig.ReadLanguage(m_folder));
 
-        void LanguageButton_Click(object sender, RoutedEventArgs e)
+        void ToggleMenu(ContextMenu menu, Control target, Action fill)
         {
-            if (LanguageMenu.IsOpen)
+            if (menu.IsOpen)
             {
-                LanguageMenu.Close();
+                menu.Close();
                 return;
             }
+            if (m_menuClosedAt.TryGetValue(menu, out DateTime closed) && DateTime.UtcNow - closed < MenuReclickWindow)
+                return;
+            fill?.Invoke();
+            menu.Open(target);
+        }
+
+        void WatchMenuClosing(params ContextMenu[] menus)
+        {
+            foreach (ContextMenu menu in menus)
+                menu.Closed += (sender, e) => m_menuClosedAt[menu] = DateTime.UtcNow;
+        }
+
+        void LanguageButton_Click(object sender, RoutedEventArgs e) => ToggleMenu(LanguageMenu, LanguageButton, () =>
+        {
             string current = GameConfig.ReadLanguage(m_folder);
             LanguageMenu.ItemsSource = GameConfig.Languages.Select(language => LanguageItem(language.Code, language.Name, current)).ToList();
-            LanguageMenu.Open(LanguageButton);
-        }
+        });
 
         MenuItem LanguageItem(string code, string name, string current)
         {
@@ -1180,13 +1208,7 @@ namespace HordesOfAzeroth.Launcher
             return item;
         }
 
-        void MoreButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (OptionsMenu.IsOpen)
-                OptionsMenu.Close();
-            else
-                OptionsMenu.Open(MoreButton);
-        }
+        void MoreButton_Click(object sender, RoutedEventArgs e) => ToggleMenu(OptionsMenu, MoreButton, null);
 
         void OptionsMenu_Opened(object sender, RoutedEventArgs e)
         {
@@ -1195,6 +1217,11 @@ namespace HordesOfAzeroth.Launcher
             BuildItem.IsChecked = m_settings.BuildWhilePlaying;
             RunDataItem.IsChecked = m_settings.SendRunData;
             CrashReportItem.IsChecked = m_settings.AskToSendCrashes;
+            bool idle = m_state == LauncherState.Ready || m_state == LauncherState.UpdateAvailable || (m_state == LauncherState.NotInstalled && m_installer.IsComplete);
+            BackupItem.IsEnabled = idle && m_server.DatabaseExists;
+            RestoreItem.IsEnabled = idle && m_server.DatabaseExists;
+            DateTime? last = m_saves.LastBackupTime;
+            ToolTip.SetTip(RestoreItem, last == null ? "Puts back the save data from a backup file." : $"Puts back the save data from a backup file. Last backup: {last:d MMMM, HH:mm}.");
             RepairItem.IsVisible = !m_folder.IsDevelopmentTree;
             RepairItem.IsEnabled = m_state == LauncherState.Ready || m_state == LauncherState.UpdateAvailable || (m_state == LauncherState.NotInstalled && m_installer.IsComplete);
         }
@@ -1231,6 +1258,211 @@ namespace HordesOfAzeroth.Launcher
         {
             m_settings.AskToSendCrashes = CrashReportItem.IsChecked;
             m_settings.Save();
+        }
+
+        static readonly string[] BadgeColours = { "#F0C060", "#7CCF5A", "#8FB8F0", "#E58FB4", "#C79BF2", "#F29A6B" };
+
+        IBrush BadgeBrush(Account account)
+        {
+            int index = Math.Max(0, m_accounts.All.ToList().IndexOf(account));
+            return new SolidColorBrush(Color.Parse(BadgeColours[index % BadgeColours.Length]));
+        }
+
+        void ShowAccount()
+        {
+            Account account = m_accounts.Selected;
+            AccountName.Text = account.Name;
+            AccountInitial.Text = account.Initial;
+            AccountBadge.Background = BadgeBrush(account);
+        }
+
+        void AccountButton_Click(object sender, RoutedEventArgs e) => ToggleMenu(AccountMenu, AccountButton, FillAccountMenu);
+
+        void FillAccountMenu()
+        {
+            List<Control> items = new List<Control>
+            {
+                new MenuItem { Header = new TextBlock { Text = "PLAY AS", FontSize = 11, FontWeight = FontWeight.Bold, Foreground = Brush("Accent") }, IsHitTestVisible = false },
+            };
+            items.AddRange(m_accounts.All.Select(AccountItem));
+            items.Add(new Separator());
+            items.Add(MenuAction("Add an account…", AddAccountAsync));
+            items.Add(MenuAction($"Rename {m_accounts.Selected.Name}…", RenameAccountAsync));
+            MenuItem delete = MenuAction($"Delete {m_accounts.Selected.Name}…", DeleteAccountAsync);
+            delete.IsEnabled = m_accounts.All.Count > 1;
+            items.Add(delete);
+            AccountMenu.ItemsSource = items;
+        }
+
+        MenuItem AccountItem(Account account)
+        {
+            string detail = account.Characters < 0 ? null : account.Characters == 0 ? "no characters yet" : account.Characters == 1 ? "1 character" : $"{account.Characters} characters";
+            Border badge = new Border
+            {
+                Width = 20,
+                Height = 20,
+                CornerRadius = new CornerRadius(10),
+                Background = BadgeBrush(account),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = account.Initial,
+                    FontSize = 10,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = new SolidColorBrush(Color.Parse("#1A0F0D")),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            };
+            StackPanel text = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = account.Name, FontSize = 13 },
+                    new TextBlock { Text = detail, FontSize = 11, Foreground = Brush("Muted"), IsVisible = detail != null },
+                },
+            };
+            MenuItem item = new MenuItem
+            {
+                Header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9, Children = { badge, text } },
+                ToggleType = MenuItemToggleType.Radio,
+                IsChecked = account == m_accounts.Selected,
+            };
+            item.Click += (sender, e) =>
+            {
+                m_accounts.Select(account);
+                ShowAccount();
+            };
+            return item;
+        }
+
+        static MenuItem MenuAction(string header, Func<Task> action)
+        {
+            MenuItem item = new MenuItem { Header = header };
+            item.Click += async (sender, e) => await action();
+            return item;
+        }
+
+        async Task<string> AskAccountNameAsync(string question, string initial, string confirm, Account renaming)
+        {
+            while (true)
+            {
+                string answer = await Dialog.AskTextAsync(this, question, initial, confirm, 20);
+                if (answer == null)
+                    return null;
+                string name = Accounts.CleanName(answer);
+                if (name.Length > 0 && !m_accounts.NameTaken(name, renaming))
+                    return name;
+                await Dialog.TellAsync(this, name.Length == 0 ? "Give the account a name." : $"There is already an account called {name}.");
+                initial = name;
+            }
+        }
+
+        async Task AddAccountAsync()
+        {
+            string name = await AskAccountNameAsync("Name the new account. It starts with no characters, gold or unlocks.", "", "Add", null);
+            if (name == null)
+                return;
+            m_accounts.Add(name);
+            ShowAccount();
+        }
+
+        async Task RenameAccountAsync()
+        {
+            Account account = m_accounts.Selected;
+            string name = await AskAccountNameAsync("Rename this account. Only its name in the launcher changes.", account.Name, "Rename", account);
+            if (name == null)
+                return;
+            m_accounts.Rename(account, name);
+            ShowAccount();
+        }
+
+        async Task DeleteAccountAsync()
+        {
+            Account account = m_accounts.Selected;
+            string question = $"Delete the account {account.Name}?\n\nIts characters, gold and unlocks are deleted the next time you press Play. Back up your save data first if you might want them back.";
+            if (!await Dialog.ConfirmAsync(this, question, "Delete"))
+                return;
+            m_accounts.Delete(account);
+            ShowAccount();
+        }
+
+        async Task CountCharactersAsync()
+        {
+            try
+            {
+                await m_accountSync.CountCharactersAsync(m_accounts);
+            }
+            catch (Exception e) when (!(e is OutOfMemoryException))
+            {
+                LauncherLog.Write(m_folder, "The character counts couldn't be read: " + e.Message);
+            }
+        }
+
+        async void BackupItem_Click(object sender, RoutedEventArgs e)
+        {
+            string zip = await RunSaveTaskAsync("Backing up…", "Backing up your save data", "The backup couldn't be saved",
+                () => m_saves.BackUpAsync("", CancellationToken.None));
+            if (zip == null)
+                return;
+            StatusDetail.Text = "   saved " + Path.GetFileName(zip);
+            Platform.ShowFile(zip);
+        }
+
+        async void RestoreItem_Click(object sender, RoutedEventArgs e)
+        {
+            string zip = await PickBackupAsync();
+            if (zip == null)
+                return;
+            string question = $"Restore {Path.GetFileName(zip)}?\n\nEvery account's characters, gold, unlocks and settings go back to how they were in that backup. The launcher backs up how things are now first.";
+            if (!await Dialog.ConfirmAsync(this, question, "Restore"))
+                return;
+            string restored = await RunSaveTaskAsync("Restoring…", "Restoring your save data", "The backup couldn't be restored", async () =>
+            {
+                await m_saves.RestoreAsync(zip, CancellationToken.None);
+                return zip;
+            });
+            if (restored == null)
+                return;
+            m_accounts = Accounts.Load(m_folder);
+            ShowAccount();
+            StatusDetail.Text = "   restored " + Path.GetFileName(zip);
+        }
+
+        async Task<string> PickBackupAsync()
+        {
+            Directory.CreateDirectory(m_saves.Folder);
+            IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Choose a save backup",
+                AllowMultiple = false,
+                SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(m_saves.Folder),
+                FileTypeFilter = new[] { new FilePickerFileType("Save backups") { Patterns = new[] { "*.zip" } } },
+            });
+            return files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        }
+
+        async Task<string> RunSaveTaskAsync(string button, string status, string problem, Func<Task<string>> work)
+        {
+            m_busyButton = button;
+            SetState(LauncherState.Installing, status, "");
+            string result = null;
+            string failure = null;
+            try
+            {
+                result = await work();
+            }
+            catch (Exception e) when (!(e is OutOfMemoryException))
+            {
+                failure = e.Message;
+            }
+            await m_server.StopAsync();
+            m_busyButton = null;
+            m_state = LauncherState.Ready;
+            RefreshState();
+            if (failure != null)
+                ShowProblem(problem, failure);
+            return result;
         }
     }
 }

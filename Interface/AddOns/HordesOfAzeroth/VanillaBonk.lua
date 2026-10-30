@@ -176,12 +176,18 @@ offerFrame.banishEscape:SetHeight(1)
 offerFrame.banishEscape:Hide()
 tinsert(UISpecialFrames, "VanillaBonkBanishEscape")
 
+function VB.IsBanishTarget(card)
+    local option = VB.offer[card.index]
+    return offerFrame.banishing and option ~= nil and option.banishable
+end
+
 local function SetBanishMode(on)
     on = on and true or false
     offerFrame.banishing = on
     for _, card in ipairs(offerFrame.cards) do
         if card:IsShown() and card.lineColor then
-            if on then
+            local target = VB.IsBanishTarget(card)
+            if target then
                 card:SetBackdropBorderColor(BANISH_RED[1], BANISH_RED[2], BANISH_RED[3])
                 card.line:SetBackdropBorderColor(BANISH_RED[1], BANISH_RED[2], BANISH_RED[3], 1)
                 card.art:SetVertexColor(1, 0.55, 0.5)
@@ -189,13 +195,14 @@ local function SetBanishMode(on)
             else
                 local color = card.lineColor
                 local border = card.borderColor
+                local shade = on and 0.45 or 1
                 card:SetBackdropBorderColor(border[1], border[2], border[3])
                 card.line:SetBackdropBorderColor(color[1], color[2], color[3], color[4])
-                card.art:SetVertexColor(1, 1, 1)
+                card.art:SetVertexColor(shade, shade, shade)
                 card.highlight:SetVertexColor(1, 1, 1)
             end
             if GetMouseFocus() == card then
-                if on then
+                if target then
                     card.line:SetBackdropBorderColor(1, 0.1, 0.05, 1)
                 else
                     card.line:SetBackdropBorderColor(1, 0.82, 0, 1)
@@ -231,6 +238,10 @@ end
 
 local function Banish(index)
     if not VB.offer[index] or VB.picking or (VB.banishes or 0) < 1 or VB.offerSource == "ley" then
+        return
+    end
+    if not VB.offer[index].banishable then
+        UIErrorsFrame:AddMessage(L["You can't banish something you already have."], 1, 0.1, 0.1, 1)
         return
     end
     VB.picking = true
@@ -493,7 +504,7 @@ local function ShowKeywordTooltip(id, owner)
 end
 
 local function HighlightCard(card)
-    if offerFrame.banishing then
+    if VB.IsBanishTarget(card) then
         card.line:SetBackdropBorderColor(1, 0.1, 0.05, 1)
     else
         card.line:SetBackdropBorderColor(1, 0.82, 0, 1)
@@ -501,7 +512,7 @@ local function HighlightCard(card)
 end
 
 local function UnhighlightCard(card)
-    if offerFrame.banishing then
+    if VB.IsBanishTarget(card) then
         card.line:SetBackdropBorderColor(BANISH_RED[1], BANISH_RED[2], BANISH_RED[3], 1)
         return
     end
@@ -1507,11 +1518,11 @@ end
 
 local UI = VanillaBonkUI
 
-local ARENA_WIDTH, ARENA_HEIGHT = 920, 600
+local ARENA_WIDTH, ARENA_HEIGHT = 920, 660
 local STARTER_SIZE, STARTER_STEP = 28, 34
 
 local arena = UI.GoldWindow("VanillaBonkArena", ARENA_WIDTH, ARENA_HEIGHT)
-arena:SetPoint("CENTER", UIParent, "CENTER", 0, 30)
+arena:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 arena.title:SetText(L["Run Master"])
 
 local content = CreateFrame("Frame", nil, arena)
@@ -1770,7 +1781,7 @@ RefreshArena = function()
 end
 
 StaticPopupDialogs["VANILLABONK_LEAVE_RUN"] = {
-    text = L["End this run? It counts as a defeat. You keep the gold and Darkmoon Tickets you earned, but loot you haven't extracted is lost."],
+    text = L["End this run? It counts as a defeat. You keep the gold and Darkmoon Tickets you earned, but loot outside your Extraction Vault is lost."],
     button1 = YES,
     button2 = NO,
     OnAccept = function()
@@ -2674,6 +2685,7 @@ handlers["opt"] = function(f)
         damageBefore = f[11] or "",
         damageAfter = f[12] or "",
         damageLabel = f[13] or "",
+        banishable = f[14] ~= "0",
         stats = {},
     }
 end
@@ -2988,15 +3000,20 @@ VB.BuildStatTerms({
 })
 
 VB.gear = {}
-VB.tierGear = { first = 0, tiers = 0, slots = 0, classes = 0, stats = {} }
+VB.tierGear = { first = 0, tiers = 0, slots = 0, classes = 0, epicOffset = 0, stats = {}, epicStats = {} }
 setmetatable(VB.gear, { __index = function(gear, id)
     local tierGear = VB.tierGear
     local index = (tonumber(id) or 0) - tierGear.first
     local perClass = tierGear.tiers * tierGear.slots
+    local byTier = tierGear.stats
+    if tierGear.epicOffset > 0 and index >= tierGear.epicOffset then
+        index = index - tierGear.epicOffset
+        byTier = tierGear.epicStats
+    end
     if tierGear.first == 0 or perClass == 0 or index < 0 or index >= perClass * tierGear.classes then
         return nil
     end
-    local stats = tierGear.stats[floor(mod(index, perClass) / tierGear.slots) + 1]
+    local stats = byTier[floor(mod(index, perClass) / tierGear.slots) + 1]
     return stats and { set = 0, stats = stats }
 end })
 VB.sets = {}
@@ -3555,10 +3572,12 @@ handlers["tiergear"] = function(f)
     VB.tierGear.tiers = tonumber(f[3]) or 0
     VB.tierGear.slots = tonumber(f[4]) or 0
     VB.tierGear.classes = tonumber(f[5]) or 0
+    VB.tierGear.epicOffset = tonumber(f[6]) or 0
 end
 
 handlers["tierstats"] = function(f)
-    VB.tierGear.stats[tonumber(f[2]) or 0] = ParseStats(f[3])
+    local byTier = f[4] == "epic" and VB.tierGear.epicStats or VB.tierGear.stats
+    byTier[tonumber(f[2]) or 0] = ParseStats(f[3])
 end
 
 handlers["set"] = function(f)

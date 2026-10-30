@@ -14,7 +14,21 @@ namespace HordesOfAzeroth.Launcher
 
         public static Task<bool> TellAsync(Window owner, string message) => ShowAsync(owner, message, "OK", null);
 
-        static async Task<bool> ShowAsync(Window owner, string text, string confirm, string decline)
+        public static Task<bool> ConfirmAsync(Window owner, string question, string confirm) => ShowAsync(owner, question, confirm, "Cancel");
+
+        public static async Task<string> AskTextAsync(Window owner, string question, string initial, string confirm, int maxLength)
+        {
+            TextBox box = new TextBox { Text = initial ?? "", MaxLength = maxLength, FontSize = 14 };
+            box.AttachedToVisualTree += (s, e) =>
+            {
+                box.Focus();
+                box.SelectAll();
+            };
+            bool confirmed = await ShowAsync(owner, question, confirm, "Cancel", box);
+            return confirmed ? box.Text : null;
+        }
+
+        static async Task<bool> ShowAsync(Window owner, string text, string confirm, string decline, Control extra = null)
         {
             bool confirmed = false;
             Window window = new Window
@@ -43,16 +57,16 @@ namespace HordesOfAzeroth.Launcher
                 no.Click += (s, e) => window.Close();
                 buttons.Children.Add(no);
             }
-            window.Content = new StackPanel
+            StackPanel content = new StackPanel
             {
                 Margin = new Thickness(26, 22, 26, 22),
                 Spacing = 20,
-                Children =
-                {
-                    new TextBlock { Text = text, FontSize = 13, LineHeight = 19, TextWrapping = TextWrapping.Wrap },
-                    buttons,
-                },
+                Children = { new TextBlock { Text = text, FontSize = 13, LineHeight = 19, TextWrapping = TextWrapping.Wrap } },
             };
+            if (extra != null)
+                content.Children.Add(extra);
+            content.Children.Add(buttons);
+            window.Content = content;
             if (owner.IsVisible && owner.WindowState != WindowState.Minimized)
             {
                 await window.ShowDialog(owner);

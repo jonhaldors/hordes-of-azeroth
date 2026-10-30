@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.5.2
+
+### Gear
+- Gear grows steadily with its tier instead of multiplying: each tier adds a quarter of its Tier 1 stats.
+- Normal drops white gear. Heroic drops white and green, and bosses from floor 2 have a 15% chance to drop blue.
+- Mythic gear and tier sets are blue.
+- Epic versions of Mythic gear drop from floor 10: 10% per boss, +1% per floor, up to 25%. Epics always have a bonus stat.
+- Legendaries drop from Mythic floor 20: 0.5% per boss, rising to 2%. Legendaries with tiers now have their effects.
+- Bosses drop one piece instead of two.
+- Shop greens, blues and epics now use real item looks for each slot.
+- Durgan sells white gear (Normal) and green gear (Heroic). Varrok sells Tier 1-10 blues. Prices changed, will adjust if needed.
+- Gold from kills and floors is halved, and Darkmoon Tickets drop about half as often, will adjust if needed.
+- The Extraction Vault keeps its item if you die.
+- The floor preview shows each boss's chance to drop blue, epic and legendary gear.
+- Existing gear above Tier 20 becomes Tier 20. If you own legendaries, you're asked once whether to keep them or turn them into Scrap.
+
+### Enchanter
+- Power and Max Health enchants add 10-50% of the piece's own stat, from Minor to Godly.
+- The Enchanter shows how much each enchant adds to the piece.
+- Enchants no longer offer a stat the piece doesn't have.
+
+### Mythic balance
+- Enemy health no longer jumps at floors 11 and 16. Past floor 10 it grows by 12% per floor.
+- Enemy health grows more slowly past level 10, so enemy hits no longer jump within a minute.
+
+### Normal and Heroic
+- Enemies leave you a way out more often instead of surrounding you. Mythic is unchanged.
+- You move 10% faster by default, in Mythic too.
+
+### Spells and level-ups
+- Blade Flurry, Shadow Dance and Evasion are at max rank as soon as you learn them. Their evolutions can appear once your other spells total 20 ranks.
+- Spell tooltips show "Max rank" when a spell can't rank up further.
+- Banish only works on things you don't already own. Cards you own are dimmed while banishing.
+- Ley Line blessings of the same stat give less each time: each pick is 85% of the last, down to 10%.
+- Card proc chances show one decimal, so you can see each copy's gain at higher levels.
+
+### Bosses
+- Bosses and mini-bosses have voice lines, and battle music plays while a boss is up.
+- Stampede and other charge warnings now show their full length, and charges only hit inside the drawn line.
+
+### Quality of life
+- The mailbox has an Open All button. It takes all items, then deletes the empty mail.
+- Returning to the Inn at the portal asks you to confirm first.
+- The Run Master's start floor is a dropdown list.
+- The options window keeps the run paused.
+
+### Controller
+- Reroll, Banish and Skip on cards have their own buttons, which you can rebind in Controller settings.
+- Card windows ignore button presses for a moment after opening, so a press meant for a chest or NPC can't pick a card.
+- Closing the goblin vendor with B no longer leaves the game paused.
+- SpaceMouse devices no longer start the game in controller mode.
+
+### Languages
+- Notices, server messages and addon text now show in your chosen language. Simplified Chinese thanks to xenoglossy-asyncio.
+
+### Launcher
+- Switch between accounts, or add, rename and delete them, from the account button next to the Discord button.
+- Back up your save data and restore a backup from the ... menu.
+
+### Fixes
+- Fixed: Switching Display Mode between windowed and windowed fullscreen in game.
+- Fixed: Level-up choices sometimes showed only 2 cards with an empty spot.
+- Fixed: Seals and other spells at their cap showed blank level-up cards.
+- Fixed: Glacial Fragments could crash the server when a large frozen pack died at once.
+- Fixed: Glyph of Cleave's overkill damage got damage bonuses and crit a second time.
+- Fixed: The path to the exit portal could lead up ledges and long detours.
+- Fixed: Runs could start in unfinished parts of a zone.
+- Fixed: Removing old backups could stop the launcher from updating.
+
 ## 0.5.1
 
 ### Found gear

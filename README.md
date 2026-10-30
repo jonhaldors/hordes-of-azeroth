@@ -75,7 +75,7 @@ Updates come through the launcher. When a new version is out, **Play** turns int
 - **All nine classes**, each with their own spells and evolutions.
 - **Bosses you can outplay**: see their attacks coming and dodge them.
 - **Dash** out of danger: making you untouchable for a moment. Rebind it in Key Bindings, and upgrade its range and cooldown at the Inn.
-- **Find gear, Darkmoon Cards and Glyphs**. Tier sets and legendaries are lost on death unless you extract them.
+- **Find gear, Darkmoon Cards and Glyphs**. Tier sets and legendaries are lost on death unless you put them in the Extraction Vault.
 - **The Mythic Quartermaster** sells class tier sets that keep pace with your best floor.
 - **An Inn** with account-wide gold, upgrades, fortunes and class talent trees.
 - **Controller support** for Xbox, PlayStation and Steam Deck, switching to and from mouse and keyboard automatically.

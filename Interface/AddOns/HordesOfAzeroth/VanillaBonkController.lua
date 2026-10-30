@@ -61,6 +61,36 @@ function Controller.BindButton(action, button)
     end
 end
 
+local CARD_BUTTONS = { reroll = "x", banish = "y", skip = "b" }
+local CARD_KEYS = { reroll = "R", banish = "B", skip = "X" }
+Controller.CARD_REBINDABLE = { b = true, x = true, y = true, lb = true, rb = true, rt = true, view = true, l3 = true }
+
+function Controller.CardButtonFor(action)
+    local buttons = Controller.Setting("cardButtons")
+    return buttons and buttons[action] or CARD_BUTTONS[action]
+end
+
+local function CardActionFor(button)
+    for action in pairs(CARD_BUTTONS) do
+        if Controller.CardButtonFor(action) == button then
+            return action
+        end
+    end
+end
+
+function Controller.BindCardButton(action, button)
+    local buttons = {}
+    for each in pairs(CARD_BUTTONS) do
+        buttons[each] = Controller.CardButtonFor(each)
+    end
+    local displaced = CardActionFor(button)
+    if displaced and displaced ~= action then
+        buttons[displaced] = buttons[action]
+    end
+    buttons[action] = button
+    Controller.SetSetting("cardButtons", buttons)
+end
+
 function Controller.PadSignature()
     return Controller.Style() .. Controller.bindingsVersion
 end
@@ -237,17 +267,21 @@ local function MoveFocus(window, step)
     ShowFocus(window)
 end
 
+local CHOICE_ARM_DELAY = 0.4
+
+local function ChoiceArmed(window)
+    return window == Controller.window and GetTime() - (Controller.windowAt or 0) >= CHOICE_ARM_DELAY
+end
+
 local function ChoiceButton(window, name)
     if NEXT[name] then
         MoveFocus(window, NEXT[name])
+    elseif not ChoiceArmed(window) then
+        return
     elseif name == "a" then
         VanillaBonk_ChoiceKey(tostring(Controller.focus))
-    elseif window == VanillaBonkOffer and name == "x" then
-        VanillaBonk_ChoiceKey("R")
-    elseif window == VanillaBonkOffer and name == "y" then
-        VanillaBonk_ChoiceKey("B")
-    elseif window == VanillaBonkOffer and name == "b" then
-        VanillaBonk_ChoiceKey("X")
+    elseif window == VanillaBonkOffer and CardActionFor(name) then
+        VanillaBonk_ChoiceKey(CARD_KEYS[CardActionFor(name)])
     end
 end
 
@@ -605,9 +639,9 @@ end
 local function ChoicePrompts(window)
     local prompts = { { "leftright", L["Choose"] }, { "a", L["Pick"] } }
     if window == VanillaBonkOffer then
-        ButtonPrompt(prompts, "x", window.reroll)
-        ButtonPrompt(prompts, "y", window.banish)
-        ButtonPrompt(prompts, "b", window.skip)
+        ButtonPrompt(prompts, Controller.CardButtonFor("reroll"), window.reroll)
+        ButtonPrompt(prompts, Controller.CardButtonFor("banish"), window.banish)
+        ButtonPrompt(prompts, Controller.CardButtonFor("skip"), window.skip)
     end
     if AnyCardDetails(window) then
         local card = window.cards[Controller.focus]
@@ -1901,6 +1935,9 @@ watcher:SetScript("OnUpdate", function()
     local freshCards = anim and anim ~= Controller.lastAnim and (anim.mode == "open" or anim.mode == "pop")
     Controller.lastAnim = anim
     if window ~= Controller.window or freshCards then
+        if window ~= Controller.window then
+            Controller.windowAt = GetTime()
+        end
         Controller.window = window
         Controller.focus = 1
     elseif window and Controller.focus > CardCount(window) then

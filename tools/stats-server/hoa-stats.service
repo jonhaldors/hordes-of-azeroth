@@ -1,0 +1,20 @@
+[Unit]
+Description=Hordes of Azeroth run data receiver
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -I /opt/hoa-stats/receiver.py
+Environment=PORT=8090
+DynamicUser=yes
+StateDirectory=hoa-stats
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

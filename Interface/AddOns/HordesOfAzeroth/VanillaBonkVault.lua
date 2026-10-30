@@ -595,16 +595,15 @@ function Refresh()
     end
 
     frame.done:ClearAllPoints()
+    frame.hint:ClearAllPoints()
+    frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
     if vault.pillar then
-        frame.hint:ClearAllPoints()
-        frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
         frame.hint:SetText(L["Click an item to send it home now. It leaves your character for the rest of the run."])
-        frame.hint:Show()
-        frame.done:SetPoint("TOP", frame.hint, "BOTTOM", 0, -12)
     else
-        frame.hint:Hide()
-        frame.done:SetPoint("TOP", frame.rest, "BOTTOM", 0, -12)
+        frame.hint:SetText(L["Gear in the vault goes home when the run ends, even if you die."])
     end
+    frame.hint:Show()
+    frame.done:SetPoint("TOP", frame.hint, "BOTTOM", 0, -12)
 
     if missing then
         frame.retries = frame.retries or RETRIES

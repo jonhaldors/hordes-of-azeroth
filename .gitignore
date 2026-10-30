@@ -57,3 +57,5 @@
 # !/addon-src/
 
 tools/bench/results.json
+
+__pycache__/

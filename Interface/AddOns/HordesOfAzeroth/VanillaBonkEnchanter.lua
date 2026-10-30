@@ -54,13 +54,21 @@ window.cost:SetJustifyH("LEFT")
 window.cost:SetTextColor(0.78, 0.75, 0.69)
 window.cost:SetPoint("TOPLEFT", window.greeting, "BOTTOMLEFT", 0, -10)
 
-local function EnchantText(effect, grade, value)
+local function PieceShare(percent)
+    if not percent or percent <= 0 then
+        return ""
+    end
+    return " |cff8a8478(" .. L("{1}% of this piece", percent) .. ")|r"
+end
+
+local function EnchantText(effect, grade, value, percent)
     local info = GRADES[grade]
     if not effect or effect == NO_ENCHANT or not info then
         return "|cff8a8478" .. L["No enchant"] .. "|r"
     end
     local color = info.color
-    return format("|cff%02x%02x%02x%s:|r %s", color[1] * 255, color[2] * 255, color[3] * 255, info.name, UI.StatText and UI.StatText(effect, value) or "")
+    return format("|cff%02x%02x%02x%s:|r %s%s", color[1] * 255, color[2] * 255, color[3] * 255, info.name,
+        UI.StatText and UI.StatText(effect, value) or "", PieceShare(percent))
 end
 
 local function SlotTexture(entry)
@@ -141,7 +149,7 @@ local function Refresh()
     for _, row in ipairs(rows) do
         local slot = state.slots[row.entry.slot] or {}
         row.icon.icon:SetTexture(SlotTexture(row.entry))
-        row.enchant:SetText(EnchantText(slot.effect, slot.grade, slot.value))
+        row.enchant:SetText(EnchantText(slot.effect, slot.grade, slot.value, slot.percent))
         if offers or state.valor < state.cost then
             row.roll:Disable()
         else
@@ -154,13 +162,13 @@ local function Refresh()
         for index, button in ipairs(window.pending.offers) do
             local offer = offers[index]
             if offer then
-                button:SetText(EnchantText(offer.effect, offer.grade, offer.value))
+                button:SetText(EnchantText(offer.effect, offer.grade, offer.value, offer.percent))
                 button:Show()
             else
                 button:Hide()
             end
         end
-        window.pending.hint:SetText(L("Now: {1}", EnchantText(current.effect, current.grade, current.value)))
+        window.pending.hint:SetText(L("Now: {1}", EnchantText(current.effect, current.grade, current.value, current.percent)))
         window.pending:Show()
     else
         window.pending:Hide()
@@ -213,7 +221,8 @@ end
 handlers["enchantslot"] = function(f)
     local slot = tonumber(f[2] or "")
     if incoming and slot then
-        incoming.slots[slot] = { effect = tonumber(f[3] or ""), grade = tonumber(f[4] or ""), value = tonumber(f[5] or "") or 0 }
+        incoming.slots[slot] = { effect = tonumber(f[3] or ""), grade = tonumber(f[4] or ""), value = tonumber(f[5] or "") or 0,
+            percent = tonumber(f[6] or "") or 0 }
     end
 end
 
@@ -222,7 +231,8 @@ handlers["enchantoffer"] = function(f)
     local index = tonumber(f[3] or "")
     if incoming and slot and index then
         incoming.offers = incoming.offers or { slot = slot }
-        incoming.offers[index + 1] = { effect = tonumber(f[4] or ""), grade = tonumber(f[5] or ""), value = tonumber(f[6] or "") or 0 }
+        incoming.offers[index + 1] = { effect = tonumber(f[4] or ""), grade = tonumber(f[5] or ""), value = tonumber(f[6] or "") or 0,
+            percent = tonumber(f[7] or "") or 0 }
     end
 end
 
@@ -238,7 +248,7 @@ handlers["enchantend"] = function()
     UI.enchants = {}
     for slot, enchant in pairs(state.slots) do
         if enchant.effect and enchant.effect ~= NO_ENCHANT then
-            UI.enchants[slot + 1] = { stat = enchant.effect, value = enchant.value, grade = enchant.grade }
+            UI.enchants[slot + 1] = { stat = enchant.effect, value = enchant.value, grade = enchant.grade, percent = enchant.percent }
         end
     end
     Refresh()
@@ -268,5 +278,5 @@ function UI.EnchantLine(inventorySlot)
     if not enchant or not UI.StatText then
         return nil
     end
-    return L("Enchanted: {1} {2}", GRADES[enchant.grade].name, UI.StatText(enchant.stat, enchant.value))
+    return L("Enchanted: {1} {2}", GRADES[enchant.grade].name, UI.StatText(enchant.stat, enchant.value)) .. PieceShare(enchant.percent)
 end

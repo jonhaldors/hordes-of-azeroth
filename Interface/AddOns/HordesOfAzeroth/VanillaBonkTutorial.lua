@@ -1001,7 +1001,7 @@ local function BuildPlateGuide()
     box.selfBar = UI.Text(box, 12)
     box.selfBar:SetWidth(GUIDE_WIDTH - 44)
     box.selfBar:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -GUIDE_ROW_GAP - 6)
-    box.selfBar:SetText("Prefer the classic unit frame in the top left? Under Interface Options, Your Health Bar, you can show your health there instead, or in both places.")
+    box.selfBar:SetText(L["Prefer the classic unit frame in the top left? Under Interface Options, Your Health Bar, you can show your health there instead, or in both places."])
     box:Hide()
     return box
 end
