@@ -95,6 +95,7 @@ function UI.ChangeLanguage(value)
     end
     SetCVar(UI.LANGUAGE_CVAR, value)
     SendChatMessage(".bonk lang " .. value, "SAY")
+    VanillaBonkLocale.Changed(value)
     SettingsChanged()
 end
 
