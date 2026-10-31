@@ -1404,6 +1404,7 @@ handlers["trinkettip"] = function(f)
     end
     for id = first, first + count - 1 do
         UI.trinketTips[id] = text
+        UI.trinketTips[id + EPIC_OFFSET] = text
     end
 end
 

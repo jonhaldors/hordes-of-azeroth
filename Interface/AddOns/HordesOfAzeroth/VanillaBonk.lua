@@ -184,6 +184,7 @@ end
 local function SetBanishMode(on)
     on = on and true or false
     offerFrame.banishing = on
+    offerFrame.banishWarned = nil
     for _, card in ipairs(offerFrame.cards) do
         if card:IsShown() and card.lineColor then
             local target = VB.IsBanishTarget(card)
@@ -241,6 +242,10 @@ local function Banish(index)
         return
     end
     if not VB.offer[index].banishable then
+        if offerFrame.banishWarned then
+            return
+        end
+        offerFrame.banishWarned = true
         UIErrorsFrame:AddMessage(L["You can't banish something you already have."], 1, 0.1, 0.1, 1)
         return
     end
@@ -2131,7 +2136,7 @@ local function RefundBlocker(node)
                 return L("Refund {1} first. It depends on this one.", other.name)
             end
             local gate = VB.shop.gates and VB.shop.gates[other.row]
-            if gate and other.row > node.row and gate.above - node.refund < gate.need then
+            if gate and node.maxRank ~= VB.ENDLESS_RANKS and other.row > node.row and gate.above - node.refund < gate.need then
                 return L("Refund {1} first. It needs the tickets you spent here.", other.name)
             end
             if perRow > 0 and other.tree == node.tree and other.row > node.row then

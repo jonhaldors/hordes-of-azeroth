@@ -2,6 +2,13 @@
 
 ## 0.5.2
 
+### Hotfix 1
+- Auto-pick no longer ends the run on checkpoints with many extra level-ups.
+- Single Darkmoon Favors refunds work again instead of needing Refund all.
+- Rank-up cards no longer show a false "(at cap)" on Burning and other per-stack damage.
+- Starter gear is white with slightly lower stats than the white gear from Normal runs, so every white drop is an upgrade instead of being salvaged.
+- Epic trinkets show their effect in the tooltip again. The effect always worked.
+
 ### Gear
 - Gear grows steadily with its tier instead of multiplying: each tier adds a quarter of its Tier 1 stats.
 - Normal drops white gear. Heroic drops white and green, and bosses from floor 2 have a 15% chance to drop blue.
