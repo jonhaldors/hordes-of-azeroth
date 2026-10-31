@@ -30,6 +30,8 @@ namespace HordesOfAzeroth.Launcher
 
         public DateTime LaunchedAt { get; private set; }
 
+        public bool UseDirectX12 { get; set; }
+
         public void Prepare(Account account)
         {
             if (!File.Exists(m_folder.GameExe))
@@ -167,6 +169,8 @@ namespace HordesOfAzeroth.Launcher
                 CreateNoWindow = true,
             };
             info.EnvironmentVariables["WOW_DATA"] = m_folder.Data;
+            if (UseDirectX12 && Platform.IsWindows)
+                info.EnvironmentVariables["WGPU_BACKEND"] = "dx12";
             Directory.CreateDirectory(Path.GetDirectoryName(m_folder.ClientLog));
             m_log?.Dispose();
             m_log = new StreamWriter(m_folder.ClientLog, false, new UTF8Encoding(false)) { AutoFlush = true };

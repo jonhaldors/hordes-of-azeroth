@@ -2,6 +2,18 @@
 
 ## 0.5.2
 
+### Hotfix 3
+- Pet cone and pounce attacks like Swipe, Cleave and Prowl count toward the pet's spell damage instead of adding extra damage that Count multiplied.
+- Thunderfury, Sulfuras, Corrupted Ashbringer and Maelstrom deal their % of the single hit. Count no longer multiplies them.
+- Reach now extends class melee strikes like Sinister Strike and Eviscerate to the range the tooltip shows.
+- Pickup range stops being offered when you have 400%.
+- Loot tooltips show the correct stats of the offered tier.
+- The Extraction pillar shows each sent piece's real tier.
+- Ossirian's sand waves use dust clouds instead of tornadoes.
+- The launcher switches the game to DirectX 12 after a crash in the Vulkan driver and tells you.
+- The launcher no longer crashes when it closes.
+- The launcher's status details wrap under their own line instead of running behind the buttons.
+
 ### Hotfix 2
 - The Codex groups spells and evolutions by specialization, with a divider between each one.
 - The Talent Trainer now stands next to the Spellbook Keeper.

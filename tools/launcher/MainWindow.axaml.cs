@@ -52,6 +52,7 @@ namespace HordesOfAzeroth.Launcher
         int m_notePage;
         bool m_quitting;
         bool m_askingToClose;
+        bool m_shuttingDown;
         CancellationTokenSource m_installCancel;
         bool m_updating;
         bool m_repairing;
@@ -63,6 +64,7 @@ namespace HordesOfAzeroth.Launcher
             m_game = new GameClient(m_folder);
             m_updates = new UpdateCheck(m_folder);
             m_settings = LauncherSettings.Load(m_folder);
+            m_game.UseDirectX12 = m_settings.UseDirectX12;
             m_installer = new Installer(m_folder, m_server);
             m_nav = new NavBuilder(m_folder);
             m_accounts = Accounts.Load(m_folder);
@@ -235,6 +237,8 @@ namespace HordesOfAzeroth.Launcher
 
         async void OnClosing(object sender, WindowClosingEventArgs e)
         {
+            if (m_shuttingDown)
+                return;
             if (m_quitting)
             {
                 Shutdown();
@@ -266,6 +270,9 @@ namespace HordesOfAzeroth.Launcher
 
         void Shutdown()
         {
+            if (m_shuttingDown)
+                return;
+            m_shuttingDown = true;
             m_updateTimer.Stop();
             m_background?.Cancel();
             if (m_tray != null)
@@ -331,7 +338,7 @@ namespace HordesOfAzeroth.Launcher
             m_state = state;
             StatusText.Text = status;
             StatusText.Foreground = Brush(state == LauncherState.Missing ? "Problem" : "Text");
-            StatusDetail.Text = string.IsNullOrEmpty(detail) ? "" : "   " + detail;
+            StatusDetail.Text = string.IsNullOrEmpty(detail) ? "" : detail;
             StatusDot.IsVisible = state == LauncherState.Ready || state == LauncherState.Playing;
             bool busy = state == LauncherState.Starting || state == LauncherState.Stopping || state == LauncherState.Installing;
             Progress.IsIndeterminate = busy;
@@ -380,7 +387,7 @@ namespace HordesOfAzeroth.Launcher
             LauncherLog.Write(m_folder, $"{status}: {detail}");
             StatusText.Text = status;
             StatusText.Foreground = Brush("Problem");
-            StatusDetail.Text = "   " + detail;
+            StatusDetail.Text = detail;
             StatusDot.IsVisible = false;
             Progress.IsIndeterminate = false;
             Progress.Value = 0;
@@ -398,7 +405,7 @@ namespace HordesOfAzeroth.Launcher
                 ShowNotes(m_latest.Notes);
                 RefreshState();
                 if (userAsked && m_state == LauncherState.Ready)
-                    StatusDetail.Text = "   up to date";
+                    StatusDetail.Text = "up to date";
             }
             catch (Exception e) when (Web.IsProblem(e) || e is IOException || e is InvalidOperationException || e is ArgumentException || e is KeyNotFoundException || e is InvalidCastException || e is System.Text.Json.JsonException)
             {
@@ -666,7 +673,7 @@ namespace HordesOfAzeroth.Launcher
                 m_state = LauncherState.Ready;
                 ShowNotes(manifest.Notes);
                 RefreshState();
-                StatusDetail.Text = $"   updated to {manifest.Version.PatchName}";
+                StatusDetail.Text = $"updated to {manifest.Version.PatchName}";
                 StartBackgroundBuild();
             }
             catch (OperationCanceledException)
@@ -715,7 +722,7 @@ namespace HordesOfAzeroth.Launcher
                 ShowNotes(manifest.Notes);
                 RefreshState();
                 if (m_state == LauncherState.Ready)
-                    StatusDetail.Text = "   the game is repaired";
+                    StatusDetail.Text = "the game is repaired";
                 StartBackgroundBuild();
             }
             catch (OperationCanceledException)
@@ -751,7 +758,7 @@ namespace HordesOfAzeroth.Launcher
         void ShowStepProgress(InstallProgress p)
         {
             StatusText.Text = Installer.InProgress(p.Step);
-            StatusDetail.Text = string.IsNullOrEmpty(p.Detail) ? "" : "   " + p.Detail;
+            StatusDetail.Text = string.IsNullOrEmpty(p.Detail) ? "" : p.Detail;
             Progress.IsIndeterminate = p.Fraction < 0;
             if (p.Fraction >= 0)
                 Progress.Value = p.Fraction;
@@ -900,7 +907,7 @@ namespace HordesOfAzeroth.Launcher
         {
             Progress.IsIndeterminate = false;
             Progress.Value = total > 0 ? (double)bytes / total : 0;
-            StatusDetail.Text = $"   {bytes / 1048576.0:0.0} of {total / 1048576.0:0.0} MB";
+            StatusDetail.Text = $"{bytes / 1048576.0:0.0} of {total / 1048576.0:0.0} MB";
         }
 
         void UseInstallBuildSpeed()
@@ -914,7 +921,7 @@ namespace HordesOfAzeroth.Launcher
         {
             Progress.IsIndeterminate = false;
             Progress.Value = n.Total > 0 ? (double)n.Done / n.Total : 0;
-            StatusDetail.Text = $"   {n.Done} of {n.Total} areas on {CoresText(m_settings.InstallCores)}. High CPU use is expected and only happens once.";
+            StatusDetail.Text = $"{n.Done} of {n.Total} areas on {CoresText(m_settings.InstallCores)}. High CPU use is expected and only happens once.";
         }
 
         static string CoresText(CoreShare share)
@@ -1002,8 +1009,8 @@ namespace HordesOfAzeroth.Launcher
                 return;
             }
             StatusDetail.Text = n.Downloading
-                ? $"   {n.Group}: downloading monster paths in the background, {n.Done} of {n.Total} MB"
-                : $"   {n.Group}: building monster paths in the background, {n.Done} of {n.Total} areas on {CoresText(m_settings.BackgroundCores)}";
+                ? $"{n.Group}: downloading monster paths in the background, {n.Done} of {n.Total} MB"
+                : $"{n.Group}: building monster paths in the background, {n.Done} of {n.Total} areas on {CoresText(m_settings.BackgroundCores)}";
             Progress.IsIndeterminate = false;
             Progress.Value = (double)n.Done / n.Total;
             ShowProgress(true);
@@ -1012,14 +1019,14 @@ namespace HordesOfAzeroth.Launcher
         async Task PlayAsync()
         {
             SetState(LauncherState.Starting, "Starting", "");
-            Progress<string> progress = new Progress<string>(step => StatusDetail.Text = "   " + step);
+            Progress<string> progress = new Progress<string>(step => StatusDetail.Text = step);
             try
             {
                 await RepairBeforePlayAsync();
                 m_game.Prepare(m_accounts.Selected);
                 await StartServerAsync(progress);
                 await m_accountSync.PrepareAsync(m_accounts);
-                StatusDetail.Text = "   Starting the game";
+                StatusDetail.Text = "Starting the game";
                 await m_game.StartAsync(CancellationToken.None);
             }
             catch (Exception e) when (!(e is OutOfMemoryException))
@@ -1046,7 +1053,7 @@ namespace HordesOfAzeroth.Launcher
                 repairing |= p.Fixing;
                 if (!repairing)
                 {
-                    StatusDetail.Text = "   " + Installer.InProgress(p.Step);
+                    StatusDetail.Text = Installer.InProgress(p.Step);
                     return;
                 }
                 ShowRepairCard(Array.IndexOf(Installer.RepairSteps, p.Step), QuickRepairText);
@@ -1069,7 +1076,7 @@ namespace HordesOfAzeroth.Launcher
             catch (WorldDatabaseException) when (!m_folder.IsDevelopmentTree)
             {
                 StatusText.Text = "Reloading the world";
-                StatusDetail.Text = "   the world database didn't match the server (about a minute)";
+                StatusDetail.Text = "the world database didn't match the server (about a minute)";
                 ShowRepairCard(Installer.RepairSteps.Length - 1, QuickRepairText);
                 await m_installer.ReloadWorldAsync(new Progress<InstallProgress>(_ => { }), CancellationToken.None);
                 ShowNotes(m_latest?.Notes);
@@ -1096,14 +1103,26 @@ namespace HordesOfAzeroth.Launcher
                 m_state = LauncherState.Ready;
                 RefreshState();
             }
+            await SwitchToDirectX12AfterDriverCrashAsync();
             await ShareRunsAsync();
             await OfferCrashReportAsync();
+        }
+
+        async Task SwitchToDirectX12AfterDriverCrashAsync()
+        {
+            if (m_settings.UseDirectX12 || !CrashReports.GameCrashedInVulkanDriver(m_folder, m_game.LaunchedAt))
+                return;
+            m_settings.UseDirectX12 = true;
+            m_settings.Save();
+            m_game.UseDirectX12 = true;
+            LauncherLog.Write(m_folder, "The game crashed in the graphics driver's Vulkan module; switched the game to DirectX 12.");
+            await Dialog.TellAsync(this, "The game crashed inside your graphics driver. It will use DirectX 12 from now on, so press Play to try again.\n\nUpdating your graphics driver may also fix it.");
         }
 
         async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
         {
             if (m_state == LauncherState.Ready || m_state == LauncherState.UpdateAvailable || m_state == LauncherState.Missing)
-                StatusDetail.Text = "   checking…";
+                StatusDetail.Text = "checking…";
             await CheckForUpdatesAsync(true);
         }
 
@@ -1405,7 +1424,7 @@ namespace HordesOfAzeroth.Launcher
                 () => m_saves.BackUpAsync("", CancellationToken.None));
             if (zip == null)
                 return;
-            StatusDetail.Text = "   saved " + Path.GetFileName(zip);
+            StatusDetail.Text = "saved " + Path.GetFileName(zip);
             Platform.ShowFile(zip);
         }
 
@@ -1426,7 +1445,7 @@ namespace HordesOfAzeroth.Launcher
                 return;
             m_accounts = Accounts.Load(m_folder);
             ShowAccount();
-            StatusDetail.Text = "   restored " + Path.GetFileName(zip);
+            StatusDetail.Text = "restored " + Path.GetFileName(zip);
         }
 
         async Task<string> PickBackupAsync()

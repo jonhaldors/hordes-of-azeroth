@@ -22,6 +22,7 @@ namespace HordesOfAzeroth.Launcher
         public long CrashCheckedAt;
         public string InstallId = Guid.NewGuid().ToString("N");
         public long RunLogOffset;
+        public bool UseDirectX12;
 
         public static int Workers(CoreShare share) => share == CoreShare.All ? Environment.ProcessorCount : HalfOfCores;
 
@@ -63,6 +64,8 @@ namespace HordesOfAzeroth.Launcher
                 settings.InstallId = id;
             if (values.TryGetValue("RunLogOffset", out string offset) && long.TryParse(offset, out long runLogOffset))
                 settings.RunLogOffset = runLogOffset;
+            if (values.TryGetValue("UseDirectX12", out string directX12))
+                settings.UseDirectX12 = directX12 == "1";
             return settings;
         }
 
@@ -82,6 +85,7 @@ namespace HordesOfAzeroth.Launcher
                 "CrashCheckedAt=" + CrashCheckedAt,
                 "InstallId=" + InstallId,
                 "RunLogOffset=" + RunLogOffset,
+                "UseDirectX12=" + (UseDirectX12 ? "1" : "0"),
             });
         }
     }

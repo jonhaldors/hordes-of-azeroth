@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace HordesOfAzeroth.Launcher
@@ -12,6 +14,7 @@ namespace HordesOfAzeroth.Launcher
         const string LauncherCrashFile = "Launcher crash.txt";
         const string ServerCrashFile = "Crash.log";
         const long MaxLauncherCrashBytes = 256 * 1024;
+        static readonly string[] VulkanDriverModules = { "amdvlk64.dll", "amdvlk32.dll", "nvoglv64.dll", "nvoglv32.dll", "igvk64.dll", "igvk32.dll", "vulkan-1.dll" };
 
         public static void RecordLauncherCrash(Exception error)
         {
@@ -55,6 +58,36 @@ namespace HordesOfAzeroth.Launcher
                 if (File.Exists(zip))
                     File.Delete(zip);
             }
+        }
+
+        public static bool GameCrashedInVulkanDriver(GameFolder folder, DateTime sinceUtc)
+        {
+            if (!Platform.IsWindows)
+                return false;
+            string since = sinceUtc.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'.000Z'");
+            string text;
+            try
+            {
+                ProcessStartInfo info = new ProcessStartInfo("wevtutil",
+                    $"qe Application \"/q:*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[@SystemTime>='{since}']]]\" /c:20 /rd:true /f:text")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                };
+                using (Process process = Process.Start(info))
+                {
+                    text = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit(10000);
+                }
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is IOException)
+            {
+                return false;
+            }
+            return Regex.Split(text, @"(?m)^Event\[\d+\]").Any(crashEvent =>
+                crashEvent.IndexOf("Faulting application name: " + folder.GameExeName, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                VulkanDriverModules.Any(module => crashEvent.IndexOf("Faulting module name: " + module, StringComparison.OrdinalIgnoreCase) >= 0));
         }
 
         static bool NewerFiles(string directory, string pattern, DateTime sinceUtc) =>

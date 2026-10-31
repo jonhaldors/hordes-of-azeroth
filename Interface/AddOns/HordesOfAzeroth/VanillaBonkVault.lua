@@ -194,6 +194,7 @@ end
 local SENT_SLOT_SIZE = 40
 local SENT_SPACING = 70
 local SENT_SHOWN = 8
+local SENT_VIEW_HEIGHT = 64
 
 frame.sent = CreateFrame("Frame", nil, frame)
 frame.sent:SetHeight(128)
@@ -212,20 +213,92 @@ frame.sent.empty:SetPoint("CENTER", frame.sent, "CENTER", 0, -8)
 frame.sent.empty:SetTextColor(0.62, 0.62, 0.62)
 frame.sent.empty:SetText(L["Nothing yet. Each pillar sends 1 piece."])
 frame.sent.slots = {}
+frame.sent.offset = 0
+frame.sent.maxOffset = 0
 frame.sent:Hide()
+
+frame.sent.view = CreateFrame("ScrollFrame", nil, frame.sent)
+frame.sent.view:SetHeight(SENT_VIEW_HEIGHT)
+frame.sent.view:SetPoint("TOP", frame.sent, "TOP", 0, -36)
+frame.sent.strip = CreateFrame("Frame", nil, frame.sent.view)
+frame.sent.strip:SetHeight(SENT_VIEW_HEIGHT)
+frame.sent.view:SetScrollChild(frame.sent.strip)
+
+frame.sent.slider = CreateFrame("Slider", "VanillaBonkPillarSentSlider", frame.sent, "OptionsSliderTemplate")
+frame.sent.slider:SetPoint("BOTTOM", frame.sent, "BOTTOM", 0, 14)
+frame.sent.slider:SetValueStep(1)
+VanillaBonkPillarSentSliderText:SetText("")
+VanillaBonkPillarSentSliderLow:SetText("")
+VanillaBonkPillarSentSliderHigh:SetText("")
+frame.sent.slider:Hide()
+
+local function ScrollSentTo(offset)
+    local sent = frame.sent
+    offset = max(0, min(sent.maxOffset, offset))
+    sent.offset = offset
+    sent.view:SetHorizontalScroll(-offset)
+    if abs(sent.slider:GetValue() - offset) >= 1 then
+        sent.slider:SetValue(offset)
+    end
+end
+
+frame.sent.slider:SetScript("OnValueChanged", function()
+    if abs(this:GetValue() - frame.sent.offset) >= 1 then
+        ScrollSentTo(this:GetValue())
+    end
+end)
+
+local function CursorX()
+    local x = GetCursorPosition()
+    return x / frame.sent:GetEffectiveScale()
+end
+
+local function StartSentDrag()
+    if arg1 == "LeftButton" and frame.sent.maxOffset > 0 then
+        frame.sent.dragX = CursorX()
+        frame.sent.dragOffset = frame.sent.offset
+    end
+end
+
+local function StopSentDrag()
+    frame.sent.dragX = nil
+end
+
+local function ScrollSentByWheel()
+    ScrollSentTo(frame.sent.offset - arg1 * SENT_SPACING)
+end
+
+frame.sent.view:EnableMouse(true)
+frame.sent.view:EnableMouseWheel(true)
+frame.sent.view:SetScript("OnMouseDown", StartSentDrag)
+frame.sent.view:SetScript("OnMouseUp", StopSentDrag)
+frame.sent.view:SetScript("OnMouseWheel", ScrollSentByWheel)
+frame.sent.view:SetScript("OnHide", StopSentDrag)
+frame.sent.view:SetScript("OnUpdate", function()
+    local sent = frame.sent
+    if sent.dragX then
+        ScrollSentTo(sent.dragOffset - (CursorX() - sent.dragX))
+    end
+end)
 
 local function SentSlot(index)
     local slot = frame.sent.slots[index]
     if slot then
         return slot
     end
-    slot = UI.Slot(frame.sent, SENT_SLOT_SIZE)
-    slot.caption = UI.Text(frame.sent, 10)
+    slot = UI.Slot(frame.sent.strip, SENT_SLOT_SIZE)
+    slot:SetPoint("TOPLEFT", frame.sent.strip, "TOPLEFT", (index - 1) * SENT_SPACING + (SENT_SPACING - SENT_SLOT_SIZE) / 2, -4)
+    slot.caption = UI.Text(frame.sent.strip, 10)
     slot.caption:SetPoint("TOP", slot, "BOTTOM", 0, -5)
     slot.caption:SetTextColor(0.8, 0.8, 0.8)
+    slot:EnableMouseWheel(true)
+    slot:SetScript("OnMouseDown", StartSentDrag)
+    slot:SetScript("OnMouseUp", StopSentDrag)
+    slot:SetScript("OnMouseWheel", ScrollSentByWheel)
     slot:SetScript("OnEnter", function()
         if this.piece then
             GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            UI.nextFound = this.piece.found
             GameTooltip:SetHyperlink("item:" .. this.piece.entry .. ":0:0:0")
             GameTooltip:AddLine(L("Sent home on floor {1}.", this.piece.floor), 0.7, 0.7, 0.7)
             GameTooltip:Show()
@@ -237,26 +310,27 @@ local function SentSlot(index)
 end
 
 local function ShowSent()
+    local sent = frame.sent
     local pieces = vault.sent or {}
     local count = getn(pieces)
-    local first = max(1, count - SENT_SHOWN + 1)
-    local shown = count - first + 1
-    frame.sent:SetWidth(max(300, 40 + max(shown, 1) * SENT_SPACING))
+    local viewWidth = max(1, min(count, SENT_SHOWN)) * SENT_SPACING
+    sent:SetWidth(max(300, 40 + viewWidth))
+    sent.view:SetWidth(viewWidth)
+    sent.strip:SetWidth(max(1, count) * SENT_SPACING)
+    sent.maxOffset = max(0, count - SENT_SHOWN) * SENT_SPACING
     if count == 0 then
-        frame.sent.empty:Show()
+        sent.empty:Show()
     else
-        frame.sent.empty:Hide()
+        sent.empty:Hide()
     end
-    for index = 1, max(SENT_SHOWN, getn(frame.sent.slots)) do
+    for index = 1, max(count, getn(sent.slots)) do
         local slot = SentSlot(index)
-        local piece = index <= shown and pieces[first + index - 1] or nil
+        local piece = pieces[index]
         slot.piece = piece
         if piece then
             local _, _, _, _, _, _, _, _, texture = GetItemInfo(piece.entry)
             slot.icon:SetTexture(texture or (UI.ICON_PATH .. "INV_Misc_QuestionMark"))
             slot.icon:Show()
-            slot:ClearAllPoints()
-            slot:SetPoint("TOP", frame.sent, "TOP", (index - (shown + 1) / 2) * SENT_SPACING, -40)
             slot.caption:SetText(L("Floor {1}", piece.floor))
             slot:Show()
             slot.caption:Show()
@@ -265,7 +339,16 @@ local function ShowSent()
             slot.caption:Hide()
         end
     end
-    frame.sent:Show()
+    if sent.maxOffset > 0 then
+        sent.slider:SetWidth(viewWidth)
+        sent.slider:SetMinMaxValues(0, sent.maxOffset)
+        sent.slider:Show()
+    else
+        sent.slider:Hide()
+    end
+    sent.view:UpdateScrollChildRect()
+    sent:Show()
+    ScrollSentTo(sent.maxOffset)
 end
 
 frame.cards = CreateFrame("Frame", nil, frame)
@@ -668,14 +751,17 @@ local function SavedEntries(field)
     return entries
 end
 
-handlers["vaultsent"] = function(f)
+handlers["vaultsent"] = function()
     vault.sent = {}
-    for _, text in ipairs(UI.Split(f[2] or "", ",")) do
-        local _, _, entry, floor = string.find(text, "^(%d+):(%d+)$")
-        if entry then
-            tinsert(vault.sent, { entry = tonumber(entry), floor = tonumber(floor) })
-        end
+end
+
+handlers["vaultsentitem"] = function(f)
+    local entry = tonumber(f[2] or "")
+    if not entry then
+        return
     end
+    vault.sent = vault.sent or {}
+    tinsert(vault.sent, { entry = entry, floor = tonumber(f[3] or "") or 0, found = UI.ParseFound(f[4], f[5], f[6]) })
 end
 
 handlers["vaultitem"] = function(f)

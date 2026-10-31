@@ -8,7 +8,7 @@
         Background="{StaticResource Background}"
         Foreground="{StaticResource Text}"
         UseLayoutRounding="True">
-    <Grid RowDefinitions="*,104">
+    <Grid RowDefinitions="*,Auto">
         <Grid ClipToBounds="True">
             <Rectangle>
                 <Rectangle.Fill>
@@ -81,16 +81,14 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="1" Background="{StaticResource Bar}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="1" MinHeight="104" Padding="0,0,0,14" Background="{StaticResource Bar}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Margin="36,20,36,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource Ok}" Margin="0,1,7,0" IsVisible="False" VerticalAlignment="Center" />
-                        <TextBlock FontSize="14" VerticalAlignment="Center">
-                            <Run x:Name="StatusText" FontWeight="SemiBold" />
-                            <Run x:Name="StatusDetail" FontSize="12" Foreground="{StaticResource Muted}" />
-                        </TextBlock>
-                    </StackPanel>
+                    <Grid ColumnDefinitions="Auto,Auto,*">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource Ok}" Margin="0,7,7,0" IsVisible="False" VerticalAlignment="Top" />
+                        <TextBlock x:Name="StatusText" Grid.Column="1" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Top" />
+                        <TextBlock x:Name="StatusDetail" Grid.Column="2" FontSize="12" Foreground="{StaticResource Muted}" Margin="10,2,0,0" TextWrapping="Wrap" VerticalAlignment="Top" />
+                    </Grid>
                     <ProgressBar x:Name="Progress" Classes="thin" Opacity="0" Margin="0,11,0,0" HorizontalAlignment="Stretch" Minimum="0" Maximum="1" Value="0" />
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <TextBlock x:Name="InstalledText" FontSize="12" Foreground="{StaticResource Muted}" />
