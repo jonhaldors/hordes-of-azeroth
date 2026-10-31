@@ -835,7 +835,7 @@ local CHOICE_KEYS = {
     ["4"] = "VANILLABONK_CHOICE4", ["5"] = "VANILLABONK_CHOICE5", ["6"] = "VANILLABONK_CHOICE6",
     ["R"] = "VANILLABONK_REROLL", ["X"] = "VANILLABONK_SKIP", ["B"] = "VANILLABONK_BANISH",
 }
-BINDING_HEADER_VANILLABONK = "Hordes of Azeroth"
+BINDING_HEADER_VANILLABONK = L["Hordes of Azeroth"]
 for index = 1, 6 do
     setglobal("BINDING_NAME_VANILLABONK_CHOICE" .. index, L("Level-up choice: card {1}", index))
 end
