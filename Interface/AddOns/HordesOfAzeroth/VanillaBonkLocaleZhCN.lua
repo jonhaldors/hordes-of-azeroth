@@ -568,6 +568,7 @@ VanillaBonkLocale.Register("zhCN", {
     ["Open chests, vaults and hidden finds"] = "打开宝箱、保险库和隐藏发现",
     ["Open zone"] = "开阔地带",
     ["Options"] = "选项键",
+    ["Other spells"] = "其他法术",
     ["Owned"] = "已拥有",
     ["Page {1} of {2}"] = "第{1}页，共{2}页",
     ["Page {1} of {2}  ({3} items)"] = "第{1}页，共{2}页  （{3}件物品）",
