@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -24,8 +25,8 @@ namespace HordesOfAzeroth.Launcher
         const string DiscordUrl = "https://discord.gg/zpYfsqh6Dn";
         const string CoffeeUrl = "https://buymeacoffee.com/jonhaldors";
         static readonly TimeSpan UpdateInterval = TimeSpan.FromMinutes(15);
-        const string FullRepairText = "The launcher checks every game file, puts back the ones that are missing or damaged and reloads the world. Your characters and unlocks are backed up first and stay as they are.";
-        const string QuickRepairText = "Some game files were missing or damaged, so the launcher puts them back. Your characters and unlocks stay as they are.";
+        static string FullRepairText => Loc.T("The launcher checks every game file, puts back the ones that are missing or damaged and reloads the world. Your characters and unlocks are backed up first and stay as they are.");
+        static string QuickRepairText => Loc.T("Some game files were missing or damaged, so the launcher puts them back. Your characters and unlocks stay as they are.");
 
         enum LauncherState { Missing, NotInstalled, Installing, Ready, UpdateAvailable, Starting, Playing, Stopping }
 
@@ -46,6 +47,8 @@ namespace HordesOfAzeroth.Launcher
         NavProgress m_backgroundProgress;
         readonly DispatcherTimer m_updateTimer = new DispatcherTimer();
         TrayIcon m_tray;
+        NativeMenuItem m_trayOpen;
+        NativeMenuItem m_trayQuit;
         LauncherState m_state;
         Manifest m_latest;
         List<ReleaseNote> m_notes = new List<ReleaseNote>();
@@ -60,6 +63,8 @@ namespace HordesOfAzeroth.Launcher
         public MainWindow()
         {
             InitializeComponent();
+            Loc.Use(GameConfig.ReadLanguage(m_folder));
+            Loc.Apply(this);
             m_server = new LocalServer(m_folder);
             m_game = new GameClient(m_folder);
             m_updates = new UpdateCheck(m_folder);
@@ -112,9 +117,9 @@ namespace HordesOfAzeroth.Launcher
         {
             if (m_settings.RunDataAsked)
                 return;
-            string question = "Hordes of Azeroth is in early access. Can the launcher send data about your runs to help balance the game?\n\n"
+            string question = Loc.T("Hordes of Azeroth is in early access. Can the launcher send data about your runs to help balance the game?\n\n"
                 + "After each run it sends your build, picks, boss times and how the run ended, with a random id for this install. No names, chat or files. "
-                + "You can turn it off any time in the … menu.";
+                + "You can turn it off any time in the … menu.");
             m_settings.SendRunData = await Dialog.AskAsync(this, question);
             m_settings.RunDataAsked = true;
             m_settings.Save();
@@ -131,20 +136,20 @@ namespace HordesOfAzeroth.Launcher
             List<string> crashed = CrashReports.CrashedSince(m_folder, since);
             if (crashed.Count == 0)
                 return;
-            string what = string.Join(" and ", crashed);
-            string question = $"{char.ToUpperInvariant(what[0])}{what.Substring(1)} crashed last time. Send a crash report to the developer?\n\n"
-                + "It holds the game's server and client logs, your character names and your game settings. You'll get a reference to put in your bug report.";
+            string what = string.Join(Loc.T(" and "), crashed.Select(name => Loc.T(name)));
+            string question = Loc.T("{0} crashed last time. Send a crash report to the developer?\n\n"
+                + "It holds the game's server and client logs, your character names and your game settings. You'll get a reference to put in your bug report.", char.ToUpperInvariant(what[0]) + what.Substring(1));
             if (!await Dialog.AskAsync(this, question))
                 return;
             try
             {
                 string reference = await CrashReports.SendAsync(m_folder, crashed);
-                await Dialog.TellAsync(this, $"Your crash report was sent. Reference: {reference}\n\nPut this reference in your bug report on GitHub or Discord.");
+                await Dialog.TellAsync(this, Loc.T("Your crash report was sent. Reference: {0}\n\nPut this reference in your bug report on GitHub or Discord.", reference));
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
             {
                 LauncherLog.Write(m_folder, "Crash report: " + e.Message);
-                ShowProblem("The crash report couldn't be sent", "Use Report a bug to save your logs and attach them to your bug report.");
+                ShowProblem(Loc.T("The crash report couldn't be sent"), Loc.T("Use Report a bug to save your logs and attach them to your bug report."));
             }
         }
 
@@ -190,16 +195,16 @@ namespace HordesOfAzeroth.Launcher
             if (!Platform.HasTray)
                 return;
             NativeMenu menu = new NativeMenu();
-            NativeMenuItem open = new NativeMenuItem("Open launcher");
-            open.Click += (s, e) => ShowFromTray();
-            NativeMenuItem quit = new NativeMenuItem("Quit");
-            quit.Click += (s, e) => QuitFromTray();
-            menu.Items.Add(open);
-            menu.Items.Add(quit);
+            m_trayOpen = new NativeMenuItem(Loc.T("Open launcher"));
+            m_trayOpen.Click += (s, e) => ShowFromTray();
+            m_trayQuit = new NativeMenuItem(Loc.T("Quit"));
+            m_trayQuit.Click += (s, e) => QuitFromTray();
+            menu.Items.Add(m_trayOpen);
+            menu.Items.Add(m_trayQuit);
             m_tray = new TrayIcon
             {
                 Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://HoALauncher/art/icon.ico"))),
-                ToolTipText = "Hordes of Azeroth",
+                ToolTipText = Loc.T("Hordes of Azeroth"),
                 Menu = menu,
                 IsVisible = true,
             };
@@ -228,7 +233,7 @@ namespace HordesOfAzeroth.Launcher
             if (m_state == LauncherState.Playing || m_state == LauncherState.Starting)
             {
                 ShowFromTray();
-                await Dialog.TellAsync(this, "Close the game first. The launcher keeps the game's server running until then.");
+                await Dialog.TellAsync(this, Loc.T("Close the game first. The launcher keeps the game's server running until then."));
                 return;
             }
             m_quitting = true;
@@ -256,7 +261,7 @@ namespace HordesOfAzeroth.Launcher
                 if (m_askingToClose)
                     return;
                 m_askingToClose = true;
-                bool stop = await Dialog.AskAsync(this, "Stop installing? The launcher carries on where it stopped next time.");
+                bool stop = await Dialog.AskAsync(this, Loc.T("Stop installing? The launcher carries on where it stopped next time."));
                 m_askingToClose = false;
                 if (!stop)
                     return;
@@ -288,35 +293,35 @@ namespace HordesOfAzeroth.Launcher
         void RefreshState()
         {
             GameVersion installed = m_folder.InstalledVersion;
-            InstalledText.Text = installed != null ? installed.PatchName + " installed" : "Not installed";
+            InstalledText.Text = installed != null ? Loc.T("{0} installed", installed.PatchName) : Loc.T("Not installed");
 
             if (m_state == LauncherState.Starting || m_state == LauncherState.Playing || m_state == LauncherState.Stopping || m_state == LauncherState.Installing)
                 return;
 
             if (!m_folder.HasClient)
             {
-                SetState(LauncherState.Missing, "Can't find World of Warcraft", "Put the launcher in your World of Warcraft 1.12.1 folder, next to WoW.exe.");
+                SetState(LauncherState.Missing, Loc.T("Can't find World of Warcraft"), Loc.T("Put the launcher in your World of Warcraft 1.12.1 folder, next to WoW.exe."));
                 return;
             }
             if (!IsInstalled())
             {
                 if (!Installer.IsStockClient(m_folder))
-                    SetState(LauncherState.Missing, "This client can't be used", "Hordes of Azeroth needs the English World of Warcraft 1.12.1 (build 5875) WoW.exe.");
+                    SetState(LauncherState.Missing, Loc.T("This client can't be used"), Loc.T("Hordes of Azeroth needs the English World of Warcraft 1.12.1 (build 5875) WoW.exe."));
                 else if (m_installer.IsComplete)
-                    SetState(LauncherState.NotInstalled, "Some game files are missing", "press Repair to put them back");
+                    SetState(LauncherState.NotInstalled, Loc.T("Some game files are missing"), Loc.T("press Repair to put them back"));
                 else if (m_installer.CompletedSteps.Count > 0)
-                    SetState(LauncherState.NotInstalled, "The install isn't finished", "press Continue to carry on where it stopped");
+                    SetState(LauncherState.NotInstalled, Loc.T("The install isn't finished"), Loc.T("press Continue to carry on where it stopped"));
                 else
-                    SetState(LauncherState.NotInstalled, "Ready to install", "the first install takes a few minutes");
+                    SetState(LauncherState.NotInstalled, Loc.T("Ready to install"), Loc.T("the first install takes a few minutes"));
                 return;
             }
             if (m_latest?.Version != null && (m_latest.Version.IsNewerThan(installed) || m_installer.ChangedPackages(m_latest).Count > 0))
             {
                 string size = m_latest.DownloadSize > 0 ? $"{m_latest.DownloadSize / 1048576.0:0.0} MB · " : "";
-                SetState(LauncherState.UpdateAvailable, m_latest.Version.PatchName + " is ready", size + "your characters and unlocks stay");
+                SetState(LauncherState.UpdateAvailable, Loc.T("{0} is ready", m_latest.Version.PatchName), size + Loc.T("your characters and unlocks stay"));
                 return;
             }
-            SetState(LauncherState.Ready, "Ready to play", "");
+            SetState(LauncherState.Ready, Loc.T("Ready to play"), "");
             ShowBackgroundProgress();
         }
 
@@ -347,35 +352,35 @@ namespace HordesOfAzeroth.Launcher
             switch (state)
             {
                 case LauncherState.Missing:
-                    PrimaryButton.Content = "Install";
+                    PrimaryButton.Content = Loc.T("Install");
                     PrimaryButton.IsEnabled = false;
                     break;
                 case LauncherState.NotInstalled:
-                    PrimaryButton.Content = m_installer.IsComplete ? "Repair" : m_installer.CompletedSteps.Count > 0 ? "Continue" : "Install";
+                    PrimaryButton.Content = m_installer.IsComplete ? Loc.T("Repair") : m_installer.CompletedSteps.Count > 0 ? Loc.T("Continue") : Loc.T("Install");
                     PrimaryButton.IsEnabled = true;
                     break;
                 case LauncherState.Installing:
-                    PrimaryButton.Content = m_busyButton ?? (m_repairing ? "Repairing…" : m_updating ? "Updating…" : "Installing…");
+                    PrimaryButton.Content = m_busyButton ?? (m_repairing ? Loc.T("Repairing…") : m_updating ? Loc.T("Updating…") : Loc.T("Installing…"));
                     PrimaryButton.IsEnabled = false;
                     break;
                 case LauncherState.UpdateAvailable:
-                    PrimaryButton.Content = "Update";
+                    PrimaryButton.Content = Loc.T("Update");
                     PrimaryButton.IsEnabled = true;
                     break;
                 case LauncherState.Starting:
-                    PrimaryButton.Content = "Starting…";
+                    PrimaryButton.Content = Loc.T("Starting…");
                     PrimaryButton.IsEnabled = false;
                     break;
                 case LauncherState.Playing:
-                    PrimaryButton.Content = "Playing";
+                    PrimaryButton.Content = Loc.T("Playing");
                     PrimaryButton.IsEnabled = false;
                     break;
                 case LauncherState.Stopping:
-                    PrimaryButton.Content = "Closing…";
+                    PrimaryButton.Content = Loc.T("Closing…");
                     PrimaryButton.IsEnabled = false;
                     break;
                 default:
-                    PrimaryButton.Content = "Play";
+                    PrimaryButton.Content = Loc.T("Play");
                     PrimaryButton.IsEnabled = true;
                     break;
             }
@@ -405,14 +410,14 @@ namespace HordesOfAzeroth.Launcher
                 ShowNotes(m_latest.Notes);
                 RefreshState();
                 if (userAsked && m_state == LauncherState.Ready)
-                    StatusDetail.Text = "up to date";
+                    StatusDetail.Text = Loc.T("up to date");
             }
             catch (Exception e) when (Web.IsProblem(e) || e is IOException || e is InvalidOperationException || e is ArgumentException || e is KeyNotFoundException || e is InvalidCastException || e is System.Text.Json.JsonException)
             {
                 if (m_latest == null)
                     ShowNotes(null);
                 if (userAsked)
-                    ShowProblem("Couldn't check for updates", Web.Describe(e));
+                    ShowProblem(Loc.T("Couldn't check for updates"), Web.Describe(e));
             }
         }
 
@@ -420,7 +425,7 @@ namespace HordesOfAzeroth.Launcher
         {
             if (!IsInstalled() || (m_state != LauncherState.Ready && m_state != LauncherState.UpdateAvailable) || m_game.IsRunning || !m_installer.LauncherOutdated(manifest))
                 return false;
-            StatusText.Text = "Updating the launcher";
+            StatusText.Text = Loc.T("Updating the launcher");
             StatusDetail.Text = "";
             await m_installer.RefreshLauncherAsync(manifest, CancellationToken.None);
             RestartLauncher();
@@ -442,7 +447,7 @@ namespace HordesOfAzeroth.Launcher
             NotesScroll.Offset = default;
             NotesPanel.Children.Add(new TextBlock
             {
-                Text = "PATCH NOTES",
+                Text = Loc.T("PATCH NOTES"),
                 FontSize = 11,
                 FontWeight = FontWeight.Bold,
                 Foreground = Brush("Accent"),
@@ -450,7 +455,7 @@ namespace HordesOfAzeroth.Launcher
             if (m_notes.Count == 0)
             {
                 NotesPager.IsVisible = false;
-                NotesPanel.Children.Add(Paragraph("Patch notes appear here once the launcher can reach GitHub.", Brush("Muted")));
+                NotesPanel.Children.Add(Paragraph(Loc.T("Patch notes appear here once the launcher can reach GitHub."), Brush("Muted")));
                 return;
             }
             ReleaseNote note = m_notes[m_notePage];
@@ -472,7 +477,7 @@ namespace HordesOfAzeroth.Launcher
             NotesPager.IsVisible = m_notes.Count > 1;
             OlderNotes.IsEnabled = m_notePage < m_notes.Count - 1;
             NewerNotes.IsEnabled = m_notePage > 0;
-            NotePageText.Text = $"{m_notePage + 1} of {m_notes.Count}";
+            NotePageText.Text = Loc.T("{0} of {1}", m_notePage + 1, m_notes.Count);
         }
 
         void OlderNotes_Click(object sender, RoutedEventArgs e)
@@ -595,7 +600,7 @@ namespace HordesOfAzeroth.Launcher
         {
             m_background?.Cancel();
             m_installCancel = new CancellationTokenSource();
-            SetState(LauncherState.Installing, "Getting ready", "");
+            SetState(LauncherState.Installing, Loc.T("Getting ready"), "");
             ShowInstallCard(0);
             IProgress<InstallProgress> progress = new Progress<InstallProgress>(p =>
             {
@@ -633,7 +638,7 @@ namespace HordesOfAzeroth.Launcher
                 await m_server.StopAsync();
                 m_state = LauncherState.NotInstalled;
                 RefreshState();
-                ShowProblem("The install stopped", e.Message);
+                ShowProblem(Loc.T("The install stopped"), e.Message);
             }
         }
 
@@ -641,22 +646,22 @@ namespace HordesOfAzeroth.Launcher
         {
             if (m_game.IsRunning)
             {
-                ShowProblem("Close the game first", "the update replaces files the game has open");
+                ShowProblem(Loc.T("Close the game first"), Loc.T("the update replaces files the game has open"));
                 return;
             }
             Manifest manifest = m_latest;
             m_background?.Cancel();
             m_installCancel = new CancellationTokenSource();
             m_updating = true;
-            string title = "Updating to " + manifest.Version.PatchName;
-            const string explanation = "Your characters and unlocks are backed up first and stay as they are. You can close the launcher and come back; it carries on where it stopped.";
-            SetState(LauncherState.Installing, "Getting ready", "");
-            ShowStepsCard("UPDATE", title, explanation, Installer.UpdateSteps, 0);
+            string title = Loc.T("Updating to {0}", manifest.Version.PatchName);
+            string explanation = Loc.T("Your characters and unlocks are backed up first and stay as they are. You can close the launcher and come back; it carries on where it stopped.");
+            SetState(LauncherState.Installing, Loc.T("Getting ready"), "");
+            ShowStepsCard(Loc.T("UPDATE"), title, explanation, Installer.UpdateSteps, 0);
             IProgress<InstallProgress> progress = new Progress<InstallProgress>(p =>
             {
                 if (m_state != LauncherState.Installing)
                     return;
-                ShowStepsCard("UPDATE", title, explanation, Installer.UpdateSteps, Array.IndexOf(Installer.UpdateSteps, p.Step));
+                ShowStepsCard(Loc.T("UPDATE"), title, explanation, Installer.UpdateSteps, Array.IndexOf(Installer.UpdateSteps, p.Step));
                 ShowStepProgress(p);
             });
             try
@@ -673,7 +678,7 @@ namespace HordesOfAzeroth.Launcher
                 m_state = LauncherState.Ready;
                 ShowNotes(manifest.Notes);
                 RefreshState();
-                StatusDetail.Text = $"updated to {manifest.Version.PatchName}";
+                StatusDetail.Text = Loc.T("updated to {0}", manifest.Version.PatchName);
                 StartBackgroundBuild();
             }
             catch (OperationCanceledException)
@@ -685,7 +690,7 @@ namespace HordesOfAzeroth.Launcher
                 m_updating = false;
                 m_state = LauncherState.Ready;
                 RefreshState();
-                ShowProblem("The update stopped", e.Message);
+                ShowProblem(Loc.T("The update stopped"), e.Message);
             }
         }
 
@@ -693,14 +698,14 @@ namespace HordesOfAzeroth.Launcher
         {
             if (m_game.IsRunning)
             {
-                ShowProblem("Close the game first", "the repair replaces files the game has open");
+                ShowProblem(Loc.T("Close the game first"), Loc.T("the repair replaces files the game has open"));
                 return;
             }
             m_background?.Cancel();
             m_installCancel = new CancellationTokenSource();
             m_repairing = true;
             string explanation = thorough ? FullRepairText : QuickRepairText;
-            SetState(LauncherState.Installing, "Getting ready", "");
+            SetState(LauncherState.Installing, Loc.T("Getting ready"), "");
             ShowRepairCard(0, explanation);
             IProgress<InstallProgress> progress = new Progress<InstallProgress>(p =>
             {
@@ -722,7 +727,7 @@ namespace HordesOfAzeroth.Launcher
                 ShowNotes(manifest.Notes);
                 RefreshState();
                 if (m_state == LauncherState.Ready)
-                    StatusDetail.Text = "the game is repaired";
+                    StatusDetail.Text = Loc.T("the game is repaired");
                 StartBackgroundBuild();
             }
             catch (OperationCanceledException)
@@ -736,7 +741,7 @@ namespace HordesOfAzeroth.Launcher
                 await m_server.StopAsync();
                 m_state = LauncherState.Ready;
                 RefreshState();
-                ShowProblem("The repair stopped", e.Message);
+                ShowProblem(Loc.T("The repair stopped"), e.Message);
             }
         }
 
@@ -753,12 +758,12 @@ namespace HordesOfAzeroth.Launcher
         }
 
         void ShowRepairCard(int current, string explanation) =>
-            ShowStepsCard("REPAIR", "Repairing Hordes of Azeroth", explanation, Installer.RepairSteps, current);
+            ShowStepsCard(Loc.T("REPAIR"), Loc.T("Repairing Hordes of Azeroth"), explanation, Installer.RepairSteps, current);
 
         void ShowStepProgress(InstallProgress p)
         {
-            StatusText.Text = Installer.InProgress(p.Step);
-            StatusDetail.Text = string.IsNullOrEmpty(p.Detail) ? "" : p.Detail;
+            StatusText.Text = Loc.T(Installer.InProgress(p.Step));
+            StatusDetail.Text = string.IsNullOrEmpty(p.Detail) ? "" : Loc.T(p.Detail);
             Progress.IsIndeterminate = p.Fraction < 0;
             if (p.Fraction >= 0)
                 Progress.Value = p.Fraction;
@@ -803,7 +808,7 @@ namespace HordesOfAzeroth.Launcher
                 bool now = i == current;
                 NotesPanel.Children.Add(new TextBlock
                 {
-                    Text = (done ? "✓  " : now ? "▸  " : "·  ") + steps[i],
+                    Text = (done ? "✓  " : now ? "▸  " : "·  ") + Loc.T(steps[i]),
                     FontSize = 12.5,
                     FontWeight = now ? FontWeight.SemiBold : FontWeight.Normal,
                     Foreground = Brush(now ? "Text" : "Muted"),
@@ -817,28 +822,28 @@ namespace HordesOfAzeroth.Launcher
         {
             NotesPanel.Children.Clear();
             NotesPager.IsVisible = false;
-            NotesPanel.Children.Add(Kicker("FIRST INSTALL"));
+            NotesPanel.Children.Add(Kicker(Loc.T("FIRST INSTALL")));
             bool paths = current >= Installer.Steps.Length;
-            NotesPanel.Children.Add(CardTitle(paths ? "Teaching monsters to find their way" : "Setting up Hordes of Azeroth"));
+            NotesPanel.Children.Add(CardTitle(paths ? Loc.T("Teaching monsters to find their way") : Loc.T("Setting up Hordes of Azeroth")));
             IBrush text = Brush("Text");
             if (paths)
             {
-                NotesPanel.Children.Add(Paragraph("Every zone gets a map of where creatures can walk, climb and fit. Monsters use it to chase you around trees, up ramps and through doorways instead of running into walls, and the horde uses it to spawn only where it can reach you, never inside a rock or on a rooftop.", text));
+                NotesPanel.Children.Add(Paragraph(Loc.T("Every zone gets a map of where creatures can walk, climb and fit. Monsters use it to chase you around trees, up ramps and through doorways instead of running into walls, and the horde uses it to spawn only where it can reach you, never inside a rock or on a rooftop."), text));
                 if (m_latest != null && m_latest.NavGroups.All(g => g.Download != null))
                 {
-                    NotesPanel.Children.Add(Paragraph($"They come ready-made, a {m_latest.NavGroups.Sum(g => g.Download.Size) / 1048576} MB download for every zone.", text));
+                    NotesPanel.Children.Add(Paragraph(Loc.T("They come ready-made, a {0} MB download for every zone.", m_latest.NavGroups.Sum(g => g.Download.Size) / 1048576), text));
                 }
                 else
                 {
-                    NotesPanel.Children.Add(Paragraph("It's worked out from your own game files, one 533-yard square at a time. Westfall, The Barrens and Duskwood come first; the harder zones finish in the background while you play.", text));
-                    NotesPanel.Children.Add(Paragraph("This is heavy work and only happens once. Your processor can sit at 100% and your fans may spin up until it's done. To use fewer cores, open the ••• menu next to Play and choose Monster path build speed.", text));
+                    NotesPanel.Children.Add(Paragraph(Loc.T("It's worked out from your own game files, one 533-yard square at a time. Westfall, The Barrens and Duskwood come first; the harder zones finish in the background while you play."), text));
+                    NotesPanel.Children.Add(Paragraph(Loc.T("This is heavy work and only happens once. Your processor can sit at 100% and your fans may spin up until it's done. To use fewer cores, open the ••• menu next to Play and choose Monster path build speed."), text));
                 }
             }
             else
             {
-                NotesPanel.Children.Add(Paragraph("The launcher builds everything from your own World of Warcraft files. You can close it and come back; it carries on where it stopped.", text));
+                NotesPanel.Children.Add(Paragraph(Loc.T("The launcher builds everything from your own World of Warcraft files. You can close it and come back; it carries on where it stopped."), text));
             }
-            AddChecklist(Installer.Steps.Concat(new[] { "Monster paths" }).ToArray(), current);
+            AddChecklist(Installer.Steps.Concat(new[] { Loc.Key("Monster paths") }).ToArray(), current);
         }
 
         void ShowStepsCard(string kicker, string title, string explanation, string[] steps, int current)
@@ -864,7 +869,7 @@ namespace HordesOfAzeroth.Launcher
             long finished = 0;
             foreach (NavGroup group in downloads)
             {
-                StatusText.Text = "Downloading monster paths";
+                StatusText.Text = Loc.T("Downloading monster paths");
                 long before = finished;
                 try
                 {
@@ -884,8 +889,8 @@ namespace HordesOfAzeroth.Launcher
                 return;
             await AskBuildSpeedOnceAsync();
             StatusText.Text = first.Download != null
-                ? "The download didn't work, so the launcher builds the monster paths for " + first.Name
-                : "Building monster paths: " + first.Name;
+                ? Loc.T("The download didn't work, so the launcher builds the monster paths for {0}", first.Name)
+                : Loc.T("Building monster paths: {0}", first.Name);
             UseInstallBuildSpeed();
             await m_nav.BuildGroupAsync(first, new Progress<NavProgress>(n =>
             {
@@ -907,7 +912,7 @@ namespace HordesOfAzeroth.Launcher
         {
             Progress.IsIndeterminate = false;
             Progress.Value = total > 0 ? (double)bytes / total : 0;
-            StatusDetail.Text = $"{bytes / 1048576.0:0.0} of {total / 1048576.0:0.0} MB";
+            StatusDetail.Text = Loc.T("{0:0.0} of {1:0.0} MB", bytes / 1048576.0, total / 1048576.0);
         }
 
         void UseInstallBuildSpeed()
@@ -921,13 +926,13 @@ namespace HordesOfAzeroth.Launcher
         {
             Progress.IsIndeterminate = false;
             Progress.Value = n.Total > 0 ? (double)n.Done / n.Total : 0;
-            StatusDetail.Text = $"{n.Done} of {n.Total} areas on {CoresText(m_settings.InstallCores)}. High CPU use is expected and only happens once.";
+            StatusDetail.Text = Loc.T("{0} of {1} areas on {2}. High CPU use is expected and only happens once.", n.Done, n.Total, CoresText(m_settings.InstallCores));
         }
 
         static string CoresText(CoreShare share)
         {
             int cores = LauncherSettings.Workers(share);
-            return cores == 1 ? "1 core" : cores + " cores";
+            return cores == 1 ? Loc.T("1 core") : Loc.T("{0} cores", cores);
         }
 
         async void StartBackgroundBuild()
@@ -1009,8 +1014,8 @@ namespace HordesOfAzeroth.Launcher
                 return;
             }
             StatusDetail.Text = n.Downloading
-                ? $"{n.Group}: downloading monster paths in the background, {n.Done} of {n.Total} MB"
-                : $"{n.Group}: building monster paths in the background, {n.Done} of {n.Total} areas on {CoresText(m_settings.BackgroundCores)}";
+                ? Loc.T("{0}: downloading monster paths in the background, {1} of {2} MB", n.Group, n.Done, n.Total)
+                : Loc.T("{0}: building monster paths in the background, {1} of {2} areas on {3}", n.Group, n.Done, n.Total, CoresText(m_settings.BackgroundCores));
             Progress.IsIndeterminate = false;
             Progress.Value = (double)n.Done / n.Total;
             ShowProgress(true);
@@ -1018,7 +1023,7 @@ namespace HordesOfAzeroth.Launcher
 
         async Task PlayAsync()
         {
-            SetState(LauncherState.Starting, "Starting", "");
+            SetState(LauncherState.Starting, Loc.T("Starting"), "");
             Progress<string> progress = new Progress<string>(step => StatusDetail.Text = step);
             try
             {
@@ -1026,7 +1031,7 @@ namespace HordesOfAzeroth.Launcher
                 m_game.Prepare(m_accounts.Selected);
                 await StartServerAsync(progress);
                 await m_accountSync.PrepareAsync(m_accounts);
-                StatusDetail.Text = "Starting the game";
+                StatusDetail.Text = Loc.T("Starting the game");
                 await m_game.StartAsync(CancellationToken.None);
             }
             catch (Exception e) when (!(e is OutOfMemoryException))
@@ -1034,7 +1039,7 @@ namespace HordesOfAzeroth.Launcher
                 await m_server.StopAsync();
                 m_state = LauncherState.Ready;
                 RefreshState();
-                ShowProblem("The game couldn't start", e.Message);
+                ShowProblem(Loc.T("The game couldn't start"), e.Message);
                 return;
             }
             await WatchRunningGameAsync();
@@ -1053,7 +1058,7 @@ namespace HordesOfAzeroth.Launcher
                 repairing |= p.Fixing;
                 if (!repairing)
                 {
-                    StatusDetail.Text = Installer.InProgress(p.Step);
+                    StatusDetail.Text = Loc.T(Installer.InProgress(p.Step));
                     return;
                 }
                 ShowRepairCard(Array.IndexOf(Installer.RepairSteps, p.Step), QuickRepairText);
@@ -1064,7 +1069,7 @@ namespace HordesOfAzeroth.Launcher
             if (!repaired)
                 return;
             ShowNotes(m_latest.Notes);
-            SetState(LauncherState.Starting, "Starting", "");
+            SetState(LauncherState.Starting, Loc.T("Starting"), "");
         }
 
         async Task StartServerAsync(IProgress<string> progress)
@@ -1075,24 +1080,24 @@ namespace HordesOfAzeroth.Launcher
             }
             catch (WorldDatabaseException) when (!m_folder.IsDevelopmentTree)
             {
-                StatusText.Text = "Reloading the world";
-                StatusDetail.Text = "the world database didn't match the server (about a minute)";
+                StatusText.Text = Loc.T("Reloading the world");
+                StatusDetail.Text = Loc.T("the world database didn't match the server (about a minute)");
                 ShowRepairCard(Installer.RepairSteps.Length - 1, QuickRepairText);
                 await m_installer.ReloadWorldAsync(new Progress<InstallProgress>(_ => { }), CancellationToken.None);
                 ShowNotes(m_latest?.Notes);
-                SetState(LauncherState.Starting, "Starting", "");
+                SetState(LauncherState.Starting, Loc.T("Starting"), "");
                 await m_server.StartAsync(progress, CancellationToken.None);
             }
         }
 
         async Task WatchRunningGameAsync()
         {
-            SetState(LauncherState.Playing, "Playing", "the game's server stops when you close the game");
+            SetState(LauncherState.Playing, Loc.T("Playing"), Loc.T("the game's server stops when you close the game"));
             if (m_settings.KeepInTray)
                 TuckAway();
             await m_game.WaitForAllToCloseAsync(CancellationToken.None);
             ShowFromTray();
-            SetState(LauncherState.Stopping, "Closing", "saving and stopping the game's server");
+            SetState(LauncherState.Stopping, Loc.T("Closing"), Loc.T("saving and stopping the game's server"));
             await CountCharactersAsync();
             try
             {
@@ -1116,13 +1121,13 @@ namespace HordesOfAzeroth.Launcher
             m_settings.Save();
             m_game.UseDirectX12 = true;
             LauncherLog.Write(m_folder, "The game crashed in the graphics driver's Vulkan module; switched the game to DirectX 12.");
-            await Dialog.TellAsync(this, "The game crashed inside your graphics driver. It will use DirectX 12 from now on, so press Play to try again.\n\nUpdating your graphics driver may also fix it.");
+            await Dialog.TellAsync(this, Loc.T("The game crashed inside your graphics driver. It will use DirectX 12 from now on, so press Play to try again.\n\nUpdating your graphics driver may also fix it."));
         }
 
         async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
         {
             if (m_state == LauncherState.Ready || m_state == LauncherState.UpdateAvailable || m_state == LauncherState.Missing)
-                StatusDetail.Text = "checking…";
+                StatusDetail.Text = Loc.T("checking…");
             await CheckForUpdatesAsync(true);
         }
 
@@ -1142,7 +1147,7 @@ namespace HordesOfAzeroth.Launcher
 
         async void ReportBug_Click(object sender, RoutedEventArgs e)
         {
-            if (RunUpload.IsConfigured && await Dialog.AskAsync(this, "Send your logs to the developer with this bug report?\n\nThey hold the game's server and client logs, your character names and your game settings. You'll get a reference to put in your report."))
+            if (RunUpload.IsConfigured && await Dialog.AskAsync(this, Loc.T("Send your logs to the developer with this bug report?\n\nThey hold the game's server and client logs, your character names and your game settings. You'll get a reference to put in your report.")))
             {
                 await SendLogsAsync();
                 return;
@@ -1158,12 +1163,12 @@ namespace HordesOfAzeroth.Launcher
             {
                 zip = LogBundle.Save(m_folder);
                 string reference = await RunUpload.SendReportAsync(zip);
-                await Dialog.TellAsync(this, $"Your logs were sent. Reference: {reference}\n\nPut this reference in your bug report on GitHub or Discord.");
+                await Dialog.TellAsync(this, Loc.T("Your logs were sent. Reference: {0}\n\nPut this reference in your bug report on GitHub or Discord.", reference));
                 Platform.OpenUrl(NewIssueUrl);
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
             {
-                ShowProblem("The logs couldn't be sent", zip == null ? e.Message : "They were saved on your desktop instead. Attach that file to your bug report.");
+                ShowProblem(Loc.T("The logs couldn't be sent"), zip == null ? e.Message : Loc.T("They were saved on your desktop instead. Attach that file to your bug report."));
                 if (zip != null)
                     Platform.ShowFile(zip);
             }
@@ -1180,7 +1185,7 @@ namespace HordesOfAzeroth.Launcher
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
-                ShowProblem("The logs couldn't be saved", e.Message);
+                ShowProblem(Loc.T("The logs couldn't be saved"), e.Message);
                 return false;
             }
         }
@@ -1223,8 +1228,24 @@ namespace HordesOfAzeroth.Launcher
             {
                 GameConfig.WriteLanguage(m_folder, code);
                 ShowLanguage();
+                ChangeLanguage(code);
             };
             return item;
+        }
+
+        void ChangeLanguage(string code)
+        {
+            Loc.Use(code);
+            Loc.Apply(this);
+            if (m_tray != null)
+            {
+                m_trayOpen.Header = Loc.T("Open launcher");
+                m_trayQuit.Header = Loc.T("Quit");
+                m_tray.ToolTipText = Loc.T("Hordes of Azeroth");
+            }
+            if (m_state != LauncherState.Installing)
+                ShowNotePage();
+            RefreshState();
         }
 
         void MoreButton_Click(object sender, RoutedEventArgs e) => ToggleMenu(OptionsMenu, MoreButton, null);
@@ -1240,14 +1261,14 @@ namespace HordesOfAzeroth.Launcher
             BackupItem.IsEnabled = idle && m_server.DatabaseExists;
             RestoreItem.IsEnabled = idle && m_server.DatabaseExists;
             DateTime? last = m_saves.LastBackupTime;
-            ToolTip.SetTip(RestoreItem, last == null ? "Puts back the save data from a backup file." : $"Puts back the save data from a backup file. Last backup: {last:d MMMM, HH:mm}.");
+            ToolTip.SetTip(RestoreItem, last == null ? Loc.T("Puts back the save data from a backup file.") : Loc.T("Puts back the save data from a backup file. Last backup: {0}.", last.Value.ToString(Loc.T("d MMMM, HH:mm"), CultureInfo.InvariantCulture)));
             RepairItem.IsVisible = !m_folder.IsDevelopmentTree;
             RepairItem.IsEnabled = m_state == LauncherState.Ready || m_state == LauncherState.UpdateAvailable || (m_state == LauncherState.NotInstalled && m_installer.IsComplete);
         }
 
         async void RepairItem_Click(object sender, RoutedEventArgs e)
         {
-            string question = "Repair checks every game file, downloads the ones that are missing or damaged and reloads the world. It takes a minute or two. Your characters and unlocks are backed up first and stay as they are.\n\nRepair the game now?";
+            string question = Loc.T("Repair checks every game file, downloads the ones that are missing or damaged and reloads the world. It takes a minute or two. Your characters and unlocks are backed up first and stay as they are.\n\nRepair the game now?");
             if (await Dialog.AskAsync(this, question))
                 await RepairAsync(true);
         }
@@ -1301,13 +1322,13 @@ namespace HordesOfAzeroth.Launcher
         {
             List<Control> items = new List<Control>
             {
-                new MenuItem { Header = new TextBlock { Text = "PLAY AS", FontSize = 11, FontWeight = FontWeight.Bold, Foreground = Brush("Accent") }, IsHitTestVisible = false },
+                new MenuItem { Header = new TextBlock { Text = Loc.T("PLAY AS"), FontSize = 11, FontWeight = FontWeight.Bold, Foreground = Brush("Accent") }, IsHitTestVisible = false },
             };
             items.AddRange(m_accounts.All.Select(AccountItem));
             items.Add(new Separator());
-            items.Add(MenuAction("Add an account…", AddAccountAsync));
-            items.Add(MenuAction($"Rename {m_accounts.Selected.Name}…", RenameAccountAsync));
-            MenuItem delete = MenuAction($"Delete {m_accounts.Selected.Name}…", DeleteAccountAsync);
+            items.Add(MenuAction(Loc.T("Add an account…"), AddAccountAsync));
+            items.Add(MenuAction(Loc.T("Rename {0}…", m_accounts.Selected.Name), RenameAccountAsync));
+            MenuItem delete = MenuAction(Loc.T("Delete {0}…", m_accounts.Selected.Name), DeleteAccountAsync);
             delete.IsEnabled = m_accounts.All.Count > 1;
             items.Add(delete);
             AccountMenu.ItemsSource = items;
@@ -1315,7 +1336,7 @@ namespace HordesOfAzeroth.Launcher
 
         MenuItem AccountItem(Account account)
         {
-            string detail = account.Characters < 0 ? null : account.Characters == 0 ? "no characters yet" : account.Characters == 1 ? "1 character" : $"{account.Characters} characters";
+            string detail = account.Characters < 0 ? null : account.Characters == 0 ? Loc.T("no characters yet") : account.Characters == 1 ? Loc.T("1 character") : Loc.T("{0} characters", account.Characters);
             Border badge = new Border
             {
                 Width = 20,
@@ -1372,14 +1393,14 @@ namespace HordesOfAzeroth.Launcher
                 string name = Accounts.CleanName(answer);
                 if (name.Length > 0 && !m_accounts.NameTaken(name, renaming))
                     return name;
-                await Dialog.TellAsync(this, name.Length == 0 ? "Give the account a name." : $"There is already an account called {name}.");
+                await Dialog.TellAsync(this, name.Length == 0 ? Loc.T("Give the account a name.") : Loc.T("There is already an account called {0}.", name));
                 initial = name;
             }
         }
 
         async Task AddAccountAsync()
         {
-            string name = await AskAccountNameAsync("Name the new account. It starts with no characters, gold or unlocks.", "", "Add", null);
+            string name = await AskAccountNameAsync(Loc.T("Name the new account. It starts with no characters, gold or unlocks."), "", Loc.T("Add"), null);
             if (name == null)
                 return;
             m_accounts.Add(name);
@@ -1389,7 +1410,7 @@ namespace HordesOfAzeroth.Launcher
         async Task RenameAccountAsync()
         {
             Account account = m_accounts.Selected;
-            string name = await AskAccountNameAsync("Rename this account. Only its name in the launcher changes.", account.Name, "Rename", account);
+            string name = await AskAccountNameAsync(Loc.T("Rename this account. Only its name in the launcher changes."), account.Name, Loc.T("Rename"), account);
             if (name == null)
                 return;
             m_accounts.Rename(account, name);
@@ -1399,8 +1420,8 @@ namespace HordesOfAzeroth.Launcher
         async Task DeleteAccountAsync()
         {
             Account account = m_accounts.Selected;
-            string question = $"Delete the account {account.Name}?\n\nIts characters, gold and unlocks are deleted the next time you press Play. Back up your save data first if you might want them back.";
-            if (!await Dialog.ConfirmAsync(this, question, "Delete"))
+            string question = Loc.T("Delete the account {0}?\n\nIts characters, gold and unlocks are deleted the next time you press Play. Back up your save data first if you might want them back.", account.Name);
+            if (!await Dialog.ConfirmAsync(this, question, Loc.T("Delete")))
                 return;
             m_accounts.Delete(account);
             ShowAccount();
@@ -1420,11 +1441,11 @@ namespace HordesOfAzeroth.Launcher
 
         async void BackupItem_Click(object sender, RoutedEventArgs e)
         {
-            string zip = await RunSaveTaskAsync("Backing up…", "Backing up your save data", "The backup couldn't be saved",
+            string zip = await RunSaveTaskAsync(Loc.T("Backing up…"), Loc.T("Backing up your save data"), Loc.T("The backup couldn't be saved"),
                 () => m_saves.BackUpAsync("", CancellationToken.None));
             if (zip == null)
                 return;
-            StatusDetail.Text = "saved " + Path.GetFileName(zip);
+            StatusDetail.Text = Loc.T("saved {0}", Path.GetFileName(zip));
             Platform.ShowFile(zip);
         }
 
@@ -1433,10 +1454,10 @@ namespace HordesOfAzeroth.Launcher
             string zip = await PickBackupAsync();
             if (zip == null)
                 return;
-            string question = $"Restore {Path.GetFileName(zip)}?\n\nEvery account's characters, gold, unlocks and settings go back to how they were in that backup. The launcher backs up how things are now first.";
-            if (!await Dialog.ConfirmAsync(this, question, "Restore"))
+            string question = Loc.T("Restore {0}?\n\nEvery account's characters, gold, unlocks and settings go back to how they were in that backup. The launcher backs up how things are now first.", Path.GetFileName(zip));
+            if (!await Dialog.ConfirmAsync(this, question, Loc.T("Restore")))
                 return;
-            string restored = await RunSaveTaskAsync("Restoring…", "Restoring your save data", "The backup couldn't be restored", async () =>
+            string restored = await RunSaveTaskAsync(Loc.T("Restoring…"), Loc.T("Restoring your save data"), Loc.T("The backup couldn't be restored"), async () =>
             {
                 await m_saves.RestoreAsync(zip, CancellationToken.None);
                 return zip;
@@ -1445,7 +1466,7 @@ namespace HordesOfAzeroth.Launcher
                 return;
             m_accounts = Accounts.Load(m_folder);
             ShowAccount();
-            StatusDetail.Text = "restored " + Path.GetFileName(zip);
+            StatusDetail.Text = Loc.T("restored {0}", Path.GetFileName(zip));
         }
 
         async Task<string> PickBackupAsync()
@@ -1453,10 +1474,10 @@ namespace HordesOfAzeroth.Launcher
             Directory.CreateDirectory(m_saves.Folder);
             IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Choose a save backup",
+                Title = Loc.T("Choose a save backup"),
                 AllowMultiple = false,
                 SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(m_saves.Folder),
-                FileTypeFilter = new[] { new FilePickerFileType("Save backups") { Patterns = new[] { "*.zip" } } },
+                FileTypeFilter = new[] { new FilePickerFileType(Loc.T("Save backups")) { Patterns = new[] { "*.zip" } } },
             });
             return files.Count > 0 ? files[0].TryGetLocalPath() : null;
         }

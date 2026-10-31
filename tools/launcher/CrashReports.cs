@@ -36,11 +36,11 @@ namespace HordesOfAzeroth.Launcher
         {
             List<string> crashed = new List<string>();
             if (NewerFiles(Path.Combine(folder.Root, "Errors"), "*.txt", sinceUtc))
-                crashed.Add("the game");
+                crashed.Add(Loc.Key("the game"));
             if (NewerFiles(folder.ServerLogs, ServerCrashFile, sinceUtc) || NewerFiles(folder.ServerLogs, "*.dmp", sinceUtc))
-                crashed.Add("the game's server");
+                crashed.Add(Loc.Key("the game's server"));
             if (NewerFiles(folder.LauncherData, LauncherCrashFile, sinceUtc))
-                crashed.Add("the launcher");
+                crashed.Add(Loc.Key("the launcher"));
             return crashed;
         }
 

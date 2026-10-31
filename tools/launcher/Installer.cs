@@ -64,11 +64,11 @@ namespace HordesOfAzeroth.Launcher
 
         public static readonly string[] Steps =
         {
-            "Download the game files",
-            "Set up the game",
-            "Read the maps",
-            "Build the spell effects",
-            "Set up the database",
+            Loc.Key("Download the game files"),
+            Loc.Key("Set up the game"),
+            Loc.Key("Read the maps"),
+            Loc.Key("Build the spell effects"),
+            Loc.Key("Set up the database"),
         };
 
         readonly GameFolder m_folder;
@@ -121,37 +121,37 @@ namespace HordesOfAzeroth.Launcher
 
         public static readonly string[] UpdateSteps =
         {
-            "Back up your characters",
-            "Download the update",
-            "Set up the game",
-            "Rebuild the spell effects",
-            "Update the database",
+            Loc.Key("Back up your characters"),
+            Loc.Key("Download the update"),
+            Loc.Key("Set up the game"),
+            Loc.Key("Rebuild the spell effects"),
+            Loc.Key("Update the database"),
         };
 
         public static readonly string[] RepairSteps =
         {
-            "Check the game files",
-            "Download the missing files",
-            "Set up the game",
-            "Read the maps",
-            "Rebuild the spell effects",
-            "Check the database",
+            Loc.Key("Check the game files"),
+            Loc.Key("Download the missing files"),
+            Loc.Key("Set up the game"),
+            Loc.Key("Read the maps"),
+            Loc.Key("Rebuild the spell effects"),
+            Loc.Key("Check the database"),
         };
 
         static readonly Dictionary<string, string> StepsInProgress = new Dictionary<string, string>
         {
-            { "Check the game files", "Checking the game files" },
-            { "Download the missing files", "Downloading the missing files" },
-            { "Check the database", "Checking the database" },
-            { "Download the game files", "Downloading the game files" },
-            { "Set up the game", "Setting up the game" },
-            { "Read the maps", "Reading the maps" },
-            { "Build the spell effects", "Building the spell effects" },
-            { "Set up the database", "Setting up the database" },
-            { "Back up your characters", "Backing up your characters" },
-            { "Download the update", "Downloading the update" },
-            { "Rebuild the spell effects", "Rebuilding the spell effects" },
-            { "Update the database", "Updating the database" },
+            { "Check the game files", Loc.Key("Checking the game files") },
+            { "Download the missing files", Loc.Key("Downloading the missing files") },
+            { "Check the database", Loc.Key("Checking the database") },
+            { "Download the game files", Loc.Key("Downloading the game files") },
+            { "Set up the game", Loc.Key("Setting up the game") },
+            { "Read the maps", Loc.Key("Reading the maps") },
+            { "Build the spell effects", Loc.Key("Building the spell effects") },
+            { "Set up the database", Loc.Key("Setting up the database") },
+            { "Back up your characters", Loc.Key("Backing up your characters") },
+            { "Download the update", Loc.Key("Downloading the update") },
+            { "Rebuild the spell effects", Loc.Key("Rebuilding the spell effects") },
+            { "Update the database", Loc.Key("Updating the database") },
         };
 
         public static string InProgress(string step) =>
@@ -238,7 +238,7 @@ namespace HordesOfAzeroth.Launcher
             progress.Report(new InstallProgress { Step = RepairSteps[5] });
             if (thorough && m_server.DatabaseExists)
             {
-                progress.Report(new InstallProgress { Step = RepairSteps[5], Detail = "backing up your characters" });
+                progress.Report(new InstallProgress { Step = RepairSteps[5], Detail = Loc.T("backing up your characters") });
                 await BackUpAsync("Repair", cancel);
             }
             await EnsureDatabaseAsync(manifest, thorough, progress, RepairSteps[5], cancel);
@@ -282,7 +282,7 @@ namespace HordesOfAzeroth.Launcher
         void RefuseDevelopmentTree()
         {
             if (m_folder.IsDevelopmentTree)
-                throw new InvalidOperationException("This folder is a Hordes of Azeroth source checkout. Install the game into a separate copy of World of Warcraft 1.12.1 instead.");
+                throw new InvalidOperationException(Loc.T("This folder is a Hordes of Azeroth source checkout. Install the game into a separate copy of World of Warcraft 1.12.1 instead."));
         }
 
         public async Task InstallAsync(Manifest manifest, IProgress<InstallProgress> progress, CancellationToken cancel)
@@ -380,7 +380,7 @@ namespace HordesOfAzeroth.Launcher
             Action<long> report = bytes => progress.Report(new InstallProgress
             {
                 Step = step,
-                Detail = $"{(finished + bytes) / 1048576.0:0.0} of {total / 1048576.0:0.0} MB",
+                Detail = Loc.T("{0:0.0} of {1:0.0} MB", (finished + bytes) / 1048576.0, total / 1048576.0),
                 Fraction = total > 0 ? (double)(finished + bytes) / total : 0,
             });
 
@@ -474,13 +474,13 @@ namespace HordesOfAzeroth.Launcher
                 {
                     if (File.Exists(target))
                         File.Delete(target);
-                    throw new InvalidOperationException($"Couldn't download {name} ({e.Message.TrimEnd('.')}). Check your connection and try again.");
+                    throw new InvalidOperationException(Loc.T("Couldn't download {0} ({1}). Check your connection and try again.", name, e.Message.TrimEnd('.')));
                 }
             }
             if (Sha256(target) != sha256)
             {
                 File.Delete(target);
-                throw new InvalidDataException($"{name} didn't download correctly. Try again.");
+                throw new InvalidDataException(Loc.T("{0} didn't download correctly. Try again.", name));
             }
             return target;
         }
@@ -536,7 +536,7 @@ namespace HordesOfAzeroth.Launcher
                         continue;
                     string target = versionTarget != null && relative == "VERSION" ? versionTarget : Path.GetFullPath(Path.Combine(root, relative));
                     if (target != versionTarget && !target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException($"{Path.GetFileName(zip)} contains a path outside the game folder.");
+                        throw new InvalidDataException(Loc.T("{0} contains a path outside the game folder.", Path.GetFileName(zip)));
                     if (relative.EndsWith(Path.DirectorySeparatorChar.ToString()))
                     {
                         Directory.CreateDirectory(target);
@@ -632,16 +632,16 @@ namespace HordesOfAzeroth.Launcher
             string extractors = Path.Combine(m_folder.ServerRun, "Extractors");
             Directory.CreateDirectory(Path.Combine(DataDir, "vmaps"));
 
-            progress.Report(new InstallProgress { Step = step, Detail = "terrain and areas", Fraction = 0.05 });
+            progress.Report(new InstallProgress { Step = step, Detail = Loc.T("terrain and areas"), Fraction = 0.05 });
             await RunToolAsync(Path.Combine(extractors, Platform.Exe("MapExtractor")), DataDir, cancel, "-i", Quote(m_folder.Root), "--silent");
             string dbcTarget = Path.Combine(DataDir, "5875", "dbc");
             Directory.CreateDirectory(Path.GetDirectoryName(dbcTarget));
             await Folders.MoveAsync(Path.Combine(DataDir, "dbc"), dbcTarget, cancel);
 
-            progress.Report(new InstallProgress { Step = step, Detail = "buildings and trees", Fraction = 0.4 });
+            progress.Report(new InstallProgress { Step = step, Detail = Loc.T("buildings and trees"), Fraction = 0.4 });
             await Folders.DeleteAsync(Path.Combine(DataDir, "Buildings"), cancel);
             await RunToolAsync(Path.Combine(extractors, Platform.Exe("VMapExtractor")), DataDir, cancel, "-d", Quote(m_folder.Data), "--silent");
-            progress.Report(new InstallProgress { Step = step, Detail = "line of sight", Fraction = 0.8 });
+            progress.Report(new InstallProgress { Step = step, Detail = Loc.T("line of sight"), Fraction = 0.8 });
             await RunToolAsync(Path.Combine(extractors, Platform.Exe("VMapAssembler")), DataDir, cancel, "Buildings", "vmaps", "--silent");
             await Folders.DeleteAsync(Path.Combine(DataDir, "Buildings"), cancel);
         }
@@ -692,7 +692,7 @@ namespace HordesOfAzeroth.Launcher
             if (!m_server.DatabaseExists)
             {
                 ForgetApplied(WorldPackage);
-                progress.Report(new InstallProgress { Step = step, Detail = "creating the database", Fraction = 0.05, Fixing = true });
+                progress.Report(new InstallProgress { Step = step, Detail = Loc.T("creating the database"), Fraction = 0.05, Fixing = true });
                 await m_server.CreateDatabaseFilesAsync();
             }
             await m_server.StartDatabaseOnlyAsync(cancel);
@@ -710,7 +710,7 @@ namespace HordesOfAzeroth.Launcher
                 string database = imports[i, 0];
                 if (tables.Contains(database + "." + imports[i, 2]))
                     continue;
-                progress.Report(new InstallProgress { Step = step, Detail = "creating " + database, Fraction = 0.1 + 0.15 * i, Fixing = true });
+                progress.Report(new InstallProgress { Step = step, Detail = Loc.T("creating {0}", database), Fraction = 0.1 + 0.15 * i, Fixing = true });
                 await m_server.RunSqlFileAsync(database, Path.Combine(SqlDir, imports[i, 1]));
             }
 
@@ -748,8 +748,8 @@ namespace HordesOfAzeroth.Launcher
         async Task LoadWorldAsync(IProgress<InstallProgress> progress, string step)
         {
             if (!File.Exists(WorldSql))
-                throw new FileNotFoundException("The world database file (server/sql/world.sql) is missing. " + LocalServer.RepairAdvice, WorldSql);
-            progress.Report(new InstallProgress { Step = step, Detail = "loading the world (about a minute)", Fraction = 0.55, Fixing = true });
+                throw new FileNotFoundException(Loc.T("The world database file (server/sql/world.sql) is missing. {0}", LocalServer.RepairAdvice), WorldSql);
+            progress.Report(new InstallProgress { Step = step, Detail = Loc.T("loading the world (about a minute)"), Fraction = 0.55, Fixing = true });
             ForgetApplied(WorldPackage);
             await m_server.RunSqlFileAsync(null, Path.Combine(m_folder.Config, "create-databases.sql"));
             await ClearWorldDatabaseAsync();
@@ -769,7 +769,7 @@ namespace HordesOfAzeroth.Launcher
                 string[] parts = Path.GetFileNameWithoutExtension(file).Split('_');
                 if (parts.Length != 2 || !MigrationDatabases.TryGetValue(parts[1], out string database) || applied.Contains(database + "." + parts[0]))
                     continue;
-                progress.Report(new InstallProgress { Step = step, Detail = "applying updates to your characters", Fraction = 0.75, Fixing = true });
+                progress.Report(new InstallProgress { Step = step, Detail = Loc.T("applying updates to your characters"), Fraction = 0.75, Fixing = true });
                 await m_server.RunSqlFileAsync(database, file);
             }
         }
@@ -780,13 +780,13 @@ namespace HordesOfAzeroth.Launcher
             await m_server.QueryAsync("realmd", $"INSERT INTO realmlist (id, name, address, port) VALUES (1, '{realm}', '127.0.0.1', 8085) ON DUPLICATE KEY UPDATE name = '{realm}', address = '127.0.0.1', port = 8085");
             if (await PlayerAccountExistsAsync())
                 return;
-            progress.Report(new InstallProgress { Step = step, Detail = "creating your account", Fraction = 0.85, Fixing = true });
+            progress.Report(new InstallProgress { Step = step, Detail = Loc.T("creating your account"), Fraction = 0.85, Fixing = true });
             await m_server.StartAsync(new Progress<string>(_ => { }), cancel);
             await m_server.RunConsoleAsync("account create player player");
             bool created = await PlayerAccountExistsAsync();
             await m_server.StopAsync();
             if (!created)
-                throw new InvalidOperationException("The account couldn't be created. See server/logs/Server.log.");
+                throw new InvalidOperationException(Loc.T("The account couldn't be created. See server/logs/Server.log."));
         }
 
         async Task<bool> PlayerAccountExistsAsync() =>
@@ -797,7 +797,7 @@ namespace HordesOfAzeroth.Launcher
         static async Task RunToolAsync(string exe, string workingDirectory, CancellationToken cancel, params string[] arguments)
         {
             if (!File.Exists(exe))
-                throw new FileNotFoundException($"{Path.GetFileName(exe)} is missing from the download.");
+                throw new FileNotFoundException(Loc.T("{0} is missing from the download.", Path.GetFileName(exe)));
             ProcessStartInfo info = new ProcessStartInfo(exe, string.Join(" ", arguments))
             {
                 WorkingDirectory = workingDirectory,
@@ -836,7 +836,7 @@ namespace HordesOfAzeroth.Launcher
                     string said;
                     lock (lastLines)
                         said = string.Join(" / ", lastLines);
-                    throw new InvalidOperationException($"{Path.GetFileName(exe)} stopped with code {process.ExitCode}: {said}");
+                    throw new InvalidOperationException(Loc.T("{0} stopped with code {1}: {2}", Path.GetFileName(exe), process.ExitCode, said));
                 }
             }
         }

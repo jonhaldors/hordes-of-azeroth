@@ -10,11 +10,11 @@ namespace HordesOfAzeroth.Launcher
     {
         const double Width = 460;
 
-        public static Task<bool> AskAsync(Window owner, string question) => ShowAsync(owner, question, "Yes", "No");
+        public static Task<bool> AskAsync(Window owner, string question) => ShowAsync(owner, question, Loc.T("Yes"), Loc.T("No"));
 
-        public static Task<bool> TellAsync(Window owner, string message) => ShowAsync(owner, message, "OK", null);
+        public static Task<bool> TellAsync(Window owner, string message) => ShowAsync(owner, message, Loc.T("OK"), null);
 
-        public static Task<bool> ConfirmAsync(Window owner, string question, string confirm) => ShowAsync(owner, question, confirm, "Cancel");
+        public static Task<bool> ConfirmAsync(Window owner, string question, string confirm) => ShowAsync(owner, question, confirm, Loc.T("Cancel"));
 
         public static async Task<string> AskTextAsync(Window owner, string question, string initial, string confirm, int maxLength)
         {
@@ -24,7 +24,7 @@ namespace HordesOfAzeroth.Launcher
                 box.Focus();
                 box.SelectAll();
             };
-            bool confirmed = await ShowAsync(owner, question, confirm, "Cancel", box);
+            bool confirmed = await ShowAsync(owner, question, confirm, Loc.T("Cancel"), box);
             return confirmed ? box.Text : null;
         }
 
@@ -33,7 +33,7 @@ namespace HordesOfAzeroth.Launcher
             bool confirmed = false;
             Window window = new Window
             {
-                Title = "Hordes of Azeroth",
+                Title = Loc.T("Hordes of Azeroth"),
                 Width = Width,
                 SizeToContent = SizeToContent.Height,
                 CanResize = false,
