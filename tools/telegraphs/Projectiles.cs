@@ -58,11 +58,10 @@ namespace BonkTelegraphs
             for (int i = 0; i < missiles.GetLength(0); i++)
             {
                 string name = missiles[i, 0], path = missiles[i, 1];
-                uint displayId = firstDisplayId + (uint)i, modelId = firstModelId + (uint)i;
+                uint displayId = firstDisplayId + (uint)i;
                 if (displays.Find(displayId) != null)
                     throw new InvalidOperationException("Creature display " + displayId + " is taken.");
-                if (models.Find(modelId) != null)
-                    throw new InvalidOperationException("Creature model " + modelId + " is taken.");
+                uint modelId = models.ClaimId(firstModelId + (uint)i);
 
                 byte[] source = client.Read(path + ".m2");
                 if (source == null)

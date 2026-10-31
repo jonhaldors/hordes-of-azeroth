@@ -15,6 +15,7 @@ namespace HordesOfAzeroth.Launcher
         public const int FormatVersion = 1;
         const int MaxOutboxFiles = 100;
         const double MinRunMinutes = 1.0;
+        const long MaxCollectBytes = 64L * 1024 * 1024;
         static readonly TimeSpan AbandonedAfter = TimeSpan.FromHours(6);
         const string TimestampFormat = "yyyy-MM-dd HH:mm:ss";
         static readonly Regex BonkLine = new Regex(@"^(\S+ \S+) \[LevelUp\] \(acc (\d+), .*?guid (\d+), name ([^,]+),.*?\) Bonk (\w+): (.*)$");
@@ -51,6 +52,8 @@ namespace HordesOfAzeroth.Launcher
             {
                 if (stream.Length < offset)
                     offset = 0;
+                if (stream.Length - offset > MaxCollectBytes)
+                    offset = stream.Length - MaxCollectBytes;
                 stream.Seek(offset, SeekOrigin.Begin);
                 tail = new byte[stream.Length - offset];
                 int read = 0;

@@ -152,7 +152,7 @@ namespace HordesOfAzeroth.Launcher
             {
                 long offset = m_settings.RunLogOffset;
                 bool send = m_settings.SendRunData;
-                long next = await Task.Run(() => send ? RunRecords.Collect(m_folder, m_settings, offset) : RunRecords.SkipTo(m_folder));
+                long next = await Task.Run(() => ServerLogTrim.Trim(m_folder, send ? RunRecords.Collect(m_folder, m_settings, offset) : RunRecords.SkipTo(m_folder)));
                 m_settings.RunLogOffset = next;
                 m_settings.Save();
                 if (send)

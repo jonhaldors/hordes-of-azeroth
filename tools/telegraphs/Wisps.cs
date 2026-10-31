@@ -44,11 +44,9 @@ namespace BonkTelegraphs
             byte[] glow = Require(client, Folder + "WispGlow.blp"), skin = Require(client, Folder + "Wisp.blp");
             foreach (Colour colour in Colours)
             {
-                uint modelId = colour.ModelId;
                 if (displays.Find(colour.DisplayId) != null)
                     throw new InvalidOperationException("Creature display " + colour.DisplayId + " is taken.");
-                if (models.Find(modelId) != null)
-                    throw new InvalidOperationException("Creature model " + modelId + " is taken.");
+                uint modelId = models.ClaimId(colour.ModelId);
 
                 string name = "WispOrb" + colour.Name;
                 Dictionary<string, string> textures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

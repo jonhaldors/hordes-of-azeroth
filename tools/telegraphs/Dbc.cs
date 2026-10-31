@@ -65,6 +65,11 @@ namespace BonkTelegraphs
             return null;
         }
 
+        public uint ClaimId(uint wanted)
+        {
+            return Find(wanted) == null ? wanted : MaxId() + 1;
+        }
+
         public uint MaxId()
         {
             uint max = 0;

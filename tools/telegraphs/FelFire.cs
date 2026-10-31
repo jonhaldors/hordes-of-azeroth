@@ -104,8 +104,7 @@ namespace BonkTelegraphs
                 throw new InvalidDataException("Creature display " + ImpDisplayId + " (Imp) is not in the client's tables.");
             if (displays.Find(FelImpDisplayId) != null)
                 throw new InvalidOperationException("Creature display " + FelImpDisplayId + " is taken.");
-            if (models.Find(FelImpModelId) != null)
-                throw new InvalidOperationException("Creature model " + FelImpModelId + " is taken.");
+            uint felModelId = models.ClaimId(FelImpModelId);
 
             Builder builder = new Builder { Client = client, Files = files };
             string stem = MpqPath.WithoutExtension(models.GetString(model[ModelPathField]));
@@ -113,14 +112,14 @@ namespace BonkTelegraphs
             files[felStem + ".m2"] = RecolourModel(builder, stem + ".m2", true);
 
             uint[] felModel = (uint[])model.Clone();
-            felModel[0] = FelImpModelId;
+            felModel[0] = felModelId;
             felModel[ModelPathField] = models.AddString(felStem + ".mdx");
             models.Records.Add(felModel);
             uint[] felDisplay = (uint[])display.Clone();
             felDisplay[0] = FelImpDisplayId;
-            felDisplay[DisplayModelField] = FelImpModelId;
+            felDisplay[DisplayModelField] = felModelId;
             displays.Records.Add(felDisplay);
-            return string.Format("creature display {0}: Imp with fel green hand fire (model {1}, {2})", FelImpDisplayId, FelImpModelId, felStem);
+            return string.Format("creature display {0}: Imp with fel green hand fire (model {1}, {2})", FelImpDisplayId, felModelId, felStem);
         }
 
         public static List<string> AddFelFire(ClientData client, IDictionary<string, byte[]> files, Dbc spells, Dbc visuals, Dbc kits, Dbc effects)

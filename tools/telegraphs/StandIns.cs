@@ -59,8 +59,7 @@ namespace BonkTelegraphs
 
         static uint AddModel(Dbc models, uint[] template, uint modelId, string name)
         {
-            if (models.Find(modelId) != null)
-                throw new InvalidOperationException("Creature model " + modelId + " is taken.");
+            modelId = models.ClaimId(modelId);
             uint[] model = (uint[])template.Clone();
             model[0] = modelId;
             model[2] = models.AddString(Folder + name + ".mdx");

@@ -2,6 +2,14 @@
 
 ## 0.5.2
 
+### Hotfix 2
+- The Codex groups spells and evolutions by specialization, with a divider between each one.
+- The Talent Trainer now stands next to the Spellbook Keeper.
+- Warlock imps from Imp Swarm, Infernals and the Doomguard stop attacking while you pick a level-up card.
+- HD creature patches no longer stop the game from starting.
+- The launcher trims server logs that grow past 32 MB when the server stops.
+- Simplified Chinese for the new 0.5.2 text, thanks to xenoglossy-asyncio.
+
 ### Hotfix 1
 - Auto-pick no longer ends the run on checkpoints with many extra level-ups.
 - Single Darkmoon Favors refunds work again instead of needing Refund all.

@@ -19,6 +19,7 @@ local EVOLUTION_PART_WIDTH = 176
 local EVOLUTION_RESULTS_LEFT = 228
 local EVOLUTION_ARROW = "Interface\\ChatFrame\\ChatFrameExpandArrow"
 local EVOLVE_RANK = 10
+local DIVIDER_HEIGHT = 26
 
 local CLASSES = {
     { mask = 1,    name = L["Warrior"], plural = L["Warriors"], color = { 0.78, 0.61, 0.43 }, coords = { 0, 0.25, 0, 0.25 } },
@@ -492,11 +493,57 @@ local function CreateCard(index)
     return card
 end
 
-local function PlaceCard(index, card)
-    local column = math.mod(index - 1, 2)
-    local row = math.floor((index - 1) / 2)
+local function PlaceCard(card, column, top)
     card:ClearAllPoints()
-    card:SetPoint("TOPLEFT", window.list, "TOPLEFT", column * (CARD_WIDTH + 10), -row * (CARD_HEIGHT + CARD_GAP))
+    card:SetPoint("TOPLEFT", window.list, "TOPLEFT", column * (CARD_WIDTH + 10), -top)
+end
+
+window.dividers = {}
+
+local function CreateDivider(index)
+    local divider = CreateFrame("Frame", nil, window.list)
+    divider:SetWidth(LIST_WIDTH - 8)
+    divider:SetHeight(DIVIDER_HEIGHT)
+    divider.label = divider:CreateFontString(nil, "OVERLAY")
+    SetFont(divider.label, FONT, 12)
+    divider.label:SetPoint("LEFT", divider, "LEFT", 4, -2)
+    divider.line = divider:CreateTexture(nil, "ARTWORK")
+    divider.line:SetTexture(FLAT)
+    divider.line:SetHeight(1)
+    divider.line:SetPoint("LEFT", divider.label, "RIGHT", 8, 0)
+    divider.line:SetPoint("RIGHT", divider, "RIGHT", -4, -2)
+    window.dividers[index] = divider
+    return divider
+end
+
+local function SpellGroup(spell)
+    return FirstClassIndex(spell.classMask) .. ":" .. (spell.spec or "")
+end
+
+local function SpellGroupLabel(spell)
+    local name = spell.spec ~= "" and spell.spec or L["Other spells"]
+    if classFilter == 0 then
+        return name .. "  |cff9d9d9d" .. ClassNames(spell.classMask) .. "|r"
+    end
+    return name
+end
+
+local function ShowDivider(index, top, spell)
+    local divider = window.dividers[index] or CreateDivider(index)
+    local class = CLASSES[FirstClassIndex(spell.classMask)]
+    local color = class and class.color or { 1, 0.82, 0 }
+    divider:ClearAllPoints()
+    divider:SetPoint("TOPLEFT", window.list, "TOPLEFT", 0, -top)
+    divider.label:SetText(SpellGroupLabel(spell))
+    divider.label:SetTextColor(color[1], color[2], color[3])
+    divider.line:SetVertexColor(color[1], color[2], color[3], 0.45)
+    divider:Show()
+end
+
+local function HideDividers(from)
+    for index = from, table.getn(window.dividers) do
+        window.dividers[index]:Hide()
+    end
 end
 
 local function StyleCard(card, entry)
@@ -610,6 +657,14 @@ local function SortedSpells()
         if ca ~= cb then
             return ca < cb
         end
+        local ta, tb = a.specId or 0, b.specId or 0
+        if ta ~= tb then
+            return tb == 0 or (ta ~= 0 and ta < tb)
+        end
+        local pa, pb = a.spec or "", b.spec or ""
+        if pa ~= pb then
+            return pb == "" or (pa ~= "" and pa < pb)
+        end
         local sa, sb = a.starterMask > 0, b.starterMask > 0
         if sa ~= sb then
             return sa
@@ -628,10 +683,21 @@ local function SortedPassives()
     return list
 end
 
-local function ShowCards(entries)
+local function ShowCards(entries, grouped)
+    local top, column, dividers, group = 0, 0, 0, nil
     for index, entry in ipairs(entries) do
+        if grouped and SpellGroup(entry) ~= group then
+            if column > 0 then
+                top = top + CARD_HEIGHT + CARD_GAP
+                column = 0
+            end
+            group = SpellGroup(entry)
+            dividers = dividers + 1
+            ShowDivider(dividers, top, entry)
+            top = top + DIVIDER_HEIGHT
+        end
         local card = window.cards[index] or CreateCard(index)
-        PlaceCard(index, card)
+        PlaceCard(card, column, top)
         card.entry = entry
         card.icon:SetTexture(ICON_PATH .. (entry.icon ~= "" and entry.icon or "INV_Misc_QuestionMark"))
         card.name:SetText(entry.name)
@@ -671,12 +737,21 @@ local function ShowCards(entries)
             ShowEntryTooltip(GetMouseFocus(), entry)
         end
         card:Show()
+        if column == 1 then
+            top = top + CARD_HEIGHT + CARD_GAP
+            column = 0
+        else
+            column = 1
+        end
     end
     for index = table.getn(entries) + 1, table.getn(window.cards) do
         window.cards[index]:Hide()
     end
-    local rows = math.ceil(table.getn(entries) / 2)
-    return rows * (CARD_HEIGHT + CARD_GAP)
+    HideDividers(dividers + 1)
+    if column > 0 then
+        top = top + CARD_HEIGHT + CARD_GAP
+    end
+    return top
 end
 
 local DEBUFF_ICON = 32
@@ -759,11 +834,17 @@ local function ShowInfoRows(entries, describe)
 end
 
 local function ShowEvolutions()
-    local shown, top = 0, 0
+    local shown, top, dividers, group = 0, 0, 0, nil
     local columns = EvolutionColumns()
     for _, base in ipairs(SortedSpells()) do
         local evolutions = book.evolutionOf[base.id]
         if evolutions then
+            if SpellGroup(base) ~= group then
+                group = SpellGroup(base)
+                dividers = dividers + 1
+                ShowDivider(dividers, top, base)
+                top = top + DIVIDER_HEIGHT
+            end
             shown = shown + 1
             local row = window.evolutionRows[shown] or CreateEvolutionRow(shown)
             local count = table.getn(evolutions)
@@ -790,6 +871,7 @@ local function ShowEvolutions()
     for index = shown + 1, table.getn(window.evolutionRows) do
         window.evolutionRows[index]:Hide()
     end
+    HideDividers(dividers + 1)
     return top, shown
 end
 
@@ -1001,6 +1083,7 @@ function Refresh(keepScroll)
         for _, row in ipairs(window.evolutionRows) do
             row:Hide()
         end
+        HideDividers(1)
         if currentTab == "affixes" then
             height, count = ShowInfoRows(eliteAffixes)
         else
@@ -1023,7 +1106,7 @@ function Refresh(keepScroll)
         else
             entries = SortedSpells()
         end
-        height = ShowCards(entries)
+        height = ShowCards(entries, currentTab == "spells")
         if table.getn(entries) > 0 then
             window.empty:SetText("")
         elseif TabHasClasses() and classFilter ~= 0 then
@@ -1219,6 +1302,7 @@ handlers["cdxwd"] = function(f)
         spell.aoe = f[6] == "1"
         spell.radius = tonumber(f[7]) or 0
         spell.range = tonumber(f[8]) or 0
+        spell.specId = tonumber(f[9]) or 0
     end
 end
 

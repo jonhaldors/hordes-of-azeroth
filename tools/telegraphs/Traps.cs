@@ -41,8 +41,9 @@ namespace BonkTelegraphs
 
         static void AddLook(Dbc displays, Dbc models, uint[] templateDisplay, uint[] templateModel, uint displayId, uint modelId, string path)
         {
-            if (displays.Find(displayId) != null || models.Find(modelId) != null)
-                throw new InvalidOperationException("Trap display " + displayId + " or model " + modelId + " is taken.");
+            if (displays.Find(displayId) != null)
+                throw new InvalidOperationException("Trap display " + displayId + " is taken.");
+            modelId = models.ClaimId(modelId);
 
             uint[] model = (uint[])templateModel.Clone();
             model[0] = modelId;

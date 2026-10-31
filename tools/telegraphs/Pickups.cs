@@ -48,9 +48,10 @@ namespace BonkTelegraphs
             for (int i = 0; i < Jewels.Length; i++)
             {
                 Jewel jewel = Jewels[i];
-                uint displayId = FirstJewelDisplayId + (uint)i, modelId = FirstJewelModelId + (uint)i;
-                if (displays.Find(displayId) != null || models.Find(modelId) != null)
-                    throw new InvalidOperationException("Jewel display " + displayId + " or model " + modelId + " is taken.");
+                uint displayId = FirstJewelDisplayId + (uint)i;
+                if (displays.Find(displayId) != null)
+                    throw new InvalidOperationException("Jewel display " + displayId + " is taken.");
+                uint modelId = models.ClaimId(FirstJewelModelId + (uint)i);
 
                 byte[] m2 = Require(client, Goober + jewel.Source + ".m2");
                 if (jewel.Rule != null)
@@ -100,19 +101,20 @@ namespace BonkTelegraphs
             uint[] templateDisplay = displays.Find(TemplateDisplayId), templateModel = models.Find(TemplateModelId);
             if (templateDisplay == null || templateModel == null)
                 throw new InvalidDataException("The blue wisp's rows are not where 1.12 has them.");
-            if (displays.Find(TurkeyDisplayId) != null || models.Find(TurkeyModelId) != null)
-                throw new InvalidOperationException("Turkey display " + TurkeyDisplayId + " or model " + TurkeyModelId + " is taken.");
+            if (displays.Find(TurkeyDisplayId) != null)
+                throw new InvalidOperationException("Turkey display " + TurkeyDisplayId + " is taken.");
+            uint turkeyModelId = models.ClaimId(TurkeyModelId);
             Require(client, TurkeyModel + ".m2");
 
             uint[] modelRow = (uint[])templateModel.Clone();
-            modelRow[0] = TurkeyModelId;
+            modelRow[0] = turkeyModelId;
             modelRow[2] = models.AddString(TurkeyModel + ".mdx");
             modelRow[Wisps.ModelSoundField] = 0;
             models.Records.Add(modelRow);
 
             uint[] display = (uint[])templateDisplay.Clone();
             display[0] = TurkeyDisplayId;
-            display[1] = TurkeyModelId;
+            display[1] = turkeyModelId;
             display[DisplayScaleField] = BitConverter.ToUInt32(BitConverter.GetBytes(1.0f), 0);
             display[6] = display[7] = display[8] = 0;
             displays.Records.Add(display);
