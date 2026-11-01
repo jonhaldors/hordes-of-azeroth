@@ -214,7 +214,7 @@ local function SetBanishMode(on)
     if offerFrame.banish then
         offerFrame.banish:SetText(on and L["Cancel"] or (L["|cffff6060Banish ("] .. (VB.banishes or 0) .. ")|r"))
     end
-    offerFrame.hint:SetText(on and L["|cffff6060Click a card to banish it, or press Escape to cancel.|r"] or (offerFrame.hintText or ""))
+    offerFrame.hint:SetText(on and L["|cffff6060Click a card to banish it, or press Escape to cancel.|r"] or "")
     if on then
         offerFrame.banishEscape:Show()
     else
@@ -229,10 +229,11 @@ offerFrame.banishEscape:SetScript("OnHide", function()
 end)
 
 local function Pick(index)
-    if not VB.offer[index] or VB.picking then
+    if not VB.offer[index] or (VB.picking and GetTime() - (VB.pickingAt or 0) < 3) then
         return
     end
     VB.picking = true
+    VB.pickingAt = GetTime()
     VB.pickedIndex = index
     Command((VB.offerSource == "ley" and "leypick " or "pick ") .. index)
 end
@@ -250,6 +251,7 @@ local function Banish(index)
         return
     end
     VB.picking = true
+    VB.pickingAt = GetTime()
     SetBanishMode(false)
     Command("banish " .. index)
 end
@@ -267,6 +269,7 @@ local function Reroll()
         return
     end
     VB.picking = true
+    VB.pickingAt = GetTime()
     Command("reroll")
 end
 
@@ -275,6 +278,7 @@ local function Skip()
         return
     end
     VB.picking = true
+    VB.pickingAt = GetTime()
     Command("pass")
 end
 
@@ -300,25 +304,39 @@ offerFrame.banish:SetWidth(120)
 offerFrame.banish:SetHeight(24)
 offerFrame.banish:SetScript("OnClick", ToggleBanish)
 
-offerFrame.autopick = VanillaBonkUI.SliceButton(CreateFrame("Button", nil, offerFrame.chrome, "UIPanelButtonTemplate"))
-offerFrame.autopick:SetWidth(120)
-offerFrame.autopick:SetHeight(24)
-offerFrame.autopick:SetScript("OnClick", function()
-    if VB.picking then
-        return
+do
+    local KEY_PROMPT_BUTTONS = { skip = "VANILLABONK_SKIP", reroll = "VANILLABONK_REROLL", banish = "VANILLABONK_BANISH" }
+
+    local function RefreshKeyPrompt(button)
+        local text = VanillaBonkUI.BindingText and VanillaBonkUI.BindingText(button.keyCommand) or ""
+        button.keyPrompt:SetText(text)
     end
-    PlaySound("igMainMenuOptionCheckBoxOn")
-    Command("pick auto")
-end)
-offerFrame.autopick:SetScript("OnEnter", function()
-    GameTooltip:SetOwner(this, "ANCHOR_TOP")
-    GameTooltip:SetText(L["Auto-pick"])
-    GameTooltip:AddLine(L("Picks your remaining {1} level-ups.", VB.catchUp or 0), 1, 1, 1, 1)
-    GameTooltip:AddLine(L["Prioritizes spells and passives you have already chosen."], 1, 1, 1, 1)
-    GameTooltip:AddLine(L["Will stop when the selection only shows new cards."], 1, 1, 1, 1)
-    GameTooltip:Show()
-end)
-offerFrame.autopick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    function offerFrame.RefreshKeyPrompts()
+        for name in pairs(KEY_PROMPT_BUTTONS) do
+            RefreshKeyPrompt(offerFrame[name])
+        end
+    end
+
+    for name, command in pairs(KEY_PROMPT_BUTTONS) do
+        local button = offerFrame[name]
+        button.keyCommand = command
+        button.keyPrompt = VanillaBonkUI.Text(button, 11, VanillaBonkUI.NUMBER_FONT, "OUTLINE")
+        button.keyPrompt:SetPoint("RIGHT", button, "RIGHT", -8, 0)
+        button.keyPrompt:SetTextColor(0.85, 0.85, 0.85)
+        local show = button:GetScript("OnShow")
+        button:SetScript("OnShow", function()
+            if show then
+                show()
+            end
+            RefreshKeyPrompt(this)
+        end)
+    end
+
+    local watcher = CreateFrame("Frame")
+    watcher:RegisterEvent("UPDATE_BINDINGS")
+    watcher:SetScript("OnEvent", offerFrame.RefreshKeyPrompts)
+end
 
 local CardArt = VanillaBonkUI.CardArt
 
@@ -822,12 +840,39 @@ local function Progress(t, start, length)
     return min(1, max(0, (t - start) / length))
 end
 
+offerFrame.SIDE_SCALE = 0.5
+offerFrame.SIDE_BOTTOM = 140
+offerFrame.SIDE_BUTTON_STEP = 28
+
 local function PlaceCard(card, scale, alpha, rise)
-    card:SetScale(scale)
     card:SetAlpha(alpha)
     card.alphaNow = alpha
     card:ClearAllPoints()
+    if offerFrame.side then
+        local sideScale = scale * offerFrame.SIDE_SCALE
+        card:SetScale(sideScale)
+        card:SetPoint("BOTTOM", UIParent, "BOTTOM", card.x * offerFrame.SIDE_SCALE / sideScale, (offerFrame.SIDE_BOTTOM + rise * offerFrame.SIDE_SCALE) / sideScale)
+        return
+    end
+    card:SetScale(scale)
     card:SetPoint("CENTER", offerFrame, "CENTER", card.x / scale, (16 - offerFrame.cardDrop + rise) / scale)
+end
+
+function offerFrame.ApplySideChrome()
+    offerFrame.title:ClearAllPoints()
+    offerFrame.subtitle:ClearAllPoints()
+    if offerFrame.side then
+        offerFrame.title:Hide()
+        offerFrame.subtitle:SetPoint("TOP", UIParent, "BOTTOM", 0, offerFrame.SIDE_BOTTOM - 6)
+        offerFrame.dim:Hide()
+        offerFrame.hint:Hide()
+        return
+    end
+    offerFrame.title:SetPoint("CENTER", offerFrame, "CENTER", 0, 230)
+    offerFrame.title:Show()
+    offerFrame.subtitle:SetPoint("CENTER", offerFrame, "CENTER", 0, 186)
+    offerFrame.dim:Show()
+    offerFrame.hint:Show()
 end
 
 local CHOICE_KEYS = {
@@ -867,6 +912,7 @@ local function TakeChoiceKeys()
         SetBinding(key, action)
     end
     VanillaBonkChoiceKeys = before
+    offerFrame.RefreshKeyPrompts()
 end
 
 VanillaBonk_TakeChoiceKeys = TakeChoiceKeys
@@ -1150,6 +1196,8 @@ local function ShowOffer(level)
         return
     end
     local fresh = not offerFrame.open
+    offerFrame.side = VB.sideOffers and true or false
+    offerFrame.ApplySideChrome()
     if not fresh and not offerFrame.anim then
         offerFrame.anim = { mode = "pop", t = 0 }
     end
@@ -1270,34 +1318,9 @@ local function ShowOffer(level)
     end
 
     local grow = offerFrame.GrowCardsToFit(width, hasLock)
-    local hint = ""
-    local keys = {}
-    if (VB.skips or 0) > 0 then
-        tinsert(keys, L["X to skip"])
-    end
     local canBanish = (VB.banishes or 0) > 0 and VB.offerSource ~= "ley"
-    if (VB.rerolls or 0) > 0 then
-        tinsert(keys, L["R to reroll"])
-    end
-    if canBanish then
-        tinsert(keys, L["|cffff8080B to banish|r"])
-    end
-    if getn(keys) > 0 then
-        local text = keys[1]
-        for index = 2, getn(keys) do
-            text = text .. (index == getn(keys) and L[" or "] or L[", "]) .. keys[index]
-        end
-        hint = L("Press {1}.", text)
-    end
-    offerFrame.hintText = hint
 
     local buttons = {}
-    if (VB.catchUp or 0) > 0 and VB.offerSource == "level" then
-        offerFrame.autopick:SetText(L("Auto-pick ({1})", VB.catchUp))
-        tinsert(buttons, offerFrame.autopick)
-    else
-        offerFrame.autopick:Hide()
-    end
     if (VB.rerolls or 0) > 0 then
         offerFrame.reroll:SetText(L["Reroll ("] .. VB.rerolls .. ")")
         tinsert(buttons, offerFrame.reroll)
@@ -1316,9 +1339,19 @@ local function ShowOffer(level)
         offerFrame.skip:Hide()
     end
     local total = getn(buttons) * 120 + (getn(buttons) - 1) * 12
+    local sideEdge = (count * width + (count - 1) * gap) * offerFrame.SIDE_SCALE / 2 + 8
+    local leftY, rightY = offerFrame.SIDE_BOTTOM, offerFrame.SIDE_BOTTOM
     for index, button in ipairs(buttons) do
         button:ClearAllPoints()
-        button:SetPoint("CENTER", offerFrame, "CENTER", -total / 2 + 60 + (index - 1) * 132, -170 - grow)
+        if not offerFrame.side then
+            button:SetPoint("CENTER", offerFrame, "CENTER", -total / 2 + 60 + (index - 1) * 132, -170 - grow)
+        elseif button == offerFrame.skip then
+            button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOM", sideEdge, rightY)
+            rightY = rightY + offerFrame.SIDE_BUTTON_STEP
+        else
+            button:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOM", -sideEdge, leftY)
+            leftY = leftY + offerFrame.SIDE_BUTTON_STEP
+        end
         button:Show()
     end
 
@@ -1693,9 +1726,9 @@ arena.button = UI.Button(content, 140, L["Start run"], function()
     Command("start " .. VanillaBonkRunMaster.StartArgs(tier))
     arena:Hide()
 end)
-arena.button:SetWidth(ARENA_WIDTH - 22 - 560)
+arena.button:SetWidth(262)
 arena.button:SetHeight(38)
-arena.button:SetPoint("TOPLEFT", arena, "TOPLEFT", 560, -(ARENA_HEIGHT - 62))
+arena.button:SetPoint("TOPLEFT", arena, "TOPLEFT", 560 + (ARENA_WIDTH - 22 - 560 - 262) / 2, -(ARENA_HEIGHT - 62))
 arena.button:SetText("")
 arena.button.label = UI.Text(arena.button, 15)
 arena.button.label:SetPoint("CENTER", arena.button, "CENTER", 0, 5)
@@ -2582,7 +2615,7 @@ handlers["tier"] = function(f)
         end
     end
     tinsert(VB.pendingTiers, { id = f[2], key = f[3], name = f[4], unlocked = f[5] == "1", hint = f[6] or "", best = tonumber(f[7]) or 0,
-        description = f[8] or "", art = f[9] or "", maps = maps, stages = tonumber(f[11] or ""), endless = f[12] == "1",
+        description = f[8] or "", art = f[9] or "", maps = maps, levels = tonumber(f[11] or "") or 0, open = tonumber(f[12] or "") or 0,
         dungeons = dungeons, details = f[14] or "" })
 end
 
@@ -2670,7 +2703,6 @@ handlers["offer"] = function(f)
     VB.rerolls = tonumber(f[5]) or 0
     VB.banishes = tonumber(f[6]) or 0
     VB.skips = tonumber(f[7]) or 0
-    VB.catchUp = tonumber(f[8] or "") or 0
 end
 
 handlers["opt"] = function(f)
@@ -2744,8 +2776,13 @@ handlers["leyofferclose"] = function()
     CloseOffer()
 end
 
+handlers["coopnopause"] = function(f)
+    VB.sideOffers = f[2] == "1"
+end
+
 handlers["end"] = function(f)
     VB.inRun = false
+    VB.sideOffers = false
     if VanillaBonkUI.InspectShown() then
         shop:Hide()
     end
@@ -2761,7 +2798,7 @@ handlers["end"] = function(f)
     else
         results.title:SetText(L["|cffff3030Defeated|r"])
     end
-    results.body:SetText(L("Reached floor {1} in {2}", f[7] or "1", FormatTime(f[3])) .. "\n" ..
+    results.body:SetText(L("Reached stage {1} in {2}", f[7] or "1", FormatTime(f[3])) .. "\n" ..
         L("Kills: {1}    Level: {2}", f[4], f[6]) .. "\n" ..
         L["Gold earned: "] .. FormatGold(f[5]) .. "\n" ..
         L["Darkmoon Tickets: |cffc080ff"] .. (f[8] or "0") .. "|r\n\n" ..
@@ -3005,24 +3042,8 @@ VB.BuildStatTerms({
 })
 
 VB.gear = {}
-VB.tierGear = { first = 0, tiers = 0, slots = 0, classes = 0, epicOffset = 0, stats = {}, epicStats = {} }
-setmetatable(VB.gear, { __index = function(gear, id)
-    local tierGear = VB.tierGear
-    local index = (tonumber(id) or 0) - tierGear.first
-    local perClass = tierGear.tiers * tierGear.slots
-    local byTier = tierGear.stats
-    if tierGear.epicOffset > 0 and index >= tierGear.epicOffset then
-        index = index - tierGear.epicOffset
-        byTier = tierGear.epicStats
-    end
-    if tierGear.first == 0 or perClass == 0 or index < 0 or index >= perClass * tierGear.classes then
-        return nil
-    end
-    local stats = byTier[floor(mod(index, perClass) / tierGear.slots) + 1]
-    return stats and { set = 0, stats = stats }
-end })
-VB.sets = {}
 VB.stats = {}
+VB.statsAfterCaps = {}
 VB.statsInRun = false
 
 local EQUIPPED_SLOTS = 19
@@ -3060,48 +3081,14 @@ local function ItemIdFromLink(link)
     return tonumber(id)
 end
 
-local function WornItems()
-    local worn = {}
-    for slot = 1, EQUIPPED_SLOTS do
-        local id = ItemIdFromLink(GetInventoryItemLink("player", slot))
-        if id then
-            worn[id] = true
-        end
-    end
-    return worn
-end
-
-local function IsPieceWorn(piece, worn)
-    for _, entry in ipairs(piece.entries) do
-        if worn[entry] then
-            return true
-        end
-    end
-    return false
-end
-
-local function WornPieces(set, worn)
-    local count = 0
-    for _, piece in ipairs(set.pieces) do
-        if IsPieceWorn(piece, worn) then
-            count = count + 1
-        end
-    end
-    return count
-end
-
 local function GearTotals()
     local totals = {}
-    local counts = {}
     for slot = 1, EQUIPPED_SLOTS do
         local id = ItemIdFromLink(GetInventoryItemLink("player", slot))
         local stat = id and VB.gear[id]
         if stat then
             for statId, value in pairs(stat.stats) do
                 totals[statId] = (totals[statId] or 0) + value
-            end
-            if stat.set > 0 then
-                counts[stat.set] = (counts[stat.set] or 0) + 1
             end
         end
         local enchant = VanillaBonkUI.enchants and VanillaBonkUI.enchants[slot]
@@ -3119,21 +3106,7 @@ local function GearTotals()
         end
     end
 
-    local active = {}
-    for setId, count in pairs(counts) do
-        local set = VB.sets[setId]
-        if set then
-            for _, bonus in ipairs(set.bonuses) do
-                if count >= bonus.pieces then
-                    for statId, value in pairs(bonus.stats) do
-                        totals[statId] = (totals[statId] or 0) + value
-                    end
-                    tinsert(active, { set = set.name, pieces = bonus.pieces, text = bonus.text })
-                end
-            end
-        end
-    end
-    return totals, active
+    return totals
 end
 
 local PRIMARY_STATS = { 12, 0, 4 }
@@ -3195,10 +3168,11 @@ local function AddGearLines(tooltip, link, found, enchantLine)
     if enchantLine then
         tooltip:AddLine(enchantLine, 0.12, 1, 0.12)
     end
-    local tier = found and found.tier or (VanillaBonkUI.GearTier and VanillaBonkUI.GearTier(id))
-    local tierText = tier and tooltip:GetName() and getglobal(tooltip:GetName() .. "TextRight1")
+    local tier = found and found.tier or VanillaBonkUI.GearTier(id)
+    local tierText = tier > 0 and tooltip:GetName() and getglobal(tooltip:GetName() .. "TextRight1")
     if tierText then
-        tierText:SetText(L["Tier "] .. tier)
+        local _, _, itemQuality = GetItemInfo(id)
+        tierText:SetText(VanillaBonkUI.ItemLevelText(tier, itemQuality))
         tierText:SetTextColor(1, 0.82, 0)
         tierText:Show()
     end
@@ -3213,29 +3187,8 @@ local function AddGearLines(tooltip, link, found, enchantLine)
         end
         tooltip:AddLine(L["Equip: "] .. proc, 0.12, 1, 0.12, 1)
     end
-
-    local set = stat.set > 0 and VB.sets[stat.set]
-    if set then
-        local worn = WornItems()
-        local count = WornPieces(set, worn)
-        tooltip:AddLine(" ")
-        tooltip:AddLine(set.name .. " (" .. count .. "/" .. getn(set.pieces) .. ")", 1, 0.82, 0)
-        for _, piece in ipairs(set.pieces) do
-            if IsPieceWorn(piece, worn) then
-                tooltip:AddLine("  " .. piece.name, 1, 1, 0.6)
-            else
-                tooltip:AddLine("  " .. piece.name, 0.5, 0.5, 0.5)
-            end
-        end
-        tooltip:AddLine(" ")
-        for _, bonus in ipairs(set.bonuses) do
-            local text = "(" .. bonus.pieces .. L[") Set: "] .. bonus.text
-            if count >= bonus.pieces then
-                tooltip:AddLine(text, 0.1, 1, 0.1, 1)
-            else
-                tooltip:AddLine(text, 0.5, 0.5, 0.5, 1)
-            end
-        end
+    if found and found.legacy then
+        tooltip:AddLine(L["Legacy item: doesn't count for this season's leaderboard."], 0.6, 0.6, 0.6, 1)
     end
     tooltip:Show()
 end
@@ -3494,15 +3447,13 @@ for column, ids in ipairs(STAT_LAYOUT) do
         statLines[statId] = line
     end
 end
-local setsLine = CreateStatLine(2, 7)
-setsLine.label:SetText(L["Set bonuses:"])
 
 local function RefreshHeroStats()
     if CharacterAttributesFrame then
         CharacterAttributesFrame:Hide()
     end
 
-    local gear, active = GearTotals()
+    local gear = GearTotals()
 
     for statId, line in pairs(statLines) do
         local stat = STATS[statId]
@@ -3517,6 +3468,7 @@ local function RefreshHeroStats()
         if stat.curve and total > 0 then
             shown = floor(10 * stat.curve * (1 - math.exp(-total / stat.curve)) + 0.5) / 10
         end
+        shown = shown + (VB.statsAfterCaps[statId] or 0)
 
         local compact = math.abs(shown) >= 100 and floor(shown + 0.5) or floor(10 * shown + 0.5) / 10
         line.value:SetText(FormatStat(statId, compact))
@@ -3540,16 +3492,6 @@ local function RefreshHeroStats()
             tinsert(line.lines, stat.note)
         end
     end
-
-    setsLine.value:SetText(tostring(getn(active)))
-    setsLine.title = L["Set bonuses"]
-    setsLine.lines = {}
-    for _, bonus in ipairs(active) do
-        tinsert(setsLine.lines, bonus.set .. " (" .. bonus.pieces .. "): " .. bonus.text)
-    end
-    if getn(active) == 0 then
-        tinsert(setsLine.lines, L["Wear 2 or more pieces of an epic set from the Inn's gear vendor."])
-    end
 end
 
 local paperDollOnShow = PaperDollFrame:GetScript("OnShow")
@@ -3558,7 +3500,18 @@ PaperDollFrame:SetScript("OnShow", function()
         paperDollOnShow()
     end
     RefreshHeroStats()
+    SendChatMessage(".bonk stats on", "SAY")
 end)
+
+do
+    local paperDollOnHide = PaperDollFrame:GetScript("OnHide")
+    PaperDollFrame:SetScript("OnHide", function()
+        if paperDollOnHide then
+            paperDollOnHide()
+        end
+        SendChatMessage(".bonk stats off", "SAY")
+    end)
+end
 
 local gearEvents = CreateFrame("Frame")
 gearEvents:RegisterEvent("UNIT_INVENTORY_CHANGED")
@@ -3569,45 +3522,7 @@ gearEvents:SetScript("OnEvent", function()
 end)
 
 handlers["gear"] = function(f)
-    VB.gear[tonumber(f[2])] = { set = tonumber(f[3]) or 0, stats = ParseStats(f[4]) }
-end
-
-handlers["tiergear"] = function(f)
-    VB.tierGear.first = tonumber(f[2]) or 0
-    VB.tierGear.tiers = tonumber(f[3]) or 0
-    VB.tierGear.slots = tonumber(f[4]) or 0
-    VB.tierGear.classes = tonumber(f[5]) or 0
-    VB.tierGear.epicOffset = tonumber(f[6]) or 0
-end
-
-handlers["tierstats"] = function(f)
-    local byTier = f[4] == "epic" and VB.tierGear.epicStats or VB.tierGear.stats
-    byTier[tonumber(f[2]) or 0] = ParseStats(f[3])
-end
-
-handlers["set"] = function(f)
-    local set = { name = f[3], pieces = {}, bonuses = {} }
-    local byName = {}
-    for _, piece in ipairs(Split(f[4] or "", ",")) do
-        local colon = strfind(piece, ":", 1, true)
-        if colon then
-            local entry, name = tonumber(strsub(piece, 1, colon - 1)), strsub(piece, colon + 1)
-            if byName[name] then
-                tinsert(byName[name].entries, entry)
-            else
-                byName[name] = { entry = entry, name = name, entries = { entry } }
-                tinsert(set.pieces, byName[name])
-            end
-        end
-    end
-    VB.sets[tonumber(f[2])] = set
-end
-
-handlers["setbonus"] = function(f)
-    local set = VB.sets[tonumber(f[2])]
-    if set then
-        tinsert(set.bonuses, { pieces = tonumber(f[3]) or 0, stats = ParseStats(f[4]), text = f[5] or "" })
-    end
+    VB.gear[tonumber(f[2])] = { stats = ParseStats(f[3]) }
 end
 
 handlers["gearend"] = function()
@@ -3622,6 +3537,11 @@ handlers["stats"] = function(f)
     local values = Split(f[3] or "", ",")
     for i = 1, getn(values) do
         VB.stats[i - 1] = tonumber(values[i]) or 0
+    end
+    VB.statsAfterCaps = {}
+    local afterCaps = Split(f[4] or "", ",")
+    for i = 1, getn(afterCaps) do
+        VB.statsAfterCaps[i - 1] = tonumber(afterCaps[i]) or 0
     end
     if PaperDollFrame:IsVisible() then
         RefreshHeroStats()

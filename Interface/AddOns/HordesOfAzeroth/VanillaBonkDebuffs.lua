@@ -15,6 +15,7 @@ UI.DEBUFF_LOOKS = {
     plate = { size = 14, count = 10 },
     boss = { size = 16, count = 11 },
     bar = { size = 22, count = 14, mouse = true },
+    group = { size = 18, count = 12, mouse = true },
 }
 
 local keywords = {}

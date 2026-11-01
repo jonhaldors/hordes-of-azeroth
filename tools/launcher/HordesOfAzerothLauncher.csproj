@@ -39,6 +39,14 @@
       <_Parameter1>StatsUrl</_Parameter1>
       <_Parameter2>$(StatsUrl)</_Parameter2>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LobbyUrl</_Parameter1>
+      <_Parameter2>$(LobbyUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>MirrorUrl</_Parameter1>
+      <_Parameter2>$(MirrorUrl)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
@@ -46,6 +54,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="Mono.Nat" Version="3.0.4" />
   </ItemGroup>
 
   <ItemGroup>

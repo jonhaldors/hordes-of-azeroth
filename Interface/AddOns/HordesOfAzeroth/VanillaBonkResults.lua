@@ -1105,7 +1105,7 @@ local function FillStats()
         { "INV_Misc_Bone_HumanSkull_01", L["Kills"], Thousands(run.kills) },
         { "Ability_Warrior_Challange", L["Elites"], Thousands(run.elites) },
         { "Ability_Rogue_Eviscerate", L["Mini-bosses"], Thousands(run.minis) },
-        { "INV_Misc_Head_Dragon_01", L["Floor bosses"], Thousands(run.bosses) },
+        { "INV_Misc_Head_Dragon_01", L["Stage bosses"], Thousands(run.bosses) },
         { "INV_Shield_06", L["Damage taken"], "|cffff5a4a" .. Thousands(run.damageTaken) .. "|r" },
     }
     for index, stat in ipairs(panel.stats) do
@@ -1124,20 +1124,19 @@ local function FillStats()
 end
 
 local function Place()
-    if run.difficulty and run.difficulty ~= "" then
-        return run.map .. " (" .. run.difficulty .. ")"
+    local level = (run.levelName and run.levelName ~= "") and run.levelName or run.difficulty
+    if level and level ~= "" then
+        return run.map .. " (" .. level .. ")"
     end
     return run.map ~= "" and run.map or L["the arena"]
 end
 
-local function FillBestFloor()
-    local best = tonumber(run.bestFloor or "") or 0
-    if not run.floors or best == 0 then
-        panel.best:SetText("")
-    elseif best > (tonumber(run.bestBefore or "") or 0) then
-        panel.best:SetText(L["|cff40ff40New best floor: "] .. best .. "!|r")
+local function FillBestLevel()
+    local best = tonumber(run.bestLevel or "") or 0
+    if run.victory and best > (tonumber(run.bestBefore or "") or 0) then
+        panel.best:SetText(L("|cff40ff40New best: {1}!|r", run.levelName or ""))
     else
-        panel.best:SetText(L["|cff9d9d9dBest floor: "] .. best .. "|r")
+        panel.best:SetText("")
     end
 end
 
@@ -1146,19 +1145,20 @@ local function FillHeading()
     if run.victory then
         color = TITLE_VICTORY
         panel.title:SetText(L["Victory"])
-        panel.subtitle:SetText(run.floors and L("You climbed to floor {1} of {2} in {3}.", run.stage or "1", Place(), UI.FormatTime(run.seconds)) or
-            L("You cleared every floor of {1} in {2}.", Place(), UI.FormatTime(run.seconds)))
+        local finale = tonumber(run.finaleSeconds or "") or 0
+        panel.subtitle:SetText(finale > 0 and L("You cleared {1} and held out {2} in the finale.", Place(), UI.FormatTime(finale)) or
+            L("You cleared {1} in {2}.", Place(), UI.FormatTime(run.seconds)))
     elseif run.wentHome then
         color = TITLE_HOME
         panel.title:SetText(L["Run Complete"])
-        panel.subtitle:SetText(L("You left {1} on floor {2} after {3}.", Place(), run.stage or "1", UI.FormatTime(run.seconds)))
+        panel.subtitle:SetText(L("You left {1} on stage {2} after {3}.", Place(), run.stage or "1", UI.FormatTime(run.seconds)))
     else
         color = TITLE_DEFEAT
         panel.title:SetText(L["Defeat"])
-        panel.subtitle:SetText(L("You fell on floor {1} in {2} after {3}.", run.stage or "1", Place(), UI.FormatTime(run.seconds)))
+        panel.subtitle:SetText(L("You fell on stage {1} in {2} after {3}.", run.stage or "1", Place(), UI.FormatTime(run.seconds)))
     end
     panel.title:SetTextColor(color[1], color[2], color[3])
-    FillBestFloor()
+    FillBestLevel()
     if run.victory or run.wentHome then
         screen.wound:Hide()
     else
@@ -1377,7 +1377,7 @@ handlers["end"] = function(f)
     run = {
         map = run.map or "", difficulty = run.difficulty or "",
         wentHome = f[2] == "1", seconds = f[3], kills = f[4], gold = f[5], level = f[6], stage = f[7], shards = f[8],
-        victory = f[9] == "1", floors = f[10] == "1", bestFloor = f[11], bestBefore = f[12],
+        victory = f[9] == "1", bestLevel = f[11], bestBefore = f[12], levelName = f[13], finaleSeconds = f[14],
     }
     weapons = {}
 end

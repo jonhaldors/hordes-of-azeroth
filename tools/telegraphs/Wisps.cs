@@ -44,8 +44,7 @@ namespace BonkTelegraphs
             byte[] glow = Require(client, Folder + "WispGlow.blp"), skin = Require(client, Folder + "Wisp.blp");
             foreach (Colour colour in Colours)
             {
-                if (displays.Find(colour.DisplayId) != null)
-                    throw new InvalidOperationException("Creature display " + colour.DisplayId + " is taken.");
+                displays.Release(colour.DisplayId);
                 uint modelId = models.ClaimId(colour.ModelId);
 
                 string name = "WispOrb" + colour.Name;

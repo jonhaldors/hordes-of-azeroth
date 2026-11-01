@@ -228,6 +228,7 @@ xpText:SetPoint("CENTER", runPlate, "TOP", runWidth / 4, -RAIL_HEIGHT / 2)
 local xpHover = AddRailHover(runPlate)
 
 local levelRing = AddLevelPlate(runPlate, RUN_PLATE_HEIGHT)
+root.levelPlate = levelRing
 VanillaBonkLevelRing = levelRing
 
 UI.GlyphAnchor = CreateFrame("Frame", nil, runPlate)
@@ -698,7 +699,7 @@ local function ShowMasteryTooltip()
     if mastery.next > 0 then
         GameTooltip:AddLine(mastery.xp .. " / " .. mastery.next .. L[" experience"], 1, 1, 1)
     end
-    GameTooltip:AddLine(L("Runs as a {1} earn Mastery experience for every minute you survive and every mini-boss and floor boss you kill. Harder difficulties earn more.", strlower(mastery.class)), 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L("Runs as a {1} earn Mastery experience for every minute you survive and every mini-boss and stage boss you kill. Harder difficulties earn more.", strlower(mastery.class)), 1, 0.82, 0, 1)
     if not mastery.trees then
         GameTooltip:AddLine(L["Your class's talent trees aren't available yet. The experience you earn is saved for them."], 0.6, 0.6, 0.6, 1)
     elseif mastery.unspent > 0 then

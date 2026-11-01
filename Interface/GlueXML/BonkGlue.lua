@@ -74,6 +74,15 @@ function BonkLogin_Connect()
 		BONK_ACCOUNT = HOA_LOGIN_ACCOUNT;
 		BONK_PASSWORD = HOA_LOGIN_PASSWORD;
 	end
+	local gate, coopAccount, coopPassword;
+	if ( HoaCoop_GetGate ) then
+		gate, coopAccount, coopPassword = HoaCoop_GetGate();
+	end
+	if ( gate ) then
+		BonkLoginStatus:SetText("Connecting to host...");
+		DefaultServerLogin(coopAccount, coopPassword);
+		return;
+	end
 	BonkLoginStatus:SetText("Connecting...");
 	DefaultServerLogin(BONK_ACCOUNT, BONK_PASSWORD);
 end
@@ -232,7 +241,9 @@ function GlueDialog_OnEvent()
 	local shown = GlueDialogText:GetText();
 	local noServer = shown == RESPONSE_FAILED_TO_CONNECT or shown == LOGIN_FAILED or shown == LOGIN_SERVER_DOWN or shown == REALM_LIST_FAILED
 		or shown == RESPONSE_DISCONNECTED or shown == DISCONNECTED;
-	if ( noServer and not Bonk.reachedServer ) then
+	if ( noServer and BonkCoop_IsJoined() and not BonkCoop.leaving ) then
+		BonkCoop_LostHost();
+	elseif ( noServer and not Bonk.reachedServer ) then
 		GlueDialogText:SetText("The game's server isn't running. Close the game and start Hordes of Azeroth with HoALauncher.exe in your World of Warcraft folder.");
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 		BonkLoginStatus:SetText("");
@@ -240,6 +251,12 @@ function GlueDialog_OnEvent()
 		GlueDialogText:SetText("The game's server stopped. Close the game and start Hordes of Azeroth again with HoALauncher.exe. If it keeps happening, click Report a bug in the launcher.");
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 		BonkLoginStatus:SetText("");
+	elseif ( BonkCoop_IsJoined() and BonkCoop_RefusalNote(shown) ) then
+		GlueDialog:Hide();
+		BonkCoop_RefusedAtLogin(BonkCoop_RefusalNote(shown));
+	elseif ( shown == CHAR_LOGIN_LOCKED_FOR_TRANSFER ) then
+		GlueDialogText:SetText("This character is in a co-op party. Leave the party first.");
+		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 	elseif ( wipeRefused ) then
 		GlueDialogText:SetText("The account was not wiped because a character is still left. Try again.");
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
@@ -802,6 +819,18 @@ function BonkHero_UpdateAppearance(class)
 	BonkHeroGenderButton2:SetChecked(Flag(Bonk.sex == 2));
 end
 
+function BonkLevelName(level)
+	level = tonumber(level) or 0;
+	if ( level <= 0 ) then
+		return "-";
+	elseif ( level <= 4 ) then
+		return "Normal "..level;
+	elseif ( level <= 9 ) then
+		return "Heroic "..(level - 4);
+	end
+	return "Mythic "..(level - 9);
+end
+
 local function FormatPlayed(seconds)
 	if ( not seconds or seconds <= 0 ) then
 		return "-";
@@ -825,7 +854,7 @@ function BonkHero_UpdateRecord(hero)
 
 	SetStatRow(1, "Runs", runs);
 	SetStatRow(2, "Time played", FormatPlayed(stats.played));
-	SetStatRow(3, "Best stage", stats.bestStage or "-");
+	SetStatRow(3, "Best level", BonkLevelName(stats.bestLevel));
 	SetStatRow(4, "Longest run", stats.bestTime and FormatTime(stats.bestTime) or "-");
 	SetStatRow(5, "Enemies slain", stats.kills or 0);
 	SetStatRow(6, "Gold earned", FormatGold(stats.goldEarned));

@@ -67,7 +67,7 @@ events:RegisterEvent("PLAYER_MONEY")
 local lastMoney = GetMoney()
 events:SetScript("OnEvent", function()
     local money = GetMoney()
-    if event == "PLAYER_MONEY" and money > lastMoney and (MerchantFrame:IsShown() or VanillaBonkQuartermasterFrame:IsShown()) then
+    if event == "PLAYER_MONEY" and money > lastMoney and (MerchantFrame:IsShown() or (VanillaBonkQuartermasterFrame and VanillaBonkQuartermasterFrame:IsShown())) then
         PlaySound("LOOTWINDOWCOINSOUND")
     end
     lastMoney = money

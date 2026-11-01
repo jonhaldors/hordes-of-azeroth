@@ -16,6 +16,8 @@ local TEXT_WIDTH = CARD_WIDTH - 28
 local CARD_ART = "Interface\\TalentFrame\\MageArcane-TopLeft"
 local STONE_BORDER = { edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", edgeSize = 24 }
 local QUIET_LINE = { 0.85, 0.75, 0.5, 0.35 }
+local SIDE_SCALE = 0.5
+local SIDE_BOTTOM = 140
 
 local info = {}
 VanillaBonkGlyphInfo = info
@@ -116,10 +118,11 @@ frame.hint:SetPoint("CENTER", frame, "CENTER", 0, -224)
 frame.hint:SetTextColor(0.78, 0.78, 0.78)
 
 local function Pick(index)
-    if not frame.open or frame.picking or not offer.ids[index] then
+    if not frame.open or (frame.picking and GetTime() - (frame.pickingAt or 0) < 3) or not offer.ids[index] then
         return
     end
     frame.picking = true
+    frame.pickingAt = GetTime()
     PlaySound("igMainMenuOptionCheckBoxOn")
     SendChatMessage(".bonk glyph " .. index, "SAY")
 end
@@ -299,8 +302,36 @@ local function FillMine()
     end
 end
 
-local function Fill()
+local function ApplySideChrome()
+    frame.subtitle:ClearAllPoints()
+    if frame.side then
+        frame.title:Hide()
+        frame.dim:Hide()
+        frame.mine:Hide()
+        frame.subtitle:SetPoint("TOP", UIParent, "BOTTOM", 0, SIDE_BOTTOM - 6)
+        frame.subtitle:SetText(L("Your {1} Glyph lasts the whole run.", ORDINALS[offer.pick] or L["next"]))
+        return
+    end
+    frame.title:Show()
+    frame.dim:Show()
+    frame.mine:Show()
+    frame.subtitle:SetPoint("CENTER", frame, "CENTER", 0, 202)
     frame.subtitle:SetText(L("Your {1} Glyph lasts the whole run. The run is paused while you choose.", ORDINALS[offer.pick] or L["next"]))
+end
+
+local function PlaceGlyphCard(card, x)
+    card:ClearAllPoints()
+    if frame.side then
+        card:SetScale(SIDE_SCALE)
+        card:SetPoint("BOTTOM", UIParent, "BOTTOM", x, SIDE_BOTTOM / SIDE_SCALE)
+        return
+    end
+    card:SetScale(1)
+    card:SetPoint("CENTER", frame, "CENTER", x, CARD_CENTER_Y)
+end
+
+local function Fill()
+    ApplySideChrome()
     local glyphs = {}
     for index = 1, MAX_CARDS do
         local glyph = info[offer.ids[index]]
@@ -314,8 +345,7 @@ local function Fill()
         local glyph = info[offer.ids[index]]
         if glyph then
             FillCard(card, glyph)
-            card:ClearAllPoints()
-            card:SetPoint("CENTER", frame, "CENTER", left + (index - 1) * (CARD_WIDTH + CARD_GAP), CARD_CENTER_Y)
+            PlaceGlyphCard(card, left + (index - 1) * (CARD_WIDTH + CARD_GAP))
             card:Show()
         else
             card:Hide()
@@ -480,7 +510,15 @@ handlers["start"] = function()
     RefreshSockets()
 end
 
+handlers["coopnopause"] = function(f)
+    frame.side = f[2] == "1"
+    if frame.open then
+        Fill()
+    end
+end
+
 handlers["end"] = function()
+    frame.side = false
     Close()
     frame.alpha = 0
     frame:Hide()

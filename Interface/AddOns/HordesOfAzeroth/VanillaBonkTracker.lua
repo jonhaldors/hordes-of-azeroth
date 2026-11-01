@@ -84,6 +84,12 @@ local greed = Row(5, L["Greed"], "Spell_Nature_EarthBindTotem", function()
     GameTooltip:AddLine(L["Every Greed Totem taken this run adds a stack."], 1, 0.82, 0, 1)
 end)
 greed:Hide()
+local revives = Row(6, L["Revives"], "Spell_Holy_Resurrection", function()
+    GameTooltip:AddDoubleLine(L["Group revives"], (run.revives or 0) .. " / " .. (run.revivesCap or 0), 1, 1, 1, 0.4, 1, 0.4)
+    GameTooltip:AddLine(L["Shared by your group. Stand next to a downed teammate to revive them."], 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L["Clearing a stage gives one back."], 0.6, 0.6, 0.6, 1)
+end)
+revives:Hide()
 
 local function Refresh()
     local elapsed = run.elapsed or 0
@@ -94,12 +100,12 @@ local function Refresh()
     else
         tracker.timer:SetText(UI.FormatTime(elapsed))
     end
-    local stage = "|cffffd100" .. L["Floor "] .. run.stage .. "|r"
+    local stage = "|cffffd100" .. (run.finale and L["Finale"] or L("Stage {1}/{2}", run.stage, run.stages)) .. "|r"
     local color = DIFFICULTY_COLORS[run.difficulty]
     if run.difficulty ~= "" and color then
-        stage = stage .. format("  |cff9d9d9d·|r  |cff%02x%02x%02x%s|r", color[1] * 255, color[2] * 255, color[3] * 255, run.difficulty)
+        stage = stage .. format("  |cff9d9d9d·|r  |cff%02x%02x%02x%s|r", color[1] * 255, color[2] * 255, color[3] * 255, run.levelName)
     elseif run.difficulty ~= "" then
-        stage = stage .. "  |cff9d9d9d·|r  " .. run.difficulty
+        stage = stage .. "  |cff9d9d9d·|r  " .. run.levelName
     end
     tracker.stage:SetText(stage)
 
@@ -112,6 +118,14 @@ local function Refresh()
         greed:Show()
     else
         greed:Hide()
+    end
+    if (run.revivesCap or 0) > 0 then
+        local color = run.revives == 0 and "ff5a4a" or "66ff66"
+        revives.value:SetText("|cff" .. color .. run.revives .. "|r |cff9d9d9d/ " .. run.revivesCap .. "|r")
+        revives:SetPoint("TOPRIGHT", list, "TOPRIGHT", 0, -(greed:IsShown() and 5 or 4) * 19)
+        revives:Show()
+    else
+        revives:Hide()
     end
     for _, row in ipairs(rows) do
         row:SetWidth(row.label:GetStringWidth() + row.value:GetStringWidth() + 15 + 11 + 4)
@@ -174,10 +188,7 @@ callout:SetScript("OnUpdate", function()
     local low = -4
     local bossBar = VanillaBonkBossBar
     if bossBar and bossBar:IsVisible() then
-        low = -32
-        if bossBar.debuffs:IsVisible() then
-            low = low - bossBar.debuffs.height - 4
-        end
+        low = -32 - (bossBar.below or 0)
     end
     if low ~= this.low then
         this.low = low
@@ -223,9 +234,11 @@ end
 handlers["start"] = function(f)
     run.map = f[2] or ""
     run.difficulty = f[3] or ""
+    run.levelName = (f[10] and f[10] ~= "") and f[10] or run.difficulty
     run.duration = tonumber(f[4]) or 600
     run.stage = tonumber(f[5]) or 1
-    run.floors = f[8] == "1"
+    run.stages = tonumber(f[9] or "") or 3
+    run.finale = f[11] == "1"
     run.elapsed = 0
     HideCallout()
     run.boss, run.portal = false, false
@@ -262,8 +275,15 @@ handlers["greed"] = function(f)
     Refresh()
 end
 
+handlers["coopdown"] = function(f)
+    run.revives = tonumber(f[2] or "") or 0
+    run.revivesCap = tonumber(f[3] or "") or 0
+    Refresh()
+end
+
 handlers["end"] = function()
     run.greed, run.greedReward, run.greedMobs = 0, 0, 0
+    run.revives, run.revivesCap = 0, 0
     HideCallout()
     tracker:Hide()
     list:Hide()

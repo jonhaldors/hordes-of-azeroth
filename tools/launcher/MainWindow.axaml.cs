@@ -25,6 +25,7 @@ namespace HordesOfAzeroth.Launcher
         const string DiscordUrl = "https://discord.gg/zpYfsqh6Dn";
         const string CoffeeUrl = "https://buymeacoffee.com/jonhaldors";
         static readonly TimeSpan UpdateInterval = TimeSpan.FromMinutes(15);
+        static readonly TimeSpan BoardRefreshInterval = TimeSpan.FromMinutes(15);
         static string FullRepairText => Loc.T("The launcher checks every game file, puts back the ones that are missing or damaged and reloads the world. Your characters and unlocks are backed up first and stay as they are.");
         static string QuickRepairText => Loc.T("Some game files were missing or damaged, so the launcher puts them back. Your characters and unlocks stay as they are.");
 
@@ -59,6 +60,7 @@ namespace HordesOfAzeroth.Launcher
         CancellationTokenSource m_installCancel;
         bool m_updating;
         bool m_repairing;
+        CoopAgent m_coop;
 
         public MainWindow()
         {
@@ -75,6 +77,7 @@ namespace HordesOfAzeroth.Launcher
             m_accounts = Accounts.Load(m_folder);
             m_accountSync = new AccountSync(m_server, m_folder);
             m_saves = new SaveBackups(m_folder, m_server, m_installer);
+            StartCoopAgent();
             WatchMenuClosing(AccountMenu, LanguageMenu, OptionsMenu);
             Opened += OnOpened;
             Closing += OnClosing;
@@ -125,6 +128,22 @@ namespace HordesOfAzeroth.Launcher
             m_settings.Save();
         }
 
+        async Task DownloadLeaderboardAsync()
+        {
+            if (!RunUpload.IsConfigured)
+                return;
+            try
+            {
+                string board = await RunUpload.GetBoardAsync(m_settings.InstallId);
+                if (board.Length <= Leaderboard.MaxBytes)
+                    await File.WriteAllTextAsync(Leaderboard.File(m_folder), board);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
+            {
+                LauncherLog.Write(m_folder, "Leaderboard: " + e.Message);
+            }
+        }
+
         async Task OfferCrashReportAsync()
         {
             DateTime since = new DateTime(m_settings.CrashCheckedAt, DateTimeKind.Utc);
@@ -158,12 +177,11 @@ namespace HordesOfAzeroth.Launcher
             try
             {
                 long offset = m_settings.RunLogOffset;
-                bool send = m_settings.SendRunData;
-                long next = await Task.Run(() => ServerLogTrim.Trim(m_folder, send ? RunRecords.Collect(m_folder, m_settings, offset) : RunRecords.SkipTo(m_folder)));
+                long next = await Task.Run(() => ServerLogTrim.Trim(m_folder, RunRecords.Collect(m_folder, m_settings, offset)));
                 m_settings.RunLogOffset = next;
                 m_settings.Save();
-                if (send)
-                    await RunUpload.SendRunsAsync(m_folder);
+                await RunUpload.SendRunsAsync(m_folder);
+                await DownloadLeaderboardAsync();
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
             {
@@ -273,11 +291,27 @@ namespace HordesOfAzeroth.Launcher
             Shutdown();
         }
 
+        void StartCoopAgent()
+        {
+            try
+            {
+                m_coop = new CoopAgent(m_folder);
+                m_coop.Start();
+            }
+            catch (Exception error)
+            {
+                m_coop = null;
+                LauncherLog.Write(m_folder, "Co-op is off this session: " + error.Message);
+            }
+        }
+
         void Shutdown()
         {
             if (m_shuttingDown)
                 return;
             m_shuttingDown = true;
+            m_coop?.Dispose();
+            m_coop = null;
             m_updateTimer.Stop();
             m_background?.Cancel();
             if (m_tray != null)
@@ -425,9 +459,19 @@ namespace HordesOfAzeroth.Launcher
         {
             if (!IsInstalled() || (m_state != LauncherState.Ready && m_state != LauncherState.UpdateAvailable) || m_game.IsRunning || !m_installer.LauncherOutdated(manifest))
                 return false;
-            StatusText.Text = Loc.T("Updating the launcher");
-            StatusDetail.Text = "";
-            await m_installer.RefreshLauncherAsync(manifest, CancellationToken.None);
+            m_updating = true;
+            SetState(LauncherState.Installing, Loc.T("Updating the launcher"), "");
+            try
+            {
+                await m_installer.RefreshLauncherAsync(manifest, CancellationToken.None);
+            }
+            catch
+            {
+                m_updating = false;
+                m_state = LauncherState.Ready;
+                RefreshState();
+                throw;
+            }
             RestartLauncher();
             return true;
         }
@@ -1090,14 +1134,35 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        async Task LeaveCoopGamesAsync()
+        {
+            if (m_coop == null)
+                return;
+            try
+            {
+                await m_coop.LeaveAllAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            catch (Exception e) when (!(e is OutOfMemoryException))
+            {
+                Console.Error.WriteLine("Co-op: leaving on game exit failed: " + e.Message);
+            }
+        }
+
         async Task WatchRunningGameAsync()
         {
             SetState(LauncherState.Playing, Loc.T("Playing"), Loc.T("the game's server stops when you close the game"));
             if (m_settings.KeepInTray)
                 TuckAway();
-            await m_game.WaitForAllToCloseAsync(CancellationToken.None);
+            using (CancellationTokenSource playing = new CancellationTokenSource())
+            {
+                Task boardRefresh = RefreshBoardWhilePlayingAsync(playing.Token);
+                await m_game.WaitForAllToCloseAsync(CancellationToken.None);
+                playing.Cancel();
+                await boardRefresh;
+            }
             ShowFromTray();
             SetState(LauncherState.Stopping, Loc.T("Closing"), Loc.T("saving and stopping the game's server"));
+            await LeaveCoopGamesAsync();
             await CountCharactersAsync();
             try
             {
@@ -1111,6 +1176,33 @@ namespace HordesOfAzeroth.Launcher
             await SwitchToDirectX12AfterDriverCrashAsync();
             await ShareRunsAsync();
             await OfferCrashReportAsync();
+        }
+
+        async Task RefreshBoardWhilePlayingAsync(CancellationToken stop)
+        {
+            while (true)
+            {
+                try
+                {
+                    await Task.Delay(BoardRefreshInterval, stop);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                try
+                {
+                    long offset = m_settings.RunLogOffset;
+                    m_settings.RunLogOffset = await Task.Run(() => RunRecords.Collect(m_folder, m_settings, offset));
+                    m_settings.Save();
+                    await RunUpload.SendRunsAsync(m_folder);
+                    await DownloadLeaderboardAsync();
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
+                {
+                    LauncherLog.Write(m_folder, "Run data: " + e.Message);
+                }
+            }
         }
 
         async Task SwitchToDirectX12AfterDriverCrashAsync()
@@ -1291,6 +1383,8 @@ namespace HordesOfAzeroth.Launcher
         {
             m_settings.SendRunData = RunDataItem.IsChecked;
             m_settings.RunDataAsked = true;
+            if (!m_settings.SendRunData)
+                m_settings.ShowOnLeaderboard = false;
             m_settings.Save();
         }
 

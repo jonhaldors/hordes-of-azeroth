@@ -17,6 +17,8 @@ local ARROW_TEXTURE = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown"
 local EYE_TEXTURE = "Interface\\Icons\\Ability_EyeOfTheOwl"
 local EYE_SIZE = 16
 local GLYPH_INDEX = 100
+local OTHER_INDEX = 200
+local OTHER_FIELDS = 5
 local BAR_SPEED = 8
 local MODE_SPELLS, MODE_TYPES, MODE_HEALING = 1, 2, 3
 local MODES = {
@@ -85,6 +87,7 @@ meter.rule:SetPoint("TOPRIGHT", meter.header, "BOTTOMRIGHT", 0, 0)
 local mode = MODE_SPELLS
 local spells = {}
 local glyphs = {}
+local others = {}
 local support = {}
 local seconds = 0
 local rows = {}
@@ -401,6 +404,9 @@ local function Sources()
             })
         end
     end
+    for _, other in ipairs(others) do
+        tinsert(sources, other)
+    end
     return sources
 end
 
@@ -591,6 +597,7 @@ end
 handlers["start"] = function()
     spells = {}
     glyphs = {}
+    others = {}
     support = {}
     seconds = 0
     for _, row in ipairs(rows) do
@@ -631,6 +638,22 @@ handlers["gmeter"] = function(f)
         if id then
             tinsert(glyphs, { id = id, order = order, damage = tonumber(damage) or 0, kills = tonumber(kills) or 0, types = types })
         end
+    end
+    if mode ~= MODE_HEALING then
+        Refresh()
+    end
+end
+
+handlers["xmeter"] = function(f)
+    others = {}
+    local field = 2
+    while f[field + OTHER_FIELDS - 1] do
+        local order = getn(others) + 1
+        tinsert(others, {
+            id = "x" .. f[field + 1], index = OTHER_INDEX + order, icon = f[field] ~= "" and f[field] or "INV_Misc_QuestionMark",
+            name = f[field + 1] == "Melee" and L["Melee"] or f[field + 1], damage = tonumber(f[field + 2]) or 0, kills = tonumber(f[field + 3]) or 0, types = f[field + 4],
+        })
+        field = field + OTHER_FIELDS
     end
     if mode ~= MODE_HEALING then
         Refresh()

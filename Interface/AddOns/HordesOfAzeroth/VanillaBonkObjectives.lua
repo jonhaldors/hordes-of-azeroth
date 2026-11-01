@@ -5,7 +5,6 @@ local KIND_ICONS = {
     shrine = "Spell_Holy_PowerInfusion",
     vendor = "INV_Misc_Bag_10",
     event = "Ability_Warrior_BattleShout",
-    extract = "Spell_Arcane_PortalStormWind",
     chest = "INV_Box_02",
     boss = "INV_Misc_Bone_HumanSkull_01",
     miniboss = "INV_Misc_Bone_ElfSkull_01",

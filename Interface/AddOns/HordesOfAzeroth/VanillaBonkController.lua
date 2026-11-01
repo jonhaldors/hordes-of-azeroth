@@ -274,15 +274,23 @@ local function ChoiceArmed(window)
 end
 
 local function ChoiceButton(window, name)
+    local cardAction = window == VanillaBonkOffer and CardActionFor(name)
     if NEXT[name] then
         MoveFocus(window, NEXT[name])
+    elseif name ~= "a" and not cardAction then
+        return false
     elseif not ChoiceArmed(window) then
-        return
+        return true
     elseif name == "a" then
         VanillaBonk_ChoiceKey(tostring(Controller.focus))
-    elseif window == VanillaBonkOffer and CardActionFor(name) then
-        VanillaBonk_ChoiceKey(CARD_KEYS[CardActionFor(name)])
+    else
+        VanillaBonk_ChoiceKey(CARD_KEYS[cardAction])
     end
+    return true
+end
+
+local function LiveCards(window)
+    return window ~= nil and VanillaBonkUI.RunPaused and not VanillaBonkUI.RunPaused()
 end
 
 local function Dash()
@@ -741,17 +749,10 @@ local function IsSlider(frame)
     return frame:GetObjectType() == "Slider"
 end
 
-local TAB_STRIPS = { MerchantFrame = "VanillaBonkGearTab" }
-
 local function IsWindowTab(button)
     local name = button:GetName()
     if not name or not string.find(name, "Tab%d+$") then
         return false
-    end
-    for _, prefix in pairs(TAB_STRIPS) do
-        if string.find(name, "^" .. prefix .. "%d+$") then
-            return true
-        end
     end
     local owner = getglobal((string.gsub(name, "Tab%d+$", "")))
     return owner ~= nil and owner.numTabs ~= nil and owner.numTabs > 1
@@ -847,24 +848,17 @@ local function TabList(window)
     if not name then
         return nil
     end
-    local strip = TAB_STRIPS[name]
-    local prefix = strip or (window.numTabs and window.numTabs > 1 and name .. "Tab")
-    if not prefix then
+    if not window.numTabs or window.numTabs < 2 then
         return nil
     end
+    local prefix = name .. "Tab"
     local tabs, selected = {}, nil
     local index = 1
     local tab = getglobal(prefix .. index)
-    while tab and (strip or index <= window.numTabs) do
+    while tab and index <= window.numTabs do
         if tab:IsVisible() then
             table.insert(tabs, tab)
-            local current
-            if strip then
-                current = tab.IsEnabled and tab:IsEnabled() ~= 1
-            else
-                current = window.selectedTab == index
-            end
-            if current then
+            if window.selectedTab == index then
                 selected = table.getn(tabs)
             end
         end
@@ -1837,8 +1831,7 @@ function HoAController_OnButton(name, down)
         return
     end
     local window = ChoiceWindow()
-    if window then
-        ChoiceButton(window, name)
+    if window and (ChoiceButton(window, name) or not LiveCards(window)) then
         return
     end
     if GearOpen() and GearButton(name) then
@@ -1944,7 +1937,7 @@ watcher:SetScript("OnUpdate", function()
         Controller.focus = 1
     end
     local windows = window and {} or OpenWindows()
-    local capture = window ~= nil or table.getn(windows) > 0
+    local capture = (window ~= nil and not LiveCards(window)) or table.getn(windows) > 0
     if capture ~= Controller.captured then
         Controller.captured = capture
         if HoAController_SetCapture then

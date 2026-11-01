@@ -21,7 +21,7 @@ param(
     [string[]]$Talents = @(),
     [switch]$Mortal,
     [int]$Tier = 0,
-    [int]$Stage = 1,
+    [int]$Band = 1,
     [int]$Minute = 5,
     [int]$Level = 20,
     [string]$Tag = '',
@@ -55,7 +55,7 @@ $benillaClient = Join-Path $benillaRoot 'client'
 $addonTarget = if ($Benilla) { Join-Path $benillaClient 'benilla-config\AddOns\BenchTest' } else { Join-Path $RepoRoot 'Interface\AddOns\BenchTest' }
 $statsFile = Join-Path $RepoRoot 'Interface\GlueXML\BonkStats.lua'
 $chatLog = if ($Benilla) { Join-Path $benillaClient 'benilla-config\Logs\WoWChatLog.txt' } else { Join-Path $RepoRoot 'Logs\WoWChatLog.txt' }
-$realmLog = Join-Path $LogDir 'Realmd.log'
+$realmLog = if ($Benilla) { Join-Path (Split-Path -Parent $RepoRoot) 'WoW Vanilla\server\logs\Realmd.log' } else { Join-Path $LogDir 'Realmd.log' }
 $manifestFile = Join-Path $env:TEMP "bench-$Class.json"
 
 Add-Type -Namespace Bench -Name Window -MemberDefinition @'
@@ -142,7 +142,7 @@ $DruidForms = @{ balance = 1; feral = 2; bear = 3; resto = 4; ssmoon = 1; sscat 
 $DruidCycles = @{ ssdance = 3000; ssurge = 3000; sspirit = 3000; hybrid2 = 3000; hybrid3 = 3000 }
 
 function Write-AddonBuilds([object[]]$BuildList, [hashtable]$Spells) {
-    $setupSteps = @('bench', "level $Level", 'quiet', "minute $Minute") + @(if ($Tier) { "tier $Tier $Stage" }) + @($Passives | ForEach-Object { "passive $($_ -replace ':', ' ')" }) + @($Glyphs | ForEach-Object { "glyph $_" }) + @($Cards | ForEach-Object { "card $($_ -replace ':', ' ')" }) + @($Talents | ForEach-Object { "talent $($_ -replace ':', ' ')" }) + @(if ($Training) { "training $Training" }) + @($Items | ForEach-Object { "item $_" })
+    $setupSteps = @('bench', "level $Level", 'quiet', "minute $Minute") + @(if ($Tier) { "tier $Tier $Band" }) + @($Passives | ForEach-Object { "passive $($_ -replace ':', ' ')" }) + @($Glyphs | ForEach-Object { "glyph $_" }) + @($Cards | ForEach-Object { "card $($_ -replace ':', ' ')" }) + @($Talents | ForEach-Object { "talent $($_ -replace ':', ' ')" }) + @(if ($Training) { "training $Training" }) + @($Items | ForEach-Object { "item $_" })
     if ($Dummies) { $setupSteps += 'deep' }
     if ($Crowd) { $setupSteps += 'unkillable' }
     $setup = ($setupSteps | ForEach-Object { '"' + $_ + '"' }) -join ', '
@@ -315,7 +315,7 @@ function Read-AfterPack([string[]]$Entries) {
 }
 
 if ($Pack -and $Dummies) { throw '-Pack has no effect with -Dummies.' }
-$afterPackSteps = Read-AfterPack $AfterPack
+$afterPackSteps = @(Read-AfterPack $AfterPack)
 
 for ($wait = 0; $wait -lt 20 -and (Get-GameProcess); $wait++) { Start-Sleep -Seconds 1 }
 if (Get-GameProcess) { throw 'The game client is running. Close it (or wait for the session using it) first.' }

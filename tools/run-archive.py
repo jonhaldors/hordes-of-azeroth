@@ -21,9 +21,9 @@ CLASSES = {1: "Warrior", 2: "Paladin", 3: "Hunter", 4: "Rogue", 5: "Priest", 7: 
 
 HEAD = re.compile(r"^(\S+ \S+) \[LevelUp\] \(acc (\d+),.*?name ([^,]+),.*?\) Bonk (\w+): (.*)$")
 WHERE = r"\(stage (\d+), (\w+), (\w+), class (\d+)\)"
-LOADOUT = re.compile(r"starts a run at run minute 0 " + WHERE + r": mastery level (\d+), talent points (\d+) of (\d+), best floor (\d+), "
+LOADOUT = re.compile(r"starts a run at run minute 0 " + WHERE + r": mastery level (\d+), talent points (\d+) of (\d+), best (?:floor|level) (\d+), "
                      r"determination (\d+); talents \[([^\]]*)\]; upgrades \[([^\]]*)\]; fortunes \[([^\]]*)\]; gear \[([^\]]*)\]"
-                     r"(?:; found \[([^\]]*)\]; gold (\d+), scrap (\d+), tickets (\d+))?")
+                     r"(?:; found \[([^\]]*)\]; gold (\d+), scrap (\d+), tickets (\d+))?(?:.*; difficulty level (\d+))?")
 FOUND = re.compile(r"; found \[([^\]]*)\]; enchants \[([^\]]*)\]")
 DROP = re.compile(r"gets item (\d+) from a ([\w-]+) at run minute ([\d.]+) " + WHERE + r": quality (\d+), tier (\d+), (\d+) bonus stats")
 FLOOR = re.compile(r"starts stage (\d+) at run minute ([\d.]+) " + WHERE + r": level (\d+), (\d+) kills, took (\d+) damage so far")
@@ -35,6 +35,8 @@ BOSS = re.compile(r"kills (.+?) \(([\w -]+)\) at run minute ([\d.]+) " + WHERE +
 DEATH = re.compile(r"at run minute ([\d.]+) " + WHERE + r", level (\d+), (\d+) kills: last hit by (.+?) for (\d+)"
                    r"(?:; (\d+) damage in the last 10 s from (\d+) hits \(([\d.]+)% of max health\))?")
 MINUTE = re.compile(r"took (\d+) damage \(([\d.]+)% of max health\), healed (\d+) \(([\d.]+)%\), lowest health (\d+)%, (\d+) enemies alive")
+CLEAR = re.compile(r"clears level (\d+) at run minute ([\d.]+) in (\d+) ms " + WHERE)
+FINALE = re.compile(r"holds out ([\d.]+) minutes on level (\d+) at run minute ([\d.]+), score (\d+) " + WHERE)
 DEFENSE = re.compile(r"defense: max health (\d+), armor (\d+) \(([\d.]+)% reduction, \+([\d.]+)% health\), "
                      r"enemy damage x([\d.]+), grunt hit ([\d.]+)% of max health")
 
@@ -46,8 +48,9 @@ def parse_pairs(text):
 def parse_found(text):
     found = {}
     for entry in filter(None, text.split(",")):
-        slot, tier, bonus = (int(part) for part in entry.split(":"))
-        found[slot] = {"tier": tier, "bonus_stats": bonus}
+        parts = [int(part) for part in entry.split(":")]
+        found[parts[0]] = {"tier": parts[1], "bonus_stats": parts[2], "season": parts[3] if len(parts) > 3 else 0}
+    return found
     return found
 
 
@@ -135,11 +138,13 @@ def read_runs(entries):
                 "best_floor": int(found[8]), "determination": int(found[9]),
                 "talents": parse_pairs(found[10]), "upgrades": parse_pairs(found[11]), "fortunes": parse_pairs(found[12]),
                 "gear": parse_pairs(found[13]), "minutes": [], "picks": [], "bosses": [], "drops": [], "floors": [],
-                "death": None, "end": None,
+                "clears": [], "finale": None, "death": None, "end": None,
             }
             if found[14] is not None:
                 run.update({"found": parse_found(found[14]), "gold_balance": int(found[15]), "scrap_balance": int(found[16]),
                             "ticket_balance": int(found[17])})
+            if found[18] is not None:
+                run["difficulty_level"] = int(found[18])
             run.update(extra)
             open_runs[name] = run
             runs.append(run)
@@ -171,11 +176,19 @@ def read_runs(entries):
             if found:
                 run["drops"].append({"item": int(found[1]), "source": found[2], "minute": float(found[3]), "floor": int(found[4]),
                                      "quality": int(found[8]), "tier": int(found[9]), "bonus_stats": int(found[10])})
-        elif kind == "floor":
+        elif kind in ("floor", "stage"):
             found = FLOOR.search(body)
             if found:
                 run["floors"].append({"floor": int(found[1]), "minute": float(found[2]), "level": int(found[7]), "kills": int(found[8]),
                                       "taken": int(found[9])})
+        elif kind == "clear":
+            found = CLEAR.search(body)
+            if found:
+                run["clears"].append({"level": int(found[1]), "minute": float(found[2]), "ms": int(found[3])})
+        elif kind == "finale":
+            found = FINALE.search(body)
+            if found:
+                run["finale"] = {"minutes": float(found[1]), "level": int(found[2]), "score": int(found[4])}
         elif kind == "death":
             found = DEATH.search(body)
             if found:
@@ -233,7 +246,7 @@ def player_entries(inbox):
 def export_csv(path, target):
     names = weapon_names()
     columns = ["id", "install", "game", "class", "tier", "first_map", "outcome", "minutes", "floor", "level", "kills", "gold",
-               "mastery_level", "talent_points_spent", "best_floor", "bosses", "death_striker", "top_spell", "top_share", "spells", "cards",
+               "mastery_level", "talent_points_spent", "best_floor", "difficulty_level", "cleared_level", "clear_ms", "finale_score", "bosses", "death_striker", "top_spell", "top_share", "spells", "cards",
                "glyphs", "start_gear", "end_gear"]
     with open(target, "w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
@@ -245,7 +258,10 @@ def export_csv(path, target):
             writer.writerow([
                 run["id"], run.get("install", ""), run.get("game", ""), CLASSES.get(run["class"], run["class"]), run["tier"], run["first_map"],
                 end["outcome"], end["minute"], end["floor"], end["level"], end["kills"], end["gold"], run["mastery_level"],
-                run["talent_points_spent"], run["best_floor"], len(run["bosses"]), (run["death"] or {}).get("striker", ""),
+                run["talent_points_spent"], run["best_floor"], run.get("difficulty_level", ""),
+                max((clear["level"] for clear in run.get("clears", [])), default=""),
+                min((clear["ms"] for clear in run.get("clears", [])), default=""),
+                (run.get("finale") or {}).get("score", ""), len(run["bosses"]), (run["death"] or {}).get("striker", ""),
                 names.get(spells[0]["weapon"], spells[0]["weapon"]) if spells else "", f"{spells[0]['damage'] / total:.2f}" if spells else "",
                 " ".join(f"{spell['weapon']}:{spell['rank']}:{spell['damage']}" for spell in spells),
                 " ".join(f"{card}:{count}" for card, count in sorted(end["cards"].items())),

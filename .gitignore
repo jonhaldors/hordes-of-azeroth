@@ -59,3 +59,4 @@
 tools/bench/results.json
 
 __pycache__/
+tools/clientfix/build/

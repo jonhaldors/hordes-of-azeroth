@@ -2,6 +2,14 @@ local L = VanillaBonkL
 VanillaBonkUI = {}
 local UI = VanillaBonkUI
 
+local SendChatWhileAlive = SendChatMessage
+function SendChatMessage(text, kind, language, target)
+    if kind == "SAY" and text and strsub(text, 1, 1) == "." and UnitIsDeadOrGhost("player") then
+        return SendChatWhileAlive(text, "WHISPER", language, UnitName("player"))
+    end
+    return SendChatWhileAlive(text, kind, language, target)
+end
+
 UI.FONT = "Fonts\\FRIZQT__.TTF"
 UI.NUMBER_FONT = "Fonts\\ARIALN.TTF"
 UI.TITLE_FONT = "Fonts\\MORPHEUS.TTF"
@@ -26,6 +34,7 @@ UI.DAMAGE_TYPES = {
     arcane = { name = L["Arcane"], r = 0.82, g = 0.49, b = 1, icon = "Spell_Nature_StarFall" },
     shadow = { name = L["Shadow"], r = 0.56, g = 0.42, b = 0.85, icon = "Spell_Shadow_ShadowBolt" },
     nature = { name = L["Nature"], r = 0.25, g = 0.78, b = 0.71, icon = "Spell_Nature_Lightning" },
+    static = { name = L["Static"], r = 0.45, g = 0.6, b = 1, icon = "Spell_Nature_Lightning", note = L["Nature damage when the stacks discharge."] },
     holy = { name = L["Holy"], r = 1, g = 0.9, b = 0.5, icon = "Spell_Holy_HolyBolt" },
     decay = { name = L["Decay"], r = 0.45, g = 0.3, b = 0.7, icon = "Spell_Shadow_ChillTouch", note = L["Shadow damage over time."] },
     agony = { name = L["Agony"], r = 0.55, g = 0.2, b = 0.55, icon = "Spell_Shadow_CurseOfSargeras", note = L["Shadow damage over time that grows."] },
@@ -34,7 +43,7 @@ UI.DAMAGE_TYPES = {
     bear = { name = L["Bear Form"], r = 0.75, g = 0.45, b = 0.25, icon = "Ability_Racial_BearForm", note = L["Maul."] },
     tree = { name = L["Tree of Life"], r = 0.35, g = 0.85, b = 0.35, icon = "Spell_Nature_ProtectionformNature", note = L["Vines."] },
 }
-UI.DAMAGE_TYPE_BY_KEYWORD = { [L["Bleed"]] = "bleed", [L["Poison"]] = "poison", [L["Burning"]] = "burn", [L["Decay"]] = "decay", [L["Agony"]] = "agony" }
+UI.DAMAGE_TYPE_BY_KEYWORD = { [L["Bleed"]] = "bleed", [L["Poison"]] = "poison", [L["Burning"]] = "burn", [L["Decay"]] = "decay", [L["Agony"]] = "agony", [L["Static"]] = "static" }
 UI.CLASS_NAMES = {
     WARRIOR = L["Warrior"], PALADIN = L["Paladin"], HUNTER = L["Hunter"], ROGUE = L["Rogue"], PRIEST = L["Priest"],
     SHAMAN = L["Shaman"], MAGE = L["Mage"], WARLOCK = L["Warlock"], DRUID = L["Druid"],
@@ -143,6 +152,18 @@ function UI.AddQuestProgress(tooltip, lock)
     if lock and lock.amount and lock.amount > 1 then
         tooltip:AddLine(L["Progress: "] .. UI.Thousands(math.min(lock.progress, lock.amount)) .. "/" .. UI.Thousands(lock.amount), 0.62, 0.62, 0.62)
     end
+end
+
+function UI.LevelName(level)
+    level = tonumber(level) or 0
+    if level <= 0 then
+        return "-"
+    elseif level <= 4 then
+        return L("{1} {2}", L["Normal"], level)
+    elseif level <= 9 then
+        return L("{1} {2}", L["Heroic"], level - 4)
+    end
+    return L("{1} {2}", L["Mythic"], level - 9)
 end
 
 function UI.FormatTime(seconds)

@@ -22,9 +22,9 @@ local SECTION_ROWS = {
         {
             name = "Hordes of Azeroth",
             title = L["Hordes of Azeroth"],
-            height = 3 * ROW + 20,
+            height = 4 * ROW + 20,
             columns = 3,
-            own = { { DISPLAY[1], 1, 0 }, { DISPLAY[2], 1, 1 }, { DISPLAY[3], 1, 2 }, { DISPLAY[4], 2, 2 }, { DISPLAY[5], 3, 0 } },
+            own = { { DISPLAY[1], 1, 0 }, { DISPLAY[2], 1, 1 }, { DISPLAY[3], 1, 2 }, { DISPLAY[4], 2, 2 }, { DISPLAY[5], 3, 0 }, { DISPLAY[6], 1, 3 } },
             healthBar = { 2, 0, -22 },
             language = { 3, 1, -22 },
         },

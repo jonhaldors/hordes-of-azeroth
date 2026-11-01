@@ -21,4 +21,5 @@ CreditsFrame.xml
 BonkAccount.lua
 BonkStats.lua
 BonkGlue.xml
+BonkCoop.xml
 BonkGluePad.xml

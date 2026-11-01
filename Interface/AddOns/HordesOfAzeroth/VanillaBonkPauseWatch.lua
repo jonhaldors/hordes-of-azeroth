@@ -11,6 +11,10 @@ local CHOICE_FRAMES = {
 local inRun, paused = false, false
 local stuckFor, retryIn = 0, 0
 
+function UI.RunPaused()
+    return inRun and paused
+end
+
 local function AnyChoiceShown()
     for _, name in ipairs(CHOICE_FRAMES) do
         local frame = getglobal(name)

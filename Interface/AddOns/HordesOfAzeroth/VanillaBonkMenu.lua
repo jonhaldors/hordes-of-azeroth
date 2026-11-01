@@ -394,8 +394,9 @@ confirm.no:SetPoint("BOTTOMLEFT", confirm.box, "BOTTOM", 6, 18)
 local function Refresh()
     if run.inRun then
         menu.title:SetText(L["Paused"])
-        local difficulty = run.difficulty ~= "" and ("  |cff9d9d9d·|r  |cff" .. (DIFFICULTY_COLORS[run.difficulty] or "ffffff") .. run.difficulty .. "|r") or ""
-        menu.subtitle:SetText("|cffffd100" .. L["Floor "] .. run.stage .. "|r" .. difficulty .. "  |cff9d9d9d·|r  |cffffffff" .. UI.FormatTime(run.elapsed) .. "|r")
+        local difficulty = run.difficulty ~= "" and ("  |cff9d9d9d·|r  |cff" .. (DIFFICULTY_COLORS[run.difficulty] or "ffffff") .. run.levelName .. "|r") or ""
+        local stage = run.finale and L["Finale"] or L("Stage {1}/{2}", run.stage, run.stages)
+        menu.subtitle:SetText("|cffffd100" .. stage .. "|r" .. difficulty .. "  |cff9d9d9d·|r  |cffffffff" .. UI.FormatTime(run.elapsed) .. "|r")
         levelRow.value:SetText(run.level or "-")
         killsRow.value:SetText(run.kills or 0)
         valorRow.value:SetText("|cffffe873" .. (run.valor or 0) .. "|r")
@@ -533,8 +534,10 @@ local handlers = {}
 handlers["start"] = function(f)
     run.inRun = true
     run.difficulty = f[3] or ""
+    run.levelName = (f[10] and f[10] ~= "") and f[10] or run.difficulty
     run.stage = tonumber(f[5] or "") or 1
-    run.floors = f[8] == "1"
+    run.stages = tonumber(f[9] or "") or 3
+    run.finale = f[11] == "1"
     run.elapsed = 0
     run.level, run.kills, run.gold, run.valor, run.shards = nil, 0, 0, 0, 0
 end

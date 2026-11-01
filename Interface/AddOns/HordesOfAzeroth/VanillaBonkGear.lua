@@ -7,6 +7,9 @@ local RETRY = 0.25
 local RETRIES = 12
 local QUALITY_EPIC = 4
 local CARD_TOP = 150
+local SIDE_SCALE = 0.65
+local SIDE_HOTBAR_TOP = 66
+local SIDE_BUTTON_ROOM = 34
 local CARD_MIN_WIDTH = 230
 local CARD_HEAD = 84
 local CARD_FOOT = 16
@@ -189,7 +192,11 @@ end
 
 local function PlaceButtonUnder(button, card, below, offset)
     button:ClearAllPoints()
-    button:SetPoint("TOP", card, "TOP", offset or 0, -(CARD_TOP - below) - 14)
+    if frame.side then
+        button:SetPoint("TOP", card, "BOTTOM", offset or 0, -6)
+        return
+    end
+    button:SetPoint("TOP", card, "TOP", offset or 0, -(frame.rowTop - below) - 14)
 end
 
 local function PlaceNewCardButtons(below)
@@ -213,12 +220,23 @@ local function ReplacesTwoHander()
     return offer and OFFHAND_LOCS[EquipLoc(offer.entry) or ""] and EquipLoc(offer.replaced) == "INVTYPE_2HWEAPON"
 end
 
+local function SideBottom()
+    return -UIParent:GetHeight() / SIDE_SCALE / 2 + SIDE_HOTBAR_TOP / SIDE_SCALE + SIDE_BUTTON_ROOM
+end
+
+local function RowTop(tallest)
+    if not frame.side then
+        return CARD_TOP
+    end
+    return SideBottom() + tallest
+end
+
 local function LayoutRow(cards)
     local width = (getn(cards) - 1) * CARD_GAP
     for _, card in ipairs(cards) do
         width = width + card:GetWidth()
     end
-    local half = frame:GetWidth() / 2
+    local half = UIParent:GetWidth() / frame:GetScale() / 2
     local left = -width / 2
     local sheetRight = CharacterFrame:IsShown() and CharacterFrame:GetRight()
     if sheetRight then
@@ -228,10 +246,14 @@ local function LayoutRow(cards)
     local previous
     for _, card in ipairs(cards) do
         card:ClearAllPoints()
-        if previous then
+        if frame.side and previous then
+            card:SetPoint("BOTTOMLEFT", previous, "BOTTOMRIGHT", CARD_GAP, 0)
+        elseif frame.side then
+            card:SetPoint("BOTTOMLEFT", frame, "CENTER", left, SideBottom())
+        elseif previous then
             card:SetPoint("TOPLEFT", previous, "TOPRIGHT", CARD_GAP, 0)
         else
-            card:SetPoint("TOPLEFT", frame, "CENTER", left, CARD_TOP)
+            card:SetPoint("TOPLEFT", frame, "CENTER", left, frame.rowTop)
         end
         previous = card
     end
@@ -245,8 +267,9 @@ local function RefreshOneSlot()
     wornCard.label:SetText(ReplacesTwoHander() and L["Main Hand"] or L["Equipped"])
     frame.equip:SetText(offer.replaced > 0 and L["Replace"] or L["Equip"])
     local tallest = max(Fill(newCard, offer.entry, offer.found), Fill(wornCard, offer.replaced, WornFound(offer.slot, offer.replaced)))
+    frame.rowTop = RowTop(tallest)
     local center = LayoutRow({ wornCard, newCard })
-    local below = CARD_TOP - tallest
+    local below = frame.rowTop - tallest
     PlaceButtonUnder(frame.equip, wornCard, below)
     PlaceNewCardButtons(below)
     return below - 6, center
@@ -259,8 +282,9 @@ local function RefreshTwoSlots()
     frame.equipOther:SetText(offer.otherReplaced > 0 and L["Replace"] or L["Equip"])
     local tallest = max(Fill(newCard, offer.entry, offer.found), Fill(wornCard, offer.replaced, WornFound(offer.slot, offer.replaced)),
         Fill(otherCard, offer.otherReplaced, WornFound(offer.otherSlot, offer.otherReplaced)))
+    frame.rowTop = RowTop(tallest)
     local center = LayoutRow({ wornCard, otherCard, newCard })
-    local below = CARD_TOP - tallest
+    local below = frame.rowTop - tallest
     PlaceButtonUnder(frame.equip, wornCard, below)
     PlaceButtonUnder(frame.equipOther, otherCard, below)
     PlaceNewCardButtons(below)
@@ -278,12 +302,28 @@ local function Refresh()
     else
         below, center = RefreshOneSlot()
     end
-    frame.rule:SetText(frame.ruleText .. (ReplacesTwoHander() and frame.twoHanderText or ""))
+    frame.rule:SetText(frame.side and "" or frame.ruleText .. (ReplacesTwoHander() and frame.twoHanderText or ""))
     frame.rule:ClearAllPoints()
     frame.rule:SetPoint("TOP", frame, "CENTER", center, below - 46)
 end
 
+local function ApplySideChrome()
+    frame:SetScale(frame.side and SIDE_SCALE or 1)
+    if frame.side then
+        frame.dim:Hide()
+        frame.title:Hide()
+        frame.subtitle:Hide()
+    else
+        frame.dim:Show()
+        frame.title:Show()
+        frame.subtitle:Show()
+    end
+end
+
 local function ShowSheet()
+    if frame.side then
+        return
+    end
     if not CharacterFrame:IsShown() then
         ToggleCharacter("PaperDollFrame")
         frame.openedSheet = CharacterFrame:IsShown()
@@ -309,7 +349,7 @@ end
 
 local function Open()
     frame.salvage:SetText(L["Salvage  |cffffe873+"] .. offer.valor .. L[" Valor|r"])
-    local keep = L["Worn or looted, found gear is only kept if you put it in the Extraction Vault at a floor portal or the Hearthstone."]
+    local keep = L["Worn or looted, found gear is only kept if you put it in the Extraction Vault at a stage portal or send it home with a Hearthstone."]
     if offer.quality >= QUALITY_EPIC then
         frame.ruleText = "|cffffd100" .. keep .. L[" A permanent copy arrives by mail when the run ends, even if you die.|r"]
     else
@@ -319,6 +359,7 @@ local function Open()
     frame.waitUntil = nil
     frame.retries = RETRIES
     frame.retryIn = RETRY
+    ApplySideChrome()
     ShowSheet()
     Refresh()
     if not frame.open then
@@ -336,7 +377,14 @@ local function Close()
     HideSheet()
 end
 
+local function CardOutgrown(card)
+    return card:IsShown() and card.tip:IsShown() and card:GetHeight() < CARD_HEAD + card.tip:GetHeight() + CARD_FOOT - 1
+end
+
 frame:SetScript("OnUpdate", function()
+    if this.open and (CardOutgrown(newCard) or CardOutgrown(wornCard) or CardOutgrown(otherCard)) then
+        Refresh()
+    end
     local want = this.open and 1 or 0
     if this.alpha ~= want then
         local step = arg1 / FADE
@@ -390,6 +438,15 @@ local function HideNow()
     frame:Hide()
 end
 handlers["start"] = HideNow
-handlers["end"] = HideNow
+handlers["end"] = function()
+    frame.side = false
+    HideNow()
+end
+handlers["coopnopause"] = function(f)
+    frame.side = f[2] == "1"
+    if frame.open then
+        Open()
+    end
+end
 
 UI.Listen(handlers)

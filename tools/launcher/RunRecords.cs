@@ -21,6 +21,7 @@ namespace HordesOfAzeroth.Launcher
         static readonly Regex BonkLine = new Regex(@"^(\S+ \S+) \[LevelUp\] \(acc (\d+), .*?guid (\d+), name ([^,]+),.*?\) Bonk (\w+): (.*)$");
         static readonly Regex EndMinute = new Regex(@" at run minute ([\d.]+) ");
         static readonly Regex RunClass = new Regex(@", class (\d+)\)");
+        static readonly Regex BoardChoice = new Regex(@", board (-?\d+), gear ");
 
         sealed class OpenRun
         {
@@ -134,6 +135,9 @@ namespace HordesOfAzeroth.Launcher
             Match classMatch = RunClass.Match(endBody);
             string outbox = Outbox(folder);
             Directory.CreateDirectory(outbox);
+            int board = ReadBoardChoice(run);
+            if (!settings.SendRunData && board != 1)
+                return;
             string file = Path.Combine(outbox, $"{run.Started:yyyyMMdd-HHmmss}-{run.Character}.json.gz");
             if (File.Exists(file))
                 return;
@@ -149,6 +153,8 @@ namespace HordesOfAzeroth.Launcher
                 json.WriteString("os", Platform.SystemName);
                 json.WriteString("started", run.Started.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
                 json.WriteNumber("character", run.Character);
+                if (board == 1 || (board < 0 && settings.ShowOnLeaderboard))
+                    json.WriteString("name", run.Name);
                 json.WriteBoolean("finished", finished);
                 json.WriteNumber("class", classMatch.Success ? int.Parse(classMatch.Groups[1].Value, CultureInfo.InvariantCulture) : 0);
                 json.WriteStartArray("lines");
@@ -158,6 +164,18 @@ namespace HordesOfAzeroth.Launcher
                 json.WriteEndObject();
             }
             TrimOutbox(outbox);
+        }
+
+        static int ReadBoardChoice(OpenRun run)
+        {
+            int board = -1;
+            foreach (string line in run.Lines)
+            {
+                Match match = BoardChoice.Match(line);
+                if (match.Success)
+                    board = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            }
+            return board;
         }
 
         static void TrimOutbox(string outbox)

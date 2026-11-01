@@ -21,6 +21,8 @@ namespace HordesOfAzeroth.Launcher
         [STAThread]
         static int Main(string[] args)
         {
+            if (Array.IndexOf(args, "--coop-agent") >= 0)
+                return RunCoopAgent();
             int source = Array.IndexOf(args, "--source");
             if (source >= 0 && source + 1 < args.Length)
                 UpdateCheck.LocalSource = args[source + 1];
@@ -40,6 +42,15 @@ namespace HordesOfAzeroth.Launcher
             {
                 s_single.Dispose();
             }
+        }
+
+        static int RunCoopAgent()
+        {
+            using CoopAgent agent = new CoopAgent(GameFolder.Find());
+            agent.Start();
+            Console.WriteLine("Co-op agent running.");
+            Thread.Sleep(Timeout.Infinite);
+            return 0;
         }
 
         public static AppBuilder BuildAvaloniaApp() =>

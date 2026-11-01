@@ -3,20 +3,16 @@ local UI = VanillaBonkUI
 
 local NOTICE_WIDTH = 440
 local BODY_INSET = 52
-local BUTTON_GAP = 4
 
 local GEAR_TITLE = L["Gear has changed"]
-local GEAR_BODY = L["Gear now climbs by quality. Normal drops white items, Heroic drops white and green, and Mythic drops blue."] .. "\n\n" ..
-    L["Epic items drop from Mythic floor 10 and legendaries from floor 20."] .. "\n\n" ..
+local GEAR_BODY = L["All gear now has a tier and a quality: white, green, blue, epic or legendary."] .. " " ..
+    L["The level you play sets the tier of the gear it drops, and the quality of each piece is rolled."] .. "\n\n" ..
     L["Your gear has been updated to the new system:"]
-local GEAR_CHANGES = L["Mythic tier pieces are now blue, with new looks and names."] .. "\n" ..
-    L["Gear stats were rescaled so numbers stay sensible deep into the climb."] .. "\n" ..
-    L["Pieces above Tier 20 are now Tier 20, and your best Mythic floor counts as floor 20 at most."] .. "\n" ..
-    L["Gold and Darkmoon Tickets come in more slowly."]
+local GEAR_CHANGES = L["Every old piece was converted to the new gear."] .. "\n" ..
+    L["Item sets and their bonuses are gone."] .. "\n" ..
+    L["Durgan now sells all shop gear and upgrades your found gear with Scrap."]
 
 local OTHER_DIALOGS = { "VanillaBonkControllerTip", "VanillaBonkCurrencyTip", "VanillaBonkPlateGuide", "StaticPopup1" }
-
-local pendingLegendaries
 
 local function Backdrop(frame)
     frame:SetBackdrop({
@@ -53,52 +49,6 @@ local function FitBox(box, last)
     box:SetHeight(height)
 end
 
-local legendaryBox = BuildBox("VanillaBonkOldLegendaries")
-legendaryBox.title:SetText(L["Your legendaries"])
-
-local function ShowLegendaryPrompt()
-    if not pendingLegendaries then
-        return
-    end
-    local count, scrap = pendingLegendaries.count, pendingLegendaries.scrap
-    local owned = count == 1 and L["You own 1 legendary item from before the gear update."]
-        or L("You own {1} legendary items from before the gear update.", count)
-    legendaryBox.body:SetText(owned .. " " .. L["Legendaries are now the rarest drop in the game."] .. "\n\n" ..
-        L("Delete them to chase legendaries fresh and receive {1} Scrap, or keep them as they are. You will only be asked once.", scrap))
-    legendaryBox.delete:SetText(L("Delete for {1} Scrap", scrap))
-    FitBox(legendaryBox)
-    legendaryBox:Show()
-end
-
-local function Answer(choice)
-    pendingLegendaries = nil
-    legendaryBox:Hide()
-    SendChatMessage(".bonk oldlegendaries " .. choice, "SAY")
-end
-
-StaticPopupDialogs["HOA_DELETE_OLD_LEGENDARIES"] = {
-    text = L["Delete all your old legendaries? This can't be undone."],
-    button1 = YES,
-    button2 = NO,
-    OnAccept = function()
-        Answer("delete")
-    end,
-    OnCancel = function()
-        ShowLegendaryPrompt()
-    end,
-    timeout = 0,
-    whileDead = 1,
-}
-
-legendaryBox.delete = UI.Button(legendaryBox, 170, L["Delete"], function()
-    legendaryBox:Hide()
-    StaticPopup_Show("HOA_DELETE_OLD_LEGENDARIES")
-end)
-legendaryBox.delete:SetPoint("BOTTOMRIGHT", legendaryBox, "BOTTOM", -BUTTON_GAP, 18)
-legendaryBox.keep = UI.Button(legendaryBox, 130, L["Keep them"], function() Answer("keep") end)
-legendaryBox.keep:SetPoint("BOTTOMLEFT", legendaryBox, "BOTTOM", BUTTON_GAP, 18)
-UI.NavPrompt(legendaryBox, legendaryBox.keep, legendaryBox.delete)
-
 local gearBox = BuildBox("VanillaBonkGearNotice")
 gearBox.title:SetText(GEAR_TITLE)
 gearBox.body:SetText(GEAR_BODY)
@@ -111,14 +61,6 @@ gearBox.changes:SetText(GEAR_CHANGES)
 gearBox.okay = UI.Button(gearBox, 96, L["Okay"], function() gearBox:Hide() end)
 gearBox.okay:SetPoint("BOTTOM", gearBox, "BOTTOM", 0, 18)
 UI.NavPrompt(gearBox, gearBox.okay)
-gearBox:SetScript("OnHide", function()
-    if gearBox.seen then
-        return
-    end
-    gearBox.seen = true
-    SendChatMessage(".bonk notice gear", "SAY")
-    ShowLegendaryPrompt()
-end)
 tinsert(UISpecialFrames, "VanillaBonkGearNotice")
 
 local function OtherDialogOpen()
@@ -141,8 +83,12 @@ waiter:SetScript("OnUpdate", function()
     if gearBox.wanted and not gearBox.seen then
         FitBox(gearBox, gearBox.changes)
         gearBox:Show()
-    else
-        ShowLegendaryPrompt()
+    end
+end)
+gearBox:SetScript("OnHide", function()
+    if not gearBox.seen then
+        gearBox.seen = true
+        SendChatMessage(".bonk notice gear", "SAY")
     end
 end)
 
@@ -154,17 +100,6 @@ handlers["notice"] = function(f)
     end
     gearBox.wanted = true
     waiter:Show()
-end
-
-handlers["oldlegendaries"] = function(f)
-    pendingLegendaries = { count = tonumber(f[2]) or 0, scrap = tonumber(f[3]) or 0 }
-    if pendingLegendaries.count == 0 then
-        pendingLegendaries = nil
-        return
-    end
-    if not gearBox.wanted or gearBox.seen then
-        waiter:Show()
-    end
 end
 
 UI.Listen(handlers)

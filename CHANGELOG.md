@@ -1,5 +1,98 @@
 # Changelog
 
+## 0.6.0
+
+### Co-op
+- **There will most likely be bugs, please report them. Hard to test co-op locally on one machine**
+- Play with up to 3 friends: party size 2 to 4 (for now), picked by the host. The host creates a lobby from the character screen and others browse it and ask to join.
+- The lobby browser has a Filters menu. Hosts can set a minimum Mythic level for join requests, allow duplicate classes, choose pausing and XP, and change those settings later at Corin Bannerfield in the Inn.
+- Your own character, gold, bank, gear and progress go along. Everything you earn as a guest comes home, including level records, finale pay, upgrades and epic bad luck protection.
+- If your connection drops you rejoin automatically, and after a restart you're offered Rejoin.
+- Every member gets their own vault around the portal, marked Yours.
+- More players bring more bosses: 2 with 2-3 players, 3 with 4, each with more health. Enemy crowds grow up to twice the size, with more health each.
+- Kills reward the killer, and the group gets loot bags where each member loots their own item.
+- XP, healing turkey legs and power-ups can be picked up by anyone.
+- Pausing is shared, with a 20 second timer to pick a card. Without pausing, level-up cards, glyphs and loot show small above the action bar and you keep playing while they're up.
+- When you go down you get a red beam and a ring on the ground. A teammate who stands in the ring revives you, and the ring keeps its progress if they step out.
+- The party shares a revive pool. Downed players show a skull and their countdown on the party frames.
+- If nobody revives you in time, you will spectate a teammate. With 3 or more players, arrows above the action bar switch who you watch.
+- Dead players follow through the portal with the party and keep spectating. Each new stage's revive gives them another chance, and anyone still dead gets back up when the final boss dies.
+- Any living player can use the portal, and everyone else gets a ready check.
+- Time of day and weather are synced for everyone.
+- Other players' spell effects can be turned down in Video > Graphics, under Spell Detail Level.
+- Alliance and Horde can talk and group together.
+- Ironman characters play solo only.
+
+### Mythic levels
+- Levels replace floors: Normal 1-4, Heroic 1-5 and Mythic 1 and up, each picked from a dropdown above Start run.
+- Runs are shorter: Normal is 1 stage, Heroic 2 and Mythic 3.
+- Normal and Heroic levels are easier and Mythic 1-10 ramps more smoothly.
+- Mythic has no hard limit. Past Mythic 30 enemies grow much faster.
+- Personal bests for each level: clears, first clear, fastest clear, top damage, most kills, gold and valor per minute, and endless.
+- Shop ranks unlock by cleared level. Pack Mule needs Mythic 15, the 5th spell slot Mythic 5 and the 6th passive slot Mythic 10. Upgrade prices were reworked. (not final)
+- Darkmoon Favors have a maximum. Other sinks will be added.
+
+### Endless finale
+- After stage 3 you can carry on in the same map with the clock running.
+- A boss comes every 9 minutes, 10% sooner each time (never under 3 minutes). Mini-bosses come at half that.
+- Enemy health and damage keep growing every 10 minutes.
+- Your score counts finale time only.
+
+### Gear
+- Item Level replaces tiers. Gear level follows the run's level with no cap. (more game modes later)
+- New gear families with collectible looks. Epics look like Molten Core, Blackwing Lair, Ahn'Qiraj and Naxxramas gear at Mythic 1, 10, 20 and 30.
+- Every piece can be upgraded 3 times at Durgan, which is now the one gear shop.
+- Durgan's stock and upgrade limit follow each character's own best clear.
+- Epic bad luck protection on Mythic levels: each gear drop that isn't epic raises the next epic's chance by 5% until one drops. The Run Master shows the current bonus.
+- The Hearthstone sends one piece home, it no longer ends your run.
+- The Extraction Vault gets a slot for each cleared stage.
+- The Run Master's drop preview shows the item level range each quality can drop at.
+
+### Leaderboard Season 1
+- A Leaderboard sign at the Inn opens solo and 2, 3 and 4 player boards, with a class filter and a pinned row for your best.
+- You choose in game whether to be shown on the board.
+- Gear from before the season is marked legacy. It works as before, but a run with legacy gear doesn't go on the board.
+
+### Shrines
+- The Summoning Stone appears at the start of every stage except the last, and its boss opens the next stage.
+- Other shrines pop up at random times during a stage, and every 1:30-3:00 in endless.
+
+### Dungeons, invasions and raids
+- Dungeons and invasions now both give 25% more gold.
+- Mini-bosses drop gear twice as often in dungeons and 50% more often in invasions.
+- Hogger and Old Murk-Eye count as full mini-bosses, and their hidden spots sparkle until found.
+
+### Classes
+- Shaman totems get their own spots, Magma Totem is thrown at the pack, and Lightning Shield zaps on its own.
+- Totems left behind are dropped fresh where you are instead of teleporting.
+- Moonkin Wrath and totem bolts deal their damage when the bolt arrives.
+- Drain Life, Drain Soul and Dark Pact heal 1% of maximum health per drained enemy each second (was 0.2%).
+- Glyph of Corpse Explosion deals exactly 40% of the dead enemy's health, no longer scaled by Power or crit.
+- Glyph of Cleave carries leftover damage into the next enemy the same way against normal mobs, elites and bosses.
+- Mythic base movement speed is +5%, 10% in Normal and Heroic.
+
+### Interface
+- The damage meter lists every damage source: Static, other keywords, procs and melee. Static shows as its own part of the spell that applied it.
+- The character stats panel shows live bonuses from cards, glyphs, buffs and talents, and updates every second when the panel is open.
+- Level-up buttons show their key on the button.
+- Several bosses at once show several boss bars.
+
+### Launcher
+- If GitHub can't be reached, the launcher downloads from a mirror.
+- The launcher moves the database to another port when Windows won't let it use 3306, and remembers the choice.
+- Update button is disabled while the launcher updates itself.
+- Windows stability fixes in the game client.
+
+### Fixes
+- Fixed: Hail of Bolts, Relentless and Volley quests didn't count bolts and shots, and counted AoE spells.
+- Fixed: Shrines and events could spawn out of bounds at a zone's edge.
+- Fixed: Drain Life didn't heal characters under 500 maximum health, so Dark Pact couldn't trigger.
+- Fixed: The tutorial's "Spend your gold" step pointed at the Talent Trainer, which moved downstairs.
+- Fixed: Release spirit no longer pops up (co-op).
+- Fixed: Enemies could take damage from DoTs, pets and procs while the run was paused.
+- Fixed: Bosses kited far from where the fight started could run back home at full health.
+- Fixed: Dropped totems and hydras slid or popped before settling.
+
 ## 0.5.2
 
 ### Hotfix 3

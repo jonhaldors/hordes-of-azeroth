@@ -25,7 +25,25 @@ UI.DISPLAY_SETTINGS = {
         tooltip = L["Shows your health as numbers on your health bars."], apply = function() UI.ApplyHealthNumbers() end },
     { key = "cooldownNumbers", label = L["Cooldown Numbers"], default = true,
         tooltip = L["Shows the seconds left on spells with a cooldown of 2 seconds or more."] },
+    { key = "partyPlates", label = L["Party Health Bars"], default = true,
+        tooltip = L["Shows health bars over your party members during a run. They're always hidden in town."],
+        apply = function() UI.ApplyPartyPlates() end },
 }
+
+UI.OTHER_EFFECTS_SETTING = { key = "otherEffects", label = L["Other players' spell effects"], default = 100,
+    tooltip = L["How many of your group's spell effects you see. Lower it when the screen gets too busy. Your own effects always show."],
+    apply = function() UI.SendOtherEffects() end }
+
+function UI.OtherEffectsText(value)
+    if value <= 0 then
+        return L["Off"]
+    end
+    return format("%d%%", value)
+end
+
+function UI.SendOtherEffects()
+    SendChatMessage(".bonk effects " .. UI.SettingValue(UI.OTHER_EFFECTS_SETTING), "SAY")
+end
 
 UI.INTERACT_SETTINGS = {}
 for _, kind in ipairs(UI.INTERACT_TYPES) do
@@ -229,6 +247,39 @@ function UI.KeyText(binding)
     return text
 end
 
+VANILLABONK_OTHER_EFFECTS_TIP = UI.OTHER_EFFECTS_SETTING.tooltip
+
+local function AddOtherEffectsVideoRow()
+    local page = BenillaOptionsFrameContainerBodyGraphics
+    local before = BenillaOptionsFrameContainerBodyGraphicsRowSpellDetail
+    local after = BenillaOptionsFrameContainerBodyGraphicsRowBrightness
+    if not (page and before and after and BenillaOptionsNumFuncRow_OnLoad and BENILLA_OPTIONS_PAGE_ROWS) then
+        return
+    end
+    local setting = UI.OTHER_EFFECTS_SETTING
+    local row = CreateFrame("Frame", page:GetName() .. "RowOtherEffects", page, "BenillaOptionsSliderRowTemplate")
+    row:SetPoint("TOPLEFT", before, "BOTTOMLEFT", 0, -9)
+    row:SetPoint("TOPRIGHT", before, "BOTTOMRIGHT", 0, -9)
+    after:ClearAllPoints()
+    after:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -9)
+    after:SetPoint("TOPRIGHT", row, "BOTTOMRIGHT", 0, -9)
+    BenillaOptionsNumFuncRow_OnLoad(row, function()
+        return UI.SettingValue(setting) / 100
+    end, function(value)
+        UI.ChangeSetting(setting, math.floor(value * 100 + 0.5))
+    end, "1", setting.label, "VANILLABONK_OTHER_EFFECTS_TIP")
+    BenillaOptionsSliderRow_Setup(row, 0, 1, 0.1)
+    local rows = BENILLA_OPTIONS_PAGE_ROWS.Graphics
+    for index, key in ipairs(rows) do
+        if key == "RowSpellDetail" then
+            tinsert(rows, index + 1, "RowOtherEffects")
+            break
+        end
+    end
+end
+
+AddOtherEffectsVideoRow()
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:SetScript("OnEvent", function()
@@ -238,5 +289,8 @@ events:SetScript("OnUpdate", function()
     if this.giveAt and GetTime() >= this.giveAt then
         this.giveAt = nil
         GiveDefaultKeys()
+        if UI.SettingValue(UI.OTHER_EFFECTS_SETTING) < 100 then
+            UI.SendOtherEffects()
+        end
     end
 end)

@@ -110,7 +110,13 @@ moonwell.total = 0
 local event = Bar(CAPTURE_WIDTH, 1, 0.55, 0.1)
 event:SetScript("OnUpdate", function() Update(this, arg1) end)
 
-local stack = { event, hearth, capture, moonwell }
+local revive = Bar(CAPTURE_WIDTH, 0.4, 1, 0.4)
+revive:SetScript("OnUpdate", function() Update(this, arg1) end)
+
+local wait = Bar(CAPTURE_WIDTH, 1, 0.82, 0.2)
+wait:SetScript("OnUpdate", function() Update(this, arg1) end)
+
+local stack = { wait, revive, event, hearth, capture, moonwell }
 
 Restack = function()
     local above
@@ -249,6 +255,43 @@ handlers["eventtimer"] = function(f)
         SetValue(event, seconds / total)
     end
     FadeIn(event)
+end
+
+function UI.SetReviveBar(label, fraction)
+    if not label then
+        if revive.want == 1 and revive.value > 0.5 and revive.flashLeft == 0 then
+            SetValue(revive, 1)
+            revive.flashLeft = FLASH
+            revive.goAfterFlash = true
+            PlaySound("igQuestListComplete")
+        elseif revive.flashLeft == 0 then
+            FadeOut(revive)
+        end
+        return
+    end
+    revive.goAfterFlash = nil
+    if not revive:IsShown() or revive.want == 0 then
+        SetValue(revive, fraction)
+    end
+    revive.target = min(1, fraction)
+    revive.text:SetText(label .. "  " .. floor(fraction * 100) .. "%")
+    FadeIn(revive)
+end
+
+function UI.SetWaitBar(label, seconds, total)
+    if not label then
+        wait.endsAt = nil
+        FadeOut(wait)
+        return
+    end
+    wait.total = total
+    wait.endsAt = GetTime() + seconds
+    wait.floor = 0
+    wait.text:SetText(label .. "  " .. seconds .. "s")
+    if not wait:IsShown() or wait.want == 0 then
+        SetValue(wait, seconds / total)
+    end
+    FadeIn(wait)
 end
 
 handlers["start"] = HideAll

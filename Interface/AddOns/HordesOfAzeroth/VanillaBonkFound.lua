@@ -65,14 +65,44 @@ function UI.FoundWorn(entry)
     return nil
 end
 
+function UI.WearsLegacyGear()
+    for slot = 1, 19 do
+        local piece = UI.FoundAt("inv", slot)
+        if piece and piece.legacy then
+            return true
+        end
+    end
+    return false
+end
+
 function UI.TakeHyperlinkFound()
     local piece = UI.nextFound
     UI.nextFound = nil
     return piece
 end
 
-function UI.TierText(tier)
-    return L("Tier {1}", tier)
+local ITEM_LEVEL_PER_SCALE = 10
+local ITEM_LEVEL_TIER_STEP = 0.25
+local ITEM_LEVEL_BLUE = 1.1
+local ITEM_LEVEL_EPIC = 1.45
+
+function UI.ItemLevel(tier, quality)
+    local scale = 1 + ITEM_LEVEL_TIER_STEP * (math.max(tier or 1, 1) - 1)
+    local qualityScale = 1
+    if (quality or 0) >= 4 then
+        qualityScale = ITEM_LEVEL_EPIC
+    elseif quality == 3 then
+        qualityScale = ITEM_LEVEL_BLUE
+    end
+    return floor(ITEM_LEVEL_PER_SCALE * scale * qualityScale + 0.5)
+end
+
+function UI.ItemLevelText(tier, quality)
+    return L("ilvl {1}", UI.ItemLevel(tier, quality))
+end
+
+function UI.ItemLevelRange(tier, lowQuality, highQuality)
+    return L("ilvl {1}-{2}", UI.ItemLevel(tier, lowQuality), UI.ItemLevel(tier, highQuality))
 end
 
 function UI.FoundLineText(piece)
@@ -96,6 +126,7 @@ handlers["founditem"] = function(f)
         return
     end
     piece.entry = entry
+    piece.legacy = f[7] == "1"
     incoming[place] = piece
 end
 

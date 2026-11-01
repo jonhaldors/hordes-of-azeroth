@@ -18,6 +18,10 @@ $repository = if ($Repository) { $Repository } else { $releaseConfig.repository 
 $testChannel = $repository -ne $releaseConfig.repository
 $statsUrl = if ($env:HOA_STATS_URL) { $env:HOA_STATS_URL } else { "$([Environment]::GetEnvironmentVariable('HOA_STATS_URL', 'User'))" }
 if (-not $statsUrl) { Write-Warning 'HOA_STATS_URL is not set: this launcher will not send run data or bug reports.' }
+$lobbyUrl = if ($env:HOA_LOBBY_URL) { $env:HOA_LOBBY_URL } else { "$([Environment]::GetEnvironmentVariable('HOA_LOBBY_URL', 'User'))" }
+if (-not $lobbyUrl) { Write-Warning 'HOA_LOBBY_URL is not set: co-op will be off in this launcher.' }
+$mirrorUrl = if ($env:HOA_MIRROR_URL) { $env:HOA_MIRROR_URL } else { "$([Environment]::GetEnvironmentVariable('HOA_MIRROR_URL', 'User'))" }
+if (-not $mirrorUrl) { Write-Warning 'HOA_MIRROR_URL is not set: this launcher only downloads from GitHub.' }
 if ($Publish -and $Version -and -not $testChannel) { throw 'A -Version test release only goes to a test repository (-Repository): change VERSION and CHANGELOG.md for a real one.' }
 $version = if ($Version) { $Version } else { (Get-Content (Join-Path $RepoRoot 'VERSION') -Raw).Trim() }
 $tag = "v$version"
@@ -318,11 +322,11 @@ function Invoke-PackageBuild([string]$Name) {
         'version' { [System.IO.File]::WriteAllText((Join-Path $buildDir 'VERSION'), "$version`n") }
         'launcher' {
             $project = Join-Path (Get-CommittedTree) 'tools\launcher\HordesOfAzerothLauncher.csproj'
-            Invoke-Native 'Launcher build' 'dotnet' @('publish', $project, '-c', 'Release', '-r', 'win-x64', '-nologo', "-p:Repository=$repository", "-p:StatsUrl=$statsUrl", '-o', (Join-Path $buildDir 'launcher'))
+            Invoke-Native 'Launcher build' 'dotnet' @('publish', $project, '-c', 'Release', '-r', 'win-x64', '-nologo', "-p:Repository=$repository", "-p:StatsUrl=$statsUrl", "-p:LobbyUrl=$lobbyUrl", "-p:MirrorUrl=$mirrorUrl", '-o', (Join-Path $buildDir 'launcher'))
         }
         'linux-launcher' {
             $project = Join-Path (Get-CommittedTree) 'tools\launcher\HordesOfAzerothLauncher.csproj'
-            Invoke-Native 'Linux launcher build' 'dotnet' @('publish', $project, '-c', 'Release', '-r', 'linux-x64', '-nologo', "-p:Repository=$repository", "-p:StatsUrl=$statsUrl", '-o', (Join-Path $linuxOut 'launcher'))
+            Invoke-Native 'Linux launcher build' 'dotnet' @('publish', $project, '-c', 'Release', '-r', 'linux-x64', '-nologo', "-p:Repository=$repository", "-p:StatsUrl=$statsUrl", "-p:LobbyUrl=$lobbyUrl", "-p:MirrorUrl=$mirrorUrl", '-o', (Join-Path $linuxOut 'launcher'))
         }
         'linux-server' { Invoke-LinuxBuild 'server' }
         'linux-client' { Invoke-LinuxBuild 'client' }
@@ -681,6 +685,7 @@ if ($Hotfix) {
     if ($LASTEXITCODE -ne 0) { throw "gh release upload $tag failed with exit code $LASTEXITCODE." }
     gh release edit $tag --repo $repository --notes-file $notesPath
     if ($LASTEXITCODE -ne 0) { throw "gh release edit $tag failed with exit code $LASTEXITCODE." }
+    if (-not $testChannel) { & (Join-Path $PSScriptRoot 'sync-mirror.ps1') -Repository $repository -LocalDir $assetsDir }
     Write-Host "Published hotfix $Hotfix to $tag on $repository; no Discord post"
     return
 }
@@ -688,5 +693,6 @@ gh release create $tag @releaseUploads --repo $repository --title $title --notes
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
 Write-Host "Published $tag to $repository"
 if (-not $testChannel) {
+    & (Join-Path $PSScriptRoot 'sync-mirror.ps1') -Repository $repository -LocalDir $assetsDir
     Send-DiscordAnnouncement $title $currentNotes.notes "https://github.com/$repository/releases/tag/$tag" $tag
 }

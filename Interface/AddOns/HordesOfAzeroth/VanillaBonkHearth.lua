@@ -57,7 +57,7 @@ button:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOPLEFT")
     if not bag then
         GameTooltip:AddDoubleLine(L["Hearthstone"], L["Not found yet"], 1, 1, 1, 0.5, 0.5, 0.5)
-        GameTooltip:AddLine(L["Elites and mini-bosses sometimes drop one. It lets you escape the run early and takes you back to the Inn with 1 item from your Extraction Vault."], 1, 0.82, 0, 1)
+        GameTooltip:AddLine(L["Mini-bosses on the last stage of a run sometimes drop one. It sends 1 piece you found this run home right away, and the run goes on."], 1, 0.82, 0, 1)
         GameTooltip:Show()
         return
     end
@@ -122,9 +122,8 @@ local function KeyLine()
 end
 
 tip:SetScript("OnShow", function()
-    this.body:SetText(L["You don't need it to finish a run. It's an emergency exit for when a run turns bad. "] ..
-        L["It opens a ring with an Extraction Vault beside it that holds 1 item. "] ..
-        L["Put your best find in the vault, then be inside the ring when it fills to escape to the Inn. If you're outside, it leaves without you."])
+    this.body:SetText(L["It opens a ring at your feet with a vault beside it. Stay inside until the ring fills, then open the vault and pick 1 piece you found this run to send home right away. "] ..
+        L["The run goes on. If you're outside the ring when it fills, the Hearthstone fades."])
     this.key:SetText(KeyLine())
     this:SetHeight(22 + this.title:GetHeight() + 10 + this.body:GetHeight() + 10 + this.key:GetHeight() + 22 + 30)
     SendChatMessage(".bonk menu 1", "SAY")

@@ -49,8 +49,7 @@ namespace BonkTelegraphs
             {
                 Jewel jewel = Jewels[i];
                 uint displayId = FirstJewelDisplayId + (uint)i;
-                if (displays.Find(displayId) != null)
-                    throw new InvalidOperationException("Jewel display " + displayId + " is taken.");
+                displays.Release(displayId);
                 uint modelId = models.ClaimId(FirstJewelModelId + (uint)i);
 
                 byte[] m2 = Require(client, Goober + jewel.Source + ".m2");
@@ -101,8 +100,7 @@ namespace BonkTelegraphs
             uint[] templateDisplay = displays.Find(TemplateDisplayId), templateModel = models.Find(TemplateModelId);
             if (templateDisplay == null || templateModel == null)
                 throw new InvalidDataException("The blue wisp's rows are not where 1.12 has them.");
-            if (displays.Find(TurkeyDisplayId) != null)
-                throw new InvalidOperationException("Turkey display " + TurkeyDisplayId + " is taken.");
+            displays.Release(TurkeyDisplayId);
             uint turkeyModelId = models.ClaimId(TurkeyModelId);
             Require(client, TurkeyModel + ".m2");
 

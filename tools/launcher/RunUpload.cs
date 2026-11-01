@@ -40,6 +40,16 @@ namespace HordesOfAzeroth.Launcher
             return sent;
         }
 
+        public static async Task<string> GetBoardAsync(string installId)
+        {
+            using (CancellationTokenSource timeout = new CancellationTokenSource(RunTimeout))
+            using (HttpResponseMessage response = await Web.Client.GetAsync(StatsUrl + "/board?install=" + Uri.EscapeDataString(installId), timeout.Token))
+            {
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync(timeout.Token);
+            }
+        }
+
         public static async Task<string> SendReportAsync(string zip)
         {
             ByteArrayContent body = new ByteArrayContent(await File.ReadAllBytesAsync(zip));

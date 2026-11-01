@@ -12,6 +12,7 @@ namespace BonkTelegraphs
         const uint FirstPoolSpellId = 33640, FirstPoolVisualId = 8470, FirstPoolKitId = 7470, FirstPoolEffectId = 3210;
         const uint FirstCoreSpellId = 33642, FirstCoreVisualId = 8472, FirstCoreKitId = 7472, FirstCoreEffectId = 3212;
         const uint FirstSwirlSpellId = 33646, FirstSwirlVisualId = 8476, FirstSwirlKitId = 7476;
+        const uint DownedSpellId = 33650, DownedVisualId = 8480, DownedKitId = 7480, DownedEffectId = 3220;
         const uint ShadowSwirlEffect = 814, PurpleSwirlEffect = 3216;
         const string ShadowSwirlModel = "Spells\\Shadow_Precast_Uber_Base.m2";
         const string PurpleSwirlModel = "Spells\\BonkPurpleSwirl";
@@ -38,6 +39,11 @@ namespace BonkTelegraphs
             new LootBeams.Beam { Name = "LegendaryCore", R = 1.0f,  G = 0.5f,  B = 0.0f, WhiteCore = CoreWhite, Gain = CoreGain, Width = CoreWidth },
         };
 
+        static readonly LootBeams.Beam[] Downed =
+        {
+            new LootBeams.Beam { Name = "Downed", R = 1.0f, G = 0.12f, B = 0.08f, WhiteCore = 0.0f, Gain = 1.6f, Width = 0.4f, Height = 4.0f },
+        };
+
         class Swirl
         {
             public string Name;
@@ -57,6 +63,8 @@ namespace BonkTelegraphs
                 FirstPoolSpellId, FirstPoolVisualId, FirstPoolKitId, FirstPoolEffectId);
             manifest.AddRange(LootBeams.AddBeams(client, files, spells, visuals, kits, effects, Cores,
                 FirstCoreSpellId, FirstCoreVisualId, FirstCoreKitId, FirstCoreEffectId));
+            manifest.AddRange(LootBeams.AddBeams(client, files, spells, visuals, kits, effects, Downed,
+                DownedSpellId, DownedVisualId, DownedKitId, DownedEffectId));
             manifest.Add(AddPurpleSwirl(client, files, effects));
             manifest.AddRange(AddSwirls(spells, visuals, kits, effects));
             return manifest;

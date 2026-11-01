@@ -18,6 +18,8 @@ namespace HordesOfAzeroth.Launcher
         public CoreShare BackgroundCores = CoreShare.Half;
         public bool SendRunData = true;
         public bool RunDataAsked;
+        public bool ShowOnLeaderboard;
+        public bool LeaderboardAsked;
         public bool AskToSendCrashes = true;
         public long CrashCheckedAt;
         public string InstallId = Guid.NewGuid().ToString("N");
@@ -56,6 +58,10 @@ namespace HordesOfAzeroth.Launcher
                 settings.SendRunData = send != "0";
             if (values.TryGetValue("RunDataAsked", out string asked))
                 settings.RunDataAsked = asked == "1";
+            if (values.TryGetValue("ShowOnLeaderboard", out string board))
+                settings.ShowOnLeaderboard = board == "1";
+            if (values.TryGetValue("LeaderboardAsked", out string boardAsked))
+                settings.LeaderboardAsked = boardAsked == "1";
             if (values.TryGetValue("AskToSendCrashes", out string crashes))
                 settings.AskToSendCrashes = crashes != "0";
             if (values.TryGetValue("CrashCheckedAt", out string checkedAt) && long.TryParse(checkedAt, out long crashCheckedAt))
@@ -81,6 +87,8 @@ namespace HordesOfAzeroth.Launcher
                 "BackgroundCores=" + BackgroundCores,
                 "SendRunData=" + (SendRunData ? "1" : "0"),
                 "RunDataAsked=" + (RunDataAsked ? "1" : "0"),
+                "ShowOnLeaderboard=" + (ShowOnLeaderboard ? "1" : "0"),
+                "LeaderboardAsked=" + (LeaderboardAsked ? "1" : "0"),
                 "AskToSendCrashes=" + (AskToSendCrashes ? "1" : "0"),
                 "CrashCheckedAt=" + CrashCheckedAt,
                 "InstallId=" + InstallId,

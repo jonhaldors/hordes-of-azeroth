@@ -1,0 +1,1707 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+	<Script file="BonkCoop.lua"/>
+
+	<Frame name="BonkCoopPanelTemplate" frameStrata="DIALOG" enableMouse="true" virtual="true">
+		<Layers>
+			<Layer level="BACKGROUND">
+				<Texture>
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="4" y="-4"/>
+							</Offset>
+						</Anchor>
+						<Anchor point="BOTTOMRIGHT">
+							<Offset>
+								<AbsDimension x="-4" y="4"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+					<Color r="0.11" g="0.1" b="0.1" a="1"/>
+				</Texture>
+			</Layer>
+		</Layers>
+		<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" edgeFile="Interface\Tooltips\UI-Tooltip-Border" tile="true">
+			<BackgroundInsets>
+				<AbsInset left="5" right="5" top="5" bottom="5"/>
+			</BackgroundInsets>
+			<TileSize>
+				<AbsValue val="16"/>
+			</TileSize>
+			<EdgeSize>
+				<AbsValue val="16"/>
+			</EdgeSize>
+		</Backdrop>
+		<Scripts>
+			<OnLoad>
+				this:SetBackdropColor(0.11, 0.1, 0.1, 1);
+				this:SetBackdropBorderColor(0.55, 0.55, 0.55);
+			</OnLoad>
+		</Scripts>
+	</Frame>
+
+	<EditBox name="BonkCoopEditTemplate" autoFocus="false" virtual="true">
+		<Size>
+			<AbsDimension x="240" y="30"/>
+		</Size>
+		<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" edgeFile="Interface\Glues\Common\Glue-Tooltip-Border" tile="true">
+			<BackgroundInsets>
+				<AbsInset left="10" right="5" top="4" bottom="9"/>
+			</BackgroundInsets>
+			<TileSize>
+				<AbsValue val="16"/>
+			</TileSize>
+			<EdgeSize>
+				<AbsValue val="16"/>
+			</EdgeSize>
+			<Color r="0" g="0" b="0"/>
+			<BorderColor r="0.5" g="0.5" b="0.5"/>
+		</Backdrop>
+		<Scripts>
+			<OnEscapePressed>
+				this:ClearFocus();
+			</OnEscapePressed>
+		</Scripts>
+		<FontString inherits="GlueFontHighlight"/>
+		<TextInsets>
+			<AbsInset left="12" right="8" top="0" bottom="4"/>
+		</TextInsets>
+	</EditBox>
+
+	<CheckButton name="BonkCoopCheckTemplate" virtual="true">
+		<Size>
+			<AbsDimension x="24" y="24"/>
+		</Size>
+		<HitRectInsets>
+			<AbsInset left="0" right="-160" top="0" bottom="0"/>
+		</HitRectInsets>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="$parentText" inherits="GlueFontHighlightSmall" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="LEFT" relativePoint="RIGHT">
+							<Offset>
+								<AbsDimension x="2" y="1"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<NormalTexture file="Interface\Buttons\UI-CheckBox-Up"/>
+		<PushedTexture file="Interface\Buttons\UI-CheckBox-Down"/>
+		<HighlightTexture file="Interface\Buttons\UI-CheckBox-Highlight" alphaMode="ADD"/>
+		<CheckedTexture file="Interface\Buttons\UI-CheckBox-Check"/>
+	</CheckButton>
+
+	<Texture name="BonkCoopClassIconTemplate" file="Interface\Glues\CharacterCreate\UI-CharacterCreate-Classes" hidden="true" virtual="true">
+		<Size>
+			<AbsDimension x="18" y="18"/>
+		</Size>
+	</Texture>
+
+	<Button name="BonkCoopRowTemplate" virtual="true">
+		<Size>
+			<AbsDimension x="600" y="26"/>
+		</Size>
+		<Layers>
+			<Layer level="ARTWORK">
+				<Texture name="$parentLock" file="Interface\Icons\INV_Misc_Key_14" hidden="true">
+					<Size>
+						<AbsDimension x="16" y="16"/>
+					</Size>
+					<Anchors>
+						<Anchor point="LEFT">
+							<Offset>
+								<AbsDimension x="6" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</Texture>
+				<FontString name="$parentName" inherits="GlueFontHighlightSmall" justifyH="LEFT">
+					<Size>
+						<AbsDimension x="230" y="20"/>
+					</Size>
+					<Anchors>
+						<Anchor point="LEFT">
+							<Offset>
+								<AbsDimension x="26" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<Texture name="$parentClass1" inherits="BonkCoopClassIconTemplate">
+					<Anchors>
+						<Anchor point="LEFT">
+							<Offset>
+								<AbsDimension x="262" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</Texture>
+				<Texture name="$parentClass2" inherits="BonkCoopClassIconTemplate">
+					<Anchors>
+						<Anchor point="LEFT" relativeTo="$parentClass1" relativePoint="RIGHT">
+							<Offset>
+								<AbsDimension x="3" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</Texture>
+				<Texture name="$parentClass3" inherits="BonkCoopClassIconTemplate">
+					<Anchors>
+						<Anchor point="LEFT" relativeTo="$parentClass2" relativePoint="RIGHT">
+							<Offset>
+								<AbsDimension x="3" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</Texture>
+				<Texture name="$parentClass4" inherits="BonkCoopClassIconTemplate">
+					<Anchors>
+						<Anchor point="LEFT" relativeTo="$parentClass3" relativePoint="RIGHT">
+							<Offset>
+								<AbsDimension x="3" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</Texture>
+				<FontString name="$parentDifficulty" inherits="GlueFontHighlightSmall" justifyH="LEFT">
+					<Size>
+						<AbsDimension x="150" y="20"/>
+					</Size>
+					<Anchors>
+						<Anchor point="LEFT">
+							<Offset>
+								<AbsDimension x="360" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentPlayers" inherits="GlueFontHighlightSmall" justifyH="LEFT">
+					<Size>
+						<AbsDimension x="60" y="20"/>
+					</Size>
+					<Anchors>
+						<Anchor point="LEFT">
+							<Offset>
+								<AbsDimension x="530" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+			<Layer level="BACKGROUND">
+				<Texture name="$parentSelected" hidden="true">
+					<Color r="1" g="0.7" b="0.15" a="0.18"/>
+				</Texture>
+			</Layer>
+		</Layers>
+		<Scripts>
+			<OnClick>
+				BonkCoop_SelectRow(this:GetID());
+			</OnClick>
+			<OnDoubleClick>
+				BonkCoop_SelectRow(this:GetID());
+				BonkCoop_AskSelected();
+			</OnDoubleClick>
+		</Scripts>
+		<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD"/>
+	</Button>
+
+	<Frame name="BonkCoopMemberTemplate" virtual="true">
+		<Size>
+			<AbsDimension x="400" y="34"/>
+		</Size>
+		<Layers>
+			<Layer level="ARTWORK">
+				<Texture name="$parentIcon" file="Interface\Glues\CharacterCreate\UI-CharacterCreate-Classes">
+					<Size>
+						<AbsDimension x="30" y="30"/>
+					</Size>
+					<Anchors>
+						<Anchor point="LEFT"/>
+					</Anchors>
+				</Texture>
+				<FontString name="$parentName" inherits="GlueFontNormal" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="$parentIcon" relativePoint="TOPRIGHT">
+							<Offset>
+								<AbsDimension x="8" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentSub" inherits="GlueFontDisableSmall" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="BOTTOMLEFT" relativeTo="$parentIcon" relativePoint="BOTTOMRIGHT">
+							<Offset>
+								<AbsDimension x="8" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+	</Frame>
+
+	<Frame name="BonkCoopModeFrame" parent="BonkHeroFrame">
+		<Size>
+			<AbsDimension x="232" y="28"/>
+		</Size>
+		<Anchors>
+			<Anchor point="TOP" relativeTo="BonkHeroSubtitle" relativePoint="BOTTOM">
+				<Offset>
+					<AbsDimension x="0" y="-10"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Frames>
+			<Button name="BonkCoopSoloButton" inherits="GlueButtonSmallTemplate" text="Solo">
+				<Size>
+					<AbsDimension x="116" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT"/>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_SetMode(nil);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopCoopButton" inherits="GlueButtonSmallTemplate" text="Co-op">
+				<Size>
+					<AbsDimension x="116" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="RIGHT"/>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_SetMode(1);
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+	</Frame>
+
+	<Frame name="BonkCoopBar" parent="BonkHeroFrame" hidden="true">
+		<Size>
+			<AbsDimension x="560" y="110"/>
+		</Size>
+		<Anchors>
+			<Anchor point="BOTTOM">
+				<Offset>
+					<AbsDimension x="0" y="20"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="BonkCoopBarText" inherits="GlueFontNormalSmall">
+					<Anchors>
+						<Anchor point="TOP"/>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<Button name="BonkCoopFindButton" inherits="GlueButtonTemplate" text="Browse Games">
+				<Size>
+					<AbsDimension x="230" y="60"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT" relativePoint="BOTTOM">
+						<Offset>
+							<AbsDimension x="-4" y="14"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_OpenBrowser();
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopHostButton" inherits="GlueButtonTemplate" text="Host Game">
+				<Size>
+					<AbsDimension x="230" y="60"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMLEFT" relativePoint="BOTTOM">
+						<Offset>
+							<AbsDimension x="4" y="14"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_OpenHostForm();
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+	</Frame>
+
+	<Frame name="BonkCoopStatus" parent="BonkHeroFrame" hidden="true">
+		<Size>
+			<AbsDimension x="620" y="26"/>
+		</Size>
+		<Anchors>
+			<Anchor point="BOTTOM">
+				<Offset>
+					<AbsDimension x="0" y="100"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="BonkCoopStatusText" inherits="GlueFontNormalSmall" justifyH="RIGHT">
+					<Anchors>
+						<Anchor point="RIGHT" relativePoint="CENTER">
+							<Offset>
+								<AbsDimension x="110" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<Button name="BonkCoopStatusButton" inherits="GlueButtonSmallTemplate" text="Close Lobby">
+				<Size>
+					<AbsDimension x="150" y="24"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativePoint="CENTER">
+						<Offset>
+							<AbsDimension x="120" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_StatusButton();
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+	</Frame>
+
+	<Frame name="BonkCoopBrowser" inherits="BonkCoopPanelTemplate" parent="BonkHeroFrame" hidden="true">
+		<Size>
+			<AbsDimension x="1080" y="560"/>
+		</Size>
+		<Anchors>
+			<Anchor point="CENTER">
+				<Offset>
+					<AbsDimension x="0" y="-10"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="BonkCoopBrowserTitle" inherits="GlueFontNormalLarge" text="Co-op Games">
+					<Anchors>
+						<Anchor point="TOP">
+							<Offset>
+								<AbsDimension x="0" y="-14"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopHeadGame" inherits="GlueFontNormalSmall" text="Game" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="46" y="-84"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Classes" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="282" y="-84"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Difficulty" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="380" y="-84"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Players" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="550" y="-84"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopListNote" inherits="GlueFontDisableSmall" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="BOTTOMLEFT">
+							<Offset>
+								<AbsDimension x="24" y="58"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<Texture>
+					<Size>
+						<AbsDimension x="1" y="420"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="640" y="-50"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+					<Color r="0.79" g="0.64" b="0.35" a="0.45"/>
+				</Texture>
+				<FontString name="BonkCoopDetailName" inherits="GlueFontHighlightLarge" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="662" y="-56"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopDetailSub" inherits="GlueFontDisableSmall" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="BonkCoopDetailName" relativePoint="BOTTOMLEFT">
+							<Offset>
+								<AbsDimension x="0" y="-6"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopDetailTags" inherits="GlueFontNormalSmall" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="BonkCoopDetailSub" relativePoint="BOTTOMLEFT">
+							<Offset>
+								<AbsDimension x="0" y="-8"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopDetailGroup" inherits="GlueFontNormal" text="Party" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="662" y="-150"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopDetailFit" inherits="GlueFontHighlightSmall" justifyH="LEFT">
+					<Size>
+						<AbsDimension x="390" y="40"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="662" y="-376"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<EditBox name="BonkCoopSearch" inherits="BonkCoopEditTemplate" letters="40">
+				<Size>
+					<AbsDimension x="250" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="20" y="-44"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnTextChanged>
+						BonkCoop_UpdateList();
+					</OnTextChanged>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+				</Scripts>
+			</EditBox>
+			<Button name="BonkCoopFilterButton" inherits="GlueButtonSmallTemplate" text="Filters">
+				<Size>
+					<AbsDimension x="120" y="26"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="BonkCoopSearch" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="12" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ToggleFilters();
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Frame name="BonkCoopFilterMenu" inherits="BonkCoopPanelTemplate" toplevel="true" hidden="true">
+				<Size>
+					<AbsDimension x="250" y="112"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="BonkCoopFilterButton" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="0" y="-2"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Frames>
+				<CheckButton name="BonkCoopHideFull" inherits="BonkCoopCheckTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="14" y="-12"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+					<HitRectInsets>
+						<AbsInset left="0" right="-190" top="0" bottom="0"/>
+					</HitRectInsets>
+					<Scripts>
+						<OnLoad>
+							BonkCoopHideFullText:SetText("Hide full games");
+							this:SetChecked(1);
+						</OnLoad>
+						<OnClick>
+							BonkCoop_UpdateList();
+						</OnClick>
+					</Scripts>
+				</CheckButton>
+				<CheckButton name="BonkCoopHideLocked" inherits="BonkCoopCheckTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="14" y="-42"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+					<HitRectInsets>
+						<AbsInset left="0" right="-190" top="0" bottom="0"/>
+					</HitRectInsets>
+					<Scripts>
+						<OnLoad>
+							BonkCoopHideLockedText:SetText("Hide passworded games");
+						</OnLoad>
+						<OnClick>
+							BonkCoop_UpdateList();
+						</OnClick>
+					</Scripts>
+				</CheckButton>
+				<CheckButton name="BonkCoopHideUnfit" inherits="BonkCoopCheckTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="14" y="-72"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+					<HitRectInsets>
+						<AbsInset left="0" right="-190" top="0" bottom="0"/>
+					</HitRectInsets>
+					<Scripts>
+						<OnLoad>
+							BonkCoopHideUnfitText:SetText("Hide games I can't join");
+						</OnLoad>
+						<OnClick>
+							BonkCoop_UpdateList();
+						</OnClick>
+					</Scripts>
+				</CheckButton>
+				</Frames>
+			</Frame>
+			<Frame name="BonkCoopList" enableMouseWheel="true">
+				<Size>
+					<AbsDimension x="600" y="364"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="20" y="-102"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnMouseWheel>
+						BonkCoop_Scroll(arg1);
+					</OnMouseWheel>
+				</Scripts>
+				<Frames>
+					<Button name="BonkCoopRow1" inherits="BonkCoopRowTemplate" id="1">
+						<Anchors>
+							<Anchor point="TOPLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow2" inherits="BonkCoopRowTemplate" id="2">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow1" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow3" inherits="BonkCoopRowTemplate" id="3">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow2" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow4" inherits="BonkCoopRowTemplate" id="4">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow3" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow5" inherits="BonkCoopRowTemplate" id="5">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow4" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow6" inherits="BonkCoopRowTemplate" id="6">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow5" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow7" inherits="BonkCoopRowTemplate" id="7">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow6" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow8" inherits="BonkCoopRowTemplate" id="8">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow7" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow9" inherits="BonkCoopRowTemplate" id="9">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow8" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow10" inherits="BonkCoopRowTemplate" id="10">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow9" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow11" inherits="BonkCoopRowTemplate" id="11">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow10" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow12" inherits="BonkCoopRowTemplate" id="12">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow11" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow13" inherits="BonkCoopRowTemplate" id="13">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow12" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+					<Button name="BonkCoopRow14" inherits="BonkCoopRowTemplate" id="14">
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="BonkCoopRow13" relativePoint="BOTTOMLEFT"/>
+						</Anchors>
+					</Button>
+				</Frames>
+			</Frame>
+			<Frame name="BonkCoopMember1" inherits="BonkCoopMemberTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="662" y="-176"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+			</Frame>
+			<Frame name="BonkCoopMember2" inherits="BonkCoopMemberTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="BonkCoopMember1" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="0" y="-12"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+			</Frame>
+			<Frame name="BonkCoopMember3" inherits="BonkCoopMemberTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="BonkCoopMember2" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="0" y="-12"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+			</Frame>
+			<Frame name="BonkCoopMember4" inherits="BonkCoopMemberTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="BonkCoopMember3" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="0" y="-12"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+			</Frame>
+			<Button name="BonkCoopCodeButton" inherits="GlueButtonSmallTemplate" text="Join with Code">
+				<Size>
+					<AbsDimension x="140" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="20" y="18"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ShowCodeDialog();
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopRefreshButton" inherits="GlueButtonSmallTemplate" text="Refresh">
+				<Size>
+					<AbsDimension x="120" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="BonkCoopCodeButton" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="10" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_RefreshList();
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopAskButton" inherits="GlueButtonSmallTemplate" text="Join">
+				<Size>
+					<AbsDimension x="160" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT">
+						<Offset>
+							<AbsDimension x="-20" y="18"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_AskSelected();
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopCloseButton" inherits="GlueButtonSmallTemplate" text="Close">
+				<Size>
+					<AbsDimension x="120" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="RIGHT" relativeTo="BonkCoopAskButton" relativePoint="LEFT">
+						<Offset>
+							<AbsDimension x="-10" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoopBrowser:Hide();
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				this:SetBackdropColor(0.11, 0.1, 0.1, 1);
+				this:SetBackdropBorderColor(0.55, 0.55, 0.55);
+			</OnLoad>
+			<OnShow>
+				BonkCoop_RefreshList();
+			</OnShow>
+		</Scripts>
+	</Frame>
+
+	<Frame name="BonkCoopHostForm" inherits="BonkCoopPanelTemplate" parent="BonkHeroFrame" hidden="true">
+		<Size>
+			<AbsDimension x="560" y="530"/>
+		</Size>
+		<Anchors>
+			<Anchor point="CENTER">
+				<Offset>
+					<AbsDimension x="0" y="-10"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString inherits="GlueFontNormalLarge" text="Host Game">
+					<Anchors>
+						<Anchor point="TOP">
+							<Offset>
+								<AbsDimension x="0" y="-14"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Game Name" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="24" y="-50"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Privacy" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="24" y="-112"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Difficulty" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="24" y="-232"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Pause" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="24" y="-292"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="XP" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="200" y="-292"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Mode" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="376" y="-292"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString inherits="GlueFontNormalSmall" text="Players" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="380" y="-232"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopAutoNote" inherits="GlueFontDisableSmall" text="Players who join can see your IP address." justifyH="LEFT">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="56" y="-388"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<EditBox name="BonkCoopNameEdit" inherits="BonkCoopEditTemplate" letters="40">
+				<Size>
+					<AbsDimension x="512" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="20" y="-66"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+				</Scripts>
+			</EditBox>
+			<CheckButton name="BonkCoopWhoOpen" inherits="BonkCoopCheckTemplate" id="1">
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="22" y="-128"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<HitRectInsets>
+					<AbsInset left="0" right="-220" top="0" bottom="0"/>
+				</HitRectInsets>
+				<Scripts>
+					<OnLoad>
+						BonkCoopWhoOpenText:SetText("Public");
+					</OnLoad>
+					<OnClick>
+						BonkCoop_SetWho(1);
+					</OnClick>
+				</Scripts>
+			</CheckButton>
+			<CheckButton name="BonkCoopWhoPassword" inherits="BonkCoopCheckTemplate" id="2">
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="BonkCoopWhoOpen" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="0" y="-8"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnLoad>
+						BonkCoopWhoPasswordText:SetText("Password protected");
+					</OnLoad>
+					<OnClick>
+						BonkCoop_SetWho(2);
+					</OnClick>
+				</Scripts>
+			</CheckButton>
+			<EditBox name="BonkCoopPasswordEdit" inherits="BonkCoopEditTemplate" letters="32">
+				<Size>
+					<AbsDimension x="220" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="BonkCoopWhoPassword" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="190" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+					<OnEditFocusGained>
+						BonkCoop_SetWho(2);
+					</OnEditFocusGained>
+				</Scripts>
+			</EditBox>
+			<CheckButton name="BonkCoopWhoCode" inherits="BonkCoopCheckTemplate" id="3">
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="BonkCoopWhoPassword" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="0" y="-8"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<HitRectInsets>
+					<AbsInset left="0" right="-220" top="0" bottom="0"/>
+				</HitRectInsets>
+				<Scripts>
+					<OnLoad>
+						BonkCoopWhoCodeText:SetText("Hidden, join with code");
+					</OnLoad>
+					<OnClick>
+						BonkCoop_SetWho(3);
+					</OnClick>
+				</Scripts>
+			</CheckButton>
+			<Button name="BonkCoopDifficultyButton" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="200" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="20" y="-248"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ChooseDifficulty(this);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<EditBox name="BonkCoopFloorEdit" inherits="BonkCoopEditTemplate" letters="3" numeric="true">
+				<Size>
+					<AbsDimension x="80" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="BonkCoopDifficultyButton" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="44" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString inherits="GlueFontHighlightSmall" text="level">
+							<Anchors>
+								<Anchor point="RIGHT" relativePoint="LEFT">
+									<Offset>
+										<AbsDimension x="-4" y="1"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+				</Scripts>
+			</EditBox>
+			<Button name="BonkCoopPlayersButton" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="80" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="376" y="-248"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ChoosePlayers(this);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopPauseButton" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="150" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="22" y="-308"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ChoosePause(this);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopXpButton" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="150" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="198" y="-308"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ChooseXp(this);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopModeButton" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="150" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="374" y="-308"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_ChooseMode(this);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<CheckButton name="BonkCoopAutoCheck" inherits="BonkCoopCheckTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="22" y="-362"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnLoad>
+						BonkCoopAutoCheckText:SetText("Auto-accept join requests");
+					</OnLoad>
+				</Scripts>
+			</CheckButton>
+			<CheckButton name="BonkCoopSameClassCheck" inherits="BonkCoopCheckTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="290" y="-362"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnLoad>
+						BonkCoopSameClassCheckText:SetText("Allow duplicate classes");
+					</OnLoad>
+				</Scripts>
+			</CheckButton>
+			<CheckButton name="BonkCoopNewCheck" inherits="BonkCoopCheckTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="22" y="-412"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<HitRectInsets>
+					<AbsInset left="0" right="-200" top="0" bottom="0"/>
+				</HitRectInsets>
+				<Scripts>
+					<OnLoad>
+						BonkCoopNewCheckText:SetText("Only allow Mastery");
+					</OnLoad>
+				</Scripts>
+			</CheckButton>
+			<EditBox name="BonkCoopMasteryEdit" inherits="BonkCoopEditTemplate" letters="3" numeric="true">
+				<Size>
+					<AbsDimension x="70" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="BonkCoopNewCheck" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="200" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString inherits="GlueFontHighlightSmall" text="or lower" justifyH="LEFT">
+							<Anchors>
+								<Anchor point="LEFT" relativePoint="RIGHT">
+									<Offset>
+										<AbsDimension x="6" y="1"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+				</Scripts>
+			</EditBox>
+			<CheckButton name="BonkCoopMinCheck" inherits="BonkCoopCheckTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="22" y="-447"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<HitRectInsets>
+					<AbsInset left="0" right="-200" top="0" bottom="0"/>
+				</HitRectInsets>
+				<Scripts>
+					<OnLoad>
+						BonkCoopMinCheckText:SetText("Requests need Mythic");
+					</OnLoad>
+				</Scripts>
+			</CheckButton>
+			<EditBox name="BonkCoopMinEdit" inherits="BonkCoopEditTemplate" letters="3" numeric="true">
+				<Size>
+					<AbsDimension x="70" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="BonkCoopMinCheck" relativePoint="RIGHT">
+						<Offset>
+							<AbsDimension x="200" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString inherits="GlueFontHighlightSmall" text="cleared" justifyH="LEFT">
+							<Anchors>
+								<Anchor point="LEFT" relativePoint="RIGHT">
+									<Offset>
+										<AbsDimension x="6" y="1"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+				</Scripts>
+			</EditBox>
+			<Button name="BonkCoopHostGoButton" inherits="GlueButtonSmallTemplate" text="Host">
+				<Size>
+					<AbsDimension x="130" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT">
+						<Offset>
+							<AbsDimension x="-20" y="18"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_Host();
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button inherits="GlueButtonSmallTemplate" text="Cancel">
+				<Size>
+					<AbsDimension x="130" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="RIGHT" relativeTo="BonkCoopHostGoButton" relativePoint="LEFT">
+						<Offset>
+							<AbsDimension x="-10" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoopHostForm:Hide();
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				this:SetBackdropColor(0.11, 0.1, 0.1, 1);
+				this:SetBackdropBorderColor(0.55, 0.55, 0.55);
+			</OnLoad>
+		</Scripts>
+	</Frame>
+
+	<Frame name="BonkCoopRequestTemplate" inherits="BonkCoopPanelTemplate" frameStrata="FULLSCREEN_DIALOG" hidden="true" virtual="true">
+		<Size>
+			<AbsDimension x="420" y="116"/>
+		</Size>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="$parentText" inherits="GlueFontHighlight">
+					<Size>
+						<AbsDimension x="380" y="0"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOP">
+							<Offset>
+								<AbsDimension x="0" y="-16"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentSub" inherits="GlueFontDisableSmall">
+					<Size>
+						<AbsDimension x="380" y="0"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOP" relativeTo="$parentText" relativePoint="BOTTOM">
+							<Offset>
+								<AbsDimension x="0" y="-6"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<StatusBar name="$parentBar" minValue="0" maxValue="1" defaultValue="1">
+				<Size>
+					<AbsDimension x="300" y="8"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOM">
+						<Offset>
+							<AbsDimension x="0" y="52"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+				<BarColor r="1" g="0.82" b="0.2"/>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<Texture setAllPoints="true">
+							<Color r="1" g="1" b="1" a="0.12"/>
+						</Texture>
+					</Layer>
+				</Layers>
+			</StatusBar>
+			<Button name="$parentAccept" inherits="GlueButtonSmallTemplate" text="Accept">
+				<Size>
+					<AbsDimension x="130" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT" relativePoint="BOTTOM">
+						<Offset>
+							<AbsDimension x="-6" y="14"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_AnswerRequest(this:GetParent(), 1);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="$parentDecline" inherits="GlueButtonSmallTemplate" text="Decline">
+				<Size>
+					<AbsDimension x="130" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMLEFT" relativePoint="BOTTOM">
+						<Offset>
+							<AbsDimension x="6" y="14"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_AnswerRequest(this:GetParent(), nil);
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				this:SetBackdropColor(0.11, 0.1, 0.1, 1);
+				this:SetBackdropBorderColor(0.55, 0.55, 0.55);
+			</OnLoad>
+		</Scripts>
+	</Frame>
+
+	<Frame name="BonkCoopPopup" inherits="BonkCoopPanelTemplate" parent="BonkHeroFrame" frameStrata="FULLSCREEN_DIALOG" hidden="true">
+		<Size>
+			<AbsDimension x="420" y="150"/>
+		</Size>
+		<Anchors>
+			<Anchor point="TOP">
+				<Offset>
+					<AbsDimension x="0" y="-180"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="BonkCoopPopupText" inherits="GlueFontHighlight">
+					<Size>
+						<AbsDimension x="380" y="0"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOP">
+							<Offset>
+								<AbsDimension x="0" y="-18"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopPopupSub" inherits="GlueFontDisableSmall">
+					<Size>
+						<AbsDimension x="380" y="0"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOP" relativeTo="BonkCoopPopupText" relativePoint="BOTTOM">
+							<Offset>
+								<AbsDimension x="0" y="-6"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<EditBox name="BonkCoopPopupEdit" inherits="BonkCoopEditTemplate" letters="32" hidden="true">
+				<Anchors>
+					<Anchor point="BOTTOM">
+						<Offset>
+							<AbsDimension x="0" y="54"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnEnterPressed>
+						BonkCoop_PopupButton(1);
+					</OnEnterPressed>
+					<OnEscapePressed>
+						BonkCoop_PopupButton(2);
+					</OnEscapePressed>
+				</Scripts>
+			</EditBox>
+			<StatusBar name="BonkCoopPopupBar" minValue="0" maxValue="1" defaultValue="1" hidden="true">
+				<Size>
+					<AbsDimension x="300" y="10"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOM">
+						<Offset>
+							<AbsDimension x="0" y="62"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+				<BarColor r="1" g="0.82" b="0.2"/>
+				<Layers>
+					<Layer level="BACKGROUND">
+						<Texture setAllPoints="true">
+							<Color r="1" g="1" b="1" a="0.12"/>
+						</Texture>
+					</Layer>
+				</Layers>
+			</StatusBar>
+			<Button name="BonkCoopPopupButton1" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="130" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT" relativePoint="BOTTOM">
+						<Offset>
+							<AbsDimension x="-6" y="16"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PopupButton(1);
+					</OnClick>
+				</Scripts>
+			</Button>
+			<Button name="BonkCoopPopupButton2" inherits="GlueButtonSmallTemplate">
+				<Size>
+					<AbsDimension x="130" y="28"/>
+				</Size>
+				<Anchors>
+					<Anchor point="BOTTOMLEFT" relativePoint="BOTTOM">
+						<Offset>
+							<AbsDimension x="6" y="16"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PopupButton(2);
+					</OnClick>
+				</Scripts>
+			</Button>
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				this:SetBackdropColor(0.11, 0.1, 0.1, 1);
+				this:SetBackdropBorderColor(0.55, 0.55, 0.55);
+			</OnLoad>
+		</Scripts>
+	</Frame>
+
+	<Frame name="BonkCoopRequest1" inherits="BonkCoopRequestTemplate" parent="BonkHeroFrame">
+		<Anchors>
+			<Anchor point="TOP">
+				<Offset>
+					<AbsDimension x="0" y="-180"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+	</Frame>
+	<Frame name="BonkCoopRequest2" inherits="BonkCoopRequestTemplate" parent="BonkHeroFrame">
+		<Anchors>
+			<Anchor point="TOP" relativeTo="BonkCoopRequest1" relativePoint="BOTTOM">
+				<Offset>
+					<AbsDimension x="0" y="-6"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+	</Frame>
+	<Frame name="BonkCoopRequest3" inherits="BonkCoopRequestTemplate" parent="BonkHeroFrame">
+		<Anchors>
+			<Anchor point="TOP" relativeTo="BonkCoopRequest2" relativePoint="BOTTOM">
+				<Offset>
+					<AbsDimension x="0" y="-6"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+	</Frame>
+
+
+	<Frame name="BonkCoopPoller" parent="GlueParent">
+		<Scripts>
+			<OnUpdate>
+				BonkCoop_OnUpdate(arg1);
+			</OnUpdate>
+		</Scripts>
+	</Frame>
+	<Frame name="BonkCoopChoiceMenu" inherits="BonkCoopPanelTemplate" parent="BonkCoopHostForm" toplevel="true" frameStrata="DIALOG" hidden="true">
+		<Size>
+			<AbsDimension x="166" y="80"/>
+		</Size>
+		<Frames>
+			<Button name="BonkCoopChoice1" id="1">
+				<Size>
+					<AbsDimension x="150" y="20"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOP">
+						<Offset>
+							<AbsDimension x="0" y="-8"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GlueFontHighlightSmall" justifyH="CENTER">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PickChoice(this:GetID());
+					</OnClick>
+				</Scripts>
+				<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD"/>
+			</Button>
+			<Button name="BonkCoopChoice2" id="2">
+				<Size>
+					<AbsDimension x="150" y="20"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOP">
+						<Offset>
+							<AbsDimension x="0" y="-28"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GlueFontHighlightSmall" justifyH="CENTER">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PickChoice(this:GetID());
+					</OnClick>
+				</Scripts>
+				<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD"/>
+			</Button>
+			<Button name="BonkCoopChoice3" id="3">
+				<Size>
+					<AbsDimension x="150" y="20"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOP">
+						<Offset>
+							<AbsDimension x="0" y="-48"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GlueFontHighlightSmall" justifyH="CENTER">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PickChoice(this:GetID());
+					</OnClick>
+				</Scripts>
+				<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD"/>
+			</Button>
+			<Button name="BonkCoopChoice4" id="4">
+				<Size>
+					<AbsDimension x="150" y="20"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOP">
+						<Offset>
+							<AbsDimension x="0" y="-68"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GlueFontHighlightSmall" justifyH="CENTER">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PickChoice(this:GetID());
+					</OnClick>
+				</Scripts>
+				<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD"/>
+			</Button>
+			<Button name="BonkCoopChoice5" id="5">
+				<Size>
+					<AbsDimension x="150" y="20"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOP">
+						<Offset>
+							<AbsDimension x="0" y="-88"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="ARTWORK">
+						<FontString name="$parentText" inherits="GlueFontHighlightSmall" justifyH="CENTER">
+							<Anchors>
+								<Anchor point="CENTER"/>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Scripts>
+					<OnClick>
+						BonkCoop_PickChoice(this:GetID());
+					</OnClick>
+				</Scripts>
+				<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD"/>
+			</Button>
+		</Frames>
+	</Frame>
+</Ui>

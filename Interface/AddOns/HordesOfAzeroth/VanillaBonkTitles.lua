@@ -67,6 +67,7 @@ UIDropDownMenu_Initialize(dropdown, function()
 end)
 
 local handlers = {}
+
 handlers["titles"] = function(f)
     titles.active = tonumber(f[2] or "") or 0
     titles.list = {}

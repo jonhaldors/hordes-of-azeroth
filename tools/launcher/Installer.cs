@@ -468,7 +468,7 @@ namespace HordesOfAzeroth.Launcher
             {
                 try
                 {
-                    await Web.DownloadAsync(url, target, report, cancel);
+                    await Mirror.TryEachAsync(url, cancel, source => Web.DownloadAsync(source, target, report, cancel));
                 }
                 catch (Exception e) when (Web.IsProblem(e) && !cancel.IsCancellationRequested)
                 {

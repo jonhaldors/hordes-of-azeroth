@@ -71,8 +71,7 @@ namespace BonkTelegraphs
 
         static void AddDisplay(Dbc displays, uint[] template, uint displayId, uint modelId, float size)
         {
-            if (displays.Find(displayId) != null)
-                throw new InvalidOperationException("Creature display " + displayId + " is taken.");
+            displays.Release(displayId);
             uint[] display = (uint[])template.Clone();
             display[0] = displayId;
             display[1] = modelId;

@@ -102,8 +102,7 @@ namespace BonkTelegraphs
             uint[] model = display != null ? models.Find(display[DisplayModelField]) : null;
             if (model == null)
                 throw new InvalidDataException("Creature display " + ImpDisplayId + " (Imp) is not in the client's tables.");
-            if (displays.Find(FelImpDisplayId) != null)
-                throw new InvalidOperationException("Creature display " + FelImpDisplayId + " is taken.");
+            displays.Release(FelImpDisplayId);
             uint felModelId = models.ClaimId(FelImpModelId);
 
             Builder builder = new Builder { Client = client, Files = files };

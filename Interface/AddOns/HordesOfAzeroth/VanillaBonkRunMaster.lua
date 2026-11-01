@@ -13,32 +13,32 @@ local RIGHT_X = MID_X + LIST_WIDTH + 14
 local RIGHT_WIDTH = W - 22 - RIGHT_X
 local BANNER_TOP, BANNER_HEIGHT = 100, 100
 local PREVIEW_TOP = 212
-local SLIDER_Y = PREVIEW_TOP + 92
-local SLIDER_INSET = 14
+local PICKER_WIDTH, PICKER_HEIGHT = 262, 22
+local PICKER_X = RIGHT_X + (RIGHT_WIDTH - PICKER_WIDTH) / 2
+local PICKER_TOP = H - 62 - 8 - PICKER_HEIGHT
+local PICKER_ROWS, PICKER_ROW = 10, 18
+local PICKER_LOCKED_AHEAD = 2
+local BEST_BOTTOM = PICKER_TOP - 22
+local BEST_LINE = 13
 local ROW_HEIGHT, ROW_STEP, ROW_ICON = 34, 36, 26
 local STAT_STEP = 15
-local MAX_FLOORS = 20
-local KNOB_TEXTURE = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\SliderKnob"
+local LOCK_ICON = "Interface\\ChatFrame\\UI-ChatFrame-LockIcon"
+local OPEN_ARROW = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
+local NAME_COLOR = "|cff8a8278"
 local RANDOM_ICON = "INV_Misc_QuestionMark"
 local SOFT = { 0.78, 0.75, 0.7 }
 local MUTED = { 0.51, 0.49, 0.44 }
 local HAIR = { 0.47, 0.39, 0.24 }
 local INVADED_COLOR = { 1, 0.6, 0.24 }
 local CHALLENGE_RISK = L["Enemies have 30% more health and deal 20% more damage."]
-local DUNGEON_REWARD = L["Enemies drop 50% more gold, and loot is one quality higher."]
-local INVASION_REWARD = L["More enemies come at once. They drop 25% more gold, and loot has a 50% chance to be one quality higher."]
+local DUNGEON_REWARD = L["Enemies drop 25% more gold, and mini-bosses drop gear twice as often."]
+local INVASION_REWARD = L["More enemies come at once. They drop 25% more gold, and mini-bosses drop gear 50% more often."]
 local TIER_LOOKS = {
     normal = { color = { 1, 0.82, 0 }, emblem = "Ability_Warrior_DefensiveStance" },
     heroic = { color = { 0.38, 0.65, 1 }, emblem = "INV_Shield_05" },
     mythic = { color = { 0.77, 0.4, 1 }, emblem = "INV_Misc_Bone_HumanSkull_01" },
 }
 local DEFAULT_LOOK = TIER_LOOKS.normal
-local BANDS = {
-    { name = L["Climb"], color = { 0.91, 0.77, 0.41 } },
-    { name = L["Push"], color = { 0.94, 0.59, 0.24 } },
-    { name = L["Peak"], color = { 0.9, 0.31, 0.25 } },
-}
-local MILESTONE_ICONS = { affix = "Ability_Warrior_Challange", veteran = "INV_Helmet_03" }
 local CONTINENT_ART = {
     ["0"] = "Interface\\Glues\\LoadingScreens\\LoadScreenEasternKingdom",
     ["1"] = "Interface\\Glues\\LoadingScreens\\LoadScreenKalimdor",
@@ -71,20 +71,21 @@ local STAT_ROWS = {
     { behavior = true },
     { group = L["Rewards"], rewards = true },
     { label = L["Gold and Tickets per kill"], key = "gold", format = "+%s%%", rewards = true },
-    { label = L["Boss drops blue"], key = "blue", format = "%s%%", rewards = true, color = { 0, 0.44, 0.87 } },
-    { label = L["Boss drops epic"], key = "epic", format = "%s%%", rewards = true, color = { 0.64, 0.21, 0.93 } },
-    { label = L["Boss drops legendary"], key = "legendary", format = "%s%%", rewards = true, color = { 1, 0.5, 0 } },
+    { label = L["Gear drops"], key = "dropTier", tier = true, rewards = true },
+    { label = L["White gear"], key = "white", format = "%s%%", rewards = true, odds = true, color = { 1, 1, 1 } },
+    { label = L["Green gear"], key = "green", format = "%s%%", rewards = true, odds = true, color = { 0.12, 1, 0 } },
+    { label = L["Blue gear"], key = "blue", format = "%s%%", rewards = true, odds = true, color = { 0, 0.44, 0.87 } },
+    { label = L["Epic gear"], key = "epic", format = "%s%%", rewards = true, odds = true, luck = true, color = { 0.64, 0.21, 0.93 } },
+    { luckHint = true },
+    { label = L["Boss drops legendary"], key = "legendary", format = "%s%%", rewards = true, odds = true, color = { 1, 0.5, 0 } },
 }
 
-local state = { zone = {}, dungeon = {}, mode = {}, floor = {}, start = {} }
-local checkpoints = {}
-local CHECKPOINT_Y = 404
-local START_MENU_WIDTH = 170
-local START_MENU_ROWS = 8
-local START_ROW_HEIGHT = 20
+local state = { zone = {}, dungeon = {}, mode = {}, level = {} }
 local mapInfo = {}
-local floorInfo = {}
+local levelInfo = {}
+local levelBests = {}
 local tierInfo = {}
+local epicLuck = 0
 local BEHAVIOR_CELLS = { { L["Caster aim"], "aim" }, { L["Boss attacks"], "boss" }, { L["Max enemies"], "crowd" } }
 local zoneOverlays, overlaySeen = {}, {}
 local arena, content, tier, onTierClick
@@ -112,12 +113,15 @@ local function Info(key)
     return mapInfo[key or ""] or {}
 end
 
-local function Floors(count)
-    return count .. (count == 1 and L[" floor"] or L[" floors"])
+local function LevelsText(shown)
+    if (shown.levels or 0) == 0 then
+        return L["Endless levels"]
+    end
+    return L("{1} levels", shown.levels)
 end
 
-local function FloorRow(shown, index)
-    return (floorInfo[shown.id] or {})[index]
+local function LevelRow(shown, index)
+    return (levelInfo[shown.id] or {})[index]
 end
 
 local function Clamp(value, low, high)
@@ -235,8 +239,7 @@ local function Progress(shown)
     if not shown.unlocked then
         return L["Locked"]
     end
-    local stages = shown.stages or 1
-    if shown.best > stages then
+    if (shown.levels or 0) > 0 and shown.best >= shown.levels then
         return L["Cleared"]
     elseif shown.best > 0 then
         return L("best {1}", shown.best)
@@ -249,7 +252,7 @@ local function FillPlaque(plaque, shown, selected)
     plaque.tier = shown
     plaque.icon:SetTexture(Icon(Look(shown).emblem))
     plaque.name:SetText(shown.name)
-    plaque.state:SetText(Floors(shown.stages or 1) .. "  ·  " .. Progress(shown))
+    plaque.state:SetText(LevelsText(shown) .. "  ·  " .. Progress(shown))
     SetDesaturation(plaque.icon, not selected or not shown.unlocked)
     if selected then
         plaque:SetBackdropColor(0, 0, 0, 0.47)
@@ -369,7 +372,7 @@ local function ZoneTooltip(row)
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
     if not map then
         GameTooltip:AddLine(L["Random zone"], 1, 0.82, 0)
-        GameTooltip:AddLine(L("Floor 1 takes you to any {1} zone.", tier.name), 1, 1, 1, 1)
+        GameTooltip:AddLine(L("Stage 1 takes you to any {1} zone.", tier.name), 1, 1, 1, 1)
     else
         GameTooltip:AddLine(map.name, 1, 0.82, 0)
         if MAP_TYPES[map.type] then
@@ -433,7 +436,7 @@ local function ShowList()
             row.map, row.dungeon, row.tooltip = map, nil, ZoneTooltip
             local key = map.key
             row.pick = function() state.zone[tier.id] = key end
-            local tag = map.reward and map.reward ~= 100 and ("|cff40ff40" .. Multiplier(map.reward) .. L["x gold|r"]) or nil
+            local tag = map.reward and map.reward ~= 100 and ("|cff40ff40" .. Multiplier(map.reward) .. L["x Tickets and Mastery|r"]) or nil
             FillRow(row, map.icon, map.name, Info(map.key).summary, zone == map, dimmed, tag)
         end
     else
@@ -578,7 +581,7 @@ local function ShowBanner()
     banner.risk = nil
     if mode == "dungeon" and dungeon then
         SetArt(DUNGEON_ART[dungeon.key] or tier.art, false, locked)
-        banner.tag:SetText(Hex(INVADED_COLOR) .. L["Dungeon challenge  ·  every floor inside|r"])
+        banner.tag:SetText(Hex(INVADED_COLOR) .. L["Dungeon challenge  ·  every stage inside|r"])
         banner.name:SetText(dungeon.name)
         banner.description:SetText(Info(dungeon.key).summary or "")
         banner.risk = DUNGEON_REWARD
@@ -603,35 +606,31 @@ local function ShowBanner()
             banner.risk = INVASION_REWARD
         else
             if zone and zone.reward and zone.reward ~= 100 then
-                banner.tag:SetText(L["|cff40ff40Pays "] .. Multiplier(zone.reward) .. L["x gold, Tickets and Mastery|r"])
+                banner.tag:SetText(L["|cff40ff40Pays "] .. Multiplier(zone.reward) .. L["x Tickets and Mastery|r"])
             else
                 banner.tag:SetText("")
             end
-            banner.description:SetText(zone and (info.description or "") or L("Floor 1 takes you to any {1} zone.", tier.name))
+            banner.description:SetText(zone and (info.description or "") or L("Stage 1 takes you to any {1} zone.", tier.name))
         end
     end
 end
 
-local function FloorCount()
-    return min(MAX_FLOORS, tier.stages or 1)
+local function LevelCount()
+    return max(1, table.getn(levelInfo[tier.id] or {}))
 end
 
-local function BandOf(row)
-    return BANDS[tonumber(row and row.band or "") or 1] or BANDS[1]
+local function OpenBand()
+    return Clamp(tier.open or 1, 1, LevelCount())
 end
 
-local function SliderX(floorNumber)
-    local count = FloorCount()
-    if count <= 1 then
-        return 0
-    end
-    return (floorNumber - 1) / (count - 1) * preview.bar:GetWidth()
+local function ChosenLevel()
+    return Clamp(state.level[tier.id] or OpenBand(), 1, OpenBand())
 end
 
-local function SetFloor(value, quiet)
-    value = Clamp(value, 1, FloorCount())
-    if value ~= state.floor[tier.id] then
-        state.floor[tier.id] = value
+local function SetLevel(value, quiet)
+    value = Clamp(value, 1, OpenBand())
+    if value ~= state.level[tier.id] then
+        state.level[tier.id] = value
         if not quiet then
             PlaySound("igMainMenuOptionCheckBoxOn")
         end
@@ -639,255 +638,221 @@ local function SetFloor(value, quiet)
     end
 end
 
-local function FloorAtCursor(bar)
-    local x = GetCursorPosition() / bar:GetEffectiveScale() - bar:GetLeft()
-    local count = FloorCount()
-    return floor(Clamp(x / bar:GetWidth(), 0, 1) * (count - 1) + 1.5)
+local function LevelName(band)
+    return L("{1} {2}", tier.name, band)
 end
 
-local function Pooled(pool, index, make)
-    if not pool[index] then
-        pool[index] = make()
+local function PickerEntries()
+    local open = OpenBand()
+    local top = (tier.levels or 0) > 0 and LevelCount() or open + PICKER_LOCKED_AHEAD
+    local entries = {}
+    for band = top, 1, -1 do
+        local row = LevelRow(tier, band)
+        local kind = "cleared"
+        if band > open then
+            kind = "locked"
+        elseif not row or row.cleared ~= "1" then
+            kind = "next"
+        end
+        tinsert(entries, { band = band, state = kind })
     end
-    return pool[index]
+    return entries
 end
 
-local function MakeSegment()
-    local segment = {}
-    segment.back = preview.bar:CreateTexture(nil, "BORDER")
-    segment.back:SetHeight(6)
-    segment.fill = preview.bar:CreateTexture(nil, "ARTWORK")
-    segment.fill:SetHeight(6)
-    segment.label = UI.Text(preview.bar, 9)
-    segment.edge = Flat(preview.bar, "OVERLAY", 0.59, 0.51, 0.35, 1)
-    segment.edge:SetWidth(1)
-    segment.edge:SetHeight(13)
-    return segment
-end
-
-local function MakeNotch()
-    local notch = {}
-    notch.groove = preview.bar:CreateTexture(nil, "OVERLAY")
-    notch.groove:SetWidth(1)
-    notch.groove:SetHeight(6)
-    UI.Gradient(notch.groove, "VERTICAL", 0, 0, 0, 0.67, 0.24)
-    notch.shine = preview.bar:CreateTexture(nil, "OVERLAY")
-    notch.shine:SetWidth(1)
-    notch.shine:SetHeight(6)
-    UI.Gradient(notch.shine, "VERTICAL", 1, 0.94, 0.82, 0.04, 0.2)
-    notch.tick = preview.bar:CreateTexture(nil, "ARTWORK")
-    notch.tick:SetWidth(1)
-    notch.tick:SetHeight(4)
-    return notch
-end
-
-local function MakePin()
-    local pin = CreateFrame("Button", nil, preview)
-    pin:SetWidth(16)
-    pin:SetHeight(16)
-    pin:SetFrameLevel(preview:GetFrameLevel() + 3)
-    pin.frame = Flat(pin, "BACKGROUND")
-    pin.frame:SetPoint("TOPLEFT", pin, "TOPLEFT", -1, 1)
-    pin.frame:SetPoint("BOTTOMRIGHT", pin, "BOTTOMRIGHT", 1, -1)
-    pin.icon = pin:CreateTexture(nil, "ARTWORK")
-    pin.icon:SetAllPoints(pin)
-    UI.CropIcon(pin.icon)
-    pin.shade = Flat(pin, "OVERLAY", 0, 0, 0, 0.45)
-    pin.shade:SetAllPoints(pin)
-    pin.glow = pin:CreateTexture(nil, "BACKGROUND")
-    pin.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-    pin.glow:SetBlendMode("ADD")
-    pin.glow:SetVertexColor(1, 0.78, 0.35)
-    pin.glow:SetWidth(30)
-    pin.glow:SetHeight(30)
-    pin.glow:SetPoint("CENTER", pin, "CENTER", 0, 0)
-    pin.stem = Flat(preview, "ARTWORK")
-    pin.stem:SetWidth(1)
-    pin:SetScript("OnClick", function() SetFloor(this.floor) end)
-    pin:SetScript("OnEnter", function()
-        local row = FloorRow(tier, this.floor)
-        if not row then
-            return
-        end
-        GameTooltip:SetOwner(this, "ANCHOR_TOP")
-        GameTooltip:AddLine(L("Floor {1} milestone", this.floor), 1, 0.82, 0)
-        GameTooltip:AddLine(row.change, 1, 1, 1, 1)
-        if row.reward ~= "" then
-            GameTooltip:AddLine(L["First clear: "] .. row.reward .. ".", 0.25, 1, 0.25, 1)
-        end
-        GameTooltip:Show()
-    end)
-    pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    return pin
-end
-
-local function Bands(count)
-    local ranges = {}
-    for floorNumber = 1, count do
-        local band = tonumber((FloorRow(tier, floorNumber) or {}).band or "") or 1
-        local last = ranges[table.getn(ranges)]
-        if last and last.band == band then
-            last.last = floorNumber
+local function FillChoices()
+    local choices = preview.choices
+    local entries = PickerEntries()
+    local count = table.getn(entries)
+    local visible = min(count, PICKER_ROWS)
+    choices.offset = Clamp(choices.offset or 0, 0, count - visible)
+    choices:SetHeight(visible * PICKER_ROW + 8)
+    local color = Look(tier).color
+    local current = ChosenLevel()
+    for index, row in ipairs(choices.rows) do
+        local entry = entries[index + choices.offset]
+        if index > visible or not entry then
+            row:Hide()
         else
-            tinsert(ranges, { band = band, first = floorNumber, last = floorNumber })
+            row.band = entry.state ~= "locked" and entry.band or nil
+            local selected = entry.band == current
+            row.name:SetText(LevelName(entry.band))
+            if entry.state == "locked" then
+                row.lock:Show()
+            else
+                row.lock:Hide()
+            end
+            if selected then
+                row.selected:Show()
+            else
+                row.selected:Hide()
+            end
+            row.selected:SetVertexColor(color[1], color[2], color[3], 0.35)
+            if entry.state == "locked" then
+                row.name:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+                row.note:SetText(L("Clear {1}", LevelName(entry.band - 1)))
+                row.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+            else
+                row.name:SetTextColor(selected and 1 or color[1], selected and 1 or color[2], selected and 1 or color[3])
+                row.note:SetText(entry.state == "next" and L["next"] or L["cleared"])
+                if entry.state == "next" then
+                    row.note:SetTextColor(1, 0.82, 0)
+                else
+                    row.note:SetTextColor(SOFT[1], SOFT[2], SOFT[3])
+                end
+            end
+            row:Show()
         end
     end
-    return ranges
+    if count > visible then
+        local track = visible * PICKER_ROW - 4
+        local thumb = max(12, track * visible / count)
+        choices.thumb:SetHeight(thumb)
+        choices.thumb:ClearAllPoints()
+        choices.thumb:SetPoint("TOPRIGHT", choices, "TOPRIGHT", -4, -6 - (track - thumb) * choices.offset / (count - visible))
+        choices.thumb:Show()
+    else
+        choices.thumb:Hide()
+    end
 end
 
-local function ShowSlider(count, current)
-    for _, segment in ipairs(preview.segments) do
-        segment.back:Hide()
-        segment.fill:Hide()
-        segment.label:Hide()
-        segment.edge:Hide()
+local function OpenChoices()
+    local choices = preview.choices
+    local entries = PickerEntries()
+    local top = entries[1] and entries[1].band or 1
+    choices.offset = (top - ChosenLevel()) - 3
+    FillChoices()
+    choices:Show()
+end
+
+local function ShowPicker(current)
+    local color = Look(tier).color
+    preview.pickerLabel:SetText(L("{1} level", tier.name))
+    preview.picker.text:SetText(LevelName(current))
+    preview.picker.text:SetTextColor(color[1], color[2], color[3])
+    local best = 0
+    for band = 1, LevelCount() do
+        local row = LevelRow(tier, band)
+        if row and row.cleared == "1" then
+            best = band
+        end
     end
-    for _, notch in ipairs(preview.notches) do
-        notch.groove:Hide()
-        notch.shine:Hide()
-        notch.tick:Hide()
+    preview.picker.best:SetText(best > 0 and L("best {1}", LevelName(best)) or "")
+    if preview.choices:IsShown() then
+        FillChoices()
     end
-    for _, pin in ipairs(preview.pins) do
-        pin:Hide()
-        pin.stem:Hide()
+end
+
+local function ShortNumber(value)
+    if value >= 1000000 then
+        return format("%.1fM", value / 1000000)
+    elseif value >= 1000 then
+        return format("%.1fk", value / 1000)
     end
-    if count <= 1 then
-        preview.slider:Hide()
+    return tostring(value)
+end
+
+local function GoldText(copper)
+    local gold, silver = floor(copper / 10000), floor(mod(copper, 10000) / 100)
+    local text = format(L["|cffc7c7cf%ds|r "], silver)
+    if gold > 0 then
+        text = format(L["|cffffd700%dg|r "], gold) .. text
+    end
+    return text
+end
+
+local function ByName(value, name)
+    if not name or name == "" then
+        return value
+    end
+    return value .. " " .. NAME_COLOR .. name .. "|r"
+end
+
+local function ShowBest(current)
+    local best = preview.best
+    local record = (levelBests[tier.id] or {})[current]
+    best.title:SetText(L("Your best on {1}", LevelName(current)))
+    best.note:ClearAllPoints()
+    if not record then
+        for _, line in ipairs(best.lines) do
+            line.label:Hide()
+            line.value:Hide()
+        end
+        best.clears:SetText("")
+        best.note:SetPoint("TOPLEFT", best.title, "BOTTOMLEFT", 0, -4)
+        best.note:SetText(L["No clears on this level yet."])
         return
     end
-    preview.slider:Show()
-    local ranges = Bands(count)
-    local multi = table.getn(ranges) > 1
-    for index, range in ipairs(ranges) do
-        local segment = Pooled(preview.segments, index, MakeSegment)
-        local band = BANDS[range.band] or BANDS[1]
-        local color = multi and band.color or Look(tier).color
-        local left = range.first == 1 and 0 or SliderX(range.first - 1)
-        local right = SliderX(range.last)
-        segment.back:ClearAllPoints()
-        segment.back:SetPoint("LEFT", preview.bar, "LEFT", left, 0)
-        segment.back:SetWidth(max(1, right - left))
-        UI.Gradient(segment.back, "VERTICAL", color[1] * 0.42, color[2] * 0.42, color[3] * 0.42, 1, 0.8)
-        segment.back:Show()
-        local filled = min(right, SliderX(current)) - left
-        if filled > 0 then
-            segment.fill:ClearAllPoints()
-            segment.fill:SetPoint("LEFT", preview.bar, "LEFT", left, 0)
-            segment.fill:SetWidth(filled)
-            UI.Gradient(segment.fill, "VERTICAL", color[1] * 0.75, color[2] * 0.75, color[3] * 0.75, 1, 1)
-            segment.fill:SetVertexColor(color[1], color[2], color[3], 1)
-            segment.fill:Show()
-        end
-        if multi then
-            segment.label:ClearAllPoints()
-            segment.label:SetPoint("TOP", preview.bar, "BOTTOMLEFT", (left + right) / 2, -14)
-            segment.label:SetText(band.name .. "  " .. range.first .. "-" .. range.last)
-            segment.label:SetTextColor(color[1], color[2], color[3])
-            segment.label:Show()
-            if index > 1 then
-                segment.edge:ClearAllPoints()
-                segment.edge:SetPoint("CENTER", preview.bar, "LEFT", left, 0)
-                segment.edge:Show()
-            end
-        end
+    best.note:SetPoint("BOTTOMLEFT", best, "BOTTOMLEFT", 0, 0)
+    best.clears:SetText(record.clears == 1 and L["cleared once"] or L("cleared {1} times", record.clears))
+    local values = {
+        ByName(UI.FormatTime(floor(record.bestMs / 1000)), record.bestMsBy),
+        ByName(UI.Thousands(record.kills), record.killsBy),
+        ByName(L("{1}/s", ShortNumber(record.damage)), record.damageBy),
+        ByName(GoldText(record.gold), record.goldBy),
+        ByName(UI.Thousands(record.valor), record.valorBy),
+    }
+    for index, line in ipairs(best.lines) do
+        line.value:SetText(values[index])
+        line.label:Show()
+        line.value:Show()
     end
-    preview.shine:SetWidth(max(1, SliderX(current)))
-    local edges = {}
-    for _, range in ipairs(ranges) do
-        edges[range.last] = true
+    local note = L("First cleared {1}.", date("%Y-%m-%d", record.first))
+    if record.finale > 0 then
+        note = note .. " " .. L("Best finale: {1} survived, score {2}.", UI.FormatTime(record.finaleSeconds), record.finale)
     end
-    local pins = 0
-    for floorNumber = 1, count do
-        local row = FloorRow(tier, floorNumber)
-        local color = multi and BandOf(row).color or Look(tier).color
-        local notch = Pooled(preview.notches, floorNumber, MakeNotch)
-        local x = SliderX(floorNumber)
-        if floorNumber > 1 and floorNumber < count and not edges[floorNumber] then
-            notch.groove:ClearAllPoints()
-            notch.groove:SetPoint("CENTER", preview.bar, "LEFT", x - 0.5, 0)
-            notch.groove:Show()
-            notch.shine:ClearAllPoints()
-            notch.shine:SetPoint("CENTER", preview.bar, "LEFT", x + 0.5, 0)
-            notch.shine:Show()
-        end
-        notch.tick:ClearAllPoints()
-        notch.tick:SetPoint("TOP", preview.bar, "BOTTOMLEFT", x, -3)
-        notch.tick:SetTexture(UI.FLAT)
-        notch.tick:SetVertexColor(color[1], color[2], color[3], floorNumber <= current and 0.8 or 0.3)
-        notch.tick:Show()
-        local kind = row and row.kind or ""
-        if MILESTONE_ICONS[kind] then
-            pins = pins + 1
-            local pin = Pooled(preview.pins, pins, MakePin)
-            pin.floor = floorNumber
-            pin.icon:SetTexture(Icon(MILESTONE_ICONS[kind]))
-            pin:ClearAllPoints()
-            pin:SetPoint("BOTTOM", preview.bar, "TOPLEFT", x, 14)
-            pin.stem:ClearAllPoints()
-            pin.stem:SetPoint("TOP", pin, "BOTTOM", 0, -1)
-            pin.stem:SetPoint("BOTTOM", preview.bar, "TOP", 0, 2)
-            pin.stem:SetPoint("LEFT", preview.bar, "LEFT", x, 0)
-            if floorNumber == current then
-                pin.frame:SetVertexColor(1, 0.84, 0.43, 1)
-                pin.stem:SetVertexColor(1, 0.84, 0.43, 1)
-                pin.glow:Show()
-                pin.shade:Hide()
-                SetDesaturation(pin.icon, false)
-            elseif floorNumber < current then
-                pin.frame:SetVertexColor(0.75, 0.63, 0.35, 1)
-                pin.stem:SetVertexColor(0.75, 0.63, 0.35, 1)
-                pin.glow:Hide()
-                pin.shade:Hide()
-                SetDesaturation(pin.icon, false)
-            else
-                pin.frame:SetVertexColor(0.35, 0.32, 0.26, 1)
-                pin.stem:SetVertexColor(0.35, 0.32, 0.26, 1)
-                pin.glow:Hide()
-                pin.shade:Show()
-                SetDesaturation(pin.icon, true)
-            end
-            pin:Show()
-            pin.stem:Show()
-        end
-    end
-    local tone = multi and BandOf(FloorRow(tier, current)).color or Look(tier).color
-    local knobX = SliderX(current)
-    preview.knob:ClearAllPoints()
-    preview.knob:SetPoint("CENTER", preview.bar, "LEFT", knobX, 0)
-    preview.knob:SetVertexColor(tone[1], tone[2], tone[3])
-    local onPin = MILESTONE_ICONS[(FloorRow(tier, current) or {}).kind or ""]
-    if onPin then
-        preview.badge:Hide()
-        preview.badgeStem:Hide()
-    else
-        preview.badge:ClearAllPoints()
-        preview.badge:SetPoint("BOTTOM", preview.bar, "TOPLEFT", knobX, 36)
-        preview.badge:SetBackdropColor(tone[1] * 0.18, tone[2] * 0.18, tone[3] * 0.18, 0.95)
-        preview.badge:SetBackdropBorderColor(tone[1], tone[2], tone[3], 1)
-        preview.badge.text:SetText(current)
-        preview.badge.text:SetTextColor(tone[1], tone[2], tone[3])
-        preview.badge:Show()
-        preview.badgeStem:ClearAllPoints()
-        preview.badgeStem:SetPoint("TOP", preview.badge, "BOTTOM", 0, 0)
-        preview.badgeStem:SetPoint("BOTTOM", preview.bar, "TOP", 0, 4)
-        preview.badgeStem:SetPoint("LEFT", preview.bar, "LEFT", knobX, 0)
-        preview.badgeStem:SetVertexColor(tone[1] * 0.6, tone[2] * 0.6, tone[3] * 0.6, 1)
-        preview.badgeStem:Show()
-    end
+    best.note:SetText(note)
 end
 
-local function StatValue(row, spec)
+local DROP_QUALITIES = { { key = "white", quality = 1 }, { key = "green", quality = 2 }, { key = "blue", quality = 3 }, { key = "epic", quality = 4 } }
+
+local function DroppedQualities(row)
+    local low, high
+    for _, drop in ipairs(DROP_QUALITIES) do
+        if (tonumber(row[drop.key] or "") or 0) > 0 then
+            low = low or drop.quality
+            high = drop.quality
+        end
+    end
+    return low or 1, high or 1
+end
+
+local function StatValue(row, spec, withLuck)
     local value = row and row[spec.key]
     if not value or value == "" then
         return "-"
     end
-    return format(spec.format, value)
+    if spec.tier then
+        local low, high = DroppedQualities(row)
+        return UI.ItemLevelRange(tonumber(value) or 1, low, high)
+    end
+    local text = format(spec.format, value)
+    if withLuck and spec.luck and epicLuck > 0 and (tonumber(value) or 0) > 0 then
+        return text .. " " .. L("(+{1}%)", epicLuck)
+    end
+    return text
 end
 
-local function ShowStats(current, count)
-    local row = FloorRow(tier, current)
-    local first = FloorRow(tier, 1)
-    local showRewards = count > 2
+local function HiddenOdds(row, spec)
+    if not spec.odds then
+        return false
+    end
+    local value = tonumber(row and row[spec.key] or "")
+    return not value or value <= 0
+end
+
+local function HideStatLine(line)
+    line.label:Hide()
+    line.value:Hide()
+    line.base:Hide()
+    line.arrow:Hide()
+    if line.hover then
+        line.hover:Hide()
+    end
+end
+
+local function ShowStats(current)
+    local row = LevelRow(tier, current)
+    local first = LevelRow(tier, 1)
     local y = 0
     for index, spec in ipairs(STAT_ROWS) do
         local line = preview.stats[index]
@@ -905,13 +870,23 @@ local function ShowStats(current, count)
             else
                 line:Hide()
             end
-        elseif spec.rewards and not showRewards then
-            line.label:Hide()
-            if line.base then
-                line.base:Hide()
-                line.arrow:Hide()
-                line.value:Hide()
+        elseif spec.luckHint then
+            if epicLuck > 0 and (tonumber(row and row.epic or "") or 0) > 0 then
+                line.label:ClearAllPoints()
+                line.label:SetPoint("TOPLEFT", preview.stats, "TOPLEFT", 0, -y)
+                line.label:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", 0, -y)
+                line.label:SetText(L("Bad luck protection adds {1}% until an epic drops.", epicLuck))
+                line.label:Show()
+                line.hover:ClearAllPoints()
+                line.hover:SetAllPoints(line.label)
+                line.hover:Show()
+                y = y + STAT_STEP
+            else
+                line.label:Hide()
+                line.hover:Hide()
             end
+        elseif HiddenOdds(row, spec) then
+            HideStatLine(line)
         else
             line.label:ClearAllPoints()
             line.label:SetPoint("TOPLEFT", preview.stats, "TOPLEFT", 0, -y)
@@ -922,12 +897,20 @@ local function ShowStats(current, count)
                 line.label:SetPoint("TOPLEFT", preview.stats, "TOPLEFT", 0, -y)
                 y = y + 16
             else
-                local value = StatValue(row, spec)
+                local value = StatValue(row, spec, true)
                 local base = StatValue(first, spec)
                 line.value:ClearAllPoints()
                 line.value:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", 0, -y)
                 line.value:SetText(value)
                 line.value:Show()
+                if line.hover and epicLuck > 0 then
+                    line.hover:ClearAllPoints()
+                    line.hover:SetPoint("TOPLEFT", preview.stats, "TOPLEFT", 0, -y)
+                    line.hover:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", 0, -y)
+                    line.hover:Show()
+                elseif line.hover then
+                    line.hover:Hide()
+                end
                 if current > 1 then
                     line.base:ClearAllPoints()
                     line.base:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", -72, -y - 1)
@@ -956,76 +939,18 @@ local function ShowStats(current, count)
     return y
 end
 
-local function NextMilestone(current, count)
-    for floorNumber = current + 1, count do
-        local row = FloorRow(tier, floorNumber)
-        if row and MILESTONE_ICONS[row.kind or ""] then
-            return floorNumber, row
-        end
-    end
-end
-
-local function LowerFirst(text)
-    return strlower(strsub(text, 1, 1)) .. strsub(text, 2)
-end
-
-local HARDER = "|cffff8a78"
-
-local function ShowMilestone(current, count, y)
-    local footer = preview.milestone
-    footer:ClearAllPoints()
-    footer:SetPoint("TOPLEFT", preview.stats, "TOPLEFT", 0, -(y + 4))
-    footer:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", 0, -(y + 4))
-    local row = FloorRow(tier, current)
-    local reward = row and row.reward or ""
-    local done = row and row.cleared == "1"
-    local rewardLine = reward ~= "" and L(done and "|cff9d9d9dFirst clear (done): {1}.|r" or "|cff40ff40First clear: {1}.|r", reward) or ""
-    local onMilestone = row and MILESTONE_ICONS[row.kind or ""]
-    local nextFloor, nextRow = NextMilestone(current, count)
-    local harder = ""
-    if onMilestone then
-        harder = HARDER .. L["From here on: "] .. LowerFirst(row.change) .. "|r"
-    elseif nextFloor then
-        harder = Hex(MUTED) .. L["Floor "] .. nextFloor .. ":|r " .. HARDER .. LowerFirst(nextRow.change) .. "|r"
-    end
-    if rewardLine == "" and harder == "" then
-        footer:Hide()
-        return
-    end
-    local kind = onMilestone and row.kind or (nextRow and nextRow.kind)
-    footer.icon:SetTexture(Icon(MILESTONE_ICONS[kind or ""] or "INV_Misc_Note_01"))
-    SetDesaturation(footer.icon, not onMilestone)
-    if onMilestone then
-        footer.shade:Hide()
-        footer.glow:Show()
-    else
-        footer.shade:Show()
-        footer.glow:Hide()
-    end
-    footer.top:SetText(rewardLine ~= "" and rewardLine or harder)
-    footer.bottom:SetText(rewardLine ~= "" and harder or "")
-    footer:Show()
-end
-
 local function ShowPreview()
-    local count = FloorCount()
-    local sliding = count > 2
-    local current = sliding and Clamp(state.floor[tier.id] or 1, 1, count) or count
-    state.floor[tier.id] = current
-    if sliding then
-        preview.title:SetText(L["Floor difficulty preview"])
-        preview.note:SetText(L["Drag the slider to see any floor."])
-    else
-        preview.title:SetText(L["Floor difficulty"])
-        preview.note:SetText(count == 2 and L["Floor 2 compared with floor 1."] or "")
-    end
-    ShowSlider(sliding and count or 1, current)
-    local top = sliding and SLIDER_Y + 30 or PREVIEW_TOP + 40
+    local current = ChosenLevel()
+    state.level[tier.id] = current
+    preview.title:SetText(LevelName(current))
+    preview.note:SetText(L["Clearing this level opens the next one."])
+    local top = PREVIEW_TOP + 40
     preview.stats:ClearAllPoints()
     preview.stats:SetPoint("TOPLEFT", arena, "TOPLEFT", RIGHT_X + 2, -top)
     preview.stats:SetPoint("TOPRIGHT", arena, "TOPLEFT", RIGHT_X + RIGHT_WIDTH - 2, -top)
-    local y = ShowStats(current, count)
-    ShowMilestone(current, count, y)
+    ShowStats(current)
+    ShowBest(current)
+    ShowPicker(current)
 end
 
 local function BuildHead()
@@ -1138,7 +1063,7 @@ local function BuildPreview()
     preview:SetHeight(360)
     preview:EnableMouseWheel(true)
     preview:SetScript("OnMouseWheel", function()
-        SetFloor((state.floor[tier.id] or 1) + (arg1 > 0 and 1 or -1))
+        SetLevel(ChosenLevel() + (arg1 > 0 and 1 or -1))
     end)
     preview.title = UI.Text(preview, 13)
     preview.title:SetPoint("TOPLEFT", preview, "TOPLEFT", 2, 0)
@@ -1146,59 +1071,113 @@ local function BuildPreview()
     preview.note = UI.Text(preview, 9)
     preview.note:SetPoint("TOPLEFT", preview.title, "BOTTOMLEFT", 0, -4)
     preview.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    preview:SetScript("OnHide", function() preview.choices:Hide() end)
 
-    preview.slider = CreateFrame("Frame", nil, preview)
-    preview.slider:SetAllPoints(preview)
-    preview.bar = CreateFrame("Button", nil, preview.slider)
-    preview.bar:SetPoint("TOPLEFT", arena, "TOPLEFT", RIGHT_X + SLIDER_INSET, -(SLIDER_Y - 3))
-    preview.bar:SetWidth(RIGHT_WIDTH - 2 * SLIDER_INSET)
-    preview.bar:SetHeight(6)
-    preview.bar:SetHitRectInsets(-6, -6, -10, -10)
-    preview.bar:SetBackdrop({ edgeFile = UI.FLAT, edgeSize = 1 })
-    preview.bar:SetBackdropBorderColor(0.05, 0.045, 0.04, 1)
-    preview.well = preview.bar:CreateTexture(nil, "BACKGROUND")
-    preview.well:SetPoint("TOPLEFT", preview.bar, "TOPLEFT", -3, 3)
-    preview.well:SetPoint("BOTTOMRIGHT", preview.bar, "BOTTOMRIGHT", 3, -3)
-    UI.Gradient(preview.well, "VERTICAL", 0.045, 0.04, 0.05, 1, 1)
-    preview.wellTop = Flat(preview.bar, "BACKGROUND", 0, 0, 0, 0.5)
-    preview.wellTop:SetPoint("TOPLEFT", preview.well, "TOPLEFT", 0, 0)
-    preview.wellTop:SetPoint("TOPRIGHT", preview.well, "TOPRIGHT", 0, 0)
-    preview.wellTop:SetHeight(1)
-    preview.wellBottom = Flat(preview.bar, "BACKGROUND", 1, 0.9, 0.7, 0.06)
-    preview.wellBottom:SetPoint("BOTTOMLEFT", preview.well, "BOTTOMLEFT", 0, 0)
-    preview.wellBottom:SetPoint("BOTTOMRIGHT", preview.well, "BOTTOMRIGHT", 0, 0)
-    preview.wellBottom:SetHeight(1)
-    preview.shine = preview.bar:CreateTexture(nil, "OVERLAY")
-    preview.shine:SetPoint("TOPLEFT", preview.bar, "TOPLEFT", 0, 0)
-    preview.shine:SetHeight(3)
-    UI.Gradient(preview.shine, "VERTICAL", 1, 1, 1, 0, 0.3)
-    preview.segments, preview.notches, preview.pins = {}, {}, {}
-    preview.knobFrame = CreateFrame("Frame", nil, preview.bar)
-    preview.knobFrame:SetAllPoints(preview.bar)
-    preview.knobFrame:SetFrameLevel(preview.bar:GetFrameLevel() + 4)
-    preview.knob = preview.knobFrame:CreateTexture(nil, "OVERLAY")
-    preview.knob:SetTexture(KNOB_TEXTURE)
-    preview.knob:SetWidth(18)
-    preview.knob:SetHeight(18)
-    preview.bar:RegisterForClicks("LeftButtonDown", "LeftButtonUp")
-    preview.bar:SetScript("OnMouseDown", function()
-        this.dragging = true
-        SetFloor(FloorAtCursor(this))
-    end)
-    preview.bar:SetScript("OnMouseUp", function() this.dragging = nil end)
-    preview.bar:SetScript("OnUpdate", function()
-        if this.dragging then
-            SetFloor(FloorAtCursor(this), true)
+    preview.best = CreateFrame("Frame", nil, preview)
+    preview.best:SetPoint("BOTTOMLEFT", arena, "TOPLEFT", RIGHT_X + 2, -BEST_BOTTOM)
+    preview.best:SetWidth(RIGHT_WIDTH - 4)
+    preview.best:SetHeight(15 + 5 * BEST_LINE + 14)
+    preview.best.title = UI.Text(preview.best, 10)
+    preview.best.title:SetPoint("TOPLEFT", preview.best, "TOPLEFT", 0, 0)
+    preview.best.title:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    preview.best.clears = UI.Text(preview.best, 9)
+    preview.best.clears:SetPoint("TOPRIGHT", preview.best, "TOPRIGHT", 0, 0)
+    preview.best.clears:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    preview.best.lines = {}
+    local labels = { L["Fastest clear"], L["Most kills"], L["Top damage"], L["Gold per minute"], L["Valor per minute"] }
+    for index, text in ipairs(labels) do
+        local y = -(15 + (index - 1) * BEST_LINE)
+        local line = {}
+        line.label = UI.Text(preview.best, 10)
+        line.label:SetPoint("TOPLEFT", preview.best, "TOPLEFT", 0, y)
+        line.label:SetTextColor(SOFT[1], SOFT[2], SOFT[3])
+        line.label:SetText(text)
+        line.value = UI.Text(preview.best, 10)
+        line.value:SetPoint("TOPRIGHT", preview.best, "TOPRIGHT", 0, y)
+        preview.best.lines[index] = line
+    end
+    preview.best.note = UI.Text(preview.best, 9)
+    preview.best.note:SetWidth(RIGHT_WIDTH - 4)
+    preview.best.note:SetJustifyH("LEFT")
+    preview.best.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+
+    preview.pickerLabel = UI.Text(preview, 10)
+    preview.pickerLabel:SetPoint("BOTTOMLEFT", arena, "TOPLEFT", PICKER_X, -(PICKER_TOP - 3))
+    preview.pickerLabel:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    preview.picker = CreateFrame("Button", nil, preview)
+    preview.picker:SetPoint("TOPLEFT", arena, "TOPLEFT", PICKER_X, -PICKER_TOP)
+    preview.picker:SetWidth(PICKER_WIDTH)
+    preview.picker:SetHeight(PICKER_HEIGHT)
+    preview.picker:SetBackdrop({ bgFile = UI.FLAT, edgeFile = UI.FLAT, edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
+    preview.picker:SetBackdropColor(0.07, 0.05, 0.04, 1)
+    preview.picker:SetBackdropBorderColor(HAIR[1], HAIR[2], HAIR[3], 1)
+    preview.picker:SetHighlightTexture(UI.FLAT)
+    preview.picker:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.06)
+    preview.picker.text = UI.Text(preview.picker, 12)
+    preview.picker.text:SetPoint("LEFT", preview.picker, "LEFT", 8, 0)
+    preview.picker.arrow = preview.picker:CreateTexture(nil, "OVERLAY")
+    preview.picker.arrow:SetTexture(OPEN_ARROW)
+    preview.picker.arrow:SetWidth(22)
+    preview.picker.arrow:SetHeight(22)
+    preview.picker.arrow:SetPoint("RIGHT", preview.picker, "RIGHT", 0, 0)
+    preview.picker.best = UI.Text(preview.picker, 9)
+    preview.picker.best:SetPoint("RIGHT", preview.picker.arrow, "LEFT", -4, 0)
+    preview.picker.best:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
+    preview.picker:SetScript("OnClick", function()
+        if preview.choices:IsShown() then
+            preview.choices:Hide()
+        else
+            OpenChoices()
         end
+        PlaySound("igMainMenuOptionCheckBoxOn")
     end)
-    preview.badge = CreateFrame("Frame", nil, preview.slider)
-    preview.badge:SetWidth(26)
-    preview.badge:SetHeight(16)
-    preview.badge:SetBackdrop({ bgFile = UI.FLAT, edgeFile = UI.FLAT, edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
-    preview.badge.text = UI.Text(preview.badge, 10)
-    preview.badge.text:SetPoint("CENTER", preview.badge, "CENTER", 0, 0)
-    preview.badgeStem = Flat(preview.slider, "ARTWORK")
-    preview.badgeStem:SetWidth(1)
+
+    local choices = CreateFrame("Frame", nil, preview)
+    preview.choices = choices
+    choices:SetPoint("BOTTOMLEFT", preview.picker, "TOPLEFT", 0, 4)
+    choices:SetWidth(PICKER_WIDTH)
+    choices:SetFrameLevel(preview.picker:GetFrameLevel() + 10)
+    choices:SetBackdrop({ bgFile = UI.FLAT, edgeFile = UI.FLAT, edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
+    choices:SetBackdropColor(0.06, 0.045, 0.035, 0.98)
+    choices:SetBackdropBorderColor(0.55, 0.43, 0.17, 1)
+    choices:EnableMouse(true)
+    choices:EnableMouseWheel(true)
+    choices:SetScript("OnMouseWheel", function()
+        this.offset = (this.offset or 0) - arg1
+        FillChoices()
+    end)
+    choices.thumb = Flat(choices, "OVERLAY", 0.55, 0.43, 0.17, 1)
+    choices.thumb:SetWidth(4)
+    choices.rows = {}
+    for index = 1, PICKER_ROWS do
+        local row = CreateFrame("Button", nil, choices)
+        row:SetPoint("TOPLEFT", choices, "TOPLEFT", 4, -4 - (index - 1) * PICKER_ROW)
+        row:SetWidth(PICKER_WIDTH - 16)
+        row:SetHeight(PICKER_ROW)
+        row:SetHighlightTexture(UI.FLAT)
+        row:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.07)
+        row.selected = Flat(row, "BACKGROUND")
+        row.selected:SetAllPoints(row)
+        row.lock = row:CreateTexture(nil, "ARTWORK")
+        row.lock:SetTexture(LOCK_ICON)
+        row.lock:SetWidth(12)
+        row.lock:SetHeight(12)
+        row.lock:SetPoint("LEFT", row, "LEFT", 4, 0)
+        row.lock:SetAlpha(0.6)
+        row.name = UI.Text(row, 11)
+        row.name:SetPoint("LEFT", row, "LEFT", 20, 0)
+        row.note = UI.Text(row, 9)
+        row.note:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+        row:SetScript("OnClick", function()
+            if not this.band then
+                return
+            end
+            choices:Hide()
+            SetLevel(this.band)
+        end)
+        choices.rows[index] = row
+    end
+    choices:Hide()
 
     preview.stats = CreateFrame("Frame", nil, preview)
     preview.stats:SetHeight(1)
@@ -1220,6 +1199,21 @@ local function BuildPreview()
                 value:SetTextColor(SOFT[1], SOFT[2], SOFT[3])
                 line.values[cell] = value
             end
+        elseif spec.luckHint then
+            line.label = UI.Text(preview.stats, 10)
+            line.label:SetJustifyH("RIGHT")
+            line.label:SetTextColor(0.75, 0.55, 0.95)
+            line.hover = CreateFrame("Button", nil, preview.stats)
+            line.hover:SetScript("OnEnter", function()
+                GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(L["Bad luck protection"], 0.64, 0.21, 0.93)
+                GameTooltip:AddLine(L("Your epic chance on Mythic levels is raised by {1}%.", epicLuck), 1, 1, 1, 1)
+                GameTooltip:AddLine(L["Every Mythic gear drop that isn't an epic adds 5%. It resets when an epic or legendary drops."], 0.8, 0.8, 0.8, 1)
+                GameTooltip:Show()
+            end)
+            line.hover:SetScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
         elseif spec.group then
             line.label = UI.Text(preview.stats, 10)
             line.label:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
@@ -1234,215 +1228,23 @@ local function BuildPreview()
             line.arrow:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
             line.arrow:SetText("->")
             line.value = UI.Text(preview.stats, 11)
+            if spec.luck then
+                line.hover = CreateFrame("Button", nil, preview.stats)
+                line.hover:SetHeight(STAT_STEP)
+                line.hover:SetScript("OnEnter", function()
+                    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+                    GameTooltip:AddLine(L["Bad luck protection"], 0.64, 0.21, 0.93)
+                    GameTooltip:AddLine(L("Your epic chance on Mythic levels is raised by {1}%.", epicLuck), 1, 1, 1, 1)
+                    GameTooltip:AddLine(L["Every Mythic gear drop that isn't an epic adds 5%. It resets when an epic or legendary drops."], 0.8, 0.8, 0.8, 1)
+                    GameTooltip:Show()
+                end)
+                line.hover:SetScript("OnLeave", function()
+                    GameTooltip:Hide()
+                end)
+            end
         end
         preview.stats[index] = line
     end
-
-    local footer = CreateFrame("Frame", nil, preview)
-    footer:SetHeight(40)
-    footer.line = Hairline(footer, RIGHT_WIDTH)
-    footer.line:SetPoint("TOPLEFT", footer, "TOPLEFT", 0, 0)
-    footer.glow = footer:CreateTexture(nil, "BACKGROUND")
-    footer.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-    footer.glow:SetBlendMode("ADD")
-    footer.glow:SetVertexColor(1, 0.78, 0.35)
-    footer.glow:SetWidth(44)
-    footer.glow:SetHeight(44)
-    footer.icon = footer:CreateTexture(nil, "ARTWORK")
-    footer.icon:SetWidth(24)
-    footer.icon:SetHeight(24)
-    footer.icon:SetPoint("TOPLEFT", footer, "TOPLEFT", 0, -7)
-    UI.CropIcon(footer.icon)
-    footer.glow:SetPoint("CENTER", footer.icon, "CENTER", 0, 0)
-    footer.shade = Flat(footer, "OVERLAY", 0, 0, 0, 0.4)
-    footer.shade:SetAllPoints(footer.icon)
-    footer.top = UI.Text(footer, 10)
-    footer.top:SetPoint("TOPLEFT", footer.icon, "TOPRIGHT", 8, 1)
-    footer.top:SetWidth(RIGHT_WIDTH - 34)
-    footer.top:SetJustifyH("LEFT")
-    footer.bottom = UI.Text(footer, 10)
-    footer.bottom:SetPoint("TOPLEFT", footer.top, "BOTTOMLEFT", 0, -3)
-    footer.bottom:SetWidth(RIGHT_WIDTH - 34)
-    footer.bottom:SetJustifyH("LEFT")
-    preview.milestone = footer
-end
-
-local startRow
-
-local function StartFloor()
-    local chosen = tier and state.start[tier.id] or 1
-    for _, floorNumber in ipairs(tier and checkpoints[tier.id] or {}) do
-        if floorNumber == chosen then
-            return chosen
-        end
-    end
-    return 1
-end
-
-local function PickStartFloor(floorNumber)
-    PlaySound("igMainMenuOptionCheckBoxOn")
-    state.start[tier.id] = floorNumber
-    if floorNumber > 1 then
-        state.floor[tier.id] = floorNumber
-    end
-    startRow.menu:Hide()
-    RunMaster.Refresh()
-end
-
-local function StartFloorRow(index)
-    local menu = startRow.menu
-    local row = menu.rows[index]
-    if row then
-        return row
-    end
-    row = CreateFrame("Button", nil, menu.child)
-    row:SetWidth(START_MENU_WIDTH - 36)
-    row:SetHeight(START_ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", menu.child, "TOPLEFT", 0, -(index - 1) * START_ROW_HEIGHT)
-    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-    row.selected = Flat(row, "BACKGROUND", 1, 0.82, 0, 0.16)
-    row.selected:SetAllPoints(row)
-    row.floorText = UI.Text(row, 10)
-    row.floorText:SetPoint("LEFT", row, "LEFT", 8, 0)
-    row.levelText = UI.Text(row, 9)
-    row.levelText:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-    row.levelText:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
-    row:SetScript("OnClick", function()
-        PickStartFloor(this.floor)
-    end)
-    menu.rows[index] = row
-    return row
-end
-
-local function StartFloors()
-    local floors = { 1 }
-    for _, floorNumber in ipairs(tier and checkpoints[tier.id] or {}) do
-        tinsert(floors, floorNumber)
-    end
-    return floors
-end
-
-local function OpenStartMenu()
-    local menu = startRow.menu
-    local floors = StartFloors()
-    local chosen = StartFloor()
-    local chosenIndex = 1
-    for index, floorNumber in ipairs(floors) do
-        local row = StartFloorRow(index)
-        row.floor = floorNumber
-        row.floorText:SetText(L("Floor {1}", floorNumber))
-        row.levelText:SetText(L("Level {1}", RunMaster.CheckpointLevel(floorNumber)))
-        if floorNumber == chosen then
-            row.selected:Show()
-            row.floorText:SetTextColor(1, 0.82, 0)
-            chosenIndex = index
-        else
-            row.selected:Hide()
-            row.floorText:SetTextColor(1, 1, 1)
-        end
-        row:Show()
-    end
-    for index = table.getn(floors) + 1, table.getn(menu.rows) do
-        menu.rows[index]:Hide()
-    end
-    local count = table.getn(floors)
-    local shown = math.min(count, START_MENU_ROWS)
-    menu:SetHeight(shown * START_ROW_HEIGHT + 16)
-    menu.child:SetHeight(count * START_ROW_HEIGHT)
-    menu.scroll:UpdateScrollChildRect()
-    local range = math.max(0, (count - shown) * START_ROW_HEIGHT)
-    local offset = math.max(0, math.min(range, (chosenIndex - math.ceil(shown / 2)) * START_ROW_HEIGHT))
-    menu.scroll:SetVerticalScroll(offset)
-    if count > shown then
-        menu.bar:Show()
-    else
-        menu.bar:Hide()
-    end
-    menu:Show()
-end
-
-local function ShowCheckpoints()
-    local list = tier and checkpoints[tier.id]
-    if not list or table.getn(list) == 0 or Mode() ~= "zones" then
-        startRow.menu:Hide()
-        startRow:Hide()
-        return
-    end
-    local chosen = StartFloor()
-    startRow.toggle:SetText(L("Floor {1}", chosen))
-    startRow.note:SetText(chosen > 1 and L("You start at level {1} and pick your build first. Skipped floors give only their glyph choices.", RunMaster.CheckpointLevel(chosen))
-        or L["Checkpoints open 15 floors below your best floor for this class."])
-    if startRow.menu:IsShown() then
-        OpenStartMenu()
-    end
-    startRow:Show()
-end
-
-local function BuildStartMenu()
-    local menu = UI.Panel(startRow)
-    menu:SetFrameStrata("FULLSCREEN_DIALOG")
-    menu:SetBackdropColor(UI.WINDOW_BG[1], UI.WINDOW_BG[2], UI.WINDOW_BG[3], 1)
-    menu:SetWidth(START_MENU_WIDTH)
-    menu:SetPoint("TOPLEFT", startRow.toggle, "BOTTOMLEFT", 0, -2)
-    menu:EnableMouse(true)
-    menu.scroll = CreateFrame("ScrollFrame", "VanillaBonkRunMasterStartScroll", menu, "UIPanelScrollFrameTemplate")
-    menu.scroll:SetPoint("TOPLEFT", menu, "TOPLEFT", 6, -8)
-    menu.scroll:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -28, 8)
-    menu.child = CreateFrame("Frame", nil, menu.scroll)
-    menu.child:SetWidth(START_MENU_WIDTH - 36)
-    menu.child:SetHeight(1)
-    menu.scroll:SetScrollChild(menu.child)
-    menu.bar = getglobal("VanillaBonkRunMasterStartScrollScrollBar")
-    menu.rows = {}
-    menu:Hide()
-    startRow.menu = menu
-end
-
-local function BuildCheckpoints()
-    startRow = CreateFrame("Frame", nil, content)
-    startRow:SetPoint("TOPLEFT", arena, "TOPLEFT", LEFT_X, -CHECKPOINT_Y)
-    startRow:SetWidth(LEFT_WIDTH)
-    startRow:SetHeight(60)
-    startRow.label = UI.Text(startRow, 12)
-    startRow.label:SetPoint("TOPLEFT", startRow, "TOPLEFT", 0, 0)
-    startRow.label:SetTextColor(1, 0.82, 0)
-    startRow.label:SetText(L["Start on floor"])
-    startRow.toggle = UI.Button(startRow, START_MENU_WIDTH, "", function()
-        PlaySound("igMainMenuOptionCheckBoxOn")
-        if startRow.menu:IsShown() then
-            startRow.menu:Hide()
-        else
-            OpenStartMenu()
-        end
-    end)
-    startRow.toggle:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", 0, -6)
-    startRow.arrow = startRow.toggle:CreateTexture(nil, "OVERLAY")
-    startRow.arrow:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
-    startRow.arrow:SetWidth(20)
-    startRow.arrow:SetHeight(20)
-    startRow.arrow:SetPoint("RIGHT", startRow.toggle, "RIGHT", -2, 0)
-    startRow.note = UI.Text(startRow, 9)
-    startRow.note:SetPoint("TOPLEFT", startRow.label, "BOTTOMLEFT", 0, -34)
-    startRow.note:SetWidth(LEFT_WIDTH)
-    startRow.note:SetJustifyH("LEFT")
-    startRow.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
-    BuildStartMenu()
-    startRow:Hide()
-end
-
-function RunMaster.CheckpointLevel(floorNumber)
-    local steps = { { 1, 1 }, { 5, 69 }, { 10, 89 }, { 15, 96 }, { 20, 104 } }
-    local last = steps[getn(steps)]
-    if floorNumber >= last[1] then
-        return last[2] + floor((floorNumber - last[1]) * 0.5 + 0.5)
-    end
-    for index = 2, getn(steps) do
-        local low, high = steps[index - 1], steps[index]
-        if floorNumber <= high[1] then
-            return low[2] + floor((floorNumber - low[1]) / (high[1] - low[1]) * (high[2] - low[2]) + 0.5)
-        end
-    end
-    return 1
 end
 
 local function Build()
@@ -1453,7 +1255,6 @@ local function Build()
     BuildList()
     BuildBanner()
     BuildPreview()
-    BuildCheckpoints()
 end
 
 function RunMaster.SetTiers(tiers, selectedId, onClick)
@@ -1482,11 +1283,7 @@ function RunMaster.Caption()
     elseif mode == "invasion" and dungeon then
         place = place .. L[", invaded"]
     end
-    local start = StartFloor()
-    if start > 1 and mode == "zones" then
-        place = place .. L(", floor {1}", start)
-    end
-    return tier.name .. "  ·  " .. place
+    return L("{1} {2}", tier.name, ChosenLevel()) .. "  ·  " .. place
 end
 
 function RunMaster.Refresh()
@@ -1497,7 +1294,6 @@ function RunMaster.Refresh()
     ShowList()
     ShowBanner()
     ShowPreview()
-    ShowCheckpoints()
     if arena.tier == tier and arena.button then
         if tier.unlocked and RunMaster.CanStart(tier) then
             arena.button:Enable()
@@ -1507,6 +1303,12 @@ function RunMaster.Refresh()
         if arena.button.caption then
             arena.button.caption:SetText(RunMaster.Caption())
         end
+        if not arena.button.legacy then
+            arena.button.legacy = UI.Text(arena.button, 9)
+            arena.button.legacy:SetPoint("TOP", arena.button, "BOTTOM", 0, -2)
+            arena.button.legacy:SetTextColor(1, 0.45, 0.35)
+        end
+        arena.button.legacy:SetText(tier.key == "mythic" and UI.WearsLegacyGear() and L["You're wearing legacy gear. This run won't count for the leaderboard."] or "")
     end
 end
 
@@ -1538,11 +1340,7 @@ function RunMaster.StartArgs(startTier)
     if dungeon then
         args = args .. " " .. dungeon.key .. (mode == "invasion" and " invade" or "")
     end
-    local start = StartFloor()
-    if start > 1 and mode == "zones" then
-        args = args .. " floor" .. start
-    end
-    return args
+    return args .. " " .. ChosenLevel()
 end
 
 RunMaster.LEFT_X, RunMaster.LEFT_WIDTH = LEFT_X, LEFT_WIDTH
@@ -1557,35 +1355,37 @@ UI.Listen({
                 file = f[6] or "", u = tonumber(f[7] or ""), v = tonumber(f[8] or "") }
         end
     end,
+    epicluck = function(f)
+        epicLuck = tonumber(f[2] or "") or 0
+    end,
     tierinfo = function(f)
         if f[2] then
+            levelInfo[f[2]] = {}
+            levelBests[f[2]] = {}
             tierInfo[f[2]] = { aim = f[3] or "", boss = f[4] or "", charge = (f[5] and f[5] ~= "") and L("every {1} sec", f[5]) or "",
                 crowd = f[6] or "" }
         end
     end,
-    checkpoints = function(f)
-        local tierId = f[2]
-        if not tierId or tierId == "" then
+    level = function(f)
+        local tierId, band = f[2], tonumber(f[3] or "")
+        if not tierId or not band then
             return
         end
-        local list = {}
-        for _, text in ipairs(UI.Split(f[3] or "", ",")) do
-            local floorNumber = tonumber(text)
-            if floorNumber then
-                tinsert(list, floorNumber)
-            end
-        end
-        checkpoints[tierId] = list
+        levelInfo[tierId] = levelInfo[tierId] or {}
+        levelInfo[tierId][band] = { health = f[4] or "", damage = f[5] or "", veterans = f[6] or "", affixes = f[7] or "",
+            gold = f[8] or "", legendary = f[9] or "", epic = f[10] or "", blue = f[11] or "", green = f[12] or "", white = f[13] or "",
+            cleared = f[14] or "0", dropTier = f[15] or "" }
     end,
-    floor = function(f)
-        local tierId, floorNumber = f[2], tonumber(f[3] or "")
-        if not tierId or not floorNumber then
+    levelbest = function(f)
+        local tierId, band = f[2], tonumber(f[3] or "")
+        if not tierId or not band then
             return
         end
-        floorInfo[tierId] = floorInfo[tierId] or {}
-        floorInfo[tierId][floorNumber] = { health = f[4] or "", damage = f[5] or "", veterans = f[6] or "", affixes = f[7] or "",
-            gold = f[8] or "", legendary = f[9] or "", change = f[10] or "", reward = f[11] or "", cleared = f[12] or "0",
-            band = f[13] or "1", kind = f[14] or "", epic = f[15] or "", blue = f[16] or "" }
+        levelBests[tierId] = levelBests[tierId] or {}
+        levelBests[tierId][band] = { clears = tonumber(f[4] or "") or 0, first = tonumber(f[5] or "") or 0, bestMs = tonumber(f[6] or "") or 0,
+            bestMsBy = f[7] or "", damage = tonumber(f[8] or "") or 0, damageBy = f[9] or "", kills = tonumber(f[10] or "") or 0,
+            killsBy = f[11] or "", gold = tonumber(f[12] or "") or 0, goldBy = f[13] or "", valor = tonumber(f[14] or "") or 0,
+            valorBy = f[15] or "", finale = tonumber(f[16] or "") or 0, finaleSeconds = tonumber(f[17] or "") or 0 }
     end,
     zoneart = function(f)
         local file, texture = f[2], f[3]

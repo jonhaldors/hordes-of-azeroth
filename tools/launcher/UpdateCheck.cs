@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HordesOfAzeroth.Launcher
@@ -91,7 +92,7 @@ namespace HordesOfAzeroth.Launcher
                 File.WriteAllText(CachedManifest, json, new UTF8Encoding(false));
                 return Parse(json);
             }
-            string text = await Web.Client.GetStringAsync(ManifestUrl);
+            string text = await Mirror.TryEachAsync(ManifestUrl, CancellationToken.None, source => Web.Client.GetStringAsync(source));
             Manifest manifest = Parse(text);
             Directory.CreateDirectory(m_folder.LauncherData);
             File.WriteAllText(CachedManifest, text, new UTF8Encoding(false));

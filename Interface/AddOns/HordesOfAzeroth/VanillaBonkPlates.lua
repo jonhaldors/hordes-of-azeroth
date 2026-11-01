@@ -136,8 +136,37 @@ local function PlaceHealth(plate, lift)
     plate.vbHealth:SetPoint("CENTER", plate, "CENTER", 0, lift - 4 + (plate.vbMuted and MUTED_OFFSET or 0))
 end
 
+local function IsPartyName(name)
+    if not name or name == "" then
+        return false
+    end
+    for index = 1, GetNumPartyMembers() do
+        if UnitName("party" .. index) == name then
+            return true
+        end
+    end
+    return false
+end
+
+local function WantsPartyPlates()
+    return VanillaBonkUI.InRun() and VanillaBonkUI.Option("partyPlates", true) and GetNumPartyMembers() > 0
+end
+
+local function FriendlyMuted(plate)
+    if not plate.vbFriendly or plate.vbKind == ALLY_KIND then
+        return false
+    end
+    if not VanillaBonkUI.InRun() then
+        return true
+    end
+    if IsPartyName(plate.vbName:GetText()) then
+        return not VanillaBonkUI.Option("partyPlates", true)
+    end
+    return allyPlatesForced and not FRIENDNAMEPLATES_ON
+end
+
 local function UpdateMuted(plate)
-    local muted = allyPlatesForced and not FRIENDNAMEPLATES_ON and plate.vbFriendly and plate.vbKind ~= ALLY_KIND or false
+    local muted = FriendlyMuted(plate)
     if plate.vbMuted ~= muted then
         plate.vbMuted = muted
         PlaceHealth(plate, plate.vbShownLift or 0)
@@ -829,18 +858,23 @@ local function RefreshAllPlates()
     end
 end
 
-local function ShowAllyPlates()
-    if allyPlatesForced or FRIENDNAMEPLATES_ON then
+local function WantsFriendlyPlates()
+    return allyCount > 0 or WantsPartyPlates()
+end
+
+local function UpdateFriendlyPlates()
+    if WantsFriendlyPlates() then
+        if allyPlatesForced or FRIENDNAMEPLATES_ON then
+            RefreshAllPlates()
+            return
+        end
+        allyPlatesForced = true
+        ShowFriendNameplates()
         RefreshAllPlates()
         return
     end
-    allyPlatesForced = true
-    ShowFriendNameplates()
-    RefreshAllPlates()
-end
-
-local function ReleaseAllyPlates()
     if not allyPlatesForced then
+        RefreshAllPlates()
         return
     end
     allyPlatesForced = false
@@ -852,6 +886,32 @@ local function ReleaseAllyPlates()
     end
     RefreshAllPlates()
 end
+
+local function ShowAllyPlates()
+    UpdateFriendlyPlates()
+end
+
+local function ReleaseAllyPlates()
+    UpdateFriendlyPlates()
+end
+
+VanillaBonkUI.ApplyPartyPlates = UpdateFriendlyPlates
+
+local partyWatch = CreateFrame("Frame")
+local partyWatchTimer = 0
+local partyWatchWanted = false
+partyWatch:SetScript("OnUpdate", function()
+    partyWatchTimer = partyWatchTimer + arg1
+    if partyWatchTimer < 0.5 then
+        return
+    end
+    partyWatchTimer = 0
+    local wanted = WantsFriendlyPlates()
+    if wanted ~= partyWatchWanted then
+        partyWatchWanted = wanted
+        UpdateFriendlyPlates()
+    end
+end)
 
 local function ForgetAlly(id)
     local guid = allies[id]

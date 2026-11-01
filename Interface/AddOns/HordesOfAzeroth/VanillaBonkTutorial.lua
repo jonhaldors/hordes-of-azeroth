@@ -5,16 +5,9 @@ local RUN_MASTER = 900001
 local RUN_MASTER_NAME = L["Gizzik Bonkwhistle"]
 local RUN_MASTER_TARGETS = { { entry = RUN_MASTER, name = RUN_MASTER_NAME } }
 local INNKEEPER_TARGETS = { { entry = UI.INNKEEPER_ENTRY, name = UI.INNKEEPER_NAME } }
-local UPSTAIRS_TARGETS = {
-    { entry = 900002, name = L["Nix Sparkwrench"] },
-    { entry = 900008, name = L["Theron Ashveil"] },
-}
+local UPGRADE_VENDOR_TARGETS = { { entry = 900002, name = L["Nix Sparkwrench"] } }
 local STAIRS_FOOT = { x = 16248.695, y = 16313.784, z = 20.844 }
 local DECK_SPOT = { x = 16256.1, y = 16312.2, z = 20.865 }
-local QUARTERMASTER = 900150
-local QUARTERMASTER_NAME = L["Varrok Steelbrand"]
-local QUARTERMASTER_TARGETS = { { entry = QUARTERMASTER, name = QUARTERMASTER_NAME } }
-local QUARTERMASTER_CHECK = 1
 local WAYPOINT_REACH = 3
 local UPSTAIRS_RISE = 3
 local ARROW = "Interface\\AddOns\\HordesOfAzeroth\\Textures\\TutorialArrow"
@@ -339,19 +332,6 @@ local function EndLesson()
     HideCallouts()
 end
 
-local quartermasterSeenAt, quartermasterHere = 0, false
-
-local function QuartermasterHere()
-    if VanillaBonkQuartermasterTip or not ClosestUnitPosition then
-        return false
-    end
-    if GetTime() - quartermasterSeenAt >= QUARTERMASTER_CHECK then
-        quartermasterSeenAt = GetTime()
-        quartermasterHere = ClosestUnitPosition(QUARTERMASTER) ~= nil
-    end
-    return quartermasterHere
-end
-
 local function CompleteIntro()
     if not VanillaBonkTutorialDone and not VanillaBonkVendorTip then
         VanillaBonkVendorTip = "waiting"
@@ -380,14 +360,11 @@ local function NextLesson()
     if VanillaBonkVendorTip == "ready" then
         return "vendors"
     end
-    if QuartermasterHere() then
-        return "quartermaster"
-    end
 end
 
 local function AllDone()
     return VanillaBonkControllerTipDone and VanillaBonkTutorialDone and VanillaBonkInnkeeperTip and VanillaBonkVendorTip ~= "waiting" and VanillaBonkVendorTip ~= "ready"
-        and VanillaBonkDeckTip ~= "waiting" and VanillaBonkDeckTip ~= "ready" and VanillaBonkQuartermasterTip
+        and VanillaBonkDeckTip ~= "waiting" and VanillaBonkDeckTip ~= "ready"
 end
 
 function tutorial:ShowControllerTip()
@@ -472,8 +449,7 @@ end
 function tutorial:ShowVendors()
     step = "vendors"
     waypointReached = false
-    ShowGuide(L["Spend your gold"], L["The gold you bring back is yours to keep. Upstairs, Nix Sparkwrench sells upgrades that last through every run, "]
-        .. L["and Theron Ashveil, the Talent Trainer, is where you spend your talent points."])
+    ShowGuide(L["Spend your gold"], L["The gold you bring back is yours to keep. Upstairs, Nix Sparkwrench sells upgrades that last through every run."])
 end
 
 function tutorial:ShowDeck()
@@ -483,19 +459,11 @@ function tutorial:ShowDeck()
         .. L["Ban the ones you don't want to see in your runs."])
 end
 
-function tutorial:ShowQuartermaster()
-    step = "quartermaster"
-    waypointReached = false
-    ShowGuide(L["The Mythic Quartermaster"], L("{1} has arrived at the Inn. He sells Mythic tier gear for your class, two tiers below your best Mythic floor cleared, and never below Tier 1.", QUARTERMASTER_NAME))
-end
-
 local function MarkStepSeen()
     if step == "vendors" then
         VanillaBonkVendorTip = true
     elseif step == "deck" then
         VanillaBonkDeckTip = true
-    elseif step == "quartermaster" then
-        VanillaBonkQuartermasterTip = true
     else
         return false
     end
@@ -602,17 +570,12 @@ local GUIDES = {
         spotName = L["the Darkmoon Deck table"],
         far = L["Follow the arrow to the Darkmoon Deck."],
     },
-    quartermaster = {
-        targets = QUARTERMASTER_TARGETS,
-        far = L["Follow the arrow to find him."],
-        lost = L("Look for {1} <Mythic Quartermaster> at the Inn.", QUARTERMASTER_NAME),
-    },
     vendors = {
-        targets = UPSTAIRS_TARGETS,
+        targets = UPGRADE_VENDOR_TARGETS,
         waypoint = STAIRS_FOOT,
         toWaypoint = L["Follow the arrow to the stairs."],
         far = L["Follow the arrow up the stairs."],
-        lost = L["Look for them on the top floor of the Inn."],
+        lost = L["Look for him on the top floor of the Inn."],
     },
 }
 
@@ -711,7 +674,6 @@ local LESSONS = {
     innkeeper = function() tutorial:ShowInnkeeper() end,
     vendors = function() tutorial:ShowVendors() end,
     deck = function() tutorial:ShowDeck() end,
-    quartermaster = function() tutorial:ShowQuartermaster() end,
 }
 
 local function WaitForLesson(elapsed)
@@ -770,8 +732,8 @@ tutorial:SetScript("OnUpdate", function()
     end
 end)
 
-local function TalkingToUpstairsVendor()
-    for _, target in ipairs(UPSTAIRS_TARGETS) do
+local function TalkingToUpgradeVendor()
+    for _, target in ipairs(UPGRADE_VENDOR_TARGETS) do
         if UI.TalkingTo(target.name) then
             return true
         end
@@ -782,7 +744,6 @@ end
 tutorial:RegisterEvent("PLAYER_ENTERING_WORLD")
 tutorial:RegisterEvent("PLAYER_LEAVING_WORLD")
 tutorial:RegisterEvent("GOSSIP_SHOW")
-tutorial:RegisterEvent("MERCHANT_SHOW")
 tutorial:SetScript("OnEvent", function()
     if event == "PLAYER_ENTERING_WORLD" then
         inWorld = true
@@ -795,124 +756,13 @@ tutorial:SetScript("OnEvent", function()
         else
             VanillaBonkInnkeeperTip = true
         end
-    elseif (event == "GOSSIP_SHOW" or event == "MERCHANT_SHOW") and UI.TalkingTo(QUARTERMASTER_NAME) then
-        VanillaBonkQuartermasterTip = true
-        if step == "quartermaster" then
-            EndLesson()
-        end
-    elseif event == "GOSSIP_SHOW" and TalkingToUpstairsVendor() then
+    elseif event == "GOSSIP_SHOW" and TalkingToUpgradeVendor() then
         if VanillaBonkVendorTip == "waiting" or VanillaBonkVendorTip == "ready" then
             VanillaBonkVendorTip = true
         end
         if step == "vendors" then
             EndLesson()
         end
-    end
-end)
-
-local gearTip = {}
-local GEAR_TIP_WIDTH = 270
-local GEAR_TIPS = {
-    [L["Heroic"]] = { title = L["Heroic gear"],
-        body = L["Durgan now sells Heroic gear as well. It is a lot stronger than Normal gear, so look here before you spend your gold."] },
-    [L["Mythic"]] = { title = L["Mythic gear"],
-        body = L["Durgan now sells Mythic gear, the strongest he has. Look here before you spend your gold."] },
-}
-
-local function BuildGearTip()
-    local box = CreateFrame("Frame", nil, UIParent)
-    box:SetFrameStrata("FULLSCREEN_DIALOG")
-    box:SetWidth(GEAR_TIP_WIDTH)
-    DialogBackdrop(box)
-    Title(box)
-    box.body = UI.Text(box, 12)
-    box.body:SetWidth(GEAR_TIP_WIDTH - 52)
-    box.body:SetJustifyH("CENTER")
-    box.body:SetPoint("TOP", box.title, "BOTTOM", 0, -10)
-    box.hint = UI.Text(box, 12)
-    box.hint:SetTextColor(1, 0.82, 0)
-    box.hint:SetPoint("TOP", box.body, "BOTTOM", 0, -8)
-    box.close = CreateFrame("Button", nil, box, "UIPanelCloseButton")
-    box.close:SetPoint("TOPRIGHT", box, "TOPRIGHT", -6, -6)
-    box.close:SetScript("OnClick", function() gearTip.Seen() end)
-    box.done = UI.Button(box, 96, L["Got it"], function() gearTip.Seen() end)
-    box.done:SetPoint("BOTTOM", box, "BOTTOM", 0, 18)
-    UI.NavPrompt(box, box.done)
-    box.arrow = Arrow(DASH_ARROW_SIZE)
-    box.arrow:SetFrameStrata("FULLSCREEN_DIALOG")
-    box:Hide()
-    return box
-end
-
-local function UnseenGearTab()
-    for _, entry in ipairs(UI.vendorTierTabs or {}) do
-        local name = entry.name
-        if entry.tab:IsVisible() and not entry.tab.active and GEAR_TIPS[name] and not (VanillaBonkGearTabTips and VanillaBonkGearTabTips[name]) then
-            return entry.tab, name
-        end
-    end
-end
-
-function gearTip.Seen()
-    if gearTip.name then
-        VanillaBonkGearTabTips = VanillaBonkGearTabTips or {}
-        VanillaBonkGearTabTips[gearTip.name] = true
-    end
-    gearTip.Hide()
-end
-
-function gearTip.Hide()
-    gearTip.tab, gearTip.name = nil, nil
-    if gearTip.box then
-        gearTip.box:Hide()
-        gearTip.box.arrow:Hide()
-    end
-end
-
-function gearTip.Show(tab, name)
-    gearTip.box = gearTip.box or BuildGearTip()
-    local box, tip = gearTip.box, GEAR_TIPS[name]
-    gearTip.tab, gearTip.name = tab, name
-    box.title:SetText(tip.title)
-    box.body:SetText(tip.body)
-    box.hint:SetText(L("Click the {1} tab.", name))
-    box:SetHeight(22 + box.title:GetHeight() + 10 + box.body:GetHeight() + 8 + box.hint:GetHeight() + 16 + 22 + 18)
-    box.arrow:ClearAllPoints()
-    box.arrow:SetPoint("TOP", tab, "BOTTOM", 0, -2)
-    box:ClearAllPoints()
-    box:SetPoint("TOP", tab, "BOTTOM", 0, -(DASH_ARROW_SIZE + BOB_HEIGHT + 4))
-    box:Show()
-    box.arrow:Show()
-end
-
-function gearTip.Update()
-    if gearTip.tab then
-        if not gearTip.tab:IsVisible() then
-            gearTip.Hide()
-        elseif gearTip.tab.active then
-            gearTip.Seen()
-        else
-            gearTip.box.arrow:SetPoint("TOP", gearTip.tab, "BOTTOM", 0, -2 - Bob())
-        end
-        return
-    end
-    local tab, name = UnseenGearTab()
-    if tab then
-        gearTip.Show(tab, name)
-    end
-end
-
-gearTip.watcher = CreateFrame("Frame")
-gearTip.watcher:Hide()
-gearTip.watcher:SetScript("OnUpdate", function() gearTip.Update() end)
-gearTip.watcher:RegisterEvent("MERCHANT_SHOW")
-gearTip.watcher:RegisterEvent("MERCHANT_CLOSED")
-gearTip.watcher:SetScript("OnEvent", function()
-    if event == "MERCHANT_SHOW" then
-        this:Show()
-    elseif event == "MERCHANT_CLOSED" then
-        this:Hide()
-        gearTip.Hide()
     end
 end)
 
@@ -1040,12 +890,10 @@ function UI.ResetTutorial()
     VanillaBonkTutorialDone = nil
     VanillaBonkControllerTipDone = nil
     VanillaBonkVendorTip = nil
-    VanillaBonkGearTabTips = nil
     VanillaBonkPlateGuideDone = nil
     VanillaBonkHearthTipDone = nil
     VanillaBonkInnkeeperTip = nil
     VanillaBonkDeckTip = nil
-    VanillaBonkQuartermasterTip = nil
     EndLesson()
     if not inRun then
         tutorial:Show()

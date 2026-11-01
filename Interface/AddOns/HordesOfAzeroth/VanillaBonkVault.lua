@@ -17,7 +17,7 @@ local STONE_BORDER = { edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
 local ARROW_UP = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
 local ARROW_DOWN = "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up"
 
-local vault = { slots = 1, chosen = {}, order = {}, finds = {}, pillar = false, page = 1 }
+local vault = { slots = 1, chosen = {}, order = {}, finds = {}, hearth = false, page = 1 }
 local incoming
 
 local function Command(text)
@@ -144,7 +144,7 @@ local function ShowItemTooltip(owner, find, line)
     elseif find.tier > 0 and find.best > 0 then
         GameTooltip:AddLine(L["Your best for this slot: Tier "] .. find.best .. ".", 0.7, 0.7, 0.7)
     end
-    if not vault.pillar then
+    if not vault.hearth then
         local text = LeftOutText(find.sell, find.scrap)
         GameTooltip:AddLine(L("{1} if you leave it out of the vault.", strupper(strsub(text, 1, 1)) .. strsub(text, 2)), 0.7, 0.7, 0.7)
     end
@@ -211,7 +211,7 @@ frame.sent.label:SetText(L["Sent home this run"])
 frame.sent.empty = UI.Text(frame.sent, 11)
 frame.sent.empty:SetPoint("CENTER", frame.sent, "CENTER", 0, -8)
 frame.sent.empty:SetTextColor(0.62, 0.62, 0.62)
-frame.sent.empty:SetText(L["Nothing yet. Each pillar sends 1 piece."])
+frame.sent.empty:SetText(L["Nothing yet. Each Hearthstone sends 1 piece."])
 frame.sent.slots = {}
 frame.sent.offset = 0
 frame.sent.maxOffset = 0
@@ -224,12 +224,12 @@ frame.sent.strip = CreateFrame("Frame", nil, frame.sent.view)
 frame.sent.strip:SetHeight(SENT_VIEW_HEIGHT)
 frame.sent.view:SetScrollChild(frame.sent.strip)
 
-frame.sent.slider = CreateFrame("Slider", "VanillaBonkPillarSentSlider", frame.sent, "OptionsSliderTemplate")
+frame.sent.slider = CreateFrame("Slider", "VanillaBonkHearthSentSlider", frame.sent, "OptionsSliderTemplate")
 frame.sent.slider:SetPoint("BOTTOM", frame.sent, "BOTTOM", 0, 14)
 frame.sent.slider:SetValueStep(1)
-VanillaBonkPillarSentSliderText:SetText("")
-VanillaBonkPillarSentSliderLow:SetText("")
-VanillaBonkPillarSentSliderHigh:SetText("")
+VanillaBonkHearthSentSliderText:SetText("")
+VanillaBonkHearthSentSliderLow:SetText("")
+VanillaBonkHearthSentSliderHigh:SetText("")
 frame.sent.slider:Hide()
 
 local function ScrollSentTo(offset)
@@ -300,7 +300,7 @@ local function SentSlot(index)
             GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
             UI.nextFound = this.piece.found
             GameTooltip:SetHyperlink("item:" .. this.piece.entry .. ":0:0:0")
-            GameTooltip:AddLine(L("Sent home on floor {1}.", this.piece.floor), 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(L("Sent home on stage {1}.", this.piece.stage), 0.7, 0.7, 0.7)
             GameTooltip:Show()
         end
     end)
@@ -331,7 +331,7 @@ local function ShowSent()
             local _, _, _, _, _, _, _, _, texture = GetItemInfo(piece.entry)
             slot.icon:SetTexture(texture or (UI.ICON_PATH .. "INV_Misc_QuestionMark"))
             slot.icon:Show()
-            slot.caption:SetText(L("Floor {1}", piece.floor))
+            slot.caption:SetText(L("Stage {1}", piece.stage))
             slot:Show()
             slot.caption:Show()
         else
@@ -425,7 +425,7 @@ local function Card(index)
         if not find then
             return
         end
-        if vault.pillar then
+        if vault.hearth then
             PlaySound("igMainMenuOptionCheckBoxOn")
             Command("send " .. find.guid)
         elseif vault.chosen[find.guid] then
@@ -440,7 +440,7 @@ local function Card(index)
         local find = this.find
         if find then
             local line = vault.chosen[find.guid] and L["Click to take it out of the vault."] or L["Click to put it in the vault."]
-            ShowItemTooltip(this, find, vault.pillar and L["Click to send it home now."] or line)
+            ShowItemTooltip(this, find, vault.hearth and L["Click to send it home now."] or line)
         end
     end)
     card:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -483,10 +483,11 @@ local function FillCard(card, find)
     card.where:SetText(find.worn and L["Equipped"] or L["In bags"])
     local saved, savedKnown = SavedText(find)
     card.saved:SetText(saved)
-    card.price:SetText(vault.pillar and "" or WorthText(find))
+    card.price:SetText(vault.hearth and "" or WorthText(find))
     if find.tier > 0 then
         local lines = find.found and table.getn(find.found.lines) or 0
-        card.tier:SetText(UI.TierText(find.tier) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or ""))
+        local _, _, itemQuality = GetItemInfo(find.entry)
+        card.tier:SetText(UI.ItemLevelText(find.tier, itemQuality) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or ""))
         card.tier:Show()
     else
         card.tier:Hide()
@@ -551,8 +552,8 @@ frame.next = UI.Button(frame, 90, L["page::Next"], function() TurnPage(1) end)
 
 function Refresh()
     local slots = max(1, vault.slots)
-    frame.title:SetText(vault.pillar and L["Extraction Pillar"] or L["Extraction Vault"])
-    if vault.pillar then
+    frame.title:SetText(vault.hearth and L["Hearthstone"] or L["Extraction Vault"])
+    if vault.hearth then
         frame.subtitle:SetText(L["1 piece goes home right now. It leaves your character."])
         frame.box:Hide()
         ShowSent()
@@ -671,8 +672,8 @@ function Refresh()
     frame.rest:SetPoint("TOP", anchor, "BOTTOM", 0, -14)
     if count == 0 then
         frame.rest:SetText(L["|cff9d9d9dNothing found this run yet.|r"])
-    elseif vault.pillar then
-        frame.rest:SetText(L["The pillar can send 1 piece."])
+    elseif vault.hearth then
+        frame.rest:SetText(L["The Hearthstone can send 1 piece."])
     else
         frame.rest:SetText(L("The rest {1}.", LeftOutText(rest, restScrap)))
     end
@@ -680,7 +681,7 @@ function Refresh()
     frame.done:ClearAllPoints()
     frame.hint:ClearAllPoints()
     frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
-    if vault.pillar then
+    if vault.hearth then
         frame.hint:SetText(L["Click an item to send it home now. It leaves your character for the rest of the run."])
     else
         frame.hint:SetText(L["Gear in the vault goes home when the run ends, even if you die."])
@@ -761,7 +762,7 @@ handlers["vaultsentitem"] = function(f)
         return
     end
     vault.sent = vault.sent or {}
-    tinsert(vault.sent, { entry = entry, floor = tonumber(f[3] or "") or 0, found = UI.ParseFound(f[4], f[5], f[6]) })
+    tinsert(vault.sent, { entry = entry, stage = tonumber(f[3] or "") or 0, found = UI.ParseFound(f[4], f[5], f[6]) })
 end
 
 handlers["vaultitem"] = function(f)
@@ -786,7 +787,7 @@ end
 
 handlers["vaultopen"] = function(f)
     vault.slots = tonumber(f[2] or "") or 1
-    vault.pillar = f[4] == "pillar"
+    vault.hearth = f[4] == "hearth"
     vault.scrapBonus = tonumber(f[5] or "") or 0
     vault.chosen, vault.order = {}, {}
     for _, guid in ipairs(UI.Split(f[3] or "", ",")) do

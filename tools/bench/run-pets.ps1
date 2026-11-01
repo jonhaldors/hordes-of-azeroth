@@ -2,7 +2,7 @@ param(
     [string[]]$Groups = @(),
     [switch]$Waves,
     [int]$Tier = 2,
-    [int]$Stage = 1,
+    [int]$Band = 1,
     [int]$Rank = 3,
     [int]$Training = 3,
     [int[]]$Items = @(902241, 902028, 902031),
@@ -32,6 +32,6 @@ foreach ($group in $PetGroups.Keys) {
     $mode = if ($Waves) { 'waves' } else { 'dummies' }
     Write-Host "== $group ($mode)"
     & (Join-Path $PSScriptRoot 'run-bench.ps1') -Class $class -Builds $builds -NoAnchor -Waves:$Waves -Dummies:(-not $Waves) -DummyCrowd:(-not $Waves) -DummyCount 20 `
-        -Tier $Tier -Stage $Stage -Rank $Rank -Talents $talentsByTree[$tree] -Training $Training -Items $Items -Benilla:$Benilla -Tag "$Tag-$tree" 2>&1 |
+        -Tier $Tier -Band $Band -Rank $Rank -Talents $talentsByTree[$tree] -Training $Training -Items $Items -Benilla:$Benilla -Tag "$Tag-$tree" 2>&1 |
         Select-String 'k/s|error|Exception|throw'
 }

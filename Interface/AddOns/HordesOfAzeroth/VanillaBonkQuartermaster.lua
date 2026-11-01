@@ -16,15 +16,9 @@ local PANE_ART = "Interface\\Glues\\LoadingScreens\\LoadScreenMoltenCore"
 local PANE_DIM = 0.72
 local PANE_FOCUS = 0.85
 local INFO_RETRY_SECONDS, INFO_RETRIES = 0.5, 10
-local TAB_SWITCH_GRACE = 2
 
-local SET_FIRST, MYTHIC_FIRST, MYTHIC_TIERS = 903000, 904500, 20
-local SET_PIECES_PER_TIER = 8
-local MYTHIC_KINDS = 20
-local FIRST_ACCESSORY_KIND, FIRST_TRINKET_KIND = 9, 12
-local LEGENDARY_FIRST, LEGENDARY_KINDS = 905000, 8
-local LEGACY_LEGENDARY_FIRST = 901420
-local EPIC_OFFSET = 7000
+local GEAR_FIRST, GEAR_KINDS, GEAR_QUALITIES, GEAR_TIERS = 930000, 44, 4, 10
+local LEGENDARY_FIRST, LEGENDARY_KINDS = 932000, 8
 local UPGRADE_ARROW = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
 local COIN_ICONS = "Interface\\MoneyFrame\\UI-MoneyIcons"
 local NO_STAT = 255
@@ -50,19 +44,13 @@ local ARMOR_GROUPS = {
     { key = "feet", name = L["Feet"] },
 }
 local CATEGORY_ART = {
-    sets = { name = L["Sets"], icon = "Interface\\Icons\\INV_Helmet_74" },
     armor = { name = L["Armor"], icon = "Interface\\Icons\\INV_Chest_Plate16", groups = ARMOR_GROUPS },
     weapons = { name = L["Weapons"], icon = "Interface\\Icons\\INV_Sword_50" },
     accessories = { name = L["Accessories"], icon = "Interface\\Icons\\INV_Jewelry_Talisman_12", groups = ACCESSORY_GROUPS },
-    legendaries = { name = L["Legendaries"], icon = "Interface\\Icons\\INV_Sword_39" },
     upgrade = { name = L["Your found gear"], icon = "Interface\\Icons\\INV_Misc_Gear_08", groups = { { key = "worn", name = L["Equipped"] }, { key = "bags", name = L["In bags"] } } },
     buyback = { name = L["Buyback"], icon = "Interface\\Icons\\INV_Misc_Coin_01" },
 }
-local MODES = {
-    mythic = { title = L["Mythic Quartermaster"], categories = { "sets", "weapons", "accessories", "buyback" } },
-    gear = { title = L["Gear Vendor"], categories = { "armor", "weapons", "accessories", "buyback" } },
-}
-local ACCESSORY_KIND_GROUP = { [9] = "cloak", [10] = "neck", [11] = "ring" }
+local CATEGORIES = { "armor", "weapons", "accessories", "upgrade", "buyback" }
 local EQUIP_PLACES = {
     INVTYPE_HEAD = { "armor", "head" }, INVTYPE_SHOULDER = { "armor", "shoulder" }, INVTYPE_CHEST = { "armor", "chest" },
     INVTYPE_ROBE = { "armor", "chest" }, INVTYPE_WRIST = { "armor", "wrist" }, INVTYPE_HAND = { "armor", "hands" },
@@ -75,7 +63,6 @@ local EQUIP_PLACES = {
     INVTYPE_RELIC = { "weapons" },
 }
 UI.trinketTips = UI.trinketTips or {}
-UI.vendorTierTabs = {}
 
 function UI.QualityColor(link)
     local _, _, hex = strfind(link or "", "|c%x%x(%x%x%x%x%x%x)")
@@ -85,35 +72,20 @@ function UI.QualityColor(link)
     return tonumber(strsub(hex, 1, 2), 16) / 255, tonumber(strsub(hex, 3, 4), 16) / 255, tonumber(strsub(hex, 5, 6), 16) / 255
 end
 
-local function BlueEntry(id)
-    if id and id >= SET_FIRST + EPIC_OFFSET and id < MYTHIC_FIRST + MYTHIC_KINDS * MYTHIC_TIERS + EPIC_OFFSET then
-        return id - EPIC_OFFSET
-    end
-    return id
-end
-
 function UI.GearTier(id)
     if not id then
-        return nil
+        return 0
     end
-    id = BlueEntry(id)
-    if id >= SET_FIRST and id < MYTHIC_FIRST then
-        return floor(mod(id - SET_FIRST, MYTHIC_TIERS * SET_PIECES_PER_TIER) / SET_PIECES_PER_TIER) + 1
+    if id >= GEAR_FIRST and id < GEAR_FIRST + GEAR_KINDS * GEAR_QUALITIES * GEAR_TIERS then
+        return mod(id - GEAR_FIRST, GEAR_TIERS) + 1
     end
-    if id >= MYTHIC_FIRST and id < MYTHIC_FIRST + MYTHIC_KINDS * MYTHIC_TIERS then
-        return mod(id - MYTHIC_FIRST, MYTHIC_TIERS) + 1
+    if id >= LEGENDARY_FIRST and id < LEGENDARY_FIRST + LEGENDARY_KINDS * GEAR_TIERS then
+        return mod(id - LEGENDARY_FIRST, GEAR_TIERS) + 1
     end
-    if id >= LEGENDARY_FIRST and id < LEGENDARY_FIRST + LEGENDARY_KINDS * MYTHIC_TIERS then
-        return mod(id - LEGENDARY_FIRST, MYTHIC_TIERS) + 1
-    end
-    if id >= LEGACY_LEGENDARY_FIRST and id < LEGACY_LEGENDARY_FIRST + LEGENDARY_KINDS then
-        return 1
-    end
-    return nil
+    return 0
 end
 
-local qm = { pending = nil, mode = "mythic", tier = 0, refitCount = 0, refitFee = 0, tabs = {}, currentTab = nil, category = "sets", group = nil, page = 1, items = {},
-    scrap = 0, ceiling = 10, upgrade = false, upgradeRoom = false, found = {}, upgrades = {} }
+local qm = { pending = nil, tier = 0, category = CATEGORIES[1], group = nil, page = 1, items = {}, scrap = 0, upgrades = {} }
 
 local frame = UI.GoldWindow("VanillaBonkQuartermasterFrame", WIDTH, HEIGHT)
 frame:SetPoint("CENTER", UIParent, "CENTER", -BAGS_ROOM / 2, 0)
@@ -148,46 +120,8 @@ frame.tierNote:SetTextColor(0.54, 0.52, 0.47)
 frame.divider = UI.Divider(frame, WIDTH - 36)
 frame.divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -80)
 
-frame.upgrade = UI.Button(frame, 150, L["Upgrade found gear"], function()
-    PlaySound(qm.upgrade and "igMainMenuOptionCheckBoxOff" or "igMainMenuOptionCheckBoxOn")
-    SendChatMessage(".bonk gear upgrade " .. (qm.upgrade and "off" or "on"), "SAY")
-end)
-frame.upgrade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -24, -34)
-frame.upgrade:Hide()
-frame.upgrade:SetScript("OnEnter", function()
-    if qm.upgrade then
-        return
-    end
-    local ceiling = L("Tier {1}", qm.ceiling)
-    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(L["Upgrade Found Gear"])
-    GameTooltip:AddLine(L["Spend Scrap to upgrade gear found in Mythic runs."], 1, 0.82, 0, 1)
-    GameTooltip:AddLine(L("Current limit: {1}", ceiling), 1, 1, 1)
-    GameTooltip:Show()
-end)
-frame.upgrade:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-end)
-frame.scrap = UI.Text(frame, 11, UI.NUMBER_FONT)
-frame.scrap:SetPoint("BOTTOM", frame.upgrade, "TOP", 0, 3)
-frame.scrap:SetTextColor(0.78, 0.75, 0.69)
-frame.scrap:Hide()
-
 frame.done = UI.Button(frame, 90, L["Close"], function() frame:Hide() end)
 frame.done:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", SIDE_X, 18)
-
-frame.refit = UI.Button(frame, SIDE_W, L["Refit set pieces"], function()
-    PlaySound("igMainMenuOptionCheckBoxOn")
-    SendChatMessage(".bonk gear refit", "SAY")
-end)
-frame.refit:SetPoint("BOTTOMLEFT", frame.done, "TOPLEFT", 0, 12)
-frame.refit:Hide()
-frame.refitNote = UI.Text(frame, 11)
-frame.refitNote:SetPoint("BOTTOMLEFT", frame.refit, "TOPLEFT", 0, 4)
-frame.refitNote:SetWidth(SIDE_W)
-frame.refitNote:SetJustifyH("LEFT")
-frame.refitNote:SetTextColor(0.78, 0.75, 0.69)
-frame.refitNote:Hide()
 
 local listWidth = WIDTH - LIST_X - 18
 local listHeight = HEIGHT - LIST_TOP - 18
@@ -215,6 +149,18 @@ local Refresh
 
 local function Command(text)
     SendChatMessage(".bonk gear " .. text, "SAY")
+end
+
+local function UpgradeBlockedText(piece)
+    if piece.left == 0 then
+        return L["This piece has had all its upgrades."]
+    end
+    return L["Clear a higher level to upgrade it further."]
+end
+
+local function NextItemLevel(piece)
+    local _, _, quality = GetItemInfo(piece.entry)
+    return UI.ItemLevel(piece.tier + 1, quality)
 end
 
 local function PageButton(direction)
@@ -246,19 +192,6 @@ end)
 panel.pageText = UI.Text(panel, 10)
 panel.pageText:SetPoint("RIGHT", panel.prevPage, "LEFT", -4, 0)
 panel.pageText:SetTextColor(0.54, 0.52, 0.47)
-
-local tierTabs = UI.PanelTabs(panel, 0, function(index)
-    local entry = qm.tabs[index]
-    if not entry or entry.group == qm.currentTab then
-        return
-    end
-    PlaySound("igCharacterInfoTab")
-    qm.currentTab = entry.group
-    qm.page = 1
-    qm.switchedAt = GetTime()
-    Command("tab " .. entry.group)
-    Refresh()
-end)
 
 local reroll = UI.Panel(panel)
 reroll:SetWidth(listWidth - CONTENT_SIDE * 2)
@@ -297,7 +230,7 @@ reroll.upgrade:SetScript("OnEnter", function()
     local piece = reroll.piece
     if piece and not piece.can then
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(L("Clear Mythic floor {1} to upgrade it further.", piece.tier + 1), 1, 0.5, 0.25, 1)
+        GameTooltip:AddLine(UpgradeBlockedText(piece.tier + 1), 1, 0.5, 0.25, 1)
         GameTooltip:Show()
     end
 end)
@@ -393,7 +326,7 @@ local function KeepRerolledStat()
 end
 
 local function SelectedRerollPiece()
-    if not qm.upgrade or not qm.rerollGuid then
+    if qm.category ~= "upgrade" or not qm.rerollGuid then
         return nil
     end
     for _, piece in ipairs(qm.upgrades) do
@@ -410,7 +343,7 @@ local function ShowItemBar(piece, aboveBox)
     itemBar.slot.icon:SetTexture(texture)
     itemBar.name:SetText(name or "")
     itemBar.name:SetTextColor(r, g, b)
-    itemBar.tier:SetText(UI.TierText(piece.tier))
+    itemBar.tier:SetText(UI.ItemLevelText(piece.tier, quality))
     itemBar:ClearAllPoints()
     if aboveBox then
         itemBar:SetPoint("BOTTOMLEFT", reroll, "TOPLEFT", 0, ITEM_BAR_GAP)
@@ -438,8 +371,12 @@ local function LayoutReroll()
     for _, row in ipairs(reroll.rows) do
         row:Hide()
     end
-    local nextTier = piece.tier + 1
-    reroll.upgrade:SetText(piece.can and L("Upgrade to Tier {1}: {2} Scrap", nextTier, piece.cost) or L("Upgrade to Tier {1}", nextTier))
+    local nextLevel = NextItemLevel(piece)
+    if piece.left == 0 then
+        reroll.upgrade:SetText(L["No upgrades left"])
+    else
+        reroll.upgrade:SetText(piece.can and L("Upgrade to ilvl {1}: {2} Scrap", nextLevel, piece.cost) or L("Upgrade to ilvl {1}", nextLevel))
+    end
     if piece.can and qm.scrap >= piece.cost then
         reroll.upgrade:Enable()
     else
@@ -511,27 +448,6 @@ local function ItemId(link)
     return tonumber(id)
 end
 
-local function ClassifyMythic(id)
-    if not id then
-        return nil
-    end
-    id = BlueEntry(id)
-    if id >= SET_FIRST and id < MYTHIC_FIRST then
-        return "sets"
-    end
-    if id >= LEGENDARY_FIRST and id < LEGENDARY_FIRST + LEGENDARY_KINDS * MYTHIC_TIERS then
-        return "legendaries"
-    end
-    local kind = floor((id - MYTHIC_FIRST) / MYTHIC_TIERS)
-    if id < MYTHIC_FIRST or kind >= MYTHIC_KINDS then
-        return nil
-    end
-    if kind < FIRST_ACCESSORY_KIND then
-        return "weapons"
-    end
-    return "accessories", kind >= FIRST_TRINKET_KIND and "trinket" or ACCESSORY_KIND_GROUP[kind]
-end
-
 local function ClassifyBySlot(id)
     if not id then
         return nil
@@ -578,19 +494,10 @@ end
 local function CollectItems()
     qm.items = {}
     qm.missingInfo = nil
-    if qm.mode == "mythic" and qm.upgrade then
-        CollectUpgrades()
-        return
-    end
     for index = 1, GetMerchantNumItems() do
         local link = GetMerchantItemLink(index)
         local name, texture, price, _, _, usable = GetMerchantItemInfo(index)
-        local category, group, missing
-        if qm.mode == "gear" then
-            category, group, missing = ClassifyBySlot(ItemId(link))
-        else
-            category, group = ClassifyMythic(ItemId(link))
-        end
+        local category, group, missing = ClassifyBySlot(ItemId(link))
         if missing or not name then
             qm.missingInfo = true
         elseif category then
@@ -598,6 +505,7 @@ local function CollectItems()
                 category = category, group = group })
         end
     end
+    CollectUpgrades()
     CollectBuyback()
 end
 
@@ -650,6 +558,11 @@ local function CategoryButton(index)
     button.label:SetPoint("LEFT", button.icon, "RIGHT", 8, 0)
     button:SetScript("OnClick", function()
         PlaySound("igCharacterInfoTab")
+        if qm.category == "upgrade" and this.key ~= "upgrade" then
+            KeepRerolledStat()
+            qm.rerollGuid = nil
+            qm.rerollPick = nil
+        end
         qm.category = this.key
         qm.group = nil
         qm.page = 1
@@ -728,11 +641,6 @@ local function Card(index)
     card.arrow:SetPoint("TOPRIGHT", card.slot, "TOPRIGHT", 5, 5)
     card.arrow:SetVertexColor(0.2, 1, 0.2)
     card.arrow:Hide()
-    card.found = UI.Text(card, 10)
-    card.found:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -6, 5)
-    card.found:SetTextColor(0.2, 1, 0.2)
-    card.found:SetText(L["Found"])
-    card.found:Hide()
     card:SetScript("OnClick", function()
         local item = this.item
         if not item then
@@ -767,11 +675,11 @@ local function Card(index)
                 UI.nextFound = this.item.found
                 GameTooltip:SetHyperlink("item:" .. this.item.entry .. ":0:0:0")
                 GameTooltip:AddLine(" ")
-                local nextTier = this.item.tier + 1
+                GameTooltip:AddLine(L("Upgrades left: {1}", this.item.left), 1, 0.82, 0, 1)
                 if not this.item.can then
-                    GameTooltip:AddLine(L("Clear Mythic floor {1} to upgrade it further.", nextTier), 1, 0.5, 0.25, 1)
+                    GameTooltip:AddLine(UpgradeBlockedText(this.item), 1, 0.5, 0.25, 1)
                 else
-                    GameTooltip:AddLine(L("Right-click to upgrade to Tier {1} for {2} Scrap.", nextTier, this.item.cost), 0.2, 1, 0.2, 1)
+                    GameTooltip:AddLine(L("Right-click to upgrade to ilvl {1} for {2} Scrap.", NextItemLevel(this.item), this.item.cost), 0.2, 1, 0.2, 1)
                 end
                 GameTooltip:AddLine(L["Left-click to select it."], 0.2, 1, 0.2, 1)
                 GameTooltip:Show()
@@ -779,12 +687,6 @@ local function Card(index)
                 GameTooltip:SetBuybackItem(this.item.index)
             else
                 GameTooltip:SetMerchantItem(this.item.index)
-                if qm.mode == "gear" and qm.found[ItemId(this.item.link) or 0] then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine(L["Found in a run: half price."], 0.2, 1, 0.2)
-                    GameTooltip:Show()
-                end
-
             end
         end
     end)
@@ -819,19 +721,10 @@ local function Section(index)
     return section
 end
 
-local UPGRADE_CATEGORIES = { "upgrade" }
-
-local function ModeCategories()
-    if qm.mode == "mythic" and qm.upgrade then
-        return UPGRADE_CATEGORIES
-    end
-    return MODES[qm.mode].categories
-end
-
 local function LayoutSide()
     local y = LIST_TOP
     local groupIndex = 0
-    for index, key in ipairs(ModeCategories()) do
+    for index, key in ipairs(CATEGORIES) do
         local art = CATEGORY_ART[key]
         local button = CategoryButton(index)
         button.key = key
@@ -871,7 +764,7 @@ local function LayoutSide()
             end
         end
     end
-    for index = table.getn(ModeCategories()) + 1, table.getn(categoryButtons) do
+    for index = table.getn(CATEGORIES) + 1, table.getn(categoryButtons) do
         categoryButtons[index]:Hide()
     end
     for index = groupIndex + 1, table.getn(groupButtons) do
@@ -890,35 +783,6 @@ local function HeadingText()
         end
     end
     return art.name
-end
-
-local function LayoutTierTabs()
-    UI.vendorTierTabs = {}
-    if qm.mode ~= "gear" or table.getn(qm.tabs) < 2 then
-        tierTabs:SetTabs({})
-        frame.divider:Show()
-        return
-    end
-    local labels, selected = {}, 1
-    for index, entry in ipairs(qm.tabs) do
-        labels[index] = entry.name
-        if entry.group == qm.currentTab then
-            selected = index
-        end
-    end
-    tierTabs:SetTabs(labels)
-    local width = 0
-    for index = 1, table.getn(labels) do
-        width = width + tierTabs.tabs[index]:GetWidth() + 5
-    end
-    local offset = listWidth - width - 9
-    for index = 1, table.getn(labels) do
-        local tab = tierTabs.tabs[index]
-        tab.left = tab.left + offset
-        tinsert(UI.vendorTierTabs, { tab = tab, name = labels[index] })
-    end
-    tierTabs:Select(selected)
-    frame.divider:Hide()
 end
 
 local function JoinNames(names)
@@ -1019,15 +883,11 @@ local function ShowCard(card, item, x, y)
     if item.upgrade then
         local lines = item.found and table.getn(item.found.lines) or 0
         local cost = "|cffc7bfb0" .. L("{1} Scrap", item.cost) .. "|r"
-        card.price:SetText(UI.TierText(item.tier) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or "") ..
+        local _, _, quality = GetItemInfo(item.entry)
+        card.price:SetText(UI.ItemLevelText(item.tier, quality) .. (lines > 0 and ("  |cffff66cc+" .. lines .. "|r") or "") ..
             (item.can and ("  " .. cost) or ""))
     else
         card.price:SetText(UI.FormatGold(item.price))
-    end
-    if qm.mode == "gear" and not item.buyback and qm.found[ItemId(item.link) or 0] then
-        card.found:Show()
-    else
-        card.found:Hide()
     end
     if item.upgrade and item.can then
         card.arrow:Show()
@@ -1090,62 +950,21 @@ local function PlaceRows(shown)
     end
 end
 
-local function TabName()
-    for _, entry in ipairs(qm.tabs) do
-        if entry.group == qm.currentTab then
-            return entry.name
-        end
-    end
-end
-
 local function StockText()
-    if qm.mode == "gear" then
-        local tab = TabName()
-        return tab and (L["Gear Vendor  |cff8a8478·|r  Stock: |cffffd100"] .. tab .. "|r") or L["Gear Vendor"]
+    if qm.category == "upgrade" then
+        return L["Gear Vendor  |cff8a8478·|r  Upgrades |cff33ff33up to your highest level cleared|r  |cff8a8478(3 per piece)|r"]
     end
-    if qm.upgrade then
-        local ceiling = L("Tier {1}", qm.ceiling)
-        return L("Mythic Quartermaster  |cff8a8478·|r  Upgrades up to |cff33ff33{1}|r  |cff8a8478(Tier 10, or your best Mythic floor cleared)|r", ceiling)
-    end
-    return L("Mythic Quartermaster  |cff8a8478·|r  Stock: |cffffd100Tier {1}|r  |cff8a8478(2 below your best Mythic floor, up to Tier 10)|r", qm.tier)
+    return L("Gear Vendor  |cff8a8478·|r  Stock: |cffffd100{1}|r  |cff8a8478(2 levels below your highest level cleared)|r", UI.ItemLevelRange(qm.tier, 1, 3))
 end
 
-local function LayoutRefit()
-    if qm.mode ~= "mythic" then
-        frame.refit:Hide()
-        frame.refitNote:Hide()
-        return
+local function HeadingNote()
+    if qm.category == "upgrade" then
+        return L("{1} Scrap", qm.scrap)
     end
-    local count = qm.refitCount
-    if count > 0 then
-        frame.refit:SetText(count == 1 and L["Refit 1 set piece"] or L("Refit {1} set pieces", count))
-        frame.refitNote:SetText(L["Set pieces from other classes in your bags become your class's. Costs "] .. UI.FormatGold(qm.refitFee) .. ".")
-        frame.refit:Enable()
-    else
-        frame.refit:SetText(L["Refit set pieces"])
-        frame.refitNote:SetText(L["Bring set pieces from your other characters to refit them for this class for a small fee."])
-        frame.refit:Disable()
+    if qm.category == "buyback" then
+        return ""
     end
-    frame.refit:Show()
-    frame.refitNote:Show()
-end
-
-local function LayoutUpgrade()
-    if qm.mode ~= "mythic" then
-        frame.upgrade:Hide()
-        frame.scrap:Hide()
-        return
-    end
-    frame.scrap:SetText(L["Scrap "] .. qm.scrap)
-    if qm.upgrade then
-        frame.upgrade:SetText(L["Back to stock"])
-        frame.upgrade:Enable()
-    else
-        frame.upgrade:SetText(L["Upgrade found gear"])
-        frame.upgrade:Enable()
-    end
-    frame.upgrade:Show()
-    frame.scrap:Show()
+    return UI.ItemLevelRange(qm.tier, 1, 3)
 end
 
 local retry = CreateFrame("Frame")
@@ -1173,22 +992,19 @@ Refresh = function()
     end
     CollectItems()
     LayoutSide()
-    LayoutTierTabs()
-    LayoutRefit()
-    LayoutUpgrade()
-    frame.title:SetText(MODES[qm.mode].title)
+    frame.title:SetText(L["Gear Vendor"])
     frame.stock:SetText(StockText())
-    frame.tierNote:SetText(qm.mode == "mythic"
-        and L["Higher tiers drop in Mythic runs. Spend Scrap to upgrade gear you found."] or "")
+    frame.tierNote:SetText(L["Each level drops gear of its own tier. Spend Scrap to upgrade gear you found."])
     panel.heading:SetText(HeadingText())
-    panel.headingNote:SetText(qm.mode == "mythic" and not qm.upgrade and qm.category ~= "buyback" and (L["Tier "] .. qm.tier) or "")
-    local noneExtracted = qm.upgrade and table.getn(qm.items) == 0
+    panel.headingNote:SetText(HeadingNote())
+    local upgrading = qm.category == "upgrade"
+    local noneExtracted = upgrading and CountIn("upgrade") == 0
     if noneExtracted then
         panel.empty:Show()
     else
         panel.empty:Hide()
     end
-    if qm.upgrade then
+    if upgrading then
         panel.hint:SetText(noneExtracted and "" or L["Left-click a piece to upgrade it or reroll a bonus stat. Right-click upgrades it right away."])
     else
         panel.hint:SetText(L["Right-click an item to buy it, Ctrl-click to preview it. Right-click your own items to sell them."])
@@ -1216,33 +1032,8 @@ end
 local function ApplyPending()
     local pending = qm.pending
     qm.pending = nil
-    if pending.mode ~= qm.mode then
-        qm.mode = pending.mode
-        qm.category = ModeCategories()[1]
-        qm.group = nil
-        qm.page = 1
-    end
-    if pending.mode == "gear" then
-        if pending.currentTab ~= qm.currentTab then
-            qm.page = 1
-        end
-        qm.tabs = pending.tabs
-        qm.currentTab = pending.currentTab
-    else
-        qm.tier = pending.tier
-        qm.scrap = pending.scrap
-        qm.ceiling = pending.ceiling
-        local changed = qm.upgrade ~= pending.upgrade
-        qm.upgrade = pending.upgrade
-        if changed then
-            qm.rerollGuid = nil
-            qm.rerollPick = nil
-            qm.category = ModeCategories()[1]
-            qm.group = nil
-            qm.page = 1
-        end
-        qm.upgradeRoom = pending.upgradeRoom
-    end
+    qm.tier = pending.tier
+    qm.scrap = pending.scrap
     retry.tries = INFO_RETRIES
 end
 
@@ -1271,7 +1062,6 @@ frame:SetScript("OnHide", function()
     qm.rerollGuid = nil
     qm.rerollPick = nil
     retry:Hide()
-    UI.vendorTierTabs = {}
     if qm.open then
         qm.open = nil
         RestoreMerchantFrame()
@@ -1294,9 +1084,6 @@ events:SetScript("OnEvent", function()
             Refresh()
         end
     elseif event == "MERCHANT_CLOSED" then
-        if qm.open and qm.switchedAt and GetTime() - qm.switchedAt < TAB_SWITCH_GRACE then
-            return
-        end
         qm.pending = nil
         if qm.open then
             qm.open = nil
@@ -1318,8 +1105,7 @@ end
 local handlers = {}
 
 handlers["quartermaster"] = function(f)
-    Receive({ mode = "mythic", tier = tonumber(f[2]) or 0, scrap = tonumber(f[3] or "") or 0, ceiling = tonumber(f[4] or "") or 10,
-        upgrade = f[5] == "1", upgradeRoom = f[6] == "1" })
+    Receive({ tier = tonumber(f[2]) or 0, scrap = tonumber(f[3] or "") or 0 })
 end
 
 local incomingUpgrades
@@ -1354,7 +1140,7 @@ handlers["qmup"] = function(f)
     tinsert(incomingUpgrades, { guid = f[2], entry = entry, tier = tonumber(f[4] or "") or 0, cost = tonumber(f[5] or "") or 0, can = f[6] == "1",
         worn = f[7] == "1", found = UI.ParseFound(f[4], f[8], f[9]), rerollCost = tonumber(f[10] or "") or 0,
         rerollStat = rerollStat ~= NO_STAT and rerollStat + 1 or nil, offerStat = offerStat and offerStat + 1,
-        offers = offers and table.getn(offers) > 0 and offers or nil, ranges = ranges })
+        offers = offers and table.getn(offers) > 0 and offers or nil, ranges = ranges, left = tonumber(f[15] or "") or 0 })
 end
 
 handlers["qmupend"] = function(f)
@@ -1363,38 +1149,8 @@ handlers["qmupend"] = function(f)
         incomingUpgrades = nil
     end
     qm.scrap = tonumber(f[2] or "") or qm.scrap
-    qm.ceiling = tonumber(f[3] or "") or qm.ceiling
     retry.tries = INFO_RETRIES
     Refresh()
-end
-
-handlers["gearfoundclear"] = function()
-    qm.found = {}
-end
-
-handlers["gearfound"] = function(f)
-    for _, text in ipairs(UI.Split(f[2] or "", ",")) do
-        local id = tonumber(text)
-        if id then
-            qm.found[id] = true
-        end
-    end
-end
-
-handlers["qmrefit"] = function(f)
-    qm.refitCount = tonumber(f[2]) or 0
-    qm.refitFee = tonumber(f[3]) or 0
-    Refresh()
-end
-
-handlers["geartabs"] = function(f)
-    local tabs = {}
-    local index = 3
-    while f[index] and f[index + 1] do
-        tinsert(tabs, { group = tonumber(f[index]), name = f[index + 1] })
-        index = index + 2
-    end
-    Receive({ mode = "gear", currentTab = tonumber(f[2]), tabs = tabs })
 end
 
 handlers["trinkettip"] = function(f)
@@ -1404,7 +1160,6 @@ handlers["trinkettip"] = function(f)
     end
     for id = first, first + count - 1 do
         UI.trinketTips[id] = text
-        UI.trinketTips[id + EPIC_OFFSET] = text
     end
 end
 

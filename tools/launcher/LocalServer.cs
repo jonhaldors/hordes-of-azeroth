@@ -22,42 +22,96 @@ namespace HordesOfAzeroth.Launcher
         public static string RepairAdvice => Loc.T("Choose Repair the game in the ••• menu next to Play.");
         static readonly string[] OutdatedWorldLines = { "database structure is not up to date", "Database `mangos` is missing the following migrations" };
         const string Host = "127.0.0.1";
-        const int DatabasePort = 3306;
         const int LoginPort = 3724;
         const int WorldPort = 8085;
-        static readonly string[] DatabaseLogin = { "-h", Host, "-P", DatabasePort.ToString(), "-u", "root", "-proot", "--skip-ssl" };
+        static readonly Regex DatabaseInfo = new Regex(@"^(\s*\w*Database\.?Info\s*=\s*""[^;]*;)\d+;");
         static readonly TimeSpan DatabaseCreationLimit = TimeSpan.FromMinutes(3);
+        static readonly TimeSpan OwnershipCheckLimit = TimeSpan.FromSeconds(15);
         const string RootPasswordSql = "UPDATE mysql.global_priv SET priv = JSON_SET(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('root')) WHERE User = 'root';";
 
         readonly GameFolder m_folder;
         Process m_world;
         Process m_login;
         Process m_database;
+        int m_databasePort;
 
         public LocalServer(GameFolder folder)
         {
             m_folder = folder;
+            m_databasePort = DatabasePorts.Saved(folder);
         }
+
+        string[] DatabaseLogin => LoginTo(m_databasePort);
+
+        static string[] LoginTo(int port) => new[] { "-h", Host, "-P", port.ToString(), "-u", "root", "-proot", "--skip-ssl" };
+
+        async Task ChooseDatabasePortAsync()
+        {
+            foreach (int port in new[] { m_databasePort, DatabasePorts.Preferred }.Distinct())
+                if (IsPortOpen(port) && await IsOurDatabaseAsync(port))
+                {
+                    m_databasePort = port;
+                    DatabasePorts.Save(m_folder, port);
+                    return;
+                }
+            await StopStrayDatabasesAsync();
+            m_databasePort = DatabasePorts.Pick(m_folder, port => !IsPortOpen(port) && DatabasePorts.CanListen(port));
+        }
+
+        async Task<bool> IsOurDatabaseAsync(int port)
+        {
+            List<string> arguments = LoginTo(port).ToList();
+            arguments.AddRange(new[] { "-N", "-B", "-r", "-e", "\"SELECT @@datadir\"" });
+            try
+            {
+                string dataDir = await RunToEndAsync(MariaDbProgram("mariadb"), m_folder.MariaDb, OwnershipCheckLimit, arguments.ToArray());
+                return SameFolder(dataDir.Trim(), m_folder.MariaDbData);
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        static bool SameFolder(string first, string second)
+        {
+            if (first.Length == 0)
+                return false;
+            string Normal(string path) => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(Normal(first), Normal(second), Platform.IsWindows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+
+        async Task StopStrayDatabasesAsync()
+        {
+            foreach (Process stray in OwnProcesses("mariadbd"))
+            {
+                KillQuietly(stray);
+                await WaitForExitAsync(stray, TimeSpan.FromSeconds(30));
+            }
+        }
+
+        Process StartDatabase() => StartHidden(MariaDbProgram("mariadbd"), m_folder.MariaDb,
+            $"\"--defaults-file={Path.Combine(m_folder.Config, "mariadb.ini")}\"",
+            $"\"--basedir={m_folder.MariaDb}\"",
+            $"\"--datadir={m_folder.MariaDbData}\"",
+            $"--port={m_databasePort}");
 
         public bool StartedByUs => m_world != null || m_login != null || m_database != null;
 
         public async Task StartAsync(IProgress<string> progress, CancellationToken cancel)
         {
-            ThrowIfPortTaken(DatabasePort, Loc.Key("its database"));
+            await ChooseDatabasePortAsync();
             ThrowIfPortTaken(LoginPort, Loc.Key("its login server"));
             ThrowIfPortTaken(WorldPort, Loc.Key("its world server"));
             Directory.CreateDirectory(m_folder.ServerLogs);
             WriteServerConfig("mangosd");
             WriteServerConfig("realmd");
 
-            if (!IsPortOpen(DatabasePort))
+            if (!IsPortOpen(m_databasePort))
             {
                 progress.Report(Loc.T("Starting the database"));
-                m_database = StartHidden(MariaDbProgram("mariadbd"), m_folder.MariaDb,
-                    $"\"--defaults-file={Path.Combine(m_folder.Config, "mariadb.ini")}\"",
-                    $"\"--basedir={m_folder.MariaDb}\"",
-                    $"\"--datadir={m_folder.MariaDbData}\"");
-                await WaitForPortAsync(DatabasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
+                m_database = StartDatabase();
+                await WaitForPortAsync(m_databasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
             }
 
             if (!IsPortOpen(LoginPort))
@@ -237,7 +291,9 @@ namespace HordesOfAzeroth.Launcher
                 return null;
             foreach (string log in Directory.GetFiles(m_folder.MariaDbData, "*.err"))
             {
-                string line = File.ReadAllLines(log).Select(l => l.Trim()).LastOrDefault(l => l.IndexOf("ERROR", StringComparison.OrdinalIgnoreCase) >= 0);
+                string[] lines = File.ReadAllLines(log);
+                int lastStart = Array.FindLastIndex(lines, l => l.Contains("Starting MariaDB"));
+                string line = lines.Skip(Math.Max(0, lastStart)).Select(l => l.Trim()).FirstOrDefault(l => l.IndexOf("[ERROR]", StringComparison.OrdinalIgnoreCase) >= 0);
                 if (line != null)
                     return line;
             }
@@ -246,14 +302,11 @@ namespace HordesOfAzeroth.Launcher
 
         public async Task StartDatabaseOnlyAsync(CancellationToken cancel)
         {
-            ThrowIfPortTaken(DatabasePort, Loc.Key("its database"));
-            if (IsPortOpen(DatabasePort))
+            await ChooseDatabasePortAsync();
+            if (IsPortOpen(m_databasePort))
                 return;
-            m_database = StartHidden(MariaDbProgram("mariadbd"), m_folder.MariaDb,
-                $"\"--defaults-file={Path.Combine(m_folder.Config, "mariadb.ini")}\"",
-                $"\"--basedir={m_folder.MariaDb}\"",
-                $"\"--datadir={m_folder.MariaDbData}\"");
-            await WaitForPortAsync(DatabasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
+            m_database = StartDatabase();
+            await WaitForPortAsync(m_databasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
         }
 
         public Task RunSqlFileAsync(string database, string file)
@@ -371,7 +424,7 @@ namespace HordesOfAzeroth.Launcher
                     throw new InvalidDataException($"{overrides} sets {match.Groups[1].Value}, which {dist} does not define.");
                 lines[index] = line.Trim();
             }
-            File.WriteAllLines(target, lines);
+            File.WriteAllLines(target, lines.Select(l => DatabaseInfo.Replace(l, "${1}" + m_databasePort + ";")));
         }
 
         static Process StartHidden(string exe, string workingDirectory, params string[] arguments)
@@ -425,7 +478,12 @@ namespace HordesOfAzeroth.Launcher
             {
                 cancel.ThrowIfCancellationRequested();
                 if (process.HasExited)
+                {
+                    string databaseError = process == m_database ? DatabaseErrorLogLine() : null;
+                    if (databaseError != null)
+                        throw new InvalidOperationException(Loc.T("{0} stopped with code {1}: {2}", CapitalFirst(Loc.T(what)), process.ExitCode, databaseError));
                     throw new InvalidOperationException(Loc.T("{0} stopped with code {1}. See {2}.", CapitalFirst(Loc.T(what)), process.ExitCode, Path.Combine(m_folder.ServerLogs, "Server.log")));
+                }
                 if (clock.Elapsed > timeout)
                     throw new TimeoutException(Loc.T("{0} did not start within {1:0} seconds.", CapitalFirst(Loc.T(what)), timeout.TotalSeconds));
                 await Task.Delay(500, cancel);

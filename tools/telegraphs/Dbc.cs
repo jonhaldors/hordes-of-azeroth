@@ -65,6 +65,11 @@ namespace BonkTelegraphs
             return null;
         }
 
+        public void Release(uint id)
+        {
+            Records.RemoveAll(record => record[0] == id);
+        }
+
         public uint ClaimId(uint wanted)
         {
             return Find(wanted) == null ? wanted : MaxId() + 1;

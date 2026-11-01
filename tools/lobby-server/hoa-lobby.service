@@ -1,0 +1,21 @@
+[Unit]
+Description=Hordes of Azeroth co-op lobby
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -I /opt/hoa-lobby/lobby.py
+Environment=PORT=8091
+Environment=BIND=127.0.0.1
+Environment=TRUST_CLOUDFLARE=1
+DynamicUser=yes
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

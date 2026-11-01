@@ -22,6 +22,7 @@ local window = UI.Window("VanillaBonkInnkeeper", WIDTH, 600)
 window:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
 window.title:SetText(UI.INNKEEPER_NAME)
 window.checks = {}
+window.sliders = {}
 window.radios = {}
 window.keys = {}
 
@@ -120,6 +121,39 @@ local function Check(setting, column, advance)
     return check
 end
 
+local function SettingSlider(setting)
+    local slider = CreateFrame("Slider", "VanillaBonkInnkeeperSlider" .. setting.key, window, "OptionsSliderTemplate")
+    slider:SetWidth(CONTENT_WIDTH - 70)
+    slider:SetMinMaxValues(0, 100)
+    slider:SetValueStep(10)
+    slider.setting = setting
+    getglobal(slider:GetName() .. "Text"):SetText(setting.label)
+    getglobal(slider:GetName() .. "Low"):SetText(L["Off"])
+    getglobal(slider:GetName() .. "High"):SetText(L["All"])
+    slider.value = UI.Text(slider, 11)
+    slider.value:SetPoint("LEFT", slider, "RIGHT", 10, 0)
+    slider:SetScript("OnValueChanged", function()
+        this.value:SetText(UI.OtherEffectsText(this:GetValue()))
+    end)
+    slider:SetScript("OnMouseUp", function()
+        local value = math.floor(this:GetValue() + 0.5)
+        if value ~= UI.SettingValue(this.setting) then
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            UI.ChangeSetting(this.setting, value)
+        end
+    end)
+    slider:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:SetText(this.setting.tooltip, 1, 1, 1, 1, 1)
+    end)
+    slider:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    cursor = cursor + 18
+    slider:SetPoint("TOPLEFT", window.greeting, "BOTTOMLEFT", 8, -cursor)
+    cursor = cursor + 34
+    tinsert(window.sliders, slider)
+    return slider
+end
+
 local function KeyRow(binding, label)
     local row = CreateFrame("Frame", nil, window)
     row:SetWidth(CONTENT_WIDTH)
@@ -190,6 +224,7 @@ cursor = cursor + ROW + 6
 for index, setting in ipairs(UI.DISPLAY_SETTINGS) do
     Check(setting, math.mod(index - 1, 2) + 1, math.mod(index, 2) == 0 or index == table.getn(UI.DISPLAY_SETTINGS))
 end
+SettingSlider(UI.OTHER_EFFECTS_SETTING)
 
 Section(L["Keys"])
 KeyRow(UI.KEYS[2])
@@ -241,6 +276,9 @@ local function Refresh()
     end
     for _, check in ipairs(window.checks) do
         check:SetChecked(UI.SettingValue(check.setting))
+    end
+    for _, slider in ipairs(window.sliders) do
+        slider:SetValue(UI.SettingValue(slider.setting))
     end
     local mode = UI.HealthBarMode()
     for _, radio in ipairs(window.radios) do
