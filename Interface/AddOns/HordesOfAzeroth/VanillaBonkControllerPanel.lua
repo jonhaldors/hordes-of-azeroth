@@ -287,7 +287,7 @@ local function CardButton(x, y, action, title)
         if panel.listeningTo == self then
             self.title:SetTextColor(1, 1, 1)
             self:LockHighlight()
-            panel.cardHint:SetText(LISTEN_TEXT .. " for " .. self.text .. ". " .. CARD_CANCEL_TEXT)
+            panel.cardHint:SetText(L("Press a button for {1}.", self.text) .. " " .. CARD_CANCEL_TEXT)
         else
             self.title:SetTextColor(1, 0.82, 0)
             self:UnlockHighlight()

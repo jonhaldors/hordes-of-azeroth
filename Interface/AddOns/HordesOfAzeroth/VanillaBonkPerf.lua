@@ -153,7 +153,7 @@ SlashCmdList["VANILLABONKPERF"] = function(text)
     if text == "reset" then
         VanillaBonkPerfLog.slow = {}
         VanillaBonkPerfLog.minutes = {}
-        DEFAULT_CHAT_FRAME:AddMessage("Hordes of Azeroth: performance log cleared.")
+        DEFAULT_CHAT_FRAME:AddMessage(L["Hordes of Azeroth: performance log cleared."])
         return
     end
     local minutes = VanillaBonkPerfLog.minutes

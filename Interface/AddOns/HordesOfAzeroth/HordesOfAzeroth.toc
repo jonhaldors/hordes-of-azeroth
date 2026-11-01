@@ -52,6 +52,7 @@ VanillaBonkBindingGuard.lua
 VanillaBonkSettings.lua
 VanillaBonkInterfaceOptions.lua
 VanillaBonkSoundOptions.lua
+VanillaBonkOptionsText.lua
 VanillaBonkVault.lua
 VanillaBonkGlyphs.lua
 VanillaBonkPerf.lua

@@ -21,6 +21,7 @@ local SECTION_ROWS = {
     {
         {
             name = "Hordes of Azeroth",
+            title = L["Hordes of Azeroth"],
             height = 3 * ROW + 20,
             columns = 3,
             own = { { DISPLAY[1], 1, 0 }, { DISPLAY[2], 1, 1 }, { DISPLAY[3], 1, 2 }, { DISPLAY[4], 2, 2 }, { DISPLAY[5], 3, 0 } },

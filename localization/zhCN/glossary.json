@@ -114,12 +114,15 @@
     { "en": "Nature", "zh": "自然" },
     { "en": "Frost", "zh": "冰霜", "check": false },
     { "en": "Shadow", "zh": "暗影", "check": false },
-    { "en": "Arcane", "zh": "奥术" },
+    { "en": "Arcane", "zh": "奥术", "except": ["Arcane Explosion"] },
+    { "en": "Arcane Explosion", "zh": "魔爆术", "note": "the vanilla client's name" },
+    { "en": "Sinister Strike", "zh": "影袭", "note": "the name later clients use; the 1.12 client has 邪恶攻击" },
     { "en": "Durgan Ironbelly", "zh": "德尔冈·铁腹" },
     { "en": "Zixil", "zh": "吉克希尔" },
     { "en": "Gizzik Bonkwhistle", "zh": "吉兹克·邦克哨" },
     { "en": "Tarn Oakhoof", "zh": "塔恩·橡蹄" },
     { "en": "Varrok Steelbrand", "zh": "瓦罗克·钢烙" },
-    { "en": "Grand Magus", "zh": "大魔导师" }
+    { "en": "Grand Magus", "zh": "大魔导师" },
+    { "en": "Hordes of Azeroth", "zh": "艾泽拉斯之潮", "note": "the game's name; the realm name stays English because it names save folders and the realm list" }
   ]
 }
