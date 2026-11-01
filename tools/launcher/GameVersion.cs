@@ -54,7 +54,7 @@ namespace HordesOfAzeroth.Launcher
 
         public string Display => m_parts[2] == 0 ? $"{m_parts[0]}.{m_parts[1]}" : Full;
 
-        public string PatchName => "Patch " + Display;
+        public string PatchName => Loc.T("Patch {0}", Display);
 
         public override string ToString() => Full;
     }

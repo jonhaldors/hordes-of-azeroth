@@ -19,7 +19,7 @@ namespace HordesOfAzeroth.Launcher
 
     sealed class LocalServer
     {
-        public const string RepairAdvice = "Choose Repair the game in the ••• menu next to Play.";
+        public static string RepairAdvice => Loc.T("Choose Repair the game in the ••• menu next to Play.");
         static readonly string[] OutdatedWorldLines = { "database structure is not up to date", "Database `mangos` is missing the following migrations" };
         const string Host = "127.0.0.1";
         const int DatabasePort = 3306;
@@ -43,42 +43,42 @@ namespace HordesOfAzeroth.Launcher
 
         public async Task StartAsync(IProgress<string> progress, CancellationToken cancel)
         {
-            ThrowIfPortTaken(DatabasePort, "its database");
-            ThrowIfPortTaken(LoginPort, "its login server");
-            ThrowIfPortTaken(WorldPort, "its world server");
+            ThrowIfPortTaken(DatabasePort, Loc.Key("its database"));
+            ThrowIfPortTaken(LoginPort, Loc.Key("its login server"));
+            ThrowIfPortTaken(WorldPort, Loc.Key("its world server"));
             Directory.CreateDirectory(m_folder.ServerLogs);
             WriteServerConfig("mangosd");
             WriteServerConfig("realmd");
 
             if (!IsPortOpen(DatabasePort))
             {
-                progress.Report("Starting the database");
+                progress.Report(Loc.T("Starting the database"));
                 m_database = StartHidden(MariaDbProgram("mariadbd"), m_folder.MariaDb,
                     $"\"--defaults-file={Path.Combine(m_folder.Config, "mariadb.ini")}\"",
                     $"\"--basedir={m_folder.MariaDb}\"",
                     $"\"--datadir={m_folder.MariaDbData}\"");
-                await WaitForPortAsync(DatabasePort, m_database, TimeSpan.FromSeconds(60), "the database", cancel);
+                await WaitForPortAsync(DatabasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
             }
 
             if (!IsPortOpen(LoginPort))
             {
-                progress.Report("Starting the login server");
+                progress.Report(Loc.T("Starting the login server"));
                 m_login = StartHidden(Path.Combine(m_folder.ServerRun, Platform.Exe("realmd")), m_folder.ServerRun, "-c", "realmd.conf");
-                await WaitForPortAsync(LoginPort, m_login, TimeSpan.FromSeconds(30), "the login server", cancel);
+                await WaitForPortAsync(LoginPort, m_login, TimeSpan.FromSeconds(30), Loc.Key("the login server"), cancel);
             }
 
             if (!IsPortOpen(WorldPort))
             {
-                progress.Report("Loading the world");
+                progress.Report(Loc.T("Loading the world"));
                 DateTime started = DateTime.UtcNow;
                 m_world = StartHidden(Path.Combine(m_folder.ServerRun, Platform.Exe("mangosd")), m_folder.ServerRun, true, "-c", "mangosd.conf");
                 try
                 {
-                    await WaitForPortAsync(WorldPort, m_world, TimeSpan.FromMinutes(5), "the world server", cancel);
+                    await WaitForPortAsync(WorldPort, m_world, TimeSpan.FromMinutes(5), Loc.Key("the world server"), cancel);
                 }
                 catch (InvalidOperationException) when (m_world.HasExited && WorldLogsMention(OutdatedWorldLines, started))
                 {
-                    throw new WorldDatabaseException("The world database doesn't match the server. " + RepairAdvice);
+                    throw new WorldDatabaseException(Loc.T("The world database doesn't match the server. {0}", RepairAdvice));
                 }
             }
         }
@@ -176,7 +176,7 @@ namespace HordesOfAzeroth.Launcher
             foreach (PortOwners.Owner owner in PortOwners.Listening(port))
                 if (!owner.IsInside(m_folder.Root))
                     throw new InvalidOperationException(
-                        $"Port {port} is in use by {owner.Describe()}. Hordes of Azeroth needs it for {use}. Close that program (or stop its service) and try again.");
+                        Loc.T("Port {0} is in use by {1}. Hordes of Azeroth needs it for {2}. Close that program (or stop its service) and try again.", port, owner.Describe(), Loc.T(use)));
         }
 
         public bool DatabaseExists => Directory.Exists(Path.Combine(m_folder.MariaDbData, "mysql"));
@@ -208,7 +208,7 @@ namespace HordesOfAzeroth.Launcher
                 catch (UnauthorizedAccessException)
                 {
                 }
-                throw serverLog == null ? failure : new InvalidOperationException($"{failure.Message} Database log: {serverLog}", failure);
+                throw serverLog == null ? failure : new InvalidOperationException(Loc.T("{0} Database log: {1}", failure.Message, serverLog), failure);
             }
         }
 
@@ -246,14 +246,14 @@ namespace HordesOfAzeroth.Launcher
 
         public async Task StartDatabaseOnlyAsync(CancellationToken cancel)
         {
-            ThrowIfPortTaken(DatabasePort, "its database");
+            ThrowIfPortTaken(DatabasePort, Loc.Key("its database"));
             if (IsPortOpen(DatabasePort))
                 return;
             m_database = StartHidden(MariaDbProgram("mariadbd"), m_folder.MariaDb,
                 $"\"--defaults-file={Path.Combine(m_folder.Config, "mariadb.ini")}\"",
                 $"\"--basedir={m_folder.MariaDb}\"",
                 $"\"--datadir={m_folder.MariaDbData}\"");
-            await WaitForPortAsync(DatabasePort, m_database, TimeSpan.FromSeconds(60), "the database", cancel);
+            await WaitForPortAsync(DatabasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
         }
 
         public Task RunSqlFileAsync(string database, string file)
@@ -285,7 +285,7 @@ namespace HordesOfAzeroth.Launcher
         public async Task RunConsoleAsync(string command)
         {
             if (m_world == null || m_world.HasExited)
-                throw new InvalidOperationException("The world server isn't running.");
+                throw new InvalidOperationException(Loc.T("The world server isn't running."));
             m_world.StandardInput.WriteLine(command);
             m_world.StandardInput.Flush();
             await Task.Delay(1500);
@@ -317,7 +317,7 @@ namespace HordesOfAzeroth.Launcher
                         process.WaitForExit(5000);
                         string stuck = $"{Path.GetFileName(exe)} did not finish within {limit.TotalMinutes:0} minutes";
                         LogOutput(stuck, await error, await output);
-                        throw new InvalidOperationException($"{stuck}. Its output is in the launcher log.");
+                        throw new InvalidOperationException(Loc.T("{0} did not finish within {1:0} minutes. Its output is in the launcher log.", Path.GetFileName(exe), limit.TotalMinutes));
                     }
                     await Task.Delay(100);
                 }
@@ -327,7 +327,7 @@ namespace HordesOfAzeroth.Launcher
                 {
                     string failure = $"{Path.GetFileName(exe)} failed (exit code 0x{process.ExitCode:X})";
                     LogOutput(failure, problem, text);
-                    throw new InvalidOperationException($"{failure}: {Details(problem, text)}");
+                    throw new InvalidOperationException(Loc.T("{0} failed (exit code 0x{1:X}): {2}", Path.GetFileName(exe), process.ExitCode, Details(problem, text)));
                 }
                 return text;
             }
@@ -342,7 +342,7 @@ namespace HordesOfAzeroth.Launcher
             string line = errorLines.FirstOrDefault(l => l.StartsWith("ERROR"))
                 ?? errorLines.FirstOrDefault(l => !l.StartsWith("WARNING") && l.Trim('-').Length > 0)
                 ?? Lines(output).LastOrDefault(l => l.Trim('-').Length > 0);
-            return line ?? "no details";
+            return line ?? Loc.T("no details");
         }
 
         static IEnumerable<string> Lines(string text)
@@ -382,7 +382,7 @@ namespace HordesOfAzeroth.Launcher
         static Process StartHidden(string exe, string workingDirectory, bool redirectInput, params string[] arguments)
         {
             if (!File.Exists(exe))
-                throw new FileNotFoundException($"{Path.GetFileName(exe)} is missing. {RepairAdvice}", exe);
+                throw new FileNotFoundException(Loc.T("{0} is missing. {1}", Path.GetFileName(exe), RepairAdvice), exe);
             ProcessStartInfo info = new ProcessStartInfo(exe, string.Join(" ", arguments))
             {
                 WorkingDirectory = workingDirectory,
@@ -425,9 +425,9 @@ namespace HordesOfAzeroth.Launcher
             {
                 cancel.ThrowIfCancellationRequested();
                 if (process.HasExited)
-                    throw new InvalidOperationException($"{CapitalFirst(what)} stopped with code {process.ExitCode}. See {Path.Combine(m_folder.ServerLogs, "Server.log")}.");
+                    throw new InvalidOperationException(Loc.T("{0} stopped with code {1}. See {2}.", CapitalFirst(Loc.T(what)), process.ExitCode, Path.Combine(m_folder.ServerLogs, "Server.log")));
                 if (clock.Elapsed > timeout)
-                    throw new TimeoutException($"{CapitalFirst(what)} did not start within {timeout.TotalSeconds:0} seconds.");
+                    throw new TimeoutException(Loc.T("{0} did not start within {1:0} seconds.", CapitalFirst(Loc.T(what)), timeout.TotalSeconds));
                 await Task.Delay(500, cancel);
             }
         }

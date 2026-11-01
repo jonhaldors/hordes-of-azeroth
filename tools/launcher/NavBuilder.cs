@@ -85,7 +85,7 @@ namespace HordesOfAzeroth.Launcher
                 foreach (ZipArchiveEntry entry in archive.Entries)
                 {
                     if (entry.FullName != Path.GetFileName(entry.FullName))
-                        throw new InvalidDataException($"{Path.GetFileName(zip)} contains a file outside the monster path folder.");
+                        throw new InvalidDataException(Loc.T("{0} contains a file outside the monster path folder.", Path.GetFileName(zip)));
                     entry.ExtractToFile(Path.Combine(MmapsDir, entry.FullName), true);
                 }
             foreach (string map in group.WholeMaps)
@@ -175,7 +175,7 @@ namespace HordesOfAzeroth.Launcher
                         await Task.Delay(200);
                 cancel.ThrowIfCancellationRequested();
                 if (process.ExitCode != 0)
-                    throw new InvalidOperationException($"Building monster paths failed (MoveMapGenerator {string.Join(" ", arguments)}, code {process.ExitCode}).");
+                    throw new InvalidOperationException(Loc.T("Building monster paths failed (MoveMapGenerator {0}, code {1}).", string.Join(" ", arguments), process.ExitCode));
             }
         }
 

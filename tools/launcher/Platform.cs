@@ -85,7 +85,7 @@ namespace HordesOfAzeroth.Launcher
                         continue;
                     string target = Path.GetFullPath(Path.Combine(root, relative));
                     if (!target.StartsWith(root, StringComparison.Ordinal))
-                        throw new InvalidDataException($"{Path.GetFileName(tarball)} contains a path outside the game folder.");
+                        throw new InvalidDataException(Loc.T("{0} contains a path outside the game folder.", Path.GetFileName(tarball)));
                     switch (entry.EntryType)
                     {
                         case TarEntryType.Directory:

@@ -60,7 +60,7 @@ namespace HordesOfAzeroth.Launcher
                 ZipFile.ExtractToDirectory(zip, work);
                 string database = Path.Combine(work, DatabaseFile);
                 if (!File.Exists(database))
-                    throw new InvalidDataException("This file isn't a Hordes of Azeroth save backup.");
+                    throw new InvalidDataException(Loc.T("This file isn't a Hordes of Azeroth save backup."));
                 await BackUpAsync(" before restore", cancel);
                 await m_server.QueryAsync("mysql", "DROP DATABASE IF EXISTS characters; DROP DATABASE IF EXISTS realmd");
                 await m_server.RunSqlFileAsync(null, database);

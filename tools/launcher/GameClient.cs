@@ -35,7 +35,7 @@ namespace HordesOfAzeroth.Launcher
         public void Prepare(Account account)
         {
             if (!File.Exists(m_folder.GameExe))
-                throw new FileNotFoundException($"{m_folder.GameExeName} is missing. {LocalServer.RepairAdvice}");
+                throw new FileNotFoundException(Loc.T("{0} is missing. {1}", m_folder.GameExeName, LocalServer.RepairAdvice));
 
             Directory.CreateDirectory(m_folder.GlueXml);
             File.WriteAllLines(Path.Combine(m_folder.GlueXml, "BonkAccount.lua"), new[]
@@ -187,7 +187,7 @@ namespace HordesOfAzeroth.Launcher
             while (clock.Elapsed < TimeSpan.FromSeconds(30))
             {
                 if (game.HasExited)
-                    throw new InvalidOperationException($"The game closed while starting. Its log is {m_folder.ClientLog}.");
+                    throw new InvalidOperationException(Loc.T("The game closed while starting. Its log is {0}.", m_folder.ClientLog));
                 if (game.MainWindowHandle != IntPtr.Zero || clock.Elapsed > TimeSpan.FromSeconds(2))
                     return game;
                 await Task.Delay(250, cancel);
