@@ -1,3 +1,5 @@
+local L = BonkGlueL;
+
 BonkPad = { kind = nil, signature = nil };
 
 local PAD_SLOTS = 7;
@@ -132,12 +134,12 @@ local function PadPrompts()
 		return nil;
 	end
 	if ( PadCreating() ) then
-		return { { "a", "Create" }, { "lbrb", "Race" }, { "x", "Male or female" }, { "y", "New look" }, { "rs", "Turn" }, { "b", "Back" } };
+		return { { "a", L["Create"] }, { "lbrb", L["Race"] }, { "x", L["Male or female"] }, { "y", L["New look"] }, { "rs", L["Turn"] }, { "b", L["Back"] } };
 	end
 	if ( PadPreviewing() ) then
-		return { { "a", "Create " .. BONK_CLASSES[Bonk.classIndex].name }, { "dpad", "Class" }, { "rs", "Turn" }, { "b", "Quit" } };
+		return { { "a", L("Create {1}", BONK_CLASSES[Bonk.classIndex].display) }, { "dpad", L["Class"] }, { "rs", L["Turn"] }, { "b", L["Quit"] } };
 	end
-	return { { "a", "Play" }, { "dpad", "Class" }, { "view", "Delete" }, { "rs", "Turn" }, { "b", "Quit" } };
+	return { { "a", L["Play"] }, { "dpad", L["Class"] }, { "view", L["Delete"] }, { "rs", L["Turn"] }, { "b", L["Quit"] } };
 end
 
 local function PadSetGlyph(texture, name)

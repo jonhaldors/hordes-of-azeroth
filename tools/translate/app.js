@@ -4,13 +4,13 @@
     const L = window.TranslateLogic;
     const token = location.hash.slice(1);
     const PAGE_SIZE = 40;
-    const SECTION_LABELS = { strings: 'Server text', fields: 'Database text', names: 'Name', addon: 'Addon' };
+    const SECTION_LABELS = { strings: 'Server text', fields: 'Database text', names: 'Name', addon: 'Addon and glue' };
     const STATUS_LABELS = { missing: 'Missing', outdated: 'English changed', problem: 'Problem', translated: 'Translated', unused: 'Unused' };
     const $ = id => document.getElementById(id);
 
     const state = {
-        locale: '', info: null, server: null, strings: [], addonKeys: null, sizes: null, glossary: [], toc: '',
-        eol: { server: '\n', addon: '\n' }, model: null, byUid: new Map(), problems: new Map(), filtered: [], page: 0,
+        locale: '', info: null, server: null, strings: [], addonKeys: null, glueKeys: new Map(), hasGlue: false, sizes: null, glossary: [], toc: '', glueToc: '',
+        eol: { server: '\n', addon: '\n', glue: '\n' }, model: null, byUid: new Map(), problems: new Map(), filtered: [], page: 0,
         structural: false, focused: null, busy: false,
     };
 
@@ -129,7 +129,7 @@
     function contextLabel(entry) {
         const c = entry.context;
         if (entry.section === 'strings') return `${c.name} · #${c.id}`;
-        if (entry.section === 'addon') return c.where.length ? c.where.join(', ') : 'no longer used by the addon';
+        if (entry.section === 'addon') return c.where.length ? c.where.join(', ') : 'no longer used';
         return [`${c.table}.${c.column}`, c.label, c.count > 1 ? `×${c.count} rows` : '', c.owner].filter(Boolean).join(' · ');
     }
 
@@ -310,6 +310,14 @@
                 await postFile('toc', toc);
                 state.toc = toc;
             }
+            if (state.hasGlue) {
+                await postFile('glue', L.writeLocaleTable(state.locale, L.glueTable(state.model.entries), state.eol.glue, 'BonkGlueLocale'));
+                const glueToc = L.ensureTocLine(state.glueToc, state.locale, 'BonkGlueLocale');
+                if (glueToc !== state.glueToc) {
+                    await postFile('glue-toc', glueToc);
+                    state.glueToc = glueToc;
+                }
+            }
             for (const entry of state.model.entries) entry.original = entry.translation;
             state.model.entries = state.model.entries.filter(e => !e.removed);
             state.structural = false;
@@ -348,9 +356,9 @@
 
     function rebuild() {
         const originals = new Map(state.model.entries.map(e => [e.uid, e.original]));
-        const table = new Map();
-        for (const e of state.model.entries) if (e.section === 'addon' && e.translation && !e.removed) table.set(e.key, e.translation);
-        state.model = L.buildModel({ server: state.server, strings: state.strings, addonKeys: state.addonKeys, localeTable: table });
+        const table = L.addonTable(state.model.entries);
+        const glueTable = L.glueTable(state.model.entries);
+        state.model = L.buildModel({ server: state.server, strings: state.strings, addonKeys: state.addonKeys, localeTable: table, glueKeys: state.glueKeys, glueTable });
         for (const e of state.model.entries) e.original = originals.has(e.uid) ? originals.get(e.uid) : '';
         state.byUid = new Map(state.model.entries.map(e => [e.uid, e]));
         state.problems.clear();
@@ -390,6 +398,8 @@
         $('locale').textContent = state.locale;
         document.title = `HoA translations · ${state.locale}`;
         const addonNames = await (await api('/api/addon')).json();
+        const glueList = await api('/api/glue');
+        const glueNames = glueList.ok ? await glueList.json() : [];
         const [header, source, serverText, glossaryText, addonText, toc, tables, ...addonTexts] = await Promise.all([
             getFile('strings-h'), getFile('strings-cpp'), getFile('server'), getFile('glossary'), getFile('addon'), getFile('toc'),
             api('/api/locale-tables').then(r => r.text()),
@@ -397,6 +407,14 @@
         ]);
         const addonFiles = {};
         addonNames.forEach((name, i) => { addonFiles[name] = addonTexts[i]; });
+        const glueFiles = {};
+        const glueTexts = await Promise.all(glueNames.map(name => api(`/api/glue-file?name=${encodeURIComponent(name)}`).then(r => r.text())));
+        glueNames.forEach((name, i) => { glueFiles[name] = glueTexts[i]; });
+        state.hasGlue = glueNames.length > 0;
+        const glueText = state.hasGlue ? await getFile('glue') : '';
+        state.glueToc = state.hasGlue ? await getFile('glue-toc') : '';
+        state.eol.glue = glueText.includes('\r\n') || (!glueText && state.glueToc.includes('\r\n')) ? '\r\n' : '\n';
+        state.glueKeys = L.collectAddonKeys(glueFiles);
         state.eol.server = serverText.includes('\r\n') ? '\r\n' : '\n';
         state.eol.addon = addonText.includes('\r\n') ? '\r\n' : '\n';
         state.toc = toc;
@@ -407,7 +425,7 @@
         state.sizes = L.readColumnSizes([tables]);
         state.glossary = glossaryText ? (JSON.parse(glossaryText).terms || []) : [];
         for (const term of state.glossary) if (term.en && term.check !== false) term.re = L.glossaryPattern(term);
-        state.model = L.buildModel({ server: state.server, strings: state.strings, addonKeys: state.addonKeys, localeTable: L.parseLocaleTable(addonText).entries });
+        state.model = L.buildModel({ server: state.server, strings: state.strings, addonKeys: state.addonKeys, localeTable: L.parseLocaleTable(addonText).entries, glueKeys: state.glueKeys, glueTable: L.parseLocaleTable(glueText).entries });
         state.byUid = new Map(state.model.entries.map(e => [e.uid, e]));
         $('apply').disabled = !state.info.database;
         if (!state.info.database) $('apply').title = 'No MariaDB client found; start the tool with -MariaDb <path to mariadb.exe>';

@@ -351,7 +351,7 @@
 		</Size>
 		<Scripts>
 			<OnLoad>
-				getglobal(this:GetName().."Text"):SetText(getglobal("CHAR_CUSTOMIZATION"..this:GetID().."_DESC"));
+				getglobal(this:GetName().."Text"):SetText(BonkHero_CustomizeLabel(this:GetID()));
 			</OnLoad>
 		</Scripts>
 	</Frame>
@@ -662,7 +662,7 @@
 								BonkHero_ToggleIronman();
 							</OnClick>
 							<OnEnter>
-								BonkHero_ShowTip(this, "Ironman mode", BONK_IRONMAN_TIP);
+								BonkHero_ShowIronmanTip(this);
 							</OnEnter>
 							<OnLeave>
 								BonkTip:Hide();

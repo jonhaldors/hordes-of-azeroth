@@ -189,12 +189,12 @@ namespace HordesOfAzeroth.Launcher
                 catch (CoopError error)
                 {
                     status = 400;
-                    answer = error.Message;
+                    answer = CoopText.Localize(error.Message);
                 }
                 catch (Exception error)
                 {
                     status = 500;
-                    answer = error.Message;
+                    answer = CoopText.Localize(error.Message);
                 }
                 byte[] body = Encoding.UTF8.GetBytes(answer);
                 byte[] head = Encoding.ASCII.GetBytes($"HTTP/1.0 {status} {(status == 200 ? "OK" : "Error")}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {body.Length}\r\n\r\n");
@@ -535,7 +535,7 @@ namespace HordesOfAzeroth.Launcher
                 "transferring" => Line("state", "transferring", join.Lobby),
                 "returning" => Line("state", "returning"),
                 "joined" => Line("state", "joined", join.Address, join.Token, join.User, join.Password, join.EnterOnLogin ? "1" : "0", join.OwnName),
-                _ => Line("state", join.State, join.Message),
+                _ => Line("state", join.State, CoopText.Localize(join.Message)),
             };
         }
 
@@ -949,7 +949,7 @@ namespace HordesOfAzeroth.Launcher
                 if (m_host == null)
                     return Line("state", "off");
                 StringBuilder text = new StringBuilder();
-                text.Append(Line("state", m_host.State, m_host.Message));
+                text.Append(Line("state", m_host.State, CoopText.Localize(m_host.Message)));
                 text.Append(Line("game", m_host.Settings.GetValueOrDefault("name", ""), m_host.Code, m_host.Settings.GetValueOrDefault("max", "4"),
                     m_host.Settings.GetValueOrDefault("difficulty", "Normal")));
                 foreach (Member member in m_host.Members)

@@ -12,6 +12,7 @@ if ($Locale -notmatch '^[a-z]{2}[A-Z]{2}$') { throw 'Locale must be a name like 
 
 $WebDir     = Join-Path $PSScriptRoot 'translate'
 $AddonDir   = Join-Path $RepoRoot 'Interface\AddOns\HordesOfAzeroth'
+$GlueDir    = Join-Path $RepoRoot 'Interface\GlueXML'
 $BonkDir    = Join-Path $ServerDir 'core\src\game\Bonk'
 $Migrations = Join-Path $ServerDir 'core\sql\migrations'
 $LocaleDir  = Join-Path $RepoRoot "localization\$Locale"
@@ -25,9 +26,11 @@ $Files = @{
     'glossary'    = Join-Path $LocaleDir 'glossary.json'
     'addon'       = Join-Path $AddonDir "VanillaBonkLocale$($Locale.Substring(0, 1).ToUpper())$($Locale.Substring(1)).lua"
     'toc'         = Join-Path $AddonDir 'HordesOfAzeroth.toc'
+    'glue'        = Join-Path $GlueDir "BonkGlueLocale$($Locale.Substring(0, 1).ToUpper())$($Locale.Substring(1)).lua"
+    'glue-toc'    = Join-Path $GlueDir 'GlueXML.toc'
     'export'      = $ExportFile
 }
-$Writable     = @('server', 'glossary', 'addon', 'toc')
+$Writable     = @('server', 'glossary', 'addon', 'toc', 'glue', 'glue-toc')
 $Token        = [guid]::NewGuid().ToString('N')
 $Utf8         = New-Object System.Text.UTF8Encoding($false)
 $ContentTypes = @{ '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'; '.css' = 'text/css; charset=utf-8' }
@@ -104,7 +107,7 @@ function Write-TextFile([string]$Path, [string]$Text) {
 
 function Get-LocaleTables {
     if ($null -eq $script:LocaleTables) {
-        $found = Select-String -Path (Join-Path $Migrations '*.sql') -Pattern 'CREATE TABLE IF NOT EXISTS `\w+_locale`' -List
+        $found = Select-String -Path (Join-Path $Migrations '*.sql') -Pattern '(CREATE|DROP) TABLE IF EXISTS `\w+_locale`|CREATE TABLE IF NOT EXISTS `\w+_locale`' -List
         $script:LocaleTables = ($found | Sort-Object Path | ForEach-Object { [System.IO.File]::ReadAllText($_.Path) }) -join "`n"
     }
     $script:LocaleTables
@@ -147,6 +150,15 @@ function Invoke-Route($Request, $Stream) {
         }
         'GET /api/addon-file' {
             $file = Join-Path $AddonDir ([string]$name)
+            if ($name -notmatch '^[A-Za-z0-9_]+\.lua$' -or -not (Test-Path -LiteralPath $file)) { return Send-Text $Stream 404 'Not found.' }
+            return Send-Response $Stream 200 'text/plain; charset=utf-8' ([System.IO.File]::ReadAllBytes($file))
+        }
+        'GET /api/glue' {
+            if (-not (Test-Path -LiteralPath $GlueDir)) { return Send-Text $Stream 404 'No GlueXML folder.' }
+            return Send-Json $Stream @(Get-ChildItem -LiteralPath $GlueDir -Filter '*.lua' | Sort-Object Name | ForEach-Object { $_.Name })
+        }
+        'GET /api/glue-file' {
+            $file = Join-Path $GlueDir ([string]$name)
             if ($name -notmatch '^[A-Za-z0-9_]+\.lua$' -or -not (Test-Path -LiteralPath $file)) { return Send-Text $Stream 404 'Not found.' }
             return Send-Response $Stream 200 'text/plain; charset=utf-8' ([System.IO.File]::ReadAllBytes($file))
         }

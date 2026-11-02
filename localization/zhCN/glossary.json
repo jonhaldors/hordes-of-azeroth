@@ -123,6 +123,18 @@
     { "en": "Tarn Oakhoof", "zh": "塔恩·橡蹄" },
     { "en": "Varrok Steelbrand", "zh": "瓦罗克·钢烙" },
     { "en": "Grand Magus", "zh": "大魔导师" },
-    { "en": "Hordes of Azeroth", "zh": "艾泽拉斯之潮", "note": "the game's name; the realm name stays English because it names save folders and the realm list" }
+    { "en": "Hordes of Azeroth", "zh": "艾泽拉斯之潮", "note": "the game's name; the realm name stays English because it names save folders and the realm list" },
+    { "en": "Item Level", "zh": "物品等级", "anyCase": true, "note": "ilvl is written 物品等级 too; it replaced tiers in 0.6.0" },
+    { "en": "finale", "zh": "终章", "anyCase": true, "except": ["Grand Finale"], "note": "the endless part after stage 3 (0.6.0)" },
+    { "en": "stage boss", "zh": "阶段首领", "anyCase": true },
+    { "en": "Ready check", "zh": "就位确认", "anyCase": true },
+    { "en": "Foresight", "zh": "预知" },
+    { "en": "level", "zh": "级别", "check": false, "note": "a difficulty level: Mythic 5 is 史诗5级 (LEVEL_NAME is {1}{2}级); the character level stays 等级" },
+    { "en": "party", "zh": "队伍", "check": false, "note": "co-op group" },
+    { "en": "host", "zh": "房主", "check": false, "note": "the player who created the co-op lobby" },
+    { "en": "lobby", "zh": "房间", "check": false },
+    { "en": "revive", "zh": "复活", "check": false },
+    { "en": "downed", "zh": "倒地", "check": false, "note": "co-op: down but not dead; bled out = 流血过多倒下" },
+    { "en": "Ironman", "zh": "铁人", "check": false, "note": "铁人角色 / 铁人模式" }
   ]
 }
