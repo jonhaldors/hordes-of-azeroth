@@ -20,6 +20,8 @@ RealmWizard.xml
 CreditsFrame.xml
 BonkAccount.lua
 BonkStats.lua
+BonkGlueLocale.lua
+BonkGlueLocaleZhCN.lua
 BonkGlue.xml
 BonkCoop.xml
 BonkGluePad.xml

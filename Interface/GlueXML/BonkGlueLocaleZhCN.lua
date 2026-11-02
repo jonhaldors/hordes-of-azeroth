@@ -1,0 +1,2 @@
+BonkGlueLocale.Register("zhCN", {
+})
