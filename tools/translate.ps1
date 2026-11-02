@@ -107,7 +107,7 @@ function Write-TextFile([string]$Path, [string]$Text) {
 
 function Get-LocaleTables {
     if ($null -eq $script:LocaleTables) {
-        $found = Select-String -Path (Join-Path $Migrations '*.sql') -Pattern 'CREATE TABLE IF NOT EXISTS `\w+_locale`' -List
+        $found = Select-String -Path (Join-Path $Migrations '*.sql') -Pattern '(CREATE|DROP) TABLE IF EXISTS `\w+_locale`|CREATE TABLE IF NOT EXISTS `\w+_locale`' -List
         $script:LocaleTables = ($found | Sort-Object Path | ForEach-Object { [System.IO.File]::ReadAllText($_.Path) }) -join "`n"
     }
     $script:LocaleTables

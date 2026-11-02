@@ -192,7 +192,11 @@
     function readColumnSizes(migrationTexts) {
         const sizes = new Map();
         for (const text of migrationTexts) {
-            for (const m of text.matchAll(/CREATE TABLE IF NOT EXISTS `(\w+_locale)` \(([\s\S]*?)\n\)/g)) {
+            for (const m of text.matchAll(/CREATE TABLE IF NOT EXISTS `(\w+_locale)` \(([\s\S]*?)\n\)|DROP TABLE IF EXISTS `(\w+_locale)`/g)) {
+                if (m[3]) {
+                    for (const key of [...sizes.keys()]) if (key.startsWith(`${m[3]}.`)) sizes.delete(key);
+                    continue;
+                }
                 for (const c of m[2].matchAll(/`(\w+)`\s+(VARCHAR\((\d+)\)|TEXT)/g)) {
                     if (c[1] === 'locale') continue;
                     sizes.set(`${m[1]}.${c[1]}`, c[3] ? Number(c[3]) : 65535);
