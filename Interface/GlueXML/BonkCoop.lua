@@ -1,3 +1,5 @@
+local L = BonkGlueL;
+
 BONK_COOP_ROWS = 14;
 BONK_COOP_MEMBERS = 4;
 BONK_COOP_DIFFICULTIES = { "Normal", "Heroic", "Mythic" };
@@ -5,6 +7,114 @@ BONK_COOP_LIST_EVERY = 3;
 BONK_COOP_POLL_EVERY = 1;
 BONK_COOP_MYTHIC_START = 9;
 BONK_COOP_MODES = { "Levels", "Dungeon", "Invasion" };
+BONK_COOP_WORDS = {
+	["Normal"] = L["Normal"], ["Heroic"] = L["Heroic"], ["Mythic"] = L["Mythic"],
+	["Levels"] = L["Levels"], ["Dungeon"] = L["Dungeon"], ["Invasion"] = L["Invasion"],
+};
+BONK_COOP_PLACES = {
+	["Westfall"] = L["Westfall"], ["Molten Core"] = L["Molten Core"], ["The Barrens"] = L["The Barrens"],
+	["Duskwood"] = L["Duskwood"], ["Zul'Gurub"] = L["Zul'Gurub"], ["Ruins of Ahn'Qiraj"] = L["Ruins of Ahn'Qiraj"],
+	["Tanaris"] = L["Tanaris"], ["Un'Goro Crater"] = L["Un'Goro Crater"], ["Stranglethorn Vale"] = L["Stranglethorn Vale"],
+	["Desolace"] = L["Desolace"], ["Badlands"] = L["Badlands"], ["Arathi Highlands"] = L["Arathi Highlands"],
+	["Swamp of Sorrows"] = L["Swamp of Sorrows"], ["Burning Steppes"] = L["Burning Steppes"],
+	["Eastern Plaguelands"] = L["Eastern Plaguelands"], ["Western Plaguelands"] = L["Western Plaguelands"],
+	["Feralas"] = L["Feralas"], ["Searing Gorge"] = L["Searing Gorge"], ["Felwood"] = L["Felwood"], ["Dun Morogh"] = L["Dun Morogh"],
+};
+BONK_COOP_NOTES = {
+	["The launcher isn't running."] = L["The launcher isn't running."],
+	["The launcher didn't answer."] = L["The launcher didn't answer."],
+	["The launcher sent a broken answer."] = L["The launcher sent a broken answer."],
+	["Unknown call."] = L["Unknown call."],
+	["Invalid request."] = L["Invalid request."],
+	["Unknown request."] = L["Unknown request."],
+	["Not found."] = L["Not found."],
+	["Co-op isn't available in this build."] = L["Co-op isn't available in this build."],
+	["Can't connect to the co-op service. Try again later."] = L["Can't connect to the co-op service. Try again later."],
+	["The co-op service sent an invalid response."] = L["The co-op service sent an invalid response."],
+	["The co-op service refused the request."] = L["The co-op service refused the request."],
+	["Hosting only works on a regular account. This account is a game master account."] = L["Hosting only works on a regular account. This account is a game master account."],
+	["Joining a co-op game only works on a regular account. This account is a game master account."] = L["Joining a co-op game only works on a regular account. This account is a game master account."],
+	["Too many requests."] = L["Too many requests."],
+	["Too many requests. Try again in a minute."] = L["Too many requests. Try again in a minute."],
+	["Too many requests. Try again in a few minutes."] = L["Too many requests. Try again in a few minutes."],
+	["Too many lobbies created. Try again in a few minutes."] = L["Too many lobbies created. Try again in a few minutes."],
+	["You're already hosting a game."] = L["You're already hosting a game."],
+	["No game found with that code."] = L["No game found with that code."],
+	["That game has ended."] = L["That game has ended."],
+	["Version mismatch: that game runs a different version of Hordes of Azeroth."] = L["Version mismatch: that game runs a different version of Hordes of Azeroth."],
+	["Incorrect password."] = L["Incorrect password."],
+	["Game is full."] = L["Game is full."],
+	["Every open slot has a pending join request. Try again shortly."] = L["Every open slot has a pending join request. Try again shortly."],
+	["Party already has that class."] = L["Party already has that class."],
+	["You already have a pending join request."] = L["You already have a pending join request."],
+	["Join request expired."] = L["Join request expired."],
+	["The host didn't respond."] = L["The host didn't respond."],
+	["The host closed the lobby."] = L["The host closed the lobby."],
+	["The host couldn't take your character."] = L["The host couldn't take your character."],
+	["Lost connection to the host. Your progress up to the last few seconds is saved."] = L["Lost connection to the host. Your progress up to the last few seconds is saved."],
+	["You were removed from the party."] = L["You were removed from the party."],
+	["That join has ended."] = L["That join has ended."],
+	["Other players can't connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games."] = L["Other players can't connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games."],
+	["Your lobby expired. Host again to list it."] = L["Your lobby expired. Host again to list it."],
+	["The transfer was too large."] = L["The transfer was too large."],
+	["The connection closed during the transfer."] = L["The connection closed during the transfer."],
+	["The game server didn't answer. Is it running?"] = L["The game server didn't answer. Is it running?"],
+	["The joining player's account couldn't be created."] = L["The joining player's account couldn't be created."],
+	["broken ledger"] = L["broken ledger"],
+	["Ironman characters play solo only."] = L["Ironman characters play solo only."],
+	["The account progress couldn't be loaded."] = L["The account progress couldn't be loaded."],
+	["That character is online."] = L["That character is online."],
+	["That character belongs to another account."] = L["That character belongs to another account."],
+	["The old copy of the character couldn't be removed."] = L["The old copy of the character couldn't be removed."],
+};
+BONK_COOP_TEXTS = {
+	{ "BonkCoopSoloButton", L["Solo"] },
+	{ "BonkCoopCoopButton", L["Co-op"] },
+	{ "BonkCoopFindButton", L["Browse Games"] },
+	{ "BonkCoopHostButton", L["Host Game"] },
+	{ "BonkCoopStatusButton", L["Close Lobby"] },
+	{ "BonkCoopBrowserTitle", L["Co-op Games"] },
+	{ "BonkCoopHeadGame", L["lobby::Game"] },
+	{ "BonkCoopHeadClasses", L["Classes"] },
+	{ "BonkCoopHeadDifficulty", L["Difficulty"] },
+	{ "BonkCoopHeadPlayers", L["Players"] },
+	{ "BonkCoopDetailGroup", L["Party"] },
+	{ "BonkCoopFilterButton", L["Filters"] },
+	{ "BonkCoopHideFullText", L["Hide full games"] },
+	{ "BonkCoopHideLockedText", L["Hide passworded games"] },
+	{ "BonkCoopHideUnfitText", L["Hide games I can't join"] },
+	{ "BonkCoopCodeButton", L["Join with Code"] },
+	{ "BonkCoopRefreshButton", L["Refresh"] },
+	{ "BonkCoopAskButton", L["Join"] },
+	{ "BonkCoopCloseButton", L["Close"] },
+	{ "BonkCoopHostTitle", L["Host Game"] },
+	{ "BonkCoopNameLabel", L["Game Name"] },
+	{ "BonkCoopPrivacyLabel", L["Privacy"] },
+	{ "BonkCoopDifficultyLabel", L["Difficulty"] },
+	{ "BonkCoopPauseLabel", L["Pause"] },
+	{ "BonkCoopXpLabel", L["XP"] },
+	{ "BonkCoopModeLabel", L["Mode"] },
+	{ "BonkCoopPlayersLabel", L["Players"] },
+	{ "BonkCoopAutoNote", L["Players who join can see your IP address."] },
+	{ "BonkCoopWhoOpenText", L["Public"] },
+	{ "BonkCoopWhoPasswordText", L["Password protected"] },
+	{ "BonkCoopWhoCodeText", L["Hidden, join with code"] },
+	{ "BonkCoopFloorEditLevel", L["difficulty level::level"] },
+	{ "BonkCoopAutoCheckText", L["Auto-accept join requests"] },
+	{ "BonkCoopSameClassCheckText", L["Allow duplicate classes"] },
+	{ "BonkCoopNewCheckText", L["Only allow Mastery"] },
+	{ "BonkCoopMasteryEditSuffix", L["after the number::or lower"] },
+	{ "BonkCoopMinCheckText", L["Requests need Mythic"] },
+	{ "BonkCoopMinEditSuffix", L["after the number::cleared"] },
+	{ "BonkCoopHostGoButton", L["verb::Host"] },
+	{ "BonkCoopHostCancelButton", L["Cancel"] },
+	{ "BonkCoopRequest1Accept", L["Accept"] },
+	{ "BonkCoopRequest1Decline", L["Decline"] },
+	{ "BonkCoopRequest2Accept", L["Accept"] },
+	{ "BonkCoopRequest2Decline", L["Decline"] },
+	{ "BonkCoopRequest3Accept", L["Accept"] },
+	{ "BonkCoopRequest3Decline", L["Decline"] },
+};
 BONK_COOP_AWAY_WAIT = 30;
 BONK_COOP_RECONNECT_DELAY = 1;
 BONK_COOP_REJOIN_TRIES = 2;
@@ -61,9 +171,107 @@ function BonkCoop_Split(text, separator)
 	end
 end
 
+function BonkCoop_ApplyLanguage()
+	for _, entry in BONK_COOP_TEXTS do
+		getglobal(entry[1]):SetText(entry[2]);
+	end
+end
+
+function BonkCoop_Word(word)
+	return BONK_COOP_WORDS[word] or word;
+end
+
+function BonkCoop_Words(words)
+	local labels = {};
+	for index = 1, table.getn(words) do
+		labels[index] = BonkCoop_Word(words[index]);
+	end
+	return labels;
+end
+
+function BonkCoop_LevelPart(part)
+	local _, _, kind, number = string.find(part, "^(%a+) (%d+)$");
+	number = number and tonumber(number);
+	if ( kind == "Normal" and number and number >= 1 and number <= 4 ) then
+		return BonkLevelName(number);
+	elseif ( kind == "Heroic" and number and number >= 1 and number <= 5 ) then
+		return BonkLevelName(number + 4);
+	elseif ( kind == "Mythic" and number and number >= 1 ) then
+		return BonkLevelName(number + BONK_COOP_MYTHIC_START);
+	end
+	return BONK_COOP_WORDS[part] or BONK_COOP_PLACES[part] or part;
+end
+
+function BonkCoop_Level(text)
+	if ( not text or text == "" ) then
+		return text;
+	end
+	local result = "";
+	local start = 1;
+	while ( true ) do
+		local found, last = string.find(text, " · ", start, 1);
+		result = result..BonkCoop_LevelPart(string.sub(text, start, found and found - 1 or -1));
+		if ( not found ) then
+			return result;
+		end
+		result = result.." · ";
+		start = last + 1;
+	end
+end
+
+function BonkCoop_AddTag(tags, tag)
+	return tags.." · "..tag;
+end
+
+function BonkCoop_Note(text)
+	if ( type(text) ~= "string" ) then
+		return text;
+	end
+	if ( BONK_COOP_NOTES[text] ) then
+		return BONK_COOP_NOTES[text];
+	end
+	local _, _, value = string.find(text, "^Requires Mythic (%d+) cleared%.$");
+	if ( value ) then
+		return L("Requires Mythic {1} cleared.", value);
+	end
+	_, _, value = string.find(text, "^Requires Mastery (%d+) or lower%.$");
+	if ( value ) then
+		return L("Requires Mastery {1} or lower.", value);
+	end
+	_, _, value = string.find(text, "^The host declined your request%. You can ask again in (%d+) seconds%.$");
+	if ( value ) then
+		return L("The host declined your request. You can ask again in {1} seconds.", value);
+	end
+	_, _, value = string.find(text, "^Port (%d+) is already in use, so you can't host%.$");
+	if ( value ) then
+		return L("Port {1} is already in use, so you can't host.", value);
+	end
+	_, _, value = string.find(text, "^There is no account called (.*)%.$");
+	if ( value ) then
+		return L("There is no account called {1}.", value);
+	end
+	_, _, value = string.find(text, "^There is no character called (.*)%.$");
+	if ( value ) then
+		return L("There is no character called {1}.", value);
+	end
+	_, _, value = string.find(text, "^No free name for (.*)%.$");
+	if ( value ) then
+		return L("No free name for {1}.", value);
+	end
+	_, _, value = string.find(text, "^The character couldn't be loaded %((%d+)%)%.$");
+	if ( value ) then
+		return L("The character couldn't be loaded ({1}).", value);
+	end
+	_, _, value = string.find(text, "^Database error: (.*)$");
+	if ( value ) then
+		return L("Database error: {1}", value);
+	end
+	return text;
+end
+
 function BonkCoop_Call(method, path, fields)
 	if ( not HoaCoop_Call ) then
-		return nil, "This client doesn't support co-op.";
+		return nil, L["This client doesn't support co-op."];
 	end
 	return BonkCoop_ParseAnswer(HoaCoop_Call(method, path, fields and BonkCoop_Form(fields) or ""));
 end
@@ -83,7 +291,7 @@ end
 
 function BonkCoop_CallLater(method, path, fields, key, done)
 	if ( not HoaCoop_Start ) then
-		done(nil, "This client doesn't support co-op.");
+		done(nil, L["This client doesn't support co-op."]);
 		return;
 	end
 	if ( BonkCoop.calls[key] ) then
@@ -114,7 +322,7 @@ end
 function BonkCoop_ClassName(token)
 	for _, class in BONK_CLASSES do
 		if ( class.token == strupper(token or "") ) then
-			return class.name;
+			return class.display;
 		end
 	end
 	return token or "";
@@ -137,7 +345,7 @@ function BonkCoop_Hero()
 		return nil;
 	end
 	local stats = BONK_STATS and BONK_STATS.heroes and BONK_STATS.heroes[hero.name] or {};
-	return { name = hero.name, class = class.token, className = class.name, race = hero.race, mastery = stats.mastery or 0, best = stats.bestLevel or 0, ironman = stats.ironman };
+	return { name = hero.name, class = class.token, className = class.display, race = hero.race, mastery = stats.mastery or 0, best = stats.bestLevel or 0, ironman = stats.ironman };
 end
 
 function BonkCoop_IsJoined()
@@ -181,8 +389,8 @@ function BonkCoop_Apply()
 		BonkCoopBar:Hide();
 		BonkHeroPlayButton:Show();
 		BonkHeroWipeButton:Hide();
-		BonkCoopStatusText:SetText("You're in a co-op party.");
-		BonkCoopStatusButton:SetText("Leave Party");
+		BonkCoopStatusText:SetText(L["You're in a co-op party."]);
+		BonkCoopStatusButton:SetText(L["Leave Party"]);
 		BonkCoopStatus:Show();
 		return;
 	end
@@ -190,7 +398,7 @@ function BonkCoop_Apply()
 		BonkCoopBar:Hide();
 		BonkHeroPlayButton:Show();
 		BonkCoopStatusText:SetText(BonkCoop_HostLine());
-		BonkCoopStatusButton:SetText("Close Lobby");
+		BonkCoopStatusButton:SetText(L["Close Lobby"]);
 		BonkCoopStatus:Show();
 		return;
 	end
@@ -200,15 +408,15 @@ function BonkCoop_Apply()
 		BonkHeroPlayButton:Hide();
 		BonkCoopBar:Show();
 		if ( hero and hero.ironman ) then
-			BonkCoopBarText:SetText("Ironman characters can't play co-op.");
+			BonkCoopBarText:SetText(L["Ironman characters can't play co-op."]);
 			BonkCoopFindButton:Disable();
 			BonkCoopHostButton:Disable();
 		elseif ( hero ) then
-			BonkCoopBarText:SetText("Joins as "..hero.name);
+			BonkCoopBarText:SetText(L("Joins as {1}", hero.name));
 			BonkCoopFindButton:Enable();
 			BonkCoopHostButton:Enable();
 		else
-			BonkCoopBarText:SetText("Create a "..BONK_CLASSES[Bonk.classIndex].name.." first.");
+			BonkCoopBarText:SetText(L("Create a {1} first.", BONK_CLASSES[Bonk.classIndex].display));
 			BonkCoopFindButton:Disable();
 			BonkCoopHostButton:Disable();
 		end
@@ -221,9 +429,9 @@ end
 function BonkCoop_HostLine()
 	local host = BonkCoop.host;
 	if ( host.state == "starting" ) then
-		return "Opening lobby...";
+		return L["Opening lobby..."];
 	end
-	return format("Lobby \"%s\" · %d/%s players · Code: %s", host.name or "", table.getn(host.members or {}), host.max or "4", host.code or "");
+	return L("Lobby \"{1}\" · {2}/{3} players · Code: {4}", host.name or "", table.getn(host.members or {}), host.max or "4", host.code or "");
 end
 
 local OriginalUpdateControls = BonkHero_UpdateControls;
@@ -320,7 +528,7 @@ function BonkCoop_UpdateFilterButton()
 			active = active + 1;
 		end
 	end
-	BonkCoopFilterButton:SetText(active > 0 and format("Filters (%d)", active) or "Filters");
+	BonkCoopFilterButton:SetText(active > 0 and L("Filters ({1})", active) or L["Filters"]);
 end
 
 function BonkCoop_UpdateList()
@@ -340,7 +548,7 @@ function BonkCoop_UpdateList()
 		if ( lobby ) then
 			local name = row:GetName();
 			getglobal(name.."Name"):SetText(lobby.name);
-			getglobal(name.."Difficulty"):SetText(lobby.playing ~= "" and lobby.playing or lobby.difficulty);
+			getglobal(name.."Difficulty"):SetText(BonkCoop_Level(lobby.playing ~= "" and lobby.playing or lobby.difficulty));
 			getglobal(name.."Players"):SetText(lobby.players.."/"..lobby.max);
 			if ( lobby.locked ) then
 				getglobal(name.."Lock"):Show();
@@ -361,15 +569,15 @@ function BonkCoop_UpdateList()
 		end
 	end
 	if ( BonkCoop.listError ) then
-		BonkCoopListNote:SetText("|cffff4040"..BonkCoop.listError.."|r");
+		BonkCoopListNote:SetText("|cffff4040"..BonkCoop_Note(BonkCoop.listError).."|r");
 	elseif ( BonkCoop.loading and count == 0 ) then
-		BonkCoopListNote:SetText("Searching for games...");
+		BonkCoopListNote:SetText(L["Searching for games..."]);
 	elseif ( count == 0 and table.getn(BonkCoop.lobbies) > 0 ) then
-		BonkCoopListNote:SetText(format("No games match your filters (%d hidden).", table.getn(BonkCoop.lobbies)));
+		BonkCoopListNote:SetText(L("No games match your filters ({1} hidden).", table.getn(BonkCoop.lobbies)));
 	elseif ( count == 0 ) then
-		BonkCoopListNote:SetText("No games found. Host your own, or join a friend with their code.");
+		BonkCoopListNote:SetText(L["No games found. Host your own, or join a friend with their code."]);
 	else
-		BonkCoopListNote:SetText(format("Games: %d (%d hidden by filters)", count, table.getn(BonkCoop.lobbies) - count));
+		BonkCoopListNote:SetText(L("Games: {1} ({2} hidden by filters)", count, table.getn(BonkCoop.lobbies) - count));
 	end
 	BonkCoop_UpdateDetails();
 end
@@ -396,33 +604,33 @@ end
 
 function BonkCoop_Fit(lobby, hero)
 	if ( not hero ) then
-		return nil, "Select a character first.";
+		return nil, L["Select a character first."];
 	end
 	if ( hero.ironman ) then
-		return nil, "Ironman characters can't play co-op.";
+		return nil, L["Ironman characters can't play co-op."];
 	end
 	if ( lobby.players >= lobby.max ) then
-		return nil, "Game is full.";
+		return nil, L["Game is full."];
 	end
 	for _, class in lobby.classes do
 		if ( strupper(class) == hero.class and not lobby.sameClass ) then
-			return nil, "Party already has a "..hero.className..".";
+			return nil, L("Party already has a {1}.", hero.className);
 		end
 	end
 	if ( lobby.minMythic > 0 and hero.best < BONK_COOP_MYTHIC_START + lobby.minMythic ) then
-		return nil, format("Requires Mythic %d cleared.", lobby.minMythic);
+		return nil, L("Requires Mythic {1} cleared.", lobby.minMythic);
 	end
 	if ( lobby.masteryLimit > 0 and hero.mastery > lobby.masteryLimit ) then
-		return nil, format("Requires Mastery %d or lower.", lobby.masteryLimit);
+		return nil, L("Requires Mastery {1} or lower.", lobby.masteryLimit);
 	end
-	return 1, format("You'll join as %s (Mastery %d %s).", hero.name, hero.mastery, hero.className);
+	return 1, L("You'll join as {1} (Mastery {2} {3}).", hero.name, hero.mastery, hero.className);
 end
 
 function BonkCoop_UpdateDetails()
 	local lobby = BonkCoop_Selected();
 	if ( not lobby ) then
 		BonkCoopDetailName:SetText("");
-		BonkCoopDetailSub:SetText("Select a game to see the party.");
+		BonkCoopDetailSub:SetText(L["Select a game to see the party."]);
 		BonkCoopDetailTags:SetText("");
 		BonkCoopDetailGroup:Hide();
 		BonkCoopDetailFit:SetText("");
@@ -433,19 +641,20 @@ function BonkCoop_UpdateDetails()
 		return;
 	end
 	BonkCoopDetailName:SetText(lobby.name);
-	BonkCoopDetailSub:SetText("Host: "..lobby.host.." · "..(lobby.locked and "Password" or "Public"));
-	local tags = lobby.difficulty;
+	BonkCoopDetailSub:SetText(L("Host: {1} · {2}", lobby.host, lobby.locked and L["lobby::Password"] or L["Public"]));
+	local tags = BonkCoop_Level(lobby.difficulty);
 	if ( lobby.masteryLimit > 0 ) then
-		tags = tags.." · Mastery "..lobby.masteryLimit.." or lower only";
+		tags = BonkCoop_AddTag(tags, L("Mastery {1} or lower only", lobby.masteryLimit));
 	end
 	if ( lobby.minMythic > 0 ) then
-		tags = tags.." · Mythic "..lobby.minMythic.." cleared required";
+		tags = BonkCoop_AddTag(tags, L("Mythic {1} cleared required", lobby.minMythic));
 	end
 	if ( lobby.sameClass ) then
-		tags = tags.." · Duplicate classes allowed";
+		tags = BonkCoop_AddTag(tags, L["Duplicate classes allowed"]);
 	end
 	if ( lobby.playing ~= "" ) then
-		tags = tags.."\nPlaying now: "..lobby.playing;
+		local playing = L("Playing now: {1}", BonkCoop_Level(lobby.playing));
+		tags = tags.."\n"..playing;
 	end
 	tags = tags.."\n"..BonkCoop_SettingsText(lobby.pause, lobby.xp);
 	BonkCoopDetailTags:SetText(tags);
@@ -459,12 +668,12 @@ function BonkCoop_UpdateDetails()
 				getglobal(name.."Icon"):SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes");
 				BonkCoop_SetClassIcon(getglobal(name.."Icon"), member.class);
 				getglobal(name.."Name"):SetText(member.name);
-				getglobal(name.."Sub"):SetText(format("Mastery %d %s", member.mastery, BonkCoop_ClassName(member.class)));
+				getglobal(name.."Sub"):SetText(L("Mastery {1} {2}", member.mastery, BonkCoop_ClassName(member.class)));
 			else
 				getglobal(name.."Icon"):SetTexture(1, 1, 1, 0.08);
 				getglobal(name.."Icon"):SetTexCoord(0, 1, 0, 1);
 				getglobal(name.."Icon"):Show();
-				getglobal(name.."Name"):SetText("|cff808080Empty slot|r");
+				getglobal(name.."Name"):SetText(L["|cff808080Empty slot|r"]);
 				getglobal(name.."Sub"):SetText("");
 			end
 			frame:Show();
@@ -488,14 +697,14 @@ function BonkCoop_AskSelected()
 		return;
 	end
 	if ( lobby.locked ) then
-		BonkCoop_ShowPopup("password", "Enter password for \""..lobby.name.."\".", nil, "Join", "Cancel", { lobby = lobby });
+		BonkCoop_ShowPopup("password", L("Enter password for \"{1}\".", lobby.name), nil, L["Join"], L["Cancel"], { lobby = lobby });
 		return;
 	end
 	BonkCoop_Ask({ id = lobby.id }, lobby.host);
 end
 
 function BonkCoop_ShowCodeDialog()
-	BonkCoop_ShowPopup("code", "Enter your friend's game code.", nil, "Join", "Cancel", {});
+	BonkCoop_ShowPopup("code", L["Enter your friend's game code."], nil, L["Join"], L["Cancel"], {});
 end
 
 function BonkCoop_Ask(target, hostName)
@@ -504,7 +713,7 @@ function BonkCoop_Ask(target, hostName)
 		return;
 	end
 	if ( hero.ironman ) then
-		BonkCoop_ShowMessage("Ironman characters can't play co-op.");
+		BonkCoop_ShowMessage(L["Ironman characters can't play co-op."]);
 		return;
 	end
 	target.name = hero.name;
@@ -529,24 +738,24 @@ function BonkCoop_ReadJoin(lines)
 		local joining = BonkCoop.joining or { started = GetTime() };
 		BonkCoop.joining = joining;
 		joining.seconds = tonumber(fields[4]) or 30;
-		local who = joining.host and ("|cffffd100"..joining.host.."|r") or "the host";
-		BonkCoop_ShowPopup("waiting", "Waiting on "..who.." to accept...", "\""..(fields[3] or "").."\"", nil, "Cancel", nil);
+		local who = joining.host and ("|cffffd100"..joining.host.."|r") or L["the host"];
+		BonkCoop_ShowPopup("waiting", L("Waiting on {1} to accept...", who), "\""..(fields[3] or "").."\"", nil, L["Cancel"], nil);
 	elseif ( state == "transferring" ) then
 		local hero = BonkCoop_Hero();
-		BonkCoop_ShowPopup("message", "The host accepted. Joining with "..(hero and hero.name or "your character").."...", nil, nil, nil, nil);
+		BonkCoop_ShowPopup("message", L("The host accepted. Joining with {1}...", hero and hero.name or L["your character"]), nil, nil, nil, nil);
 	elseif ( state == "accepted" ) then
 		BonkCoop.joining = nil;
-		BonkCoop_ShowPopup("message", "Connecting to host...", nil, nil, nil, nil);
+		BonkCoop_ShowPopup("message", L["Connecting to host..."], nil, nil, nil, nil);
 		BonkCoop_Switch(fields[3], fields[4], fields[5], fields[6], fields[7]);
 	elseif ( state == "declined" ) then
 		BonkCoop.joining = nil;
 		local reason = fields[3];
-		BonkCoop_ShowMessage((reason and reason ~= "") and reason or "The host declined your join request.");
+		BonkCoop_ShowMessage((reason and reason ~= "") and reason or L["The host declined your join request."]);
 	elseif ( state == "joined" ) then
 		BonkCoop.joining = nil;
 	elseif ( state == "error" or state == "ended" ) then
 		BonkCoop.joining = nil;
-		BonkCoop_ShowMessage(fields[3] or "Join request cancelled.");
+		BonkCoop_ShowMessage(fields[3] or L["Join request cancelled."]);
 	end
 end
 
@@ -595,23 +804,23 @@ function BonkCoop_LostHost()
 	local lines = BonkCoop_Call("POST", "/join/rejoin?who="..BonkCoop_Encode(BonkCoop_Who()));
 	local tries = tonumber(lines and lines[1] and lines[1][3]) or BONK_COOP_REJOIN_TRIES + 1;
 	if ( tries > BONK_COOP_REJOIN_TRIES ) then
-		BonkLoginStatus:SetText("Can't reach the host. Returning to your own game...");
+		BonkLoginStatus:SetText(L["Can't reach the host. Returning to your own game..."]);
 		BonkCoop_Leave();
 		return;
 	end
-	BonkLoginStatus:SetText("Connection to host lost. Reconnecting...");
+	BonkLoginStatus:SetText(L["Connection to host lost. Reconnecting..."]);
 	BonkCoop_Reconnect();
 end
 
 function BonkCoop_RefusalNote(shown)
 	if ( shown == CHAR_LOGIN_DISABLED ) then
-		return "You were removed from the party.";
+		return L["You were removed from the party."];
 	elseif ( shown == CHAR_LOGIN_DUPLICATE_CHARACTER ) then
-		return "Your party already has this class. Join with a character of another class.";
+		return L["Your party already has this class. Join with a character of another class."];
 	elseif ( shown == CHAR_LOGIN_NO_INSTANCES ) then
-		return "That party is full.";
+		return L["That party is full."];
 	elseif ( shown == CHAR_LOGIN_FAILED ) then
-		return "Couldn't join the host's game.";
+		return L["Couldn't join the host's game."];
 	end
 	return nil;
 end
@@ -624,7 +833,7 @@ end
 
 function BonkCoop_Leave()
 	BonkCoop.leaving = 1;
-	BonkCoop_ShowPopup("message", "Leaving party...", nil, nil, nil, nil);
+	BonkCoop_ShowPopup("message", L["Leaving party..."], nil, nil, nil, nil);
 	BonkCoop_ReadLeave(BonkCoop_Call("POST", "/join/leave?who="..BonkCoop_Encode(BonkCoop_Who())));
 end
 
@@ -642,7 +851,7 @@ function BonkCoop_ReadLeave(lines)
 end
 
 function BonkCoop_ShowMessage(text)
-	BonkCoop_ShowPopup("message", text, nil, "Okay", nil, nil);
+	BonkCoop_ShowPopup("message", BonkCoop_Note(text), nil, L["Okay"], nil, nil);
 end
 
 function BonkCoop_ShowPopup(kind, text, sub, first, second, data)
@@ -729,7 +938,7 @@ function BonkCoop_OpenHostForm()
 		return;
 	end
 	BonkCoopBrowser:Hide();
-	BonkCoopNameEdit:SetText(hero.name.."'s Game");
+	BonkCoopNameEdit:SetText(L("{1}'s Game", hero.name));
 	BonkCoopPasswordEdit:SetText("");
 	BonkCoopFloorEdit:SetText("1");
 	BonkCoopMasteryEdit:SetText("10");
@@ -791,7 +1000,7 @@ function BonkCoop_PickChoice(index)
 end
 
 function BonkCoop_ChooseDifficulty(anchor)
-	BonkCoop_ShowChoices(anchor, BONK_COOP_DIFFICULTIES, BonkCoop.difficulty, function(index) BonkCoop.difficulty = index; end);
+	BonkCoop_ShowChoices(anchor, BonkCoop_Words(BONK_COOP_DIFFICULTIES), BonkCoop.difficulty, function(index) BonkCoop.difficulty = index; end);
 end
 
 function BonkCoop_ChoosePlayers(anchor)
@@ -799,27 +1008,27 @@ function BonkCoop_ChoosePlayers(anchor)
 end
 
 function BonkCoop_ChoosePause(anchor)
-	BonkCoop_ShowChoices(anchor, { "Party", "Off" }, BonkCoop.pause == 1 and 1 or 2, function(index) BonkCoop.pause = index == 1 and 1 or 0; end);
+	BonkCoop_ShowChoices(anchor, { L["pause::Party"], L["Off"] }, BonkCoop.pause == 1 and 1 or 2, function(index) BonkCoop.pause = index == 1 and 1 or 0; end);
 end
 
 function BonkCoop_ChooseXp(anchor)
-	BonkCoop_ShowChoices(anchor, { "Shared", "Individual" }, BonkCoop.xp == 1 and 1 or 2, function(index) BonkCoop.xp = index == 1 and 1 or 0; end);
+	BonkCoop_ShowChoices(anchor, { L["Shared"], L["Individual"] }, BonkCoop.xp == 1 and 1 or 2, function(index) BonkCoop.xp = index == 1 and 1 or 0; end);
 end
 
 function BonkCoop_ChooseMode(anchor)
-	BonkCoop_ShowChoices(anchor, BONK_COOP_MODES, BonkCoop.runMode, function(index) BonkCoop.runMode = index; end);
+	BonkCoop_ShowChoices(anchor, BonkCoop_Words(BONK_COOP_MODES), BonkCoop.runMode, function(index) BonkCoop.runMode = index; end);
 end
 
 function BonkCoop_SettingsText(pause, xp)
-	return "Pause: "..(pause and "Party" or "Off").." · XP: "..(xp and "Shared" or "Individual");
+	return L("Pause: {1} · XP: {2}", pause and L["pause::Party"] or L["Off"], xp and L["Shared"] or L["Individual"]);
 end
 
 function BonkCoop_UpdateHostForm()
-	BonkCoopDifficultyButton:SetText(BONK_COOP_DIFFICULTIES[BonkCoop.difficulty]);
+	BonkCoopDifficultyButton:SetText(BonkCoop_Word(BONK_COOP_DIFFICULTIES[BonkCoop.difficulty]));
 	BonkCoopPlayersButton:SetText(BonkCoop.players);
-	BonkCoopPauseButton:SetText(BonkCoop.pause == 1 and "Party" or "Off");
-	BonkCoopXpButton:SetText(BonkCoop.xp == 1 and "Shared" or "Individual");
-	BonkCoopModeButton:SetText(BONK_COOP_MODES[BonkCoop.runMode]);
+	BonkCoopPauseButton:SetText(BonkCoop.pause == 1 and L["pause::Party"] or L["Off"]);
+	BonkCoopXpButton:SetText(BonkCoop.xp == 1 and L["Shared"] or L["Individual"]);
+	BonkCoopModeButton:SetText(BonkCoop_Word(BONK_COOP_MODES[BonkCoop.runMode]));
 	if ( BONK_COOP_DIFFICULTIES[BonkCoop.difficulty] == "Mythic" ) then
 		BonkCoopFloorEdit:Show();
 	else
@@ -923,9 +1132,9 @@ end
 function BonkCoop_FillRequest(frame, request)
 	local name = frame:GetName();
 	frame.request = request;
-	local race = BONK_RACE_NAMES[strupper(request.race or "")] or "";
-	getglobal(name.."Text"):SetText("|cffffd100"..request.name.."|r wants to join.");
-	getglobal(name.."Sub"):SetText(format("Mastery %d %s %s · Best: %s", request.mastery, race, BonkCoop_ClassName(request.class), BonkLevelName(request.best)));
+	local race = BONK_RACE_DISPLAY_NAMES[strupper(request.race or "")] or "";
+	getglobal(name.."Text"):SetText(L("{1} wants to join.", "|cffffd100"..request.name.."|r"));
+	getglobal(name.."Sub"):SetText(L("Mastery {1} {2} {3} · Best: {4}", request.mastery, race, BonkCoop_ClassName(request.class), BonkLevelName(request.best)));
 	getglobal(name.."Bar"):SetValue(request.seconds / 30);
 	frame:Show();
 end
@@ -1037,7 +1246,7 @@ end
 function BonkCoop_ReadHome(lines)
 	local fields = lines and lines[1] or {};
 	if ( (fields[2] == "joined" or fields[2] == "accepted") and fields[3] and fields[3] ~= "" ) then
-		BonkCoop_ShowPopup("rejoin", "You're still in a co-op party.", "Reconnect, or leave the party. Your progress there is already saved.", "Reconnect", "Leave Party", fields);
+		BonkCoop_ShowPopup("rejoin", L["You're still in a co-op party."], L["Reconnect, or leave the party. Your progress there is already saved."], L["Reconnect"], L["Leave Party"], fields);
 	elseif ( fields[2] == "joined" or fields[2] == "accepted" ) then
 		BonkCoop_Leave();
 	end

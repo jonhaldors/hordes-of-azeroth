@@ -10,7 +10,11 @@ Each language has a folder here named after its locale (`zhCN`, `deDE`, ...):
 
 The addon's translations live with the addon, in
 `Interface/AddOns/HordesOfAzeroth/VanillaBonkLocale<Locale>.lua`, for example
-`VanillaBonkLocaleZhCN.lua`.
+`VanillaBonkLocaleZhCN.lua`. The character screen and the co-op lobby, which
+run before the addon loads, have a table of their own in
+`Interface/GlueXML/BonkGlueLocale<Locale>.lua`. The tool lists both under
+**Addon and glue**; a text used in both places is translated once and written
+to both files.
 
 ## Translating
 
@@ -22,8 +26,8 @@ This opens the translation tool in the browser. It lists every text with its
 English beside it, the translation to edit, the state of each one (missing,
 English changed, has problems, translated) and checks for placeholders like
 `{1}` and `%s`, colour codes, line breaks, column sizes and the glossary.
-**Save** (Ctrl+S) writes `server.json`, the addon file and, for a new
-language, its line in the addon's `.toc`.
+**Save** (Ctrl+S) writes `server.json`, the addon file, the glue file and, for
+a new language, their lines in the two `.toc` files.
 
 A few addon texts start with a note that ends in `::`, as in
 `armor slot::Chest`. The note tells apart texts that are the same in English
