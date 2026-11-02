@@ -796,7 +796,7 @@ namespace HordesOfAzeroth.Launcher
                 }
                 else if (!await OpenTunnelAsync(join, details))
                 {
-                    FailJoin(join, "Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi, and try again.");
+                    FailJoin(join, "Couldn't connect to the host. Their router doesn't accept direct connections, and the backup connection between your two networks failed too. The host can forward TCP port 3725, you can host the game yourself if your port is forwarded, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi.");
                     return;
                 }
                 await BringCharacterAsync(join);

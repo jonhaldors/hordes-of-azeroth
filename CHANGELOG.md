@@ -2,6 +2,11 @@
 
 ## 0.6.2
 
+### Hotfix 2
+- The portal after the final stage now offers "Finish the run" first and "Continue in endless mode" second. Continuing asks you to confirm first: endless mode gives no extra rewards, and enemies and bosses spawn faster and faster until you die.
+- Fixed: Gear bought from Durgan Ironbelly and the gear new characters start with could be marked as legacy, which kept your runs off the leaderboard. Pieces that are already marked stay legacy; replace them.
+- Co-op: when you can't reach a host, the message now says the problem is the host's router, and that you can host the game yourself if your port is forwarded.
+
 ### Hotfix 1
 - Fixed: The game stopped with "SetText(): Font not set" on clients without the game's standard font files.
 

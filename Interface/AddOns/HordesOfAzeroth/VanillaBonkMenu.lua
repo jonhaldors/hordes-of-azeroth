@@ -380,10 +380,16 @@ confirm.no = UI.Button(confirm.box, 120, L["Cancel"], function()
     end
 end)
 
-local function SetConfirm(question, text, command)
+local CONFIRM_MIN_HEIGHT = 130
+local CONFIRM_FRAME_HEIGHT = 100
+
+local function SetConfirm(question, text, command, yesLabel, noLabel)
     confirm.question:SetText(question)
     confirm.text:SetText(text)
     confirm.command = command
+    confirm.yes:SetText(yesLabel or L["|cffff5a4aEnd Run|r"])
+    confirm.no:SetText(noLabel or L["Cancel"])
+    confirm.box:SetHeight(math.max(CONFIRM_MIN_HEIGHT, confirm.text:GetHeight() + CONFIRM_FRAME_HEIGHT))
 end
 
 local function SetEndRunConfirm()
@@ -588,7 +594,15 @@ handlers["portalhome"] = function(f)
     if f[2] == "1" then
         text = L["This ends your run. Your Extraction Vault is empty, so everything you found will be sold for gold."]
     end
-    SetConfirm(L["Return to the Inn?"], text, "home")
+    SetConfirm(f[3] == "1" and L["Finish the run?"] or L["Return to the Inn?"], text, "home")
+    confirm:Show()
+end
+
+handlers["portalendless"] = function()
+    Open()
+    SetConfirm(L["Continue in endless mode?"],
+        L["This endless mode gives no extra rewards, a proper endless mode is coming later. Enemies and bosses keep coming, and they spawn faster and faster until you fall. Your time and score are saved as your best finale."],
+        "endless", L["Continue"], L["Back"])
     confirm:Show()
 end
 
