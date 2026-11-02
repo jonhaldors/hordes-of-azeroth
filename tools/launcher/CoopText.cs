@@ -16,10 +16,12 @@ namespace HordesOfAzeroth.Launcher
             "Database error: {0}",
             "Other players can't reach you on TCP port {0}. Forward that port on your router to this PC and allow the launcher through Windows Firewall, then host again. If your internet provider shares your address, hosting won't work. You can still join other games.",
             "Only players on your own network can join. To let others join, forward TCP port {0} on your router to this PC, or enter a public address when you host.",
+            "Only players on your VPN can join. To let others join, forward TCP port {0} on your router to this PC.",
+            "Other players can't reach {0}:{1}. Check that it forwards TCP to port {2} on this PC.",
         };
 
         static readonly Regex[] Patterns = Array.ConvertAll(Templates, template =>
-            new Regex("^" + Regex.Escape(template).Replace("\\{0}", "(.+?)") + "$", RegexOptions.Singleline));
+            new Regex("^" + Regex.Replace(Regex.Escape(template), @"\\\{\d+\}", "(.+?)") + "$", RegexOptions.Singleline));
 
         public static string Localize(string message)
         {
@@ -32,7 +34,12 @@ namespace HordesOfAzeroth.Launcher
             {
                 Match match = Patterns[i].Match(message);
                 if (match.Success)
-                    return string.Format(CultureInfo.InvariantCulture, Loc.T(Templates[i]), Loc.T(match.Groups[1].Value));
+                {
+                    object[] values = new object[match.Groups.Count - 1];
+                    for (int g = 1; g < match.Groups.Count; g++)
+                        values[g - 1] = Loc.T(match.Groups[g].Value);
+                    return string.Format(CultureInfo.InvariantCulture, Loc.T(Templates[i]), values);
+                }
             }
             return message;
         }

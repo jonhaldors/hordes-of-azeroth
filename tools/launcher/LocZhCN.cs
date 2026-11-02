@@ -294,6 +294,15 @@ namespace HordesOfAzeroth.Launcher
             ["Joining a co-op game"] = "加入联机游戏",
             ["Hosting"] = "创建房间",
             ["Database error: {0}"] = "数据库错误：{0}",
+            ["Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi, and try again."] = "无法连接到房主：你们双方的路由器都阻止了直接连接。房主可以转发 TCP 端口 3725，或者你们都加入同一个 VPN（例如 Radmin VPN、ZeroTier 或 Hamachi）后再试。",
+            ["Couldn't connect to the host: they can only be reached over their VPN. Join the same VPN network as the host, such as Radmin VPN, ZeroTier or Hamachi, and try again."] = "无法连接到房主：只能通过其 VPN 访问到房主。请加入与房主相同的 VPN 网络（例如 Radmin VPN、ZeroTier 或 Hamachi）后再试。",
+            ["Other players can't reach you on TCP port {0}. Forward that port on your router to this PC and allow the launcher through Windows Firewall, then host again. If your internet provider shares your address, hosting won't work. You can still join other games."] = "其他玩家无法通过 TCP 端口 {0} 连接到你。请在路由器上把该端口转发到这台电脑，并允许启动器通过 Windows 防火墙，然后重新创建房间。如果你的网络运营商与他人共用地址，则无法创建房间，但你仍然可以加入其他人的房间。",
+            ["Only players on your own network can join. To let others join, forward TCP port {0} on your router to this PC, or enter a public address when you host."] = "只有与你处于同一网络的玩家可以加入。要让其他人加入，请在路由器上把 TCP 端口 {0} 转发到这台电脑，或者在创建房间时填写公网地址。",
+            ["Only players on your VPN can join. To let others join, forward TCP port {0} on your router to this PC."] = "只有你的 VPN 内的玩家可以加入。要让其他人加入，请在路由器上把 TCP 端口 {0} 转发到这台电脑。",
+            ["Other players can't reach {0}:{1}. Check that it forwards TCP to port {2} on this PC."] = "其他玩家无法连接到 {0}:{1}。请检查它是否把 TCP 转发到了这台电脑的 {2} 端口。",
+            ["That game only takes players on the host's network."] = "该房间只接受与房主处于同一网络的玩家。",
+            ["That public address can't be found."] = "找不到该公网地址。",
+            ["That public address isn't valid. Enter it as address:port, for example example.com:3725."] = "该公网地址无效。请按“地址:端口”的格式填写，例如 example.com:3725。",
         };
     }
 }
