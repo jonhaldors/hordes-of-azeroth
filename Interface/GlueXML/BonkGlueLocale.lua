@@ -1,13 +1,14 @@
-RegisterCVar("hoaLanguage", "enUS");
-
 BonkGlueLocale = { tables = {} };
 
 local function SavedLanguage()
-	local language = GetCVar("hoaLanguage");
-	if ( not language or language == "" ) then
-		return "enUS";
+	if ( HOA_LANGUAGE and HOA_LANGUAGE ~= "" ) then
+		return HOA_LANGUAGE;
 	end
-	return language;
+	local found, language = pcall(GetCVar, "hoaLanguage");
+	if ( found and language and language ~= "" ) then
+		return language;
+	end
+	return "enUS";
 end
 
 BonkGlueLocale.language = SavedLanguage();

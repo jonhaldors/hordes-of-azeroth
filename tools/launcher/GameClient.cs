@@ -42,6 +42,7 @@ namespace HordesOfAzeroth.Launcher
             {
                 $"BONK_ACCOUNT = {LuaString(account.Login)};",
                 $"BONK_PASSWORD = {LuaString(account.Password)};",
+                $"HOA_LANGUAGE = {LuaString(GameConfig.ReadLanguage(m_folder))};",
             }, new UTF8Encoding(false));
             string stats = Path.Combine(m_folder.GlueXml, "BonkStats.lua");
             if (!File.Exists(stats))
