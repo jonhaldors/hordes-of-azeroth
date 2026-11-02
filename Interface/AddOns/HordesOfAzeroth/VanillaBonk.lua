@@ -1,7 +1,7 @@
 local L = VanillaBonkL
 local PREFIX = "BONK~"
 local ICON_PATH = "Interface\\Icons\\"
-local FONT = "Fonts\\FRIZQT__.TTF"
+local FONT = VanillaBonkUI.FONT
 
 local VB = {
     tiers = {},
@@ -131,7 +131,7 @@ offerFrame.chrome = CreateFrame("Frame", nil, offerFrame)
 offerFrame.chrome:SetAllPoints(offerFrame)
 
 offerFrame.title = offerFrame.chrome:CreateFontString(nil, "OVERLAY")
-offerFrame.title:SetFont("Fonts\\MORPHEUS.TTF", 46, "OUTLINE")
+offerFrame.title:SetFont(VanillaBonkUI.TITLE_FONT, 46, "OUTLINE")
 offerFrame.title:SetPoint("CENTER", offerFrame, "CENTER", 0, 230)
 offerFrame.title:SetTextColor(1, 0.82, 0)
 

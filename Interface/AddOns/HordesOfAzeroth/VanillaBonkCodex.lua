@@ -1,8 +1,8 @@
 local L = VanillaBonkL
 local PREFIX = "BONK~"
 local FLAT = "Interface\\Buttons\\WHITE8X8"
-local FONT = "Fonts\\FRIZQT__.TTF"
-local NUMBER_FONT = "Fonts\\ARIALN.TTF"
+local FONT = VanillaBonkUI.FONT
+local NUMBER_FONT = VanillaBonkUI.NUMBER_FONT
 local ICON_PATH = "Interface\\Icons\\"
 local CLASS_ICONS = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
 

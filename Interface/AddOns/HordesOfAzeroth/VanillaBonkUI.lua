@@ -10,9 +10,32 @@ function SendChatMessage(text, kind, language, target)
     return SendChatWhileAlive(text, kind, language, target)
 end
 
-UI.FONT = "Fonts\\FRIZQT__.TTF"
-UI.NUMBER_FONT = "Fonts\\ARIALN.TTF"
-UI.TITLE_FONT = "Fonts\\MORPHEUS.TTF"
+local function ClientHasFont(path)
+    local probe = UIParent:CreateFontString(nil, "BACKGROUND")
+    local loaded = probe:SetFont(path, 12)
+    probe:Hide()
+    return loaded
+end
+
+local function FontOfObject(object)
+    if object and object.GetFont then
+        return (object:GetFont())
+    end
+end
+
+local function UsableFont(path)
+    local candidates = { path, "Fonts\\FRIZQT__.TTF", STANDARD_TEXT_FONT, FontOfObject(GameFontNormal), FontOfObject(ChatFontNormal) }
+    for i = 1, 5 do
+        local candidate = candidates[i]
+        if candidate and ClientHasFont(candidate) then
+            return candidate
+        end
+    end
+end
+
+UI.FONT = UsableFont("Fonts\\FRIZQT__.TTF")
+UI.NUMBER_FONT = UsableFont("Fonts\\ARIALN.TTF")
+UI.TITLE_FONT = UsableFont("Fonts\\MORPHEUS.TTF")
 UI.FLAT = "Interface\\Buttons\\WHITE8X8"
 UI.ICON_PATH = "Interface\\Icons\\"
 
@@ -185,9 +208,19 @@ function UI.Split(text, separator)
     end
 end
 
+function UI.SetFont(text, font, size, flags)
+    if font and text:SetFont(font, size, flags or "") then
+        return
+    end
+    if UI.FONT and text:SetFont(UI.FONT, size, flags or "") then
+        return
+    end
+    text:SetFontObject(GameFontNormal)
+end
+
 function UI.Text(parent, size, font, flags, layer)
     local text = parent:CreateFontString(nil, layer or "OVERLAY")
-    text:SetFont(font or UI.FONT, size, flags or "")
+    UI.SetFont(text, font or UI.FONT, size, flags)
     if not flags or flags == "" then
         text:SetShadowColor(0, 0, 0, 1)
         text:SetShadowOffset(1, -1)

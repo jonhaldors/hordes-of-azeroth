@@ -2,6 +2,9 @@
 
 ## 0.6.2
 
+### Hotfix 1
+- Fixed: The game stopped with "SetText(): Font not set" on clients without the game's standard font files.
+
 ### Classes
 - When a burning, bleeding or poisoned enemy dies, the damage its stacks had left bursts onto up to 4 enemies within 8 yards, half on each.
 - New passives: Pyromaniac (+10% Burning damage) and Serrated Blades (+10% Bleed damage), offered to classes with Burning or Bleed spells.
