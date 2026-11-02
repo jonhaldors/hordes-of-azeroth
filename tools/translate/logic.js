@@ -87,7 +87,7 @@
             if (where.length < 5) where.push(`${file}:${line}`);
         };
         for (const file of Object.keys(files).sort()) {
-            if (/^VanillaBonkLocale[A-Z][a-z][A-Z]{2}\.lua$/.test(file)) continue;
+            if (/^(?:VanillaBonkLocale|BonkGlueLocale)[A-Z][a-z][A-Z]{2}\.lua$/.test(file)) continue;
             const text = files[file];
             for (const m of text.matchAll(/L\["((?:[^"\\]|\\.)*)"\]/g)) add(m[1], file, text, m.index);
             for (const m of text.matchAll(/VanillaBonkLocale\.Text\(\s*[A-Za-z_.]+,\s*"((?:[^"\\]|\\.)*)"\)/g)) add(m[1], file, text, m.index);
@@ -104,27 +104,27 @@
 
     function parseLocaleTable(text) {
         const entries = new Map();
-        const locale = (text.match(/VanillaBonkLocale\.Register\(\s*"(\w+)"/) || [])[1] || '';
+        const locale = (text.match(/(?:VanillaBonkLocale|BonkGlueLocale)\.Register\(\s*"(\w+)"/) || [])[1] || '';
         for (const m of text.matchAll(/^\s*\["((?:[^"\\]|\\.)*)"\]\s*=\s*"((?:[^"\\]|\\.)*)",?\s*$/gm)) entries.set(m[1], unescapeLua(m[2]));
         return { locale, entries };
     }
 
-    function writeLocaleTable(locale, entries, eol) {
+    function writeLocaleTable(locale, entries, eol, prefix) {
         const keys = [...entries.keys()].sort();
         const lines = keys.map(key => `    ["${key}"] = "${escapeLua(entries.get(key))}",`);
-        return [`VanillaBonkLocale.Register("${locale}", {`, ...lines, '})', ''].join(eol || '\n');
+        return [`${prefix || 'VanillaBonkLocale'}.Register("${locale}", {`, ...lines, '})', ''].join(eol || '\n');
     }
 
-    function localeFile(locale) {
-        return `VanillaBonkLocale${locale.charAt(0).toUpperCase()}${locale.slice(1)}.lua`;
+    function localeFile(locale, prefix) {
+        return `${prefix || 'VanillaBonkLocale'}${locale.charAt(0).toUpperCase()}${locale.slice(1)}.lua`;
     }
 
-    function ensureTocLine(tocText, locale) {
-        const file = localeFile(locale);
+    function ensureTocLine(tocText, locale, prefix) {
+        const file = localeFile(locale, prefix);
         const eol = tocText.includes('\r\n') ? '\r\n' : '\n';
         const lines = tocText.split(/\r?\n/);
         if (lines.includes(file)) return tocText;
-        const at = lines.indexOf('VanillaBonkLocale.lua');
+        const at = lines.indexOf(`${prefix || 'VanillaBonkLocale'}.lua`);
         if (at < 0) return tocText;
         lines.splice(at + 1, 0, file);
         return lines.join(eol);
@@ -262,19 +262,32 @@
 
         const addonEntries = [];
         const usedKeys = new Set();
-        for (const [key, info] of input.addonKeys) {
+        const glueTable = input.glueTable || new Map();
+        const allKeys = new Map();
+        for (const [key, info] of input.addonKeys) allKeys.set(key, { english: info.english, where: [...info.where], inAddon: true, inGlue: false });
+        for (const [key, info] of input.glueKeys || []) {
+            const known = allKeys.get(key);
+            if (known) {
+                known.inGlue = true;
+                known.where.push(...info.where);
+            } else allKeys.set(key, { english: info.english, where: [...info.where], inAddon: false, inGlue: true });
+        }
+        for (const [key, info] of allKeys) {
             usedKeys.add(key);
             addonEntries.push({
-                uid: `a${key}`, section: 'addon', english: info.english, translation: input.localeTable.get(key) ?? '', basis: '',
-                context: { key, where: info.where }, members: [], key,
+                uid: `a${key}`, section: 'addon', english: info.english, translation: input.localeTable.get(key) ?? glueTable.get(key) ?? '', basis: '',
+                context: { key, where: info.where.slice(0, 6) }, members: [], key, inAddon: info.inAddon, inGlue: info.inGlue,
             });
         }
-        for (const [key, value] of input.localeTable) {
-            if (usedKeys.has(key)) continue;
-            addonEntries.push({
-                uid: `a${key}`, section: 'addon', english: unescapeLua(key), translation: value, basis: '', unused: true,
-                context: { key, where: [] }, members: [], key,
-            });
+        for (const [table, inAddon] of [[input.localeTable, true], [glueTable, false]]) {
+            for (const [key, value] of table) {
+                if (usedKeys.has(key)) continue;
+                usedKeys.add(key);
+                addonEntries.push({
+                    uid: `a${key}`, section: 'addon', english: unescapeLua(key), translation: value, basis: '', unused: true,
+                    context: { key, where: [] }, members: [], key, inAddon, inGlue: !inAddon,
+                });
+            }
         }
         const entries = [...stringEntries, ...fieldEntries, ...addonEntries];
         for (const entry of entries) entry.original = entry.translation;
@@ -308,7 +321,13 @@
 
     function addonTable(entries) {
         const table = new Map();
-        for (const e of entries) if (e.section === 'addon' && e.translation && !e.removed) table.set(e.key, e.translation);
+        for (const e of entries) if (e.section === 'addon' && e.inAddon !== false && e.translation && !e.removed) table.set(e.key, e.translation);
+        return table;
+    }
+
+    function glueTable(entries) {
+        const table = new Map();
+        for (const e of entries) if (e.section === 'addon' && e.inGlue && e.translation && !e.removed) table.set(e.key, e.translation);
         return table;
     }
 
@@ -539,7 +558,7 @@
 
     const Logic = {
         LOCALE_INDEX, crc32, localeFile, unescapeC, unescapeLua, escapeLua, readStrings, collectAddonKeys, parseLocaleTable, writeLocaleTable,
-        ensureTocLine, parseServerJson, writeServerJson, readColumnSizes, buildModel, applyTranslation, keepTranslation, addonTable,
+        ensureTocLine, parseServerJson, writeServerJson, readColumnSizes, buildModel, applyTranslation, keepTranslation, addonTable, glueTable,
         checkEntry, glossaryPattern, statusOf, mergeExport, buildSql, migrationId, wrapMigration, suggestions, buildMemory, wordDiff, fieldId, keyColumns,
     };
     if (typeof module !== 'undefined' && module.exports) module.exports = Logic;
