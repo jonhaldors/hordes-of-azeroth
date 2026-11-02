@@ -387,7 +387,7 @@ BonkGlueLocale.Register("zhCN", {
     ["Players who join can see your IP address."] = "加入的玩家可以看到你的IP地址。",
     ["Playing now: {1}"] = "正在进行：{1}",
     ["Poison on every hit, then Envenom the most poisoned enemy."] = "每次命中都会施毒，再用毒伤对付中毒最深的敌人。",
-    ["Poison stings, and traps that burn or slow whatever walks in."] = "毒性钉刺，以及灼烧或减速一切闯入者的陷阱。",
+    ["Poison stings, and traps that burn or slow whatever walks in."] = "钉刺会使敌人中毒，陷阱则灼烧或减速一切闯入者。",
     ["Poisons the nearest enemies"] = "使最近的敌人中毒",
     ["Port {1} is already in use, so you can't host."] = "端口{1}已被占用，因此你无法创建房间。",
     ["Power Word: Shield"] = "真言术：盾",
