@@ -446,14 +446,20 @@ do
 		end
 		local skull = CreateFrame("Frame", nil, frame);
 		skull:SetFrameLevel(frame:GetFrameLevel() + 4);
-		skull:SetAllPoints(portrait);
+		skull:SetWidth(20);
+		skull:SetHeight(20);
+		local health = getglobal("PartyMemberFrame"..index.."HealthBar");
+		if ( health ) then
+			skull:SetPoint("LEFT", health, "RIGHT", 1, -4);
+		else
+			skull:SetAllPoints(portrait);
+		end
 		skull.icon = skull:CreateTexture(nil, "OVERLAY");
 		skull.icon:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull");
-		skull.icon:SetWidth(22);
-		skull.icon:SetHeight(22);
-		skull.icon:SetPoint("CENTER", skull, "CENTER", 0, 5);
-		skull.seconds = skull:CreateFontString(nil, "OVERLAY", "GameFontHighlight");
-		skull.seconds:SetPoint("TOP", skull.icon, "BOTTOM", 0, 2);
+		skull.icon:SetAllPoints(skull);
+		skull.seconds = skull:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
+		skull.seconds:SetTextColor(1, 0.3, 0.25);
+		skull.seconds:SetPoint("LEFT", skull, "RIGHT", 3, 0);
 		skull:Hide();
 		partySkulls[index] = skull;
 		return skull;

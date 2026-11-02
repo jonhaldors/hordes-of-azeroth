@@ -95,7 +95,8 @@ BONK_COOP_TEXTS = {
 	{ "BonkCoopXpLabel", L["XP"] },
 	{ "BonkCoopModeLabel", L["Mode"] },
 	{ "BonkCoopPlayersLabel", L["Players"] },
-	{ "BonkCoopAutoNote", L["Players who join can see your IP address."] },
+	{ "BonkCoopAddressLabel", L["Public Address (optional)"] },
+	{ "BonkCoopAddressNote", L["For ZeroTier, Tailscale, a tunnel or a forward to another port. Leave empty otherwise. Games on ZeroTier or Tailscale addresses are invite-code only."] },
 	{ "BonkCoopWhoOpenText", L["Public"] },
 	{ "BonkCoopWhoPasswordText", L["Password protected"] },
 	{ "BonkCoopWhoCodeText", L["Hidden, join with code"] },
@@ -472,7 +473,7 @@ function BonkCoop_ShowLobbies(lines, problem)
 				difficulty = fields[7], players = tonumber(fields[8]) or 1, max = tonumber(fields[9]) or 4,
 				locked = fields[10] == "1", masteryLimit = tonumber(fields[11]) or 0, members = BonkCoop_ParseMembers(fields[12]),
 				sameClass = fields[13] == "1", minMythic = tonumber(fields[14]) or 0,
-				pause = fields[15] ~= "0", xp = fields[16] ~= "0", playing = fields[17] or "",
+				pause = fields[15] ~= "0", xp = fields[16] ~= "0", playing = fields[17] or "", lan = fields[18] == "1",
 			});
 		elseif ( fields[1] == "error" ) then
 			BonkCoop.listError = fields[2];
@@ -548,6 +549,7 @@ function BonkCoop_UpdateList()
 		if ( lobby ) then
 			local name = row:GetName();
 			getglobal(name.."Name"):SetText(lobby.name);
+			BonkCoop_PlaceLanBadge(name, lobby.lan);
 			getglobal(name.."Difficulty"):SetText(BonkCoop_Level(lobby.playing ~= "" and lobby.playing or lobby.difficulty));
 			getglobal(name.."Players"):SetText(lobby.players.."/"..lobby.max);
 			if ( lobby.locked ) then
@@ -580,6 +582,19 @@ function BonkCoop_UpdateList()
 		BonkCoopListNote:SetText(L("Games: {1} ({2} hidden by filters)", count, table.getn(BonkCoop.lobbies) - count));
 	end
 	BonkCoop_UpdateDetails();
+end
+
+function BonkCoop_PlaceLanBadge(rowName, lan)
+	local badge = getglobal(rowName.."Lan");
+	if ( not lan ) then
+		badge:Hide();
+		return;
+	end
+	local label = getglobal(rowName.."Name");
+	badge:SetText(L["lobby badge::LAN"]);
+	badge:ClearAllPoints();
+	badge:SetPoint("LEFT", label, "LEFT", math.min(label:GetStringWidth(), 196) + 6, 0);
+	badge:Show();
 end
 
 function BonkCoop_Scroll(delta)
@@ -641,7 +656,11 @@ function BonkCoop_UpdateDetails()
 		return;
 	end
 	BonkCoopDetailName:SetText(lobby.name);
-	BonkCoopDetailSub:SetText(L("Host: {1} · {2}", lobby.host, lobby.locked and L["lobby::Password"] or L["Public"]));
+	local access = lobby.locked and L["lobby::Password"] or L["Public"];
+	if ( lobby.lan ) then
+		access = L("{1} · Your network only", access);
+	end
+	BonkCoopDetailSub:SetText(L("Host: {1} · {2}", lobby.host, access));
 	local tags = BonkCoop_Level(lobby.difficulty);
 	if ( lobby.masteryLimit > 0 ) then
 		tags = BonkCoop_AddTag(tags, L("Mastery {1} or lower only", lobby.masteryLimit));
@@ -1068,6 +1087,7 @@ function BonkCoop_Host()
 		name = BonkCoopNameEdit:GetText(), password = password, listed = BonkCoop.who == 3 and "0" or "1",
 		difficulty = difficulty, max = BonkCoop.players, mastery_limit = limit, auto = BonkCoopAutoCheck:GetChecked() and "1" or "0", same_class = BonkCoopSameClassCheck:GetChecked() and "1" or "0", min_mythic = minMythic, pause = BonkCoop.pause, xp = BonkCoop.xp,
 		host_name = hero.name, host_class = strlower(hero.class), mastery = hero.mastery, account = BonkCoop_OwnAccount(),
+		address = BonkCoopAddressEdit:GetText() or "",
 	});
 	BonkCoopHostForm:Hide();
 	if ( not lines ) then
@@ -1099,6 +1119,9 @@ function BonkCoop_ReadHost(lines)
 		BonkCoop.host = nil;
 	else
 		BonkCoop.host = host;
+	end
+	if ( host.state == "hosting" and before ~= "hosting" and host.message and host.message ~= "" ) then
+		BonkCoop_ShowMessage(host.message);
 	end
 	if ( host.state == "error" and before ~= "error" ) then
 		BonkCoop_ShowMessage(host.message);

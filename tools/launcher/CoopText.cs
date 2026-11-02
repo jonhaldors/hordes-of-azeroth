@@ -14,6 +14,8 @@ namespace HordesOfAzeroth.Launcher
             "Requires Mastery {0} or lower.",
             "{0} only works on a regular account. This account is a game master account.",
             "Database error: {0}",
+            "Other players can't reach you on TCP port {0}. Forward that port on your router to this PC and allow the launcher through Windows Firewall, then host again. If your internet provider shares your address, hosting won't work. You can still join other games.",
+            "Only players on your own network can join. To let others join, forward TCP port {0} on your router to this PC, or enter a public address when you host.",
         };
 
         static readonly Regex[] Patterns = Array.ConvertAll(Templates, template =>

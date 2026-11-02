@@ -28,18 +28,38 @@ namespace HordesOfAzeroth.Launcher
 
         public static void ShowFile(string file)
         {
-            if (IsWindows)
-                Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + file + "\"") { UseShellExecute = true });
-            else
+            if (!IsWindows)
+            {
+                Open(Path.GetDirectoryName(file));
+                return;
+            }
+            if (!TryStart(new ProcessStartInfo("explorer.exe", "/select,\"" + file + "\"") { UseShellExecute = true }))
                 Open(Path.GetDirectoryName(file));
         }
 
         static void Open(string target)
         {
-            if (IsWindows)
-                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-            else
-                Process.Start(new ProcessStartInfo("xdg-open") { ArgumentList = { target }, UseShellExecute = false });
+            if (!IsWindows)
+            {
+                TryStart(new ProcessStartInfo("xdg-open") { ArgumentList = { target }, UseShellExecute = false });
+                return;
+            }
+            if (!TryStart(new ProcessStartInfo(target) { UseShellExecute = true }))
+                TryStart(new ProcessStartInfo("explorer.exe") { ArgumentList = { target }, UseShellExecute = false });
+        }
+
+        static bool TryStart(ProcessStartInfo info)
+        {
+            try
+            {
+                Process.Start(info)?.Dispose();
+                return true;
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is PlatformNotSupportedException)
+            {
+                Console.Error.WriteLine($"Couldn't open {info.FileName} {info.Arguments}: {error.Message}");
+                return false;
+            }
         }
 
         public static void MarkExecutableIfProgram(string file)

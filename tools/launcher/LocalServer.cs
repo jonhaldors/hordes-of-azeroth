@@ -33,6 +33,7 @@ namespace HordesOfAzeroth.Launcher
         Process m_world;
         Process m_login;
         Process m_database;
+        Task m_stopping;
         int m_databasePort;
 
         public LocalServer(GameFolder folder)
@@ -155,7 +156,14 @@ namespace HordesOfAzeroth.Launcher
             return false;
         }
 
-        public async Task StopAsync()
+        public Task StopAsync()
+        {
+            if (m_stopping == null || m_stopping.IsCompleted)
+                m_stopping = StopNowAsync();
+            return m_stopping;
+        }
+
+        async Task StopNowAsync()
         {
             if (m_world != null && !m_world.HasExited)
             {
@@ -165,7 +173,7 @@ namespace HordesOfAzeroth.Launcher
                     m_world.StandardInput.Flush();
                     m_world.StandardInput.Close();
                 }
-                catch (IOException)
+                catch (Exception error) when (error is IOException || error is ObjectDisposedException || error is InvalidOperationException)
                 {
                 }
                 await WaitForExitAsync(m_world, TimeSpan.FromSeconds(30));
@@ -492,6 +500,8 @@ namespace HordesOfAzeroth.Launcher
 
         static async Task WaitForExitAsync(Process process, TimeSpan timeout)
         {
+            if (process == null)
+                return;
             Stopwatch clock = Stopwatch.StartNew();
             while (!process.HasExited && clock.Elapsed < timeout)
                 await Task.Delay(250);

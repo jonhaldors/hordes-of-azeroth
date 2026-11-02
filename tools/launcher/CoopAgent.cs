@@ -24,6 +24,7 @@ namespace HordesOfAzeroth.Launcher
         static readonly TimeSpan ListMaxAge = TimeSpan.FromSeconds(3);
         static readonly TimeSpan LobbyTimeout = TimeSpan.FromSeconds(8);
         static readonly string LobbyUrl = ResolveLobbyUrl();
+        static readonly HttpClient LobbyClient = CreateLobbyClient();
 
         readonly GameFolder m_folder;
         readonly CoopAccounts m_accounts;
@@ -58,6 +59,7 @@ namespace HordesOfAzeroth.Launcher
             public string Mastery;
             public string Best;
             public string Seconds;
+            public string Punch;
         }
 
         sealed class HostState
@@ -71,6 +73,8 @@ namespace HordesOfAzeroth.Launcher
             public Dictionary<string, string> Settings;
             public CoopGate Gate;
             public CoopPorts Ports;
+            public CoopPunch Punch;
+            public string Mode = "";
             public List<Member> Members = new List<Member>();
             public List<Request> Requests = new List<Request>();
             public HashSet<string> Answered = new HashSet<string>();
@@ -97,6 +101,16 @@ namespace HordesOfAzeroth.Launcher
             public string LedgerProblem;
             public int RejoinTries;
             public bool Removed;
+            public CoopPunch Punch;
+            public CoopTunnel Tunnel;
+
+            public void EndNetwork()
+            {
+                Tunnel?.Dispose();
+                Punch?.Dispose();
+                Tunnel = null;
+                Punch = null;
+            }
         }
 
         public CoopAgent(GameFolder folder)
@@ -324,7 +338,7 @@ namespace HordesOfAzeroth.Launcher
             HttpResponseMessage response;
             try
             {
-                response = await Web.Client.SendAsync(request, timeout.Token);
+                response = await LobbyClient.SendAsync(request, timeout.Token);
             }
             catch (Exception)
             {
@@ -345,6 +359,63 @@ namespace HordesOfAzeroth.Launcher
                 if (!response.IsSuccessStatusCode)
                     throw new LobbyRefusal((int)response.StatusCode, node?["error"]?.GetValue<string>() ?? "The co-op service refused the request.", node);
                 return node;
+            }
+        }
+
+        static HttpClient CreateLobbyClient()
+        {
+            HttpClient client = new HttpClient(new SocketsHttpHandler { ConnectCallback = ConnectPreferringIPv4Async }) { Timeout = Timeout.InfiniteTimeSpan };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("HordesOfAzerothLauncher");
+            return client;
+        }
+
+        static async ValueTask<Stream> ConnectPreferringIPv4Async(SocketsHttpConnectionContext context, CancellationToken cancel)
+        {
+            IPAddress[] addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancel);
+            Exception last = new SocketException((int)SocketError.HostNotFound);
+            foreach (IPAddress address in addresses.OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1))
+            {
+                Socket socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                try
+                {
+                    await socket.ConnectAsync(address, context.DnsEndPoint.Port, cancel);
+                    return new NetworkStream(socket, true);
+                }
+                catch (Exception error)
+                {
+                    socket.Dispose();
+                    last = error;
+                    if (cancel.IsCancellationRequested)
+                        break;
+                }
+            }
+            throw last;
+        }
+
+        async Task<CoopPunch> StartPunchAsync()
+        {
+            try
+            {
+                JsonNode answer = await LobbyAsync(HttpMethod.Get, "/punch");
+                return await CoopPunch.StartAsync(answer["address"]?.ToString());
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        static string LocalAddress()
+        {
+            try
+            {
+                using Socket probe = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                probe.Connect("1.1.1.1", 53);
+                return ((IPEndPoint)probe.LocalEndPoint).Address.ToString();
+            }
+            catch (SocketException)
+            {
+                return "";
             }
         }
 
@@ -380,7 +451,7 @@ namespace HordesOfAzeroth.Launcher
                     text.Append(Line("error", m_listError));
                 foreach (Dictionary<string, string> lobby in m_list)
                     text.Append(Line("lobby", lobby["id"], lobby["name"], lobby["host"], lobby["host_class"], lobby["classes"], lobby["difficulty"],
-                        lobby["players"], lobby["max"], lobby["locked"], lobby["mastery_limit"], lobby["members"], lobby["same_class"], lobby["min_mythic"], lobby["pause"], lobby["xp"], lobby["playing"]));
+                        lobby["players"], lobby["max"], lobby["locked"], lobby["mastery_limit"], lobby["members"], lobby["same_class"], lobby["min_mythic"], lobby["pause"], lobby["xp"], lobby["playing"], lobby["lan"]));
             }
             return text.ToString();
         }
@@ -413,6 +484,7 @@ namespace HordesOfAzeroth.Launcher
                         ["pause"] = lobby["pause"]?.GetValue<bool>() == false ? "0" : "1",
                         ["xp"] = lobby["xp"]?.GetValue<bool>() == false ? "0" : "1",
                         ["playing"] = lobby["playing"]?.ToString() ?? "",
+                        ["lan"] = lobby["lan"]?.GetValue<bool>() == true ? "1" : "0",
                     });
                 }
                 lock (m_lock)
@@ -462,6 +534,8 @@ namespace HordesOfAzeroth.Launcher
                 ["best"] = form.GetValueOrDefault("best", "0"),
                 ["version"] = Version,
             };
+            join.Punch = await StartPunchAsync();
+            body["punch"] = join.Punch?.PublicEndPoint?.ToString() ?? "";
             try
             {
                 JsonNode answer = await LobbyAsync(HttpMethod.Post, "/ask", body);
@@ -499,10 +573,18 @@ namespace HordesOfAzeroth.Launcher
                         join.User = details?["user"]?.ToString() ?? "";
                         join.Password = details?["password"]?.ToString() ?? "";
                         join.State = "transferring";
+                        if (!await OpenTunnelAsync(join, details))
+                        {
+                            join.State = "error";
+                            join.Message = "Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both use ZeroTier and enter a public address.";
+                            join.EndNetwork();
+                            return;
+                        }
                         await BringCharacterAsync(join);
                     }
                     else if (state != "waiting")
                     {
+                        join.EndNetwork();
                         join.State = state == "declined" ? "declined" : "ended";
                         join.Message = state switch
                         {
@@ -524,6 +606,26 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        static async Task<bool> OpenTunnelAsync(JoinState join, JsonNode details)
+        {
+            string session = details?["session"]?.ToString() ?? "";
+            if (join.Punch == null || !CoopPunch.TryParseEndPoint(details?["punch"]?.ToString(), out IPEndPoint host) ||
+                !ulong.TryParse(session, System.Globalization.NumberStyles.HexNumber, null, out ulong id))
+            {
+                join.EndNetwork();
+                return true;
+            }
+            CoopLink link = join.Punch.Open(id, host);
+            if (await Task.WhenAny(link.Connected, Task.Delay(TimeSpan.FromSeconds(15))) != link.Connected || !link.Connected.Result)
+            {
+                link.Close();
+                return false;
+            }
+            join.Tunnel = new CoopTunnel(link);
+            join.Address = join.Tunnel.Address;
+            return true;
+        }
+
         string JoinStatus(string who)
         {
             if (!m_joins.TryGetValue(who, out JoinState join))
@@ -541,7 +643,9 @@ namespace HordesOfAzeroth.Launcher
 
         async Task<string> CancelAskAsync(string who)
         {
-            if (m_joins.TryRemove(who, out JoinState join) && join.Ask != null && join.State == "waiting")
+            if (m_joins.TryRemove(who, out JoinState join))
+                join.EndNetwork();
+            if (join != null && join.Ask != null && join.State == "waiting")
             {
                 join.State = "cancelled";
                 try
@@ -744,6 +848,7 @@ namespace HordesOfAzeroth.Launcher
                 note = "Lost connection to the host. Your progress up to the last few seconds is saved.";
             }
             m_transfer.ClearAway(join.OwnAccount);
+            join.EndNetwork();
             join.Message = join.Removed ? "You were removed from the party." : note;
             join.State = "home";
         }
@@ -797,12 +902,16 @@ namespace HordesOfAzeroth.Launcher
                 host.Ports = new CoopPorts();
                 await host.Ports.OpenAsync(port);
             }
+            host.Punch = await StartPunchAsync();
             try
             {
                 Dictionary<string, string> s = host.Settings;
                 JsonNode answer = await LobbyAsync(HttpMethod.Post, "/host", new JsonObject
                 {
                     ["port"] = port,
+                    ["address"] = s.GetValueOrDefault("address", "").Trim(),
+                    ["local"] = LocalAddress(),
+                    ["punch"] = host.Punch?.PublicEndPoint?.ToString() ?? "",
                     ["name"] = s.GetValueOrDefault("name", ""),
                     ["host_name"] = s.GetValueOrDefault("host_name", ""),
                     ["host_class"] = s.GetValueOrDefault("host_class", ""),
@@ -820,13 +929,21 @@ namespace HordesOfAzeroth.Launcher
                 host.Id = answer["id"]?.ToString();
                 host.Secret = answer["secret"]?.ToString();
                 host.Code = answer["code"]?.ToString() ?? "";
+                host.Mode = answer["mode"]?.ToString() ?? "";
+                if (host.Mode != "punch")
+                {
+                    host.Punch?.Dispose();
+                    host.Punch = null;
+                }
+                if (host.Mode == "lan")
+                    host.Message = $"Only players on your own network can join. To let others join, forward TCP port {port} on your router to this PC, or enter a public address when you host.";
                 host.State = "hosting";
                 await HeartbeatAsync(host);
                 _ = HostLoopAsync(host);
             }
             catch (LobbyRefusal refusal) when (refusal.Status == 409 && refusal.Message == "unreachable")
             {
-                Fail(host, "Other players can't connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games.");
+                Fail(host, $"Other players can't reach you on TCP port {port}. Forward that port on your router to this PC and allow the launcher through Windows Firewall, then host again. If your internet provider shares your address, hosting won't work. You can still join other games.");
             }
             catch (Exception error)
             {
@@ -839,6 +956,7 @@ namespace HordesOfAzeroth.Launcher
             host.State = "error";
             host.Message = message;
             host.Gate?.Dispose();
+            host.Punch?.Dispose();
             _ = host.Ports?.CloseAsync();
         }
 
@@ -867,6 +985,7 @@ namespace HordesOfAzeroth.Launcher
                         Mastery = r?["mastery"]?.ToString(),
                         Best = r?["best"]?.ToString(),
                         Seconds = r?["seconds"]?.ToString(),
+                        Punch = r?["punch"]?.ToString() ?? "",
                     }).Where(r => !host.Answered.Contains(r.Ask)).ToList();
                     lock (m_lock)
                         host.Requests = requests;
@@ -908,6 +1027,7 @@ namespace HordesOfAzeroth.Launcher
                 ["pause"] = settings.GetValueOrDefault("pause", "1") != "0",
                 ["xp"] = settings.GetValueOrDefault("xp", "1") != "0",
                 ["playing"] = settings.GetValueOrDefault("playing", ""),
+                ["punch"] = host.Punch?.PublicEndPoint?.ToString() ?? "",
             });
         }
 
@@ -932,6 +1052,14 @@ namespace HordesOfAzeroth.Launcher
                 body["token"] = token;
                 body["user"] = login.User;
                 body["password"] = login.Password;
+                if (host.Punch != null && CoopPunch.TryParseEndPoint(request.Punch, out IPEndPoint guest))
+                {
+                    ulong session = CoopPunch.NewSession();
+                    CoopLink link = host.Punch.Open(session, guest);
+                    int gatePort = host.Gate.Port;
+                    link.StreamOpened = id => CoopLinkStream.ToGate(link, id, gatePort);
+                    body["session"] = session.ToString("X16");
+                }
                 lock (m_lock)
                     host.Members.Add(new Member { Name = request.Name, Class = request.Class, Mastery = request.Mastery, Token = token, GuestUser = login.User });
                 m_transfer.NoteJoining(login.User, request.Name);
@@ -974,6 +1102,7 @@ namespace HordesOfAzeroth.Launcher
             m_transfer.ClearHostSettings();
             host.Stop.Cancel();
             host.Gate?.Dispose();
+            host.Punch?.Dispose();
             if (host.Ports != null)
                 await host.Ports.CloseAsync();
             if (host.Id != null)

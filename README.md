@@ -7,7 +7,7 @@
 <p align="center">
   <b>A survivors-style game mode for World of Warcraft 1.12.1.</b><br>
   An endless horde, spells that fire on their own and a choice at every level up.<br>
-  Played alone (for now), on a server that runs on your own PC.
+  Play alone or with up to 3 friends in co-op, on a server that runs on your own PC.
 </p>
 
 <p align="center">
@@ -70,13 +70,16 @@ Updates come through the launcher. When a new version is out, **Play** turns int
 ## Features
 
 - **Runs across Azeroth's zones** on Normal, Heroic and Mythic, with more zones on the way.
-- **Mythic floors**: climb 20 floors that get harder each time, then Endless for as long as you last.
+- **Mythic levels** with no cap: each level is harder than the last, with personal bests for every level.
+- **An endless finale**: after the last stage, keep fighting with the clock running for as long as you last.
 - **Challenge mode** inside raids, or **Invasions** that bring their enemies into the open world.
+- **Co-op** for up to 4 players, hosted on a player's own PC.
+- **Seasonal leaderboards** for solo and 2, 3 and 4 player runs.
 - **All nine classes**, each with their own spells and evolutions.
 - **Bosses you can outplay**: see their attacks coming and dodge them.
 - **Dash** out of danger: making you untouchable for a moment. Rebind it in Key Bindings, and upgrade its range and cooldown at the Inn.
-- **Find gear, Darkmoon Cards and Glyphs**. Tier sets and legendaries are lost on death unless you put them in the Extraction Vault.
-- **The Mythic Quartermaster** sells class tier sets that keep pace with your best floor.
+- **Find gear, Darkmoon Cards and Glyphs**. Gear grows with the run's level and comes in collectible looks, with epics styled after the classic raids.
+- **Durgan** sells and upgrades gear that keeps pace with your best clear.
 - **An Inn** with account-wide gold, upgrades, fortunes and class talent trees.
 - **Controller support** for Xbox, PlayStation and Steam Deck, switching to and from mouse and keyboard automatically.
 - **And a lot more to come.**
@@ -106,7 +109,13 @@ The launcher downloads them ready-made with the game. If the download doesn’t 
 <details>
 <summary><b>Can I play with friends?</b></summary>
 <br>
-Not yet. Each player runs their own server on their own PC. Once the game is installed, you can play without internet; the launcher just can't check for updates until you're back online.
+Yes. In co-op, up to 4 players play a run together. One player hosts from the character screen, and the others find the game in the browser or join with its code. Your own character, gold, gear and progress come along, and what you earn comes home with you.
+<br><br>
+Co-op is self-hosted: the host's PC runs the game and everyone else connects straight to it. There is no central game server. The lobby only lists games and passes on join requests, and none of your game traffic goes through it.
+<br><br>
+If other players can't reach you when you host, the launchers try to connect through your routers on their own. If that doesn't work either, players on your own network can still join, or you can forward TCP port 3725 on your router to your PC, or use ZeroTier or Tailscale and enter that address as the Public Address when you host.
+<br><br>
+Solo play needs no internet once the game is installed; the launcher just can't check for updates until you're back online.
 </details>
 
 <details>
@@ -130,7 +139,9 @@ New, unsigned programs that download files and start other programs sometimes ge
 <details>
 <summary><b>Windows Firewall asks whether to allow access.</b></summary>
 <br>
-Hordes of Azeroth runs its own small game server on your PC (a database, a login server and a world server), and the game connects to it. That connection never leaves your PC: the server only accepts connections from your own computer, so nobody on your network or the internet can reach it, and nothing about you is shared through it. You can choose either answer, and the game works the same.
+Hordes of Azeroth runs its own small game server on your PC (a database, a login server and a world server), and the game connects to it. The server itself only accepts connections from your own computer.
+<br><br>
+When you host a co-op game, the launcher opens one port (TCP 3725) so other players can join, and only players you accepted get through it. Allow access if you want to host co-op. For solo play and joining other games you can choose either answer.
 <br><br>
 The launcher goes online to check GitHub for updates and download them, the same as opening a web page.
 </details>

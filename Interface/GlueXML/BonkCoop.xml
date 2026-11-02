@@ -130,6 +130,16 @@
 						</Anchor>
 					</Anchors>
 				</FontString>
+				<FontString name="$parentLan" inherits="GlueFontNormalSmall" text="LAN" hidden="true">
+					<Anchors>
+						<Anchor point="LEFT">
+							<Offset>
+								<AbsDimension x="26" y="0"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+					<Color r="0.4" g="0.75" b="1"/>
+				</FontString>
 				<Texture name="$parentClass1" inherits="BonkCoopClassIconTemplate">
 					<Anchors>
 						<Anchor point="LEFT">
@@ -839,12 +849,12 @@
 
 	<Frame name="BonkCoopHostForm" inherits="BonkCoopPanelTemplate" parent="BonkHeroFrame" hidden="true">
 		<Size>
-			<AbsDimension x="560" y="530"/>
+			<AbsDimension x="560" y="610"/>
 		</Size>
 		<Anchors>
 			<Anchor point="CENTER">
 				<Offset>
-					<AbsDimension x="0" y="-10"/>
+					<AbsDimension x="0" y="4"/>
 				</Offset>
 			</Anchor>
 		</Anchors>
@@ -922,11 +932,23 @@
 						</Anchor>
 					</Anchors>
 				</FontString>
-				<FontString name="BonkCoopAutoNote" inherits="GlueFontDisableSmall" text="Players who join can see your IP address." justifyH="LEFT">
+				<FontString name="BonkCoopAddressLabel" inherits="GlueFontNormalSmall" text="Public Address (optional)" justifyH="LEFT">
 					<Anchors>
 						<Anchor point="TOPLEFT">
 							<Offset>
-								<AbsDimension x="56" y="-388"/>
+								<AbsDimension x="24" y="-486"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="BonkCoopAddressNote" inherits="GlueFontDisableSmall" text="For ZeroTier, Tailscale, a tunnel or a forward to another port. Leave empty otherwise. Games on ZeroTier or Tailscale addresses are invite-code only." justifyH="LEFT">
+					<Size>
+						<AbsDimension x="512" y="0"/>
+					</Size>
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset>
+								<AbsDimension x="24" y="-538"/>
 							</Offset>
 						</Anchor>
 					</Anchors>
@@ -1259,6 +1281,23 @@
 						</FontString>
 					</Layer>
 				</Layers>
+				<Scripts>
+					<OnEnterPressed>
+						this:ClearFocus();
+					</OnEnterPressed>
+				</Scripts>
+			</EditBox>
+			<EditBox name="BonkCoopAddressEdit" inherits="BonkCoopEditTemplate" letters="120">
+				<Size>
+					<AbsDimension x="320" y="30"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="20" y="-502"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
 				<Scripts>
 					<OnEnterPressed>
 						this:ClearFocus();

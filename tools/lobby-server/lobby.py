@@ -1,4 +1,5 @@
 import collections
+import ipaddress
 import json
 import os
 import secrets
@@ -11,6 +12,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT = int(os.environ.get("PORT", "8091"))
 BIND = os.environ.get("BIND", "127.0.0.1")
 TRUST_CLOUDFLARE = os.environ.get("TRUST_CLOUDFLARE", "1") == "1"
+PUNCH_HOST = os.environ.get("PUNCH_HOST", "")
+PUNCH_PORT = int(os.environ.get("PUNCH_PORT", "0"))
+PUNCH_MIN_REQUEST = 48
 MAX_BODY_BYTES = 8 * 1024
 HOST_TIMEOUT_SECONDS = 90
 ASK_SECONDS = 30
@@ -113,6 +117,45 @@ def reachable(address, port):
         return False
 
 
+def parse_address(text, default_port):
+    text = str(text or "").strip()[:120]
+    if not text:
+        return None
+    if text.startswith("["):
+        host, _, rest = text[1:].partition("]")
+        port_text = rest[1:] if rest.startswith(":") else ""
+    elif text.count(":") == 1:
+        host, _, port_text = text.partition(":")
+    else:
+        host, port_text = text, ""
+    port = whole(port_text, 1, 65535, 0) if port_text else default_port
+    if not host or not port or any(letter.isspace() for letter in host):
+        return None
+    return host, port
+
+
+def resolve(host):
+    try:
+        return {info[4][0] for info in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)}
+    except (OSError, UnicodeError):
+        return set()
+
+
+def is_public(ip):
+    try:
+        return ipaddress.ip_address(ip.split("%")[0]).is_global
+    except ValueError:
+        return False
+
+
+def local_address(text):
+    try:
+        address = ipaddress.IPv4Address(str(text or "").strip())
+    except ValueError:
+        return ""
+    return str(address) if address.is_private and not address.is_loopback else ""
+
+
 def public_view(lobby, now):
     return {
         "id": lobby["id"],
@@ -130,9 +173,39 @@ def public_view(lobby, now):
         "pause": lobby.get("pause", True),
         "xp": lobby.get("xp", True),
         "playing": lobby.get("playing", ""),
+        "lan": lobby.get("mode") == "lan",
         "members": lobby["members"],
         "age": int(now - lobby["created"]),
     }
+
+
+def punch_address(text, client):
+    target = parse_address(text, 0)
+    if not target or target[0] != client or not is_public(target[0]):
+        return ""
+    return "%s:%d" % target
+
+
+def session_id(text):
+    text = str(text or "")[:16]
+    return text if len(text) == 16 and all(letter in string.hexdigits for letter in text) else ""
+
+
+def reflect_forever():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("0.0.0.0", PUNCH_PORT))
+    while True:
+        try:
+            data, (address, port) = sock.recvfrom(256)
+            parts = data.decode("ascii", "replace").split()
+            if len(data) >= PUNCH_MIN_REQUEST and len(parts) == 3 and parts[:2] == ["HOA1", "WHOAMI"] and len(parts[2]) <= 16:
+                sock.sendto(("HOA1 YOU %s %d %s" % (address, port, parts[2])).encode(), (address, port))
+        except OSError:
+            pass
+
+
+def visible_to(lobby, client):
+    return lobby.get("mode") != "lan" or lobby["address"] == client
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -175,8 +248,10 @@ class Handler(BaseHTTPRequestHandler):
             now = time.monotonic()
             with LOBBIES.lock:
                 LOBBIES.expire()
-                shown = [public_view(lobby, now) for lobby in LOBBIES.lobbies.values() if lobby["listed"] and lobby["version"] == version]
+                shown = [public_view(lobby, now) for lobby in LOBBIES.lobbies.values() if lobby["listed"] and lobby["version"] == version and visible_to(lobby, self.client())]
             return self.send(200, {"lobbies": shown})
+        if path == "/punch":
+            return self.send(200, {"address": "%s:%d" % (PUNCH_HOST, PUNCH_PORT) if PUNCH_HOST and PUNCH_PORT else ""})
         if path == "/health":
             return self.send(200, {"ok": True})
         self.send(404, {"error": "Not found."})
@@ -206,7 +281,30 @@ class Handler(BaseHTTPRequestHandler):
         port = whole(data.get("port"), 1024, 65535, 0)
         if not port:
             return self.send(400, {"error": "Invalid request."})
-        if not reachable(client, port):
+        local = local_address(data.get("local"))
+        punch = punch_address(data.get("punch"), client)
+        listed = bool(data.get("listed", True))
+        if data.get("address"):
+            target = parse_address(data.get("address"), port)
+            if not target:
+                return self.send(400, {"error": "That public address isn't valid. Enter it as address:port, for example example.com:3725."})
+            resolved = resolve(target[0])
+            if not resolved:
+                return self.send(409, {"error": "That public address can't be found."})
+            public = any(is_public(ip) for ip in resolved)
+            if public and not reachable(target[0], target[1]):
+                return self.send(409, {"error": "Other players can't reach %s:%d. Check that it forwards TCP to port %d on this PC." % (target[0], target[1], port)})
+            join_host, join_port, mode = target[0], target[1], "address"
+            listed = listed and public
+            punch = ""
+        elif reachable(client, port):
+            join_host, join_port, mode = client, port, "direct"
+            punch = ""
+        elif punch:
+            join_host, join_port, mode = client, port, "punch"
+        elif local:
+            join_host, join_port, mode = client, port, "lan"
+        else:
             return self.send(409, {"error": "unreachable", "address": client})
         now = time.monotonic()
         host_class = clip(data.get("host_class"), "class").lower()
@@ -222,11 +320,16 @@ class Handler(BaseHTTPRequestHandler):
                 "code": LOBBIES.new_code(),
                 "address": client,
                 "port": port,
+                "join_host": join_host,
+                "join_port": join_port,
+                "local": local,
+                "mode": mode,
+                "punch": punch,
                 "name": clip(data.get("name"), "name") or "Co-op Game",
                 "host_name": clip(data.get("host_name"), "host_name"),
                 "host_class": host_class if host_class in CLASSES else "",
                 "password": clip(data.get("password"), "password"),
-                "listed": bool(data.get("listed", True)),
+                "listed": listed,
                 "difficulty": clip(data.get("difficulty"), "difficulty") or "Normal",
                 "max": whole(data.get("max"), 2, 4, 4),
                 "mastery_limit": whole(data.get("mastery_limit"), 0, 999, 0),
@@ -243,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
                 "seen": now,
             }
             LOBBIES.lobbies[lobby["id"]] = lobby
-        self.send(200, {"id": lobby["id"], "secret": lobby["secret"], "code": lobby["code"], "address": client})
+        self.send(200, {"id": lobby["id"], "secret": lobby["secret"], "code": lobby["code"], "address": client, "mode": mode, "listed": listed})
 
     def heartbeat(self, data):
         with LOBBIES.lock:
@@ -261,6 +364,8 @@ class Handler(BaseHTTPRequestHandler):
                 lobby["xp"] = bool(data.get("xp"))
             if "playing" in data:
                 lobby["playing"] = clip(data.get("playing"), "playing")
+            if lobby.get("mode") == "punch" and punch_address(data.get("punch"), self.client()):
+                lobby["punch"] = punch_address(data.get("punch"), self.client())
         self.send(200, {"ok": True})
 
     def close(self, data):
@@ -277,7 +382,7 @@ class Handler(BaseHTTPRequestHandler):
             if not lobby:
                 return self.send(404, {"error": "gone"})
             now = time.monotonic()
-            waiting = [{"ask": ask["id"], "name": ask["name"], "class": ask["class"], "race": ask["race"], "mastery": ask["mastery"],
+            waiting = [{"ask": ask["id"], "punch": ask.get("punch", ""), "name": ask["name"], "class": ask["class"], "race": ask["race"], "mastery": ask["mastery"],
                         "best": ask["best"], "seconds": max(0, int(ASK_SECONDS - (now - ask["created"])))}
                        for ask in LOBBIES.asks.values() if ask["lobby"] == lobby["id"] and ask["state"] == "waiting"]
         self.send(200, {"requests": waiting, "code": lobby["code"]})
@@ -293,7 +398,12 @@ class Handler(BaseHTTPRequestHandler):
             ask["answered"] = time.monotonic()
             if data.get("accept"):
                 ask["state"] = "accepted"
-                ask["join"] = {"address": lobby["address"], "port": lobby["port"], "token": str(data.get("token", ""))[:64],
+                same_network = ask["address"] == lobby["address"] and lobby.get("local")
+                join_host, join_port = (lobby["local"], lobby["port"]) if same_network else (lobby["join_host"], lobby["join_port"])
+                session = session_id(data.get("session"))
+                use_punch = not same_network and lobby.get("mode") == "punch" and session and ask.get("punch")
+                ask["join"] = {"punch": lobby["punch"] if use_punch else "", "session": session if use_punch else "",
+                               "address": join_host, "port": join_port, "token": str(data.get("token", ""))[:64],
                                "user": str(data.get("user", ""))[:16], "password": str(data.get("password", ""))[:16]}
             else:
                 ask["state"] = "declined"
@@ -310,6 +420,8 @@ class Handler(BaseHTTPRequestHandler):
             lobby = LOBBIES.find(data.get("id"), data.get("code"))
             if not lobby:
                 return self.send(404, {"error": "No game found with that code." if data.get("code") else "That game has ended."})
+            if not visible_to(lobby, client):
+                return self.send(403, {"error": "That game only takes players on the host's network."})
             if lobby["version"] != clip(data.get("version"), "version"):
                 return self.send(409, {"error": "Version mismatch: that game runs a different version of Hordes of Azeroth."})
             declined_at = LOBBIES.declined.get((lobby["id"], client, clip(data.get("name"), "host_name")))
@@ -337,7 +449,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(429, {"error": "You already have a pending join request."})
             ask = {"id": secrets.token_hex(12), "lobby": lobby["id"], "address": client, "state": "waiting", "created": time.monotonic(),
                    "answered": 0.0, "name": clip(data.get("name"), "host_name"), "class": wanted, "race": clip(data.get("race"), "race"),
-                   "mastery": mastery, "best": best}
+                   "mastery": mastery, "best": best, "punch": punch_address(data.get("punch"), client)}
             LOBBIES.asks[ask["id"]] = ask
             view = public_view(lobby, time.monotonic())
         self.send(200, {"ask": ask["id"], "lobby": view, "seconds": ASK_SECONDS})
@@ -367,6 +479,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if PUNCH_PORT:
+        threading.Thread(target=reflect_forever, daemon=True).start()
     server = ThreadingHTTPServer((BIND, PORT), Handler)
     server.daemon_threads = True
     server.serve_forever()

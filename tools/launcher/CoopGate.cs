@@ -229,12 +229,18 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
-        bool IsBlocked(IPAddress from) =>
-            m_failures.TryGetValue(from, out var failures) && failures.Count >= MaxFailures && DateTime.UtcNow - failures.Since < BlockTime;
+        static bool IsTunnel(IPAddress from) => IPAddress.IsLoopback(from.IsIPv4MappedToIPv6 ? from.MapToIPv4() : from);
 
-        void NoteFailure(IPAddress from) =>
+        bool IsBlocked(IPAddress from) =>
+            !IsTunnel(from) && m_failures.TryGetValue(from, out var failures) && failures.Count >= MaxFailures && DateTime.UtcNow - failures.Since < BlockTime;
+
+        void NoteFailure(IPAddress from)
+        {
+            if (IsTunnel(from))
+                return;
             m_failures.AddOrUpdate(from, _ => (1, DateTime.UtcNow),
                 (_, old) => DateTime.UtcNow - old.Since > BlockTime ? (1, DateTime.UtcNow) : (old.Count + 1, old.Since));
+        }
     }
 
     static class CoopWire

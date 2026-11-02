@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.1
+
+### Co-op
+- **A note on Co-op: It is entirely self-hosted the host's own PC and everyone else connects straight to it. There is no central game server. The lobby only lists games and passes on join requests, and none of your game traffic goes through it.**
+- More players can host without touching their router. When outside players can't reach the host directly, the two launchers now connect to each other through the routers on their own (UDP hole punching).
+- Players on the same network as the host can always join, with no port forwarding. Those games show a LAN badge in the browser and are only listed for players on that network.
+- Hosts can enter a Public Address, for ZeroTier, Tailscale, a tunnel or a port forward to a different port. Games on ZeroTier or Tailscale addresses can only be joined with the invite code.
+- If nobody can reach you, the message now says what to do: forward TCP port 3725 to your PC and allow the launcher through Windows Firewall.
+- Hosts on internet connections with IPv6 no longer fail the "can others reach you" check.
+- A downed teammate's skull and bleed-out countdown now sit to the right of their health bar on the party frame, where you can read them.
+
+### Fixes
+- Fixed: Returning from a co-op game could crash your own game server if you had used the season board.
+- Fixed: Packs of flyers could keep spawning around a downed player, or a teammate standing next to them, and glitch around.
+- Fixed: The launcher could crash when the game closed.
+- Fixed: The launcher could crash when opening a link (Discord, Report bug) on some PCs.
+
+### Simplified Chinese
+- Character select, character create, the class preview, the co-op lobby, the new gear names and the rest of 0.6.0's text, by xenoglossy-asyncio.
+
 ## 0.6.0
 
 ### Co-op
