@@ -125,7 +125,7 @@
     { "en": "Grand Magus", "zh": "大魔导师" },
     { "en": "Hordes of Azeroth", "zh": "艾泽拉斯之潮", "note": "the game's name; the realm name stays English because it names save folders and the realm list" },
     { "en": "Item Level", "zh": "物品等级", "anyCase": true, "note": "ilvl is written 物品等级 too; it replaced tiers in 0.6.0" },
-    { "en": "finale", "zh": "终章", "anyCase": true, "note": "the endless part after stage 3 (0.6.0)" },
+    { "en": "finale", "zh": "终章", "anyCase": true, "except": ["Grand Finale"], "note": "the endless part after stage 3 (0.6.0)" },
     { "en": "stage boss", "zh": "阶段首领", "anyCase": true },
     { "en": "Ready check", "zh": "就位确认", "anyCase": true },
     { "en": "Foresight", "zh": "预知" },
