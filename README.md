@@ -18,6 +18,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-4a3a36?style=for-the-badge" alt="Licence: GPL-3.0"></a>
 </p>
 
+> [!WARNING]
+> **Official downloads come only from this GitHub repository's [Releases](https://github.com/jonhaldors/hordes-of-azeroth/releases) page.**
+> The website hordes-of-azeroth.com is not run by me, and I have no connection to it, even though it links here and to the Discord.
+> Hordes of Azeroth does not provide, host or link the World of Warcraft client. You need your own copy of the 1.12.1 client.
+> If any site offers you the client or a launcher download from somewhere other than this page, don't use it.
+
 <p align="center">
   <a href="#getting-started">Getting started</a> ·
   <a href="#features">Features</a> ·
