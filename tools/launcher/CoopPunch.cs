@@ -576,6 +576,8 @@ namespace HordesOfAzeroth.Launcher
 
         public string Address => "127.0.0.1:" + ((IPEndPoint)m_listener.LocalEndpoint).Port;
 
+        public bool IsClosed => m_link.IsClosed;
+
         public CoopTunnel(CoopLink link)
         {
             m_link = link;

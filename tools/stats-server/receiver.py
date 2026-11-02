@@ -1,4 +1,5 @@
 import collections
+import hashlib
 import datetime
 import gzip
 import io
@@ -22,7 +23,9 @@ RUN_FORMAT = 1
 LIMITS = {"/run": (60, 3600), "/report": (5, 3600)}
 BOARD_SEASON = 1
 BOARD_FILE = os.path.join(STATE, "board-s%d.json" % BOARD_SEASON)
-BOARD_ROWS = 50
+BOARD_ROWS = 1000
+SEEN_RUNS = 300000
+GZIP_MIN_BYTES = 1024
 GROUP_SIZES = (2, 3, 4)
 INSTALL_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 FIRST_MYTHIC_LEVEL = 10
@@ -54,6 +57,26 @@ class RateLimiter:
 
 
 limiter = RateLimiter()
+
+
+class SeenRuns:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.keys = collections.OrderedDict()
+
+    def first_time(self, record):
+        digest = hashlib.sha256(json.dumps([record.get("install"), record.get("started"), record.get("character"), record.get("finished"),
+                                            record.get("name"), record["lines"]], sort_keys=True).encode()).hexdigest()
+        with self.lock:
+            if digest in self.keys:
+                return False
+            self.keys[digest] = True
+            while len(self.keys) > SEEN_RUNS:
+                self.keys.popitem(last=False)
+            return True
+
+
+seen_runs = SeenRuns()
 
 
 def day_folder(kind):
@@ -155,6 +178,16 @@ def rank_key(entry):
     return (-entry["level"], entry["ms"])
 
 
+def keep_best(entries, group_of):
+    groups = collections.defaultdict(list)
+    for key, entry in entries.items():
+        groups[group_of(entry)].append(key)
+    for keys in groups.values():
+        keys.sort(key=lambda key: rank_key(entries[key]))
+        for key in keys[BOARD_ROWS:]:
+            del entries[key]
+
+
 def members_text(members):
     return ",".join("%s:%d" % (member["name"], member["class"]) for member in members)
 
@@ -189,6 +222,8 @@ class Board:
                 group["size"] = len(group["members"])
                 if better(group, self.groups.get(key)):
                     self.groups[key] = group
+            keep_best(self.solo, lambda entry: entry["class"])
+            keep_best(self.groups, lambda entry: entry["size"])
             self.updated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
             partial = BOARD_FILE + ".part"
             with open(partial, "w", encoding="utf-8") as handle:
@@ -223,6 +258,14 @@ class Board:
             for rank, key in enumerate(by_size[size][:BOARD_ROWS], 1):
                 entry = groups[key]
                 lines.append("group~%d~%d~%d~%d~%s~%s" % (size, rank, entry["level"], entry["ms"], entry["date"], members_text(entry["members"])))
+        for class_id in sorted(by_class):
+            if len(by_class[class_id]) >= BOARD_ROWS:
+                last = solo[by_class[class_id][BOARD_ROWS - 1]]
+                lines.append("cutoff~solo~%d~%d~%d" % (class_id, last["level"], last["ms"]))
+        for size in sorted(by_size):
+            if len(by_size[size]) >= BOARD_ROWS:
+                last = groups[by_size[size][BOARD_ROWS - 1]]
+                lines.append("cutoff~group~%d~%d~%d" % (size, last["level"], last["ms"]))
         if install:
             for key, entry in everyone:
                 if key.startswith(install + ":"):
@@ -252,10 +295,15 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def answer(self, status, text=""):
+    def answer(self, status, text="", compress=False):
         payload = text.encode()
+        packed = compress and len(payload) >= GZIP_MIN_BYTES and "gzip" in self.headers.get("Accept-Encoding", "")
+        if packed:
+            payload = gzip.compress(payload)
         self.send_response(status)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
+        if packed:
+            self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -278,7 +326,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.split("?", 1)[0] == "/board":
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             install = (query.get("install") or [""])[0]
-            self.answer(200, board.text(install if INSTALL_ID.match(install) else None))
+            self.answer(200, board.text(install if INSTALL_ID.match(install) else None), compress=True)
         else:
             self.answer(404)
 
@@ -306,8 +354,9 @@ class Handler(BaseHTTPRequestHandler):
         if record is None:
             self.answer(400, "not a run record")
             return
-        save("runs", secrets.token_hex(8) + ".json.gz", body)
-        board.add(record)
+        if seen_runs.first_time(record):
+            save("runs", secrets.token_hex(8) + ".json.gz", body)
+            board.add(record)
         self.answer(204)
 
     def receive_report(self):

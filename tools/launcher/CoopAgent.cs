@@ -33,12 +33,21 @@ namespace HordesOfAzeroth.Launcher
         static readonly TimeSpan LedgerInterval = TimeSpan.FromSeconds(1);
         static readonly TimeSpan GuestSilenceLimit = TimeSpan.FromMinutes(2);
         static readonly TimeSpan LeaveWait = TimeSpan.FromSeconds(25);
-        static readonly TimeSpan FinalCollectWait = TimeSpan.FromSeconds(3);
+        static readonly TimeSpan HostSilenceLimit = TimeSpan.FromMinutes(3);
+        static readonly TimeSpan AdmissionLimit = TimeSpan.FromSeconds(90);
+        static readonly TimeSpan FinalPullWait = TimeSpan.FromSeconds(30);
+        static readonly TimeSpan DrainCap = TimeSpan.FromSeconds(30);
+        static readonly TimeSpan AskGrace = TimeSpan.FromSeconds(30);
+        static readonly TimeSpan LobbyQuietLimit = TimeSpan.FromSeconds(60);
+        static readonly TimeSpan SpoolRetry = TimeSpan.FromSeconds(15);
+        const int RefusalsBeforeEnd = 5;
+        const int CoopProtocol = 2;
         static readonly TimeSpan VpnPingWait = TimeSpan.FromSeconds(3);
         readonly CancellationTokenSource m_stop = new CancellationTokenSource();
         readonly ConcurrentDictionary<string, JoinState> m_joins = new ConcurrentDictionary<string, JoinState>();
         readonly object m_lock = new object();
         TcpListener m_listener;
+        Task m_closing = Task.CompletedTask;
         HostState m_host;
         List<Dictionary<string, string>> m_list = new List<Dictionary<string, string>>();
         DateTime m_listAt = DateTime.MinValue;
@@ -53,6 +62,8 @@ namespace HordesOfAzeroth.Launcher
             public string Token;
             public string GuestUser;
             public string CharacterName;
+            public DateTime AcceptedAt = DateTime.UtcNow;
+            public bool Uploaded;
         }
 
         sealed class Request
@@ -71,6 +82,8 @@ namespace HordesOfAzeroth.Launcher
         {
             public string State = "starting";
             public string Message = "";
+            public string Warning = "";
+            public string Notice = "";
             public string Id;
             public string Secret;
             public string Code = "";
@@ -84,12 +97,20 @@ namespace HordesOfAzeroth.Launcher
             public List<Request> Requests = new List<Request>();
             public HashSet<string> Answered = new HashSet<string>();
             public CancellationTokenSource Stop = new CancellationTokenSource();
+            public Task Opening = Task.CompletedTask;
         }
 
         sealed class JoinState
         {
+            public string Who = "";
             public string State = "asking";
             public string Message = "";
+            public DateTime AskedAt = DateTime.UtcNow;
+            public DateTime LastContact = DateTime.UtcNow;
+            public DateTime RejoinSince = DateTime.UtcNow;
+            public bool Direct;
+            public int Refusals;
+            public int Ending;
             public string Ask;
             public string Seconds = "";
             public string Lobby = "";
@@ -119,9 +140,19 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        static GameFolder s_logFolder;
+
+        static void Log(string text)
+        {
+            Console.Error.WriteLine(text);
+            if (s_logFolder != null)
+                LauncherLog.Write(s_logFolder, text);
+        }
+
         public CoopAgent(GameFolder folder)
         {
             m_folder = folder;
+            s_logFolder = folder;
             m_accounts = new CoopAccounts(folder);
             m_transfer = new CoopTransfer(folder);
         }
@@ -149,14 +180,22 @@ namespace HordesOfAzeroth.Launcher
         {
             m_listener = new TcpListener(IPAddress.Loopback, Port("HOA_COOP_PORT", DefaultAgentPort));
             m_listener.Start();
+            ResumeSavedJoins();
             _ = AcceptLoopAsync();
+            _ = SpoolLoopAsync();
         }
 
         public void Dispose()
         {
             m_stop.Cancel();
             m_listener?.Stop();
-            StopHostingAsync().Wait(TimeSpan.FromSeconds(20));
+            try
+            {
+                CloseCurrentHost().Wait(TimeSpan.FromSeconds(40));
+            }
+            catch (Exception)
+            {
+            }
         }
 
         static string ResolveLobbyUrl()
@@ -314,16 +353,16 @@ namespace HordesOfAzeroth.Launcher
                 ("GET", "/lobbies") => Task.FromResult(Lobbies()),
                 ("POST", "/ask") => AskAsync(who, form),
                 ("GET", "/join") => Task.FromResult(JoinStatus(who)),
-                ("POST", "/join/cancel") => CancelAskAsync(who),
+                ("POST", "/join/cancel") => Task.FromResult(CancelAsk(who)),
                 ("POST", "/join/done") => Task.FromResult(MarkJoined(who)),
                 ("POST", "/join/leave") => Task.FromResult(Leave(who)),
                 ("POST", "/join/removed") => Task.FromResult(Removed()),
                 ("POST", "/join/rejoin") => Task.FromResult(Rejoin(who)),
                 ("POST", "/join/entered") => Task.FromResult(Entered(who)),
-                ("POST", "/host") => StartHostingAsync(form),
+                ("POST", "/host") => Task.FromResult(StartHosting(form)),
                 ("GET", "/host") => Task.FromResult(HostStatus()),
-                ("POST", "/host/answer") => AnswerAsync(form.GetValueOrDefault("ask", ""), form.GetValueOrDefault("accept") == "1"),
-                ("POST", "/host/stop") => StopHostingAsync(),
+                ("POST", "/host/answer") => Task.FromResult(Answer(form.GetValueOrDefault("ask", ""), form.GetValueOrDefault("accept") == "1")),
+                ("POST", "/host/stop") => Task.FromResult(StopHosting()),
                 _ => throw new CoopError("Unknown request."),
             };
         }
@@ -375,7 +414,7 @@ namespace HordesOfAzeroth.Launcher
             return client;
         }
 
-        static async ValueTask<Stream> ConnectPreferringIPv4Async(SocketsHttpConnectionContext context, CancellationToken cancel)
+        internal static async ValueTask<Stream> ConnectPreferringIPv4Async(SocketsHttpConnectionContext context, CancellationToken cancel)
         {
             IPAddress[] addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancel);
             Exception last = new SocketException((int)SocketError.HostNotFound);
@@ -589,11 +628,24 @@ namespace HordesOfAzeroth.Launcher
                 throw new CoopError($"{doing} only works on a regular account. This account is a game master account.");
         }
 
-        async Task<string> AskAsync(string who, Dictionary<string, string> form)
+        Task<string> AskAsync(string who, Dictionary<string, string> form)
         {
-            await RequireRegularAccountAsync(form, "Joining a co-op game");
-            JoinState join = new JoinState { OwnAccount = form.GetValueOrDefault("account", ""), OwnName = form.GetValueOrDefault("name", "") };
+            if (m_joins.TryGetValue(who, out JoinState old))
+            {
+                if (old.State == "accepted" || old.State == "joined" || old.State == "returning" || old.State == "transferring")
+                    throw new CoopError("You're still in a co-op game. Leave it first.");
+                if (old.State == "home" && m_transfer.ReadSpool(who).Length > 0)
+                    throw new CoopError("Your last co-op rewards are still being saved. Try again in a moment.");
+                CancelAsk(who);
+            }
+            JoinState join = new JoinState { Who = who, OwnAccount = form.GetValueOrDefault("account", ""), OwnName = form.GetValueOrDefault("name", "") };
             m_joins[who] = join;
+            _ = SendAskAsync(join, form);
+            return Task.FromResult(JoinStatus(who));
+        }
+
+        async Task SendAskAsync(JoinState join, Dictionary<string, string> form)
+        {
             JsonObject body = new JsonObject
             {
                 ["id"] = form.GetValueOrDefault("id", ""),
@@ -605,89 +657,153 @@ namespace HordesOfAzeroth.Launcher
                 ["mastery"] = form.GetValueOrDefault("mastery", "0"),
                 ["best"] = form.GetValueOrDefault("best", "0"),
                 ["version"] = Version,
+                ["protocol"] = CoopProtocol,
             };
-            join.Punch = await StartPunchAsync();
-            body["punch"] = join.Punch?.PublicEndPoint?.ToString() ?? "";
             try
             {
+                await RequireRegularAccountAsync(form, "Joining a co-op game");
+                CoopPunch punch = await StartPunchAsync();
+                if (join.Cancelled)
+                {
+                    punch?.Dispose();
+                    return;
+                }
+                join.Punch = punch;
+                body["punch"] = punch?.PublicEndPoint?.ToString() ?? "";
                 JsonNode answer = await LobbyAsync(HttpMethod.Post, "/ask", body);
                 join.Ask = answer["ask"]?.ToString();
+                if (join.Cancelled)
+                {
+                    join.EndNetwork();
+                    await CancelAtLobbyAsync(join);
+                    return;
+                }
                 join.Seconds = answer["seconds"]?.ToString() ?? "30";
                 join.Lobby = answer["lobby"]?["name"]?.ToString() ?? "";
+                join.AskedAt = DateTime.UtcNow;
                 join.State = "waiting";
                 _ = PollAskAsync(join);
             }
             catch (Exception error)
             {
-                join.State = "error";
-                join.Message = error.Message;
+                FailJoin(join, error.Message);
             }
-            return JoinStatus(who);
+        }
+
+        async Task CancelAtLobbyAsync(JoinState join)
+        {
+            if (join.Ask == null)
+                return;
+            try
+            {
+                await LobbyAsync(HttpMethod.Post, "/ask/cancel", new JsonObject { ["ask"] = join.Ask });
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        static void FailJoin(JoinState join, string message, string state = "error")
+        {
+            Log("Co-op: joining ended (" + state + "): " + message);
+            join.EndNetwork();
+            join.Message = message;
+            join.State = state;
         }
 
         async Task PollAskAsync(JoinState join)
         {
-            while (join.State == "waiting" && !m_stop.IsCancellationRequested)
+            DateTime lastHeard = DateTime.UtcNow;
+            TimeSpan answerWait = TimeSpan.FromSeconds(int.TryParse(join.Seconds, out int seconds) ? seconds : 30) + AskGrace;
+            while (join.State == "waiting" && !join.Cancelled && !m_stop.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
+                if (join.State != "waiting" || join.Cancelled)
+                    return;
+                if (DateTime.UtcNow - lastHeard > LobbyQuietLimit)
+                {
+                    FailJoin(join, "Can't connect to the co-op service. Try again later.");
+                    return;
+                }
+                if (DateTime.UtcNow - join.AskedAt > answerWait)
+                {
+                    FailJoin(join, "The host didn't respond.", "ended");
+                    _ = CancelAtLobbyAsync(join);
+                    return;
+                }
+                JsonNode answer;
                 try
                 {
-                    JsonNode answer = await LobbyAsync(HttpMethod.Post, "/ask/state", new JsonObject { ["ask"] = join.Ask });
-                    string state = answer["state"]?.ToString() ?? "gone";
-                    if (state == "accepted")
-                    {
-                        JsonNode details = answer["join"];
-                        string address = details?["address"]?.ToString() ?? "";
-                        if (address.Contains(':'))
-                            address = "[" + address + "]";
-                        join.Address = address + ":" + details?["port"];
-                        join.Token = details?["token"]?.ToString() ?? "";
-                        join.User = details?["user"]?.ToString() ?? "";
-                        join.Password = details?["password"]?.ToString() ?? "";
-                        join.State = "transferring";
-                        string vpnGate = await FirstVpnGateAsync(details);
-                        if (vpnGate != null)
-                        {
-                            join.Address = vpnGate;
-                            join.EndNetwork();
-                        }
-                        else if (details?["vpn_only"]?.GetValue<bool>() == true)
-                        {
-                            join.State = "error";
-                            join.Message = "Couldn't connect to the host: they can only be reached over their VPN. Join the same VPN network as the host, such as Radmin VPN, ZeroTier or Hamachi, and try again.";
-                            join.EndNetwork();
-                            return;
-                        }
-                        else if (!await OpenTunnelAsync(join, details))
-                        {
-                            join.State = "error";
-                            join.Message = "Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi, and try again.";
-                            join.EndNetwork();
-                            return;
-                        }
-                        await BringCharacterAsync(join);
-                    }
-                    else if (state != "waiting")
-                    {
-                        join.EndNetwork();
-                        join.State = state == "declined" ? "declined" : "ended";
-                        join.Message = state switch
-                        {
-                            "declined" => answer["reason"]?.ToString() ?? "",
-                            "expired" => "The host didn't respond.",
-                            "gone" => "The host closed the lobby.",
-                            _ => "",
-                        };
-                    }
+                    answer = await LobbyAsync(HttpMethod.Post, "/ask/state", new JsonObject { ["ask"] = join.Ask });
+                    lastHeard = DateTime.UtcNow;
                 }
                 catch (LobbyRefusal refusal) when (refusal.Status == 404)
                 {
-                    join.State = "ended";
-                    join.Message = "The host closed the lobby.";
+                    FailJoin(join, "The join request expired. Ask again.", "ended");
+                    return;
                 }
                 catch (Exception)
                 {
+                    continue;
                 }
+                string state = answer["state"]?.ToString() ?? "gone";
+                if (state == "accepted")
+                {
+                    await AcceptedAsync(join, answer["join"]);
+                    return;
+                }
+                if (state != "waiting")
+                {
+                    FailJoin(join, state switch
+                    {
+                        "declined" => answer["reason"]?.ToString() ?? "",
+                        "expired" => "The host didn't respond.",
+                        "gone" => "The host closed the lobby.",
+                        _ => "",
+                    }, state == "declined" ? "declined" : "ended");
+                    return;
+                }
+            }
+        }
+
+        async Task AcceptedAsync(JoinState join, JsonNode details)
+        {
+            if (join.Cancelled)
+            {
+                join.EndNetwork();
+                return;
+            }
+            try
+            {
+                string address = details?["address"]?.ToString() ?? "";
+                if (address.Contains(':'))
+                    address = "[" + address + "]";
+                join.Address = address + ":" + details?["port"];
+                join.Token = details?["token"]?.ToString() ?? "";
+                join.User = details?["user"]?.ToString() ?? "";
+                join.Password = details?["password"]?.ToString() ?? "";
+                join.State = "transferring";
+                string vpnGate = await FirstVpnGateAsync(details);
+                if (vpnGate != null)
+                {
+                    join.Address = vpnGate;
+                    join.EndNetwork();
+                }
+                else if (details?["vpn_only"]?.ToString() == "true")
+                {
+                    FailJoin(join, "Couldn't connect to the host: they can only be reached over their VPN. Join the same VPN network as the host, such as Radmin VPN, ZeroTier or Hamachi, and try again.");
+                    return;
+                }
+                else if (!await OpenTunnelAsync(join, details))
+                {
+                    FailJoin(join, "Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi, and try again.");
+                    return;
+                }
+                await BringCharacterAsync(join);
+            }
+            catch (Exception error)
+            {
+                FailJoin(join, error.Message);
             }
         }
 
@@ -717,6 +833,7 @@ namespace HordesOfAzeroth.Launcher
                 return Line("state", "none");
             return join.State switch
             {
+                "asking" => Line("state", "asking"),
                 "accepted" => Line("state", "accepted", join.Address, join.Token, join.User, join.Password, join.OwnName),
                 "waiting" => Line("state", "waiting", join.Lobby, join.Seconds),
                 "transferring" => Line("state", "transferring", join.Lobby),
@@ -726,30 +843,21 @@ namespace HordesOfAzeroth.Launcher
             };
         }
 
-        async Task<string> CancelAskAsync(string who)
+        string CancelAsk(string who)
         {
-            if (!m_joins.TryRemove(who, out JoinState join))
+            if (!m_joins.TryGetValue(who, out JoinState join))
                 return Line("state", "none");
             join.Cancelled = true;
             if (join.State == "accepted" || join.State == "joined")
-            {
-                join.State = "returning";
-                join.Sync?.Cancel();
-                await ReturnCharacterAsync(join);
-                return Line("state", "none");
-            }
-            if (join.State != "transferring")
-                join.EndNetwork();
-            if (join != null && join.Ask != null && join.State == "waiting")
+                return Leave(who);
+            if (join.State == "returning" || join.State == "transferring")
+                return JoinStatus(who);
+            m_joins.TryRemove(who, out _);
+            join.EndNetwork();
+            if (join.State == "waiting")
             {
                 join.State = "cancelled";
-                try
-                {
-                    await LobbyAsync(HttpMethod.Post, "/ask/cancel", new JsonObject { ["ask"] = join.Ask });
-                }
-                catch (Exception)
-                {
-                }
+                _ = CancelAtLobbyAsync(join);
             }
             return Line("state", "none");
         }
@@ -758,9 +866,11 @@ namespace HordesOfAzeroth.Launcher
         {
             if (!m_joins.TryGetValue(who, out JoinState join) || (join.State != "joined" && join.State != "accepted"))
                 return Line("state", "none");
+            if (join.RejoinTries == 0)
+                join.RejoinSince = DateTime.UtcNow;
             join.EnterOnLogin = true;
             join.RejoinTries++;
-            return Line("state", "rejoin", join.RejoinTries.ToString());
+            return Line("state", "rejoin", join.RejoinTries.ToString(), ((int)(DateTime.UtcNow - join.RejoinSince).TotalSeconds).ToString());
         }
 
         string Entered(string who)
@@ -776,7 +886,10 @@ namespace HordesOfAzeroth.Launcher
         string MarkJoined(string who)
         {
             if (m_joins.TryGetValue(who, out JoinState join) && join.State == "accepted")
+            {
                 join.State = "joined";
+                SaveJoin(join);
+            }
             return JoinStatus(who);
         }
 
@@ -786,31 +899,40 @@ namespace HordesOfAzeroth.Launcher
             {
                 (string guid, CoopCharacter original) = await m_transfer.ExportAsync(join.OwnName);
                 join.OwnGuid = guid;
-                using TcpClient client = await DialHostAsync(join, "UPLOAD");
-                NetworkStream stream = client.GetStream();
-                using CancellationTokenSource timeout = new CancellationTokenSource(CoopWire.TransferTimeout);
-                await CoopWire.WriteBlobAsync(stream, Encoding.UTF8.GetBytes(original.Name), timeout.Token);
-                await CoopWire.WriteBlobAsync(stream, original.Dump, timeout.Token);
-                await CoopWire.WriteBlobAsync(stream, original.Account, timeout.Token);
-                string answer = await CoopGate.ReadLineAsync(stream) ?? "";
-                if (!answer.StartsWith("HOA1 DONE"))
-                    throw new InvalidOperationException(answer.StartsWith("HOA1 FAIL ") ? answer.Substring(10) : "The host couldn't take your character.");
+                using (TcpClient client = await DialHostAsync(join, "UPLOAD"))
+                {
+                    NetworkStream stream = client.GetStream();
+                    using CancellationTokenSource timeout = new CancellationTokenSource(CoopWire.TransferTimeout);
+                    await CoopWire.WriteBlobAsync(stream, Encoding.UTF8.GetBytes(original.Name), timeout.Token);
+                    await CoopWire.WriteBlobAsync(stream, original.Dump, timeout.Token);
+                    await CoopWire.WriteBlobAsync(stream, original.Account, timeout.Token);
+                    string answer = await CoopGate.ReadLineAsync(stream, CoopWire.TransferTimeout) ?? "";
+                    if (!answer.StartsWith("HOA1 DONE"))
+                        throw new InvalidOperationException(answer.StartsWith("HOA1 FAIL ") ? answer.Substring(10) : "The host couldn't take your character.");
+                }
+                join.Direct = join.Tunnel == null;
+                join.LastContact = DateTime.UtcNow;
                 join.State = "accepted";
+                SaveJoin(join);
                 if (join.Cancelled)
                 {
                     join.State = "returning";
                     await ReturnCharacterAsync(join);
                     return;
                 }
-                join.Sync = new CancellationTokenSource();
-                _ = LedgerLoopAsync(join, join.Sync.Token);
+                StartLedgerLoop(join);
             }
             catch (Exception error)
             {
-                join.State = "error";
-                join.Message = error.Message;
-                if (join.Cancelled)
-                    join.EndNetwork();
+                try
+                {
+                    if (join.Token.Length > 0)
+                        await TellHostLeavingAsync(join);
+                }
+                catch (Exception)
+                {
+                }
+                FailJoin(join, error.Message);
             }
         }
 
@@ -820,11 +942,25 @@ namespace HordesOfAzeroth.Launcher
             string host = join.Address.Substring(0, split).Trim('[', ']');
             int port = int.Parse(join.Address.Substring(split + 1));
             TcpClient client = new TcpClient(host.Contains(':') ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork);
-            using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await client.ConnectAsync(host, port, timeout.Token);
-            NetworkStream stream = client.GetStream();
-            await stream.WriteAsync(Encoding.ASCII.GetBytes($"HOA1 {join.Token} {leg}\n"), timeout.Token);
-            return client;
+            try
+            {
+                using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await client.ConnectAsync(host, port, timeout.Token);
+                NetworkStream stream = client.GetStream();
+                await stream.WriteAsync(Encoding.ASCII.GetBytes($"HOA1 {join.Token} {leg}\n"), timeout.Token);
+                return client;
+            }
+            catch (Exception)
+            {
+                client.Dispose();
+                throw;
+            }
+        }
+
+        void StartLedgerLoop(JoinState join)
+        {
+            join.Sync = new CancellationTokenSource();
+            _ = LedgerLoopAsync(join, join.Sync.Token);
         }
 
         async Task LedgerLoopAsync(JoinState join, CancellationToken cancel)
@@ -834,8 +970,18 @@ namespace HordesOfAzeroth.Launcher
                 try
                 {
                     await Task.Delay(LedgerInterval, cancel);
+                    if (join.Tunnel?.IsClosed == true || DateTime.UtcNow - join.LastContact > HostSilenceLimit)
+                    {
+                        await EndJoinAsync(join, "silent");
+                        return;
+                    }
                     m_transfer.MarkAway(join.OwnAccount);
-                    await CarryLedgerAsync(join);
+                    string ended = await CarryLedgerAsync(join);
+                    if (ended != null)
+                    {
+                        await EndJoinAsync(join, ended);
+                        return;
+                    }
                     join.LedgerProblem = null;
                 }
                 catch (OperationCanceledException) when (cancel.IsCancellationRequested)
@@ -845,7 +991,7 @@ namespace HordesOfAzeroth.Launcher
                 catch (Exception error)
                 {
                     if (error.Message != join.LedgerProblem)
-                        Console.Error.WriteLine("Co-op ledger: " + error.Message);
+                        Log("Co-op ledger: " + error.Message);
                     join.LedgerProblem = error.Message;
                 }
             }
@@ -853,7 +999,13 @@ namespace HordesOfAzeroth.Launcher
 
         static string LedgerGame(JoinState join) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(join.Token))).Substring(0, 32);
 
-        async Task CarryLedgerAsync(JoinState join)
+        static long SeqOf(string line)
+        {
+            int tab = line.IndexOf('\t');
+            return tab > 0 && long.TryParse(line.Substring(0, tab), out long seq) ? seq : -1;
+        }
+
+        async Task<string> CarryLedgerAsync(JoinState join)
         {
             string entries;
             using (TcpClient client = await DialHostAsync(join, "LEDGER"))
@@ -861,21 +1013,49 @@ namespace HordesOfAzeroth.Launcher
                 NetworkStream stream = client.GetStream();
                 await stream.WriteAsync(Encoding.ASCII.GetBytes(join.LedgerSeq + "\n"));
                 string answer = await CoopGate.ReadLineAsync(stream) ?? "";
+                if (answer.StartsWith("HOA1 END"))
+                {
+                    join.LastContact = DateTime.UtcNow;
+                    return answer.Length > 9 ? answer.Substring(9).Trim() : "ended";
+                }
+                if (answer == "HOA1 NO")
+                {
+                    if (++join.Refusals >= RefusalsBeforeEnd)
+                        return "gone";
+                    throw new InvalidOperationException("the host's gate doesn't know this game any more");
+                }
                 if (answer != "HOA1 DATA")
                     throw new InvalidOperationException("the host's gate answered \"" + answer + "\"");
                 using CancellationTokenSource timeout = new CancellationTokenSource(CoopWire.TransferTimeout);
                 entries = Encoding.UTF8.GetString(await CoopWire.ReadBlobAsync(stream, timeout.Token));
             }
+            join.Refusals = 0;
+            join.LastContact = DateTime.UtcNow;
             if (entries.Length == 0)
-                return;
-            string answers = await m_transfer.ApplyLedgerAsync(join.OwnAccount, LedgerGame(join), join.OwnName, entries);
-            using (TcpClient client = await DialHostAsync(join, "ANSWERS"))
+                return null;
+            m_transfer.SaveSpool(join.Who, entries);
+            string answers = await ApplySpoolAsync(join);
+            try
             {
+                using TcpClient client = await DialHostAsync(join, "ANSWERS");
                 NetworkStream stream = client.GetStream();
                 using CancellationTokenSource timeout = new CancellationTokenSource(CoopWire.TransferTimeout);
                 await CoopWire.WriteBlobAsync(stream, Encoding.UTF8.GetBytes(answers), timeout.Token);
                 await CoopGate.ReadLineAsync(stream);
             }
+            catch (Exception error)
+            {
+                Log("Co-op ledger: answers didn't reach the host: " + error.Message);
+            }
+            return null;
+        }
+
+        async Task<string> ApplySpoolAsync(JoinState join)
+        {
+            string spool = m_transfer.ReadSpool(join.Who);
+            if (spool.Length == 0)
+                return "";
+            string answers = await m_transfer.ApplyLedgerAsync(join.OwnAccount, LedgerGame(join), join.OwnName, spool);
             foreach (string line in answers.Split('\n'))
             {
                 string[] fields = line.Split('\t');
@@ -885,14 +1065,169 @@ namespace HordesOfAzeroth.Launcher
                     break;
                 join.LedgerSeq = Math.Max(join.LedgerSeq, seq);
             }
+            string rest = string.Concat(spool.Split('\n').Where(line => SeqOf(line) > join.LedgerSeq).Select(line => line + "\n"));
+            if (rest.Length == 0)
+                m_transfer.ClearSpool(join.Who);
+            else
+                m_transfer.SaveSpool(join.Who, rest);
+            if (join.State != "home")
+                SaveJoin(join);
+            return answers;
         }
 
-        static async Task TellHostLeavingAsync(JoinState join)
+        static async Task<bool> TellHostLeavingAsync(JoinState join)
         {
             using TcpClient client = await DialHostAsync(join, "LEAVE");
             string answer = await CoopGate.ReadLineAsync(client.GetStream(), LeaveWait) ?? "";
             if (answer != "HOA1 DONE")
-                Console.Error.WriteLine("Co-op: the host didn't confirm the leave: " + answer);
+                Log("Co-op: the host didn't confirm the leave: " + answer);
+            return answer.StartsWith("HOA1 ");
+        }
+
+        static string ReasonText(string reason) => reason switch
+        {
+            "left" => "",
+            "removed" => "You were removed from the party.",
+            "ended" => "The host ended the game. Your progress is saved.",
+            "failed" => "The host couldn't take your character.",
+            _ => "Lost the connection to the host. Your progress up to the last few seconds is saved.",
+        };
+
+        async Task EndJoinAsync(JoinState join, string reason)
+        {
+            if (Interlocked.Exchange(ref join.Ending, 1) == 1)
+                return;
+            join.Sync?.Cancel();
+            try
+            {
+                await ApplySpoolAsync(join);
+            }
+            catch (Exception error)
+            {
+                Log("Co-op ledger: rewards wait for your game's server: " + error.Message);
+            }
+            FinishHome(join, ReasonText(reason));
+        }
+
+        void FinishHome(JoinState join, string message)
+        {
+            Log("Co-op: back home from the host's game" + (message.Length > 0 ? ": " + message : ""));
+            m_transfer.ClearAway(join.OwnAccount);
+            join.EndNetwork();
+            join.Message = join.Removed ? ReasonText("removed") : message;
+            join.State = "home";
+            if (m_transfer.ReadSpool(join.Who).Length == 0)
+                m_transfer.DeleteJoin(join.Who);
+            else
+                WriteJoin(join);
+        }
+
+        void SaveJoin(JoinState join)
+        {
+            if (join.Ending == 0 && join.State != "home")
+                WriteJoin(join);
+        }
+
+        void WriteJoin(JoinState join)
+        {
+            try
+            {
+                m_transfer.SaveJoin(join.Who, new JsonObject
+                {
+                    ["who"] = join.Who,
+                    ["state"] = join.State,
+                    ["address"] = join.Address,
+                    ["token"] = join.Token,
+                    ["user"] = join.User,
+                    ["password"] = join.Password,
+                    ["account"] = join.OwnAccount,
+                    ["name"] = join.OwnName,
+                    ["guid"] = join.OwnGuid,
+                    ["seq"] = join.LedgerSeq,
+                    ["direct"] = join.Direct,
+                    ["removed"] = join.Removed,
+                    ["message"] = join.Message,
+                }.ToJsonString());
+            }
+            catch (Exception error)
+            {
+                Log("Co-op: couldn't save the join: " + error.Message);
+            }
+        }
+
+        void ResumeSavedJoins()
+        {
+            foreach (string text in m_transfer.SavedJoins())
+            {
+                JsonNode node;
+                try
+                {
+                    node = JsonNode.Parse(text);
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                JoinState join = new JoinState
+                {
+                    Who = node?["who"]?.ToString() ?? "",
+                    State = node?["state"]?.ToString() ?? "home",
+                    Address = node?["address"]?.ToString() ?? "",
+                    Token = node?["token"]?.ToString() ?? "",
+                    User = node?["user"]?.ToString() ?? "",
+                    Password = node?["password"]?.ToString() ?? "",
+                    OwnAccount = node?["account"]?.ToString() ?? "",
+                    OwnName = node?["name"]?.ToString() ?? "",
+                    OwnGuid = node?["guid"]?.ToString(),
+                    LedgerSeq = long.TryParse(node?["seq"]?.ToString(), out long seq) ? seq : 0,
+                    Direct = node?["direct"]?.ToString() == "true",
+                    Removed = node?["removed"]?.ToString() == "true",
+                    Message = node?["message"]?.ToString() ?? "",
+                };
+                if (join.Who.Length == 0 || join.Token.Length == 0)
+                    continue;
+                m_joins[join.Who] = join;
+                if (join.State == "home")
+                    continue;
+                if ((join.State == "joined" || join.State == "accepted") && join.Direct)
+                {
+                    join.State = "joined";
+                    join.LastContact = DateTime.UtcNow;
+                    StartLedgerLoop(join);
+                    continue;
+                }
+                join.State = "returning";
+                _ = ReturnCharacterAsync(join);
+            }
+        }
+
+        async Task SpoolLoopAsync()
+        {
+            while (!m_stop.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(SpoolRetry, m_stop.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                foreach (JoinState join in m_joins.Values.Where(j => j.State == "home").ToList())
+                {
+                    if (m_transfer.ReadSpool(join.Who).Length == 0)
+                        continue;
+                    try
+                    {
+                        await ApplySpoolAsync(join);
+                        if (m_transfer.ReadSpool(join.Who).Length == 0)
+                            m_transfer.DeleteJoin(join.Who);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
         }
 
         async Task GuestLeftAsync(HostState host, string token)
@@ -906,35 +1241,73 @@ namespace HordesOfAzeroth.Launcher
             }
             if (member == null)
                 return;
+            host.Gate.Retire(token, "left");
+            m_transfer.ForgetJoining(member.GuestUser);
             await m_transfer.LogOutGuestAsync(member.GuestUser);
-            _ = HeartbeatAsync(host);
+            host.Gate.CutLinks(token);
+            _ = HeartbeatQuietlyAsync(host);
+        }
+
+        void DismissGuest(HostState host, Member member, string reason)
+        {
+            host.Gate?.Retire(member.Token, reason);
+            m_transfer.ForgetJoining(member.GuestUser);
+            _ = LogOutThenCutAsync(host, member);
+        }
+
+        async Task LogOutThenCutAsync(HostState host, Member member)
+        {
+            await m_transfer.LogOutGuestAsync(member.GuestUser);
+            host.Gate?.CutLinks(member.Token);
         }
 
         async Task LetGuestsCollectAsync(HostState host)
         {
             List<Member> guests;
             lock (m_lock)
-                guests = host.Members.Where(m => m.GuestUser != null).ToList();
+                guests = host.Members.Where(m => m.Token != null).ToList();
             if (guests.Count == 0 || host.Gate == null)
                 return;
-            await Task.WhenAll(guests.Select(guest => m_transfer.LogOutGuestAsync(guest.GuestUser)));
-            await Task.Delay(FinalCollectWait);
+            foreach (Member guest in guests)
+            {
+                host.Gate.Retire(guest.Token, "ended");
+                m_transfer.ForgetJoining(guest.GuestUser);
+            }
+            await Task.WhenAll(guests.Select(guest => LogOutThenCutAsync(host, guest)));
+            await host.Gate.WaitDrainedAsync(guests.Select(guest => guest.Token), DrainCap);
         }
 
         bool DropSilentGuests(HostState host)
         {
             List<Member> silent;
+            DateTime now = DateTime.UtcNow;
             lock (m_lock)
             {
-                silent = host.Members.Where(m => m.Token != null && host.Gate != null && host.Gate.SinceSeen(m.Token) > GuestSilenceLimit).ToList();
+                if (host.Gate == null)
+                    return false;
+                silent = host.Members.Where(m => m.Token != null &&
+                    ((!m.Uploaded && now - m.AcceptedAt > AdmissionLimit) || (m.Uploaded && host.Gate.SinceSeen(m.Token) > GuestSilenceLimit))).ToList();
                 host.Members.RemoveAll(silent.Contains);
             }
             foreach (Member member in silent)
-            {
-                host.Gate.Revoke(member.Token);
-                _ = m_transfer.LogOutGuestAsync(member.GuestUser);
-            }
+                DismissGuest(host, member, "silent");
             return silent.Count > 0;
+        }
+
+        bool DropRemovedGuests(HostState host)
+        {
+            List<string> removed = m_transfer.TakeRemovedGuests();
+            if (removed.Count == 0)
+                return false;
+            List<Member> gone;
+            lock (m_lock)
+            {
+                gone = host.Members.Where(m => m.GuestUser != null && removed.Contains(m.GuestUser)).ToList();
+                host.Members.RemoveAll(gone.Contains);
+            }
+            foreach (Member member in gone)
+                DismissGuest(host, member, "removed");
+            return gone.Count > 0;
         }
 
         string Removed()
@@ -959,7 +1332,7 @@ namespace HordesOfAzeroth.Launcher
             if (join.State != "returning" && join.State != "home")
             {
                 join.State = "returning";
-                join.Sync?.Cancel();
+                SaveJoin(join);
                 _ = ReturnCharacterAsync(join);
             }
             return JoinStatus(who);
@@ -973,13 +1346,13 @@ namespace HordesOfAzeroth.Launcher
                 JoinState join = entry.Value;
                 if (join.OwnGuid == null)
                 {
-                    m_joins.TryRemove(entry.Key, out _);
+                    CancelAsk(entry.Key);
                     continue;
                 }
                 if (join.State == "returning" || join.State == "home")
                     continue;
                 join.State = "returning";
-                join.Sync?.Cancel();
+                SaveJoin(join);
                 returns.Add(ReturnCharacterAsync(join));
             }
             await Task.WhenAll(returns);
@@ -988,23 +1361,65 @@ namespace HordesOfAzeroth.Launcher
                     m_joins.TryRemove(entry.Key, out _);
         }
 
+        public async Task EndAllAsync()
+        {
+            Task leaving = LeaveAllAsync();
+            await CloseCurrentHost();
+            await leaving;
+        }
+
+        Task CloseCurrentHost()
+        {
+            lock (m_lock)
+            {
+                if (m_host != null)
+                    m_closing = CloseHostAsync(m_host);
+                m_host = null;
+                return m_closing;
+            }
+        }
+
         async Task ReturnCharacterAsync(JoinState join)
         {
-            string note = "";
+            join.Sync?.Cancel();
+            bool told = false;
             try
             {
-                await TellHostLeavingAsync(join);
-                await CarryLedgerAsync(join);
+                told = await TellHostLeavingAsync(join);
             }
             catch (Exception error)
             {
-                Console.Error.WriteLine("Co-op ledger: last carry failed: " + error.Message);
-                note = "Lost connection to the host. Your progress up to the last few seconds is saved.";
+                Log("Co-op: couldn't tell the host about the leave: " + error.Message);
             }
-            m_transfer.ClearAway(join.OwnAccount);
-            join.EndNetwork();
-            join.Message = join.Removed ? "You were removed from the party." : note;
-            join.State = "home";
+            string ended = null;
+            DateTime until = DateTime.UtcNow + (told ? FinalPullWait : TimeSpan.Zero);
+            Interlocked.Exchange(ref join.Ending, 1);
+            do
+            {
+                try
+                {
+                    ended = await CarryLedgerAsync(join);
+                }
+                catch (Exception error)
+                {
+                    Log("Co-op ledger: last carry failed: " + error.Message);
+                    if (!told)
+                        break;
+                }
+                if (ended != null || DateTime.UtcNow >= until)
+                    break;
+                await Task.Delay(LedgerInterval);
+            }
+            while (true);
+            try
+            {
+                await ApplySpoolAsync(join);
+            }
+            catch (Exception error)
+            {
+                Log("Co-op ledger: rewards wait for your game's server: " + error.Message);
+            }
+            FinishHome(join, ReasonText(ended ?? "silent"));
         }
 
         async Task<string> ReceiveGuestAsync(HostState host, string token, CoopCharacter character)
@@ -1014,37 +1429,93 @@ namespace HordesOfAzeroth.Launcher
                 member = host.Members.FirstOrDefault(m => m.Token == token);
             if (member == null)
                 throw new InvalidOperationException("That join has ended.");
-            string name = await m_transfer.ImportAsync(member.GuestUser, character, null);
-            lock (m_lock)
+            try
             {
-                member.CharacterName = name;
-                member.Name = name;
+                string name = await m_transfer.ImportAsync(member.GuestUser, character, null);
+                lock (m_lock)
+                {
+                    member.CharacterName = name;
+                    member.Name = name;
+                    member.Uploaded = true;
+                }
+                return name;
             }
-            return name;
+            catch (Exception)
+            {
+                lock (m_lock)
+                    host.Members.Remove(member);
+                DismissGuest(host, member, "failed");
+                _ = HeartbeatQuietlyAsync(host);
+                throw;
+            }
         }
 
-        async Task<string> StartHostingAsync(Dictionary<string, string> form)
+        string StartHosting(Dictionary<string, string> form)
         {
-            await RequireRegularAccountAsync(form, "Hosting");
-            await StopHostingAsync();
             RequireLobby();
-            m_transfer.ClearGuestLedgers();
             HostState host = new HostState { Settings = form };
             host.Members.Add(new Member { Name = form.GetValueOrDefault("host_name", ""), Class = form.GetValueOrDefault("host_class", ""), Mastery = form.GetValueOrDefault("mastery", "0") });
+            Task closing;
             lock (m_lock)
+            {
+                if (m_host != null)
+                    m_closing = CloseHostAsync(m_host);
+                closing = m_closing;
                 m_host = host;
-            m_transfer.NoteSameClass(form.GetValueOrDefault("same_class", "0") == "1");
-            m_transfer.NoteHostSettings(form.GetValueOrDefault("pause", "1") != "0", form.GetValueOrDefault("xp", "1") != "0");
-            _ = OpenHostAsync(host);
+            }
+            host.Opening = OpenHostAsync(host, closing);
             return HostStatus();
         }
 
-        async Task OpenHostAsync(HostState host)
+        async Task OpenHostAsync(HostState host, Task closing)
         {
+            try
+            {
+                await closing;
+            }
+            catch (Exception)
+            {
+            }
+            try
+            {
+                await OpenHostStepsAsync(host);
+            }
+            catch (Exception error)
+            {
+                Fail(host, error.Message);
+            }
+        }
+
+        async Task OpenHostStepsAsync(HostState host)
+        {
+            try
+            {
+                await RequireRegularAccountAsync(host.Settings, "Hosting");
+            }
+            catch (Exception error)
+            {
+                Fail(host, error.Message);
+                return;
+            }
+            if (host.Stop.IsCancellationRequested)
+                return;
+            m_transfer.ClearGuestLedgers();
+            m_transfer.TakeRemovedGuests();
+            await m_transfer.RemoveAllGuestsAsync();
+            m_transfer.ClearJoining();
+            m_transfer.NoteSameClass(host.Settings.GetValueOrDefault("same_class", "0") == "1");
+            m_transfer.NoteHostSettings(host.Settings.GetValueOrDefault("pause", "1") != "0", host.Settings.GetValueOrDefault("xp", "1") != "0");
             int port = Port("HOA_COOP_GATE_PORT", DefaultGatePort);
             try
             {
-                host.Gate = new CoopGate { Upload = (token, character) => ReceiveGuestAsync(host, token, character), Ledger = m_transfer.ReadLedger, Answers = m_transfer.AppendAnswers, Leave = token => GuestLeftAsync(host, token) };
+                host.Gate = new CoopGate
+                {
+                    Upload = (token, character) => ReceiveGuestAsync(host, token, character),
+                    Ledger = m_transfer.ReadLedger,
+                    Answers = m_transfer.AppendAnswers,
+                    Leave = token => GuestLeftAsync(host, token),
+                    IsOffline = user => !m_transfer.IsGuestOnline(user),
+                };
                 host.Gate.Start(port);
             }
             catch (SocketException)
@@ -1058,43 +1529,13 @@ namespace HordesOfAzeroth.Launcher
                 await host.Ports.OpenAsync(port);
             }
             host.Punch = await StartPunchAsync();
+            if (host.Stop.IsCancellationRequested)
+                return;
             try
             {
-                Dictionary<string, string> s = host.Settings;
-                JsonNode answer = await LobbyAsync(HttpMethod.Post, "/host", new JsonObject
-                {
-                    ["port"] = port,
-                    ["address"] = s.GetValueOrDefault("address", "").Trim(),
-                    ["local"] = LocalAddress(),
-                    ["vpn"] = new JsonArray(VpnAddresses().Select(address => (JsonNode)address).ToArray()),
-                    ["punch"] = host.Punch?.PublicEndPoint?.ToString() ?? "",
-                    ["name"] = s.GetValueOrDefault("name", ""),
-                    ["host_name"] = s.GetValueOrDefault("host_name", ""),
-                    ["host_class"] = s.GetValueOrDefault("host_class", ""),
-                    ["password"] = s.GetValueOrDefault("password", ""),
-                    ["listed"] = s.GetValueOrDefault("listed", "1") == "1",
-                    ["difficulty"] = s.GetValueOrDefault("difficulty", "Normal"),
-                    ["max"] = int.TryParse(s.GetValueOrDefault("max"), out int max) ? max : 4,
-                    ["mastery_limit"] = int.TryParse(s.GetValueOrDefault("mastery_limit"), out int limit) ? limit : 0,
-                    ["same_class"] = s.GetValueOrDefault("same_class", "0") == "1",
-                    ["pause"] = s.GetValueOrDefault("pause", "1") != "0",
-                    ["xp"] = s.GetValueOrDefault("xp", "1") != "0",
-                    ["min_mythic"] = int.TryParse(s.GetValueOrDefault("min_mythic"), out int minMythic) ? minMythic : 0,
-                    ["version"] = Version,
-                });
-                host.Id = answer["id"]?.ToString();
-                host.Secret = answer["secret"]?.ToString();
-                host.Code = answer["code"]?.ToString() ?? "";
-                host.Mode = answer["mode"]?.ToString() ?? "";
-                if (host.Mode != "punch")
-                {
-                    host.Punch?.Dispose();
-                    host.Punch = null;
-                }
-                if (host.Mode == "lan")
-                    host.Message = $"Only players on your own network can join. To let others join, forward TCP port {port} on your router to this PC, or enter a public address when you host.";
-                if (host.Mode == "vpn")
-                    host.Message = $"Only players on your VPN can join. To let others join, forward TCP port {port} on your router to this PC.";
+                await RegisterAsync(host);
+                if (host.Stop.IsCancellationRequested)
+                    return;
                 host.State = "hosting";
                 await HeartbeatAsync(host);
                 _ = HostLoopAsync(host);
@@ -1109,8 +1550,59 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        async Task RegisterAsync(HostState host)
+        {
+            Dictionary<string, string> s = host.Settings;
+            int port = host.Gate.Port;
+            JsonObject body = new JsonObject
+            {
+                ["port"] = port,
+                ["address"] = s.GetValueOrDefault("address", "").Trim(),
+                ["local"] = LocalAddress(),
+                ["vpn"] = new JsonArray(VpnAddresses().Select(address => (JsonNode)address).ToArray()),
+                ["punch"] = host.Punch?.PublicEndPoint?.ToString() ?? "",
+                ["name"] = s.GetValueOrDefault("name", ""),
+                ["host_name"] = s.GetValueOrDefault("host_name", ""),
+                ["host_class"] = s.GetValueOrDefault("host_class", ""),
+                ["password"] = s.GetValueOrDefault("password", ""),
+                ["listed"] = s.GetValueOrDefault("listed", "1") == "1",
+                ["difficulty"] = s.GetValueOrDefault("difficulty", "Normal"),
+                ["max"] = int.TryParse(s.GetValueOrDefault("max"), out int max) ? max : 4,
+                ["mastery_limit"] = int.TryParse(s.GetValueOrDefault("mastery_limit"), out int limit) ? limit : 0,
+                ["same_class"] = s.GetValueOrDefault("same_class", "0") == "1",
+                ["pause"] = s.GetValueOrDefault("pause", "1") != "0",
+                ["xp"] = s.GetValueOrDefault("xp", "1") != "0",
+                ["min_mythic"] = int.TryParse(s.GetValueOrDefault("min_mythic"), out int minMythic) ? minMythic : 0,
+                ["version"] = Version,
+                ["protocol"] = CoopProtocol,
+            };
+            if (host.Id != null)
+            {
+                body["resume_id"] = host.Id;
+                body["resume_secret"] = host.Secret;
+                body["resume_code"] = host.Code;
+            }
+            JsonNode answer = await LobbyAsync(HttpMethod.Post, "/host", body);
+            host.Id = answer["id"]?.ToString();
+            host.Secret = answer["secret"]?.ToString();
+            host.Code = answer["code"]?.ToString() ?? "";
+            host.Mode = answer["mode"]?.ToString() ?? "";
+            if (host.Mode != "punch" && host.State != "hosting")
+            {
+                host.Punch?.Dispose();
+                host.Punch = null;
+            }
+            host.Message = host.Mode switch
+            {
+                "lan" => $"Only players on your own network can join. To let others join, forward TCP port {port} on your router to this PC, or enter a public address when you host.",
+                "vpn" => $"Only players on your VPN can join. To let others join, forward TCP port {port} on your router to this PC.",
+                _ => "",
+            };
+        }
+
         void Fail(HostState host, string message)
         {
+            Log("Co-op: hosting failed: " + message);
             host.State = "error";
             host.Message = message;
             host.Gate?.Dispose();
@@ -1121,6 +1613,7 @@ namespace HordesOfAzeroth.Launcher
         async Task HostLoopAsync(HostState host)
         {
             DateTime lastBeat = DateTime.UtcNow;
+            DateTime lastHeard = DateTime.UtcNow;
             while (!host.Stop.IsCancellationRequested && !m_stop.IsCancellationRequested)
             {
                 try
@@ -1131,9 +1624,12 @@ namespace HordesOfAzeroth.Launcher
                 {
                     return;
                 }
+                bool changed = DropSilentGuests(host) | DropRemovedGuests(host);
                 try
                 {
                     JsonNode answer = await LobbyAsync(HttpMethod.Post, "/requests", new JsonObject { ["id"] = host.Id, ["secret"] = host.Secret });
+                    lastHeard = DateTime.UtcNow;
+                    host.Warning = "";
                     List<Request> requests = (answer["requests"]?.AsArray() ?? new JsonArray()).Select(r => new Request
                     {
                         Ask = r?["ask"]?.ToString(),
@@ -1149,8 +1645,8 @@ namespace HordesOfAzeroth.Launcher
                         host.Requests = requests;
                     if (host.Settings.GetValueOrDefault("auto") == "1")
                         foreach (Request request in requests)
-                            await AnswerAsync(request.Ask, true);
-                    if (DateTime.UtcNow - lastBeat > HeartbeatInterval || SettingsText() != host.SentSettings || DropSilentGuests(host))
+                            Answer(request.Ask, true);
+                    if (changed || DateTime.UtcNow - lastBeat > HeartbeatInterval || SettingsText() != host.SentSettings)
                     {
                         await HeartbeatAsync(host);
                         lastBeat = DateTime.UtcNow;
@@ -1158,16 +1654,39 @@ namespace HordesOfAzeroth.Launcher
                 }
                 catch (LobbyRefusal refusal) when (refusal.Status == 404)
                 {
-                    Fail(host, "Your lobby expired. Host again to list it.");
-                    return;
+                    try
+                    {
+                        await RegisterAsync(host);
+                        await HeartbeatAsync(host);
+                        lastBeat = lastHeard = DateTime.UtcNow;
+                        host.Warning = "";
+                        Log("Co-op: the lobby forgot this game; listed it again");
+                    }
+                    catch (Exception error)
+                    {
+                        Log("Co-op: listing the game again failed: " + error.Message);
+                    }
                 }
                 catch (Exception)
                 {
                 }
+                if (DateTime.UtcNow - lastHeard > LobbyQuietLimit)
+                    host.Warning = "Can't reach the co-op service. Players in your game keep playing, but new players can't find or join it until it's back.";
             }
         }
 
         string SettingsText() => string.Join("|", m_transfer.ReadHostSettings().OrderBy(pair => pair.Key).Select(pair => pair.Key + "=" + pair.Value));
+
+        async Task HeartbeatQuietlyAsync(HostState host)
+        {
+            try
+            {
+                await HeartbeatAsync(host);
+            }
+            catch (Exception)
+            {
+            }
+        }
 
         Task HeartbeatAsync(HostState host)
         {
@@ -1189,7 +1708,7 @@ namespace HordesOfAzeroth.Launcher
             });
         }
 
-        async Task<string> AnswerAsync(string ask, bool accept)
+        string Answer(string ask, bool accept)
         {
             HostState host;
             Request request;
@@ -1201,7 +1720,28 @@ namespace HordesOfAzeroth.Launcher
                     throw new CoopError("Join request expired.");
                 host.Requests.Remove(request);
             }
-            JsonObject body = new JsonObject { ["id"] = host.Id, ["secret"] = host.Secret, ["ask"] = ask, ["accept"] = accept };
+            _ = AnswerInBackgroundAsync(host, request, accept);
+            return HostStatus();
+        }
+
+        async Task AnswerInBackgroundAsync(HostState host, Request request, bool accept)
+        {
+            try
+            {
+                await AnswerAsync(host, request, accept);
+                host.Notice = "";
+            }
+            catch (Exception error)
+            {
+                host.Notice = error.Message;
+                Log("Co-op: answering " + request.Name + " failed: " + error.Message);
+            }
+        }
+
+        async Task AnswerAsync(HostState host, Request request, bool accept)
+        {
+            JsonObject body = new JsonObject { ["id"] = host.Id, ["secret"] = host.Secret, ["ask"] = request.Ask, ["accept"] = accept };
+            Member member = null;
             if (accept)
             {
                 CoopLogin login = await m_accounts.CreateAsync();
@@ -1218,26 +1758,24 @@ namespace HordesOfAzeroth.Launcher
                     link.StreamOpened = id => CoopLinkStream.ToGate(link, id, gatePort);
                     body["session"] = session.ToString("X16");
                 }
+                member = new Member { Name = request.Name, Class = request.Class, Mastery = request.Mastery, Token = token, GuestUser = login.User };
                 lock (m_lock)
-                    host.Members.Add(new Member { Name = request.Name, Class = request.Class, Mastery = request.Mastery, Token = token, GuestUser = login.User });
+                    host.Members.Add(member);
                 m_transfer.NoteJoining(login.User, request.Name);
             }
             try
             {
                 await LobbyAsync(HttpMethod.Post, "/answer", body);
             }
-            catch (Exception) when (accept)
+            catch (Exception) when (member != null)
             {
-                string token = body["token"]!.ToString();
                 lock (m_lock)
-                    host.Members.RemoveAll(m => m.Token == token);
-                host.Gate.Revoke(token);
-                _ = m_transfer.LogOutGuestAsync(body["user"]!.ToString());
+                    host.Members.Remove(member);
+                DismissGuest(host, member, "failed");
                 throw;
             }
             if (accept)
-                _ = HeartbeatAsync(host);
-            return HostStatus();
+                await HeartbeatQuietlyAsync(host);
         }
 
         string HostStatus()
@@ -1247,7 +1785,8 @@ namespace HordesOfAzeroth.Launcher
                 if (m_host == null)
                     return Line("state", "off");
                 StringBuilder text = new StringBuilder();
-                text.Append(Line("state", m_host.State, CoopText.Localize(m_host.Message)));
+                string message = m_host.Warning.Length > 0 ? m_host.Warning : m_host.Notice.Length > 0 ? m_host.Notice : m_host.Message;
+                text.Append(Line("state", m_host.State, CoopText.Localize(message)));
                 text.Append(Line("game", m_host.Settings.GetValueOrDefault("name", ""), m_host.Code, m_host.Settings.GetValueOrDefault("max", "4"),
                     m_host.Settings.GetValueOrDefault("difficulty", "Normal")));
                 foreach (Member member in m_host.Members)
@@ -1258,24 +1797,42 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
-        async Task<string> StopHostingAsync()
+        string StopHosting()
         {
-            HostState host;
-            lock (m_lock)
+            _ = CloseCurrentHost();
+            return Line("state", "off");
+        }
+
+        async Task CloseHostAsync(HostState host)
+        {
+            host.Stop.Cancel();
+            try
             {
-                host = m_host;
-                m_host = null;
+                await host.Opening;
             }
-            if (host == null)
-                return Line("state", "off");
+            catch (Exception)
+            {
+            }
             m_transfer.NoteSameClass(false);
             m_transfer.ClearHostSettings();
-            host.Stop.Cancel();
-            await LetGuestsCollectAsync(host);
+            try
+            {
+                await LetGuestsCollectAsync(host);
+            }
+            catch (Exception error)
+            {
+                Log("Co-op: letting guests collect failed: " + error.Message);
+            }
             host.Gate?.Dispose();
             host.Punch?.Dispose();
-            if (host.Ports != null)
-                await host.Ports.CloseAsync();
+            try
+            {
+                if (host.Ports != null)
+                    await host.Ports.CloseAsync();
+            }
+            catch (Exception)
+            {
+            }
             if (host.Id != null)
             {
                 try
@@ -1286,7 +1843,6 @@ namespace HordesOfAzeroth.Launcher
                 {
                 }
             }
-            return Line("state", "off");
         }
     }
 }

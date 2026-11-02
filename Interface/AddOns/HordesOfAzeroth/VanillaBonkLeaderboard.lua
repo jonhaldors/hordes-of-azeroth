@@ -11,7 +11,9 @@ local ROW_HEIGHT = 22
 local ROWS_TOP = -64
 local ICON_SIZE = 16
 local CLASS_ICON_SIZE = 24
-local MEMBERS_WIDTH = 358
+local MEMBERS_WIDTH = 352
+local RANK_WIDTH = 46
+local MEMBERS_LEFT = 50
 local GROUP_SIZES = { 2, 3, 4 }
 local CLASSES = {
     { id = 1, token = "WARRIOR" }, { id = 2, token = "PALADIN" }, { id = 3, token = "HUNTER" },
@@ -23,7 +25,11 @@ for _, class in ipairs(CLASSES) do
     CLASS_TOKENS[class.id] = class.token
 end
 
-local board = { season = 1, updated = nil, solo = {}, groups = {}, mine = { solo = {}, group = {} }, choice = -1, size = 1, class = nil }
+local PAGE_ROWS = 50
+local OUTSIDE_RANK = "1000+"
+
+local board = { season = 1, updated = nil, views = {}, mine = { solo = {}, group = {} }, locals = { solo = {}, group = {} },
+    cutoffs = { solo = {}, group = {} }, sync = nil, choice = -1, size = 1, class = nil }
 
 local function Command(text)
     SendChatMessage(".bonk " .. text, "SAY")
@@ -94,8 +100,8 @@ local function CreateRow(parent)
     row.shade:SetAllPoints(row)
     row.shade:SetTexture(UI.FLAT)
     row.rank = UI.Text(row, 12)
-    row.rank:SetPoint("LEFT", row, "LEFT", 4, 0)
-    row.rank:SetWidth(30)
+    row.rank:SetPoint("LEFT", row, "LEFT", 0, 0)
+    row.rank:SetWidth(RANK_WIDTH)
     row.rank:SetJustifyH("RIGHT")
     row.members = {}
     for index = 1, 4 do
@@ -127,7 +133,7 @@ local function ShowEntry(row, rank, entry)
     for index, member in ipairs(row.members) do
         local info = members[index]
         if info then
-            PlaceMember(member, row, 44 + (index - 1) * slot)
+            PlaceMember(member, row, MEMBERS_LEFT + (index - 1) * slot)
             ShowMember(member, info.name, info.class, width)
         else
             HideMember(member)
@@ -205,8 +211,8 @@ local function Heading(text, x, justify, width)
     return heading
 end
 
-Heading(L["Rank"], 10, "RIGHT", 34)
-window.whoHeading = Heading(L["Character"], 54, "LEFT", 200)
+Heading(L["Rank"], 10, "RIGHT", RANK_WIDTH)
+window.whoHeading = Heading(L["Character"], 10 + MEMBERS_LEFT, "LEFT", 200)
 Heading(L["Highest clear"], 420, "LEFT", 76)
 Heading(L["Time"], 502, "RIGHT", 44)
 Heading(L["Date"], 550, "RIGHT", 76)
@@ -228,7 +234,7 @@ scroll:SetScript("OnVerticalScroll", function()
 end)
 
 window.empty = UI.Text(panel, 12)
-window.empty:SetPoint("TOPLEFT", window.rows[1], "TOPLEFT", 44, -4)
+window.empty:SetPoint("TOPLEFT", window.rows[1], "TOPLEFT", MEMBERS_LEFT, -4)
 window.empty:SetTextColor(0.6, 0.6, 0.6)
 
 window.you = CreateRow(panel)
@@ -238,7 +244,7 @@ window.you:SetHeight(ROW_HEIGHT + 6)
 window.you.shade:SetVertexColor(1, 0.7, 0.15, 0.12)
 window.you.rank:SetTextColor(1, 0.82, 0)
 window.you.note = UI.Text(window.you, 12)
-window.you.note:SetPoint("LEFT", window.you, "LEFT", 44, 0)
+window.you.note:SetPoint("LEFT", window.you, "LEFT", MEMBERS_LEFT, 0)
 window.you.note:SetTextColor(0.6, 0.6, 0.6)
 window.youTitle = UI.Text(panel, 11)
 window.youTitle:SetPoint("BOTTOMLEFT", window.you, "TOPLEFT", 4, 3)
@@ -277,12 +283,6 @@ local function Better(a, b)
     return not b or a.level > b.level or (a.level == b.level and a.ms < b.ms)
 end
 
-local function SortEntries(list)
-    sort(list, function(a, b)
-        return a.level > b.level or (a.level == b.level and a.ms < b.ms)
-    end)
-end
-
 local function HasClass(entry, classId)
     for _, member in ipairs(entry.members) do
         if member.class == classId then
@@ -292,31 +292,19 @@ local function HasClass(entry, classId)
     return false
 end
 
-local function VisibleEntries()
-    if board.size == 1 then
-        if board.class then
-            return board.solo[board.class] or {}
-        end
-        local all = {}
-        for _, list in pairs(board.solo) do
-            for _, entry in ipairs(list) do
-                tinsert(all, entry)
-            end
-        end
-        SortEntries(all)
-        return all
+local function CurrentView()
+    local key = board.size .. ":" .. (board.class or 0)
+    board.views[key] = board.views[key] or { rows = {}, asked = {} }
+    return board.views[key]
+end
+
+local function AskPage(view, position)
+    local page = floor(position / PAGE_ROWS) * PAGE_ROWS
+    if view.asked[page] then
+        return
     end
-    local list = board.groups[GROUP_SIZES[board.size - 1]] or {}
-    if not board.class then
-        return list
-    end
-    local filtered = {}
-    for _, entry in ipairs(list) do
-        if HasClass(entry, board.class) then
-            tinsert(filtered, entry)
-        end
-    end
-    return filtered
+    view.asked[page] = true
+    Command("boardpage " .. board.size .. " " .. (board.class or 0) .. " " .. page)
 end
 
 local function BestOfMine()
@@ -339,6 +327,48 @@ local function BestOfMine()
     return best, rank
 end
 
+local function BestLocal()
+    local best
+    if board.size == 1 then
+        for _, entry in ipairs(board.locals.solo) do
+            if (not board.class or entry.class == board.class) and Better(entry, best) then
+                best = entry
+            end
+        end
+    else
+        for _, entry in ipairs(board.locals.group) do
+            if entry.size == GROUP_SIZES[board.size - 1] and (not board.class or HasClass(entry, board.class)) and Better(entry, best) then
+                best = entry
+            end
+        end
+    end
+    return best
+end
+
+local function OutsideTop(entry)
+    local cutoff
+    if board.size == 1 then
+        cutoff = board.cutoffs.solo[entry.class]
+    else
+        cutoff = board.cutoffs.group[entry.size]
+    end
+    return cutoff ~= nil and not Better(entry, cutoff)
+end
+
+local function SyncText()
+    local sync = board.sync
+    local waiting = sync and sync.pending > 0 and L("{1} runs waiting to upload", sync.pending) or nil
+    if sync and sync.state == "failed" then
+        local text = sync.since ~= "" and L("Can't reach the leaderboard since {1}", sync.since) or L["Can't reach the leaderboard"]
+        return "|cffff6666" .. text .. (waiting and ("  ·  " .. waiting) or "") .. "|r"
+    end
+    local updated = board.updated and L("Updated {1}", board.updated) or ""
+    if waiting then
+        return updated ~= "" and (updated .. "  ·  " .. waiting) or waiting
+    end
+    return updated
+end
+
 function window.Refresh()
     panel.tabs:Select(board.size)
     if board.class then
@@ -358,20 +388,29 @@ function window.Refresh()
     end
     window.whoHeading:SetText(board.size == 1 and L["Character"] or L["Group"])
 
-    local entries = VisibleEntries()
-    local total = getn(entries)
+    local view = CurrentView()
+    if not view.total then
+        AskPage(view, 0)
+    end
+    local total = view.total or 0
     FauxScrollFrame_Update(scroll, total, ROWS, ROW_HEIGHT)
     local offset = FauxScrollFrame_GetOffset(scroll)
     for index, row in ipairs(window.rows) do
-        local entry = entries[index + offset]
+        local position = index + offset
+        local entry = view.rows[position]
         if entry then
-            ShowEntry(row, index + offset, entry)
+            ShowEntry(row, position, entry)
         else
             ClearRow(row)
+            if position <= total then
+                AskPage(view, position - 1)
+            end
         end
     end
     if total > 0 then
         window.empty:SetText("")
+    elseif not view.total and board.updated then
+        window.empty:SetText(L["Loading..."])
     elseif board.updated then
         window.empty:SetText(L["Nobody is on this list yet."])
     else
@@ -379,8 +418,9 @@ function window.Refresh()
     end
 
     local best, rank = BestOfMine()
-    if best then
-        ShowEntry(window.you, rank, best)
+    local own = best or BestLocal()
+    if own then
+        ShowEntry(window.you, best and rank or (OutsideTop(own) and OUTSIDE_RANK or nil), own)
         window.you.note:SetText("")
     else
         ClearRow(window.you)
@@ -394,7 +434,7 @@ function window.Refresh()
     end
 
     window.header:SetText(L("Season {1}", board.season))
-    window.headerRight:SetText(board.updated and L("Updated {1}", board.updated) or "")
+    window.headerRight:SetText(SyncText())
     window.join:SetChecked(board.choice == 1)
     window.note:SetText(L("Season {1}. Mythic clears with gear found this season. Ties go to the faster clear.", board.season))
 end
@@ -443,9 +483,19 @@ local handlers = {}
 
 handlers["boardopen"] = function()
     board.updated = nil
-    board.solo = {}
-    board.groups = {}
+    board.views = {}
     board.mine = { solo = {}, group = {} }
+    board.locals = { solo = {}, group = {} }
+    board.cutoffs = { solo = {}, group = {} }
+    board.sync = nil
+end
+
+local function ReadSolo(f, first)
+    return { class = tonumber(f[first]) or 0, name = f[first + 2] or "", level = tonumber(f[first + 3]) or 0, ms = tonumber(f[first + 4]) or 0, date = f[first + 5] or "" }
+end
+
+local function ReadGroup(f, first)
+    return { size = tonumber(f[first]) or 0, level = tonumber(f[first + 2]) or 0, ms = tonumber(f[first + 3]) or 0, date = f[first + 4] or "", members = ReadMembers(f[first + 5]) }
 end
 
 handlers["board"] = function(f)
@@ -454,14 +504,16 @@ handlers["board"] = function(f)
         board.updated = f[3]
     elseif kind == "season" then
         board.season = tonumber(f[3]) or board.season
-    elseif kind == "solo" then
-        local class = tonumber(f[3]) or 0
-        board.solo[class] = board.solo[class] or {}
-        tinsert(board.solo[class], { class = class, name = f[5] or "", level = tonumber(f[6]) or 0, ms = tonumber(f[7]) or 0, date = f[8] or "" })
-    elseif kind == "group" then
-        local size = tonumber(f[3]) or 0
-        board.groups[size] = board.groups[size] or {}
-        tinsert(board.groups[size], { level = tonumber(f[5]) or 0, ms = tonumber(f[6]) or 0, date = f[7] or "", members = ReadMembers(f[8]) })
+    elseif kind == "sync" then
+        board.sync = { state = f[3] or "", since = f[4] or "", pending = tonumber(f[5] or "") or 0 }
+    elseif kind == "cutoff" and f[3] == "solo" then
+        board.cutoffs.solo[tonumber(f[4]) or 0] = { level = tonumber(f[5]) or 0, ms = tonumber(f[6]) or 0 }
+    elseif kind == "cutoff" and f[3] == "group" then
+        board.cutoffs.group[tonumber(f[4]) or 0] = { level = tonumber(f[5]) or 0, ms = tonumber(f[6]) or 0 }
+    elseif kind == "local" and f[3] == "solo" then
+        tinsert(board.locals.solo, { class = tonumber(f[4]) or 0, name = f[5] or "", level = tonumber(f[6]) or 0, ms = tonumber(f[7]) or 0, date = f[8] or "" })
+    elseif kind == "local" and f[3] == "group" then
+        tinsert(board.locals.group, { size = tonumber(f[4]) or 0, level = tonumber(f[5]) or 0, ms = tonumber(f[6]) or 0, date = f[7] or "", members = ReadMembers(f[8]) })
     elseif kind == "mine" and f[3] == "solo" then
         tinsert(board.mine.solo, { class = tonumber(f[4]) or 0, classRank = tonumber(f[5]), allRank = tonumber(f[6]), name = f[7] or "",
             level = tonumber(f[8]) or 0, ms = tonumber(f[9]) or 0, date = f[10] or "" })
@@ -471,8 +523,33 @@ handlers["board"] = function(f)
     end
 end
 
+handlers["boardrow"] = function(f)
+    local view = board.views[(f[2] or "") .. ":" .. (f[3] or "")]
+    local position = tonumber(f[4] or "")
+    if not view or not position then
+        return
+    end
+    if f[5] == "solo" then
+        view.rows[position] = ReadSolo(f, 6)
+    elseif f[5] == "group" then
+        view.rows[position] = ReadGroup(f, 6)
+    end
+end
+
+handlers["boardpage"] = function(f)
+    local view = board.views[(f[2] or "") .. ":" .. (f[3] or "")]
+    if not view then
+        return
+    end
+    view.total = tonumber(f[5] or "") or 0
+    if window:IsShown() then
+        window.Refresh()
+    end
+end
+
 handlers["boardchoice"] = function(f)
     board.choice = tonumber(f[2]) or -1
+    UI.boardChoice = board.choice
     if window:IsShown() then
         window.Refresh()
     end

@@ -75,6 +75,7 @@ namespace BonkTelegraphs
                 castVisuals.AddRange(BossLooks.AddLooks(spellVisualKits, spellEffectNames));
                 castVisuals.AddRange(AuraLooks.AddAuraLooks(spells, spellVisuals, spellVisualKits, spellEffectNames, new Dbc(client.Read("DBFilesClient\\SpellIcon.dbc"))));
                 castVisuals.AddRange(AuraRings.AddSpells(spells, spellVisuals, spellVisualKits, spellEffectNames));
+                castVisuals.AddRange(NamedSpells.AddNamedSpells(spells, new Dbc(client.Read("DBFilesClient\\SpellIcon.dbc"))));
                 castVisuals.AddRange(PenanceVisuals.AddPenanceVisuals(spells, spellVisuals, spellEffectNames));
                 Dbc[] spellTables = { spells, spellVisuals, spellVisualKits, spellEffectNames };
                 castVisuals.AddRange(IfClientHasArt("the fel fire", files, spellTables,

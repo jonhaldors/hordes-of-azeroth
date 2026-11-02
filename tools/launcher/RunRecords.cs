@@ -22,6 +22,10 @@ namespace HordesOfAzeroth.Launcher
         static readonly Regex EndMinute = new Regex(@" at run minute ([\d.]+) ");
         static readonly Regex RunClass = new Regex(@", class (\d+)\)");
         static readonly Regex BoardChoice = new Regex(@", board (-?\d+), gear ");
+        static readonly Regex Clear = new Regex(@"clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, party (\S+))?$");
+        const int FirstMythicLevel = 10;
+        const int MinClearMs = 3 * 60 * 1000;
+        const int MaxSentKeys = 5000;
 
         sealed class OpenRun
         {
@@ -31,7 +35,13 @@ namespace HordesOfAzeroth.Launcher
             public uint Character;
             public int LastSecond;
             public readonly List<string> Lines = new List<string>();
+            public int SoloClass;
+            public BoardScore Solo;
+            public int GroupSize;
+            public BoardScore Group;
         }
+
+        static string SentPath(GameFolder folder) => Path.Combine(folder.LauncherData, "run-sent.txt");
 
         public static string Outbox(GameFolder folder) => Path.Combine(folder.LauncherData, "run-outbox");
 
@@ -109,6 +119,8 @@ namespace HordesOfAzeroth.Launcher
             int seconds = (int)(stamp - run.Started).TotalSeconds;
             run.LastSecond = seconds;
             run.Lines.Add(seconds.ToString(CultureInfo.InvariantCulture) + " " + kind + ": " + Anonymize(body, run.Name));
+            if (kind == "clear")
+                NoteClear(folder, run, body);
             if (kind != "end")
                 return;
             open.Remove(character);
@@ -120,6 +132,59 @@ namespace HordesOfAzeroth.Launcher
         {
             if (run.LastSecond >= MinRunMinutes * 60 && run.Lines.Count > 0)
                 Save(folder, settings, run, run.Lines[0], false);
+        }
+
+        static void NoteClear(GameFolder folder, OpenRun run, string body)
+        {
+            Match match = Clear.Match(body);
+            if (!match.Success)
+                return;
+            int level = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            int ms = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+            int classId = int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+            if (level < FirstMythicLevel || ms < MinClearMs || match.Groups[5].Value != "0" || match.Groups[7].Value != "1")
+                return;
+            BoardScore score = new BoardScore { Level = level, Ms = ms };
+            string date = run.Started.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (match.Groups[4].Value == "0")
+            {
+                if (score.Beats(run.Solo))
+                {
+                    run.Solo = score;
+                    run.SoloClass = classId;
+                }
+                Leaderboard.NoteLocalBest(folder, "solo:" + run.Character, $"local~solo~{classId}~{run.Name}~{level}~{ms}~{date}", 4, 5);
+                return;
+            }
+            List<string[]> members = match.Groups[8].Value.Split(';').Select(piece => piece.Split(':')).Where(parts => parts.Length == 6).ToList();
+            if (members.Count < 2)
+                return;
+            if (score.Beats(run.Group))
+            {
+                run.Group = score;
+                run.GroupSize = members.Count;
+            }
+            string key = "group:" + members.Count + ":" + string.Join(",", members.Select(parts => parts[0]).OrderBy(guid => guid, StringComparer.Ordinal));
+            string names = string.Join(",", members.Select(parts => parts[1] + ":" + parts[2]));
+            Leaderboard.NoteLocalBest(folder, key, $"local~group~{members.Count}~{level}~{ms}~{date}~{names}", 3, 4);
+        }
+
+        static bool WasSent(GameFolder folder, string key) => File.Exists(SentPath(folder)) && File.ReadLines(SentPath(folder)).Contains(key);
+
+        static void NoteSent(GameFolder folder, string key)
+        {
+            string path = SentPath(folder);
+            List<string> keys = File.Exists(path) ? File.ReadAllLines(path).ToList() : new List<string>();
+            keys.Add(key);
+            File.WriteAllLines(path, keys.Skip(Math.Max(0, keys.Count - MaxSentKeys)));
+        }
+
+        static bool Places(GameFolder folder, OpenRun run)
+        {
+            if (run.Solo == null && run.Group == null)
+                return false;
+            BoardCutoffs cutoffs = Leaderboard.Cutoffs(folder);
+            return (run.Solo != null && cutoffs.SoloPlaces(run.SoloClass, run.Solo)) || (run.Group != null && cutoffs.GroupPlaces(run.GroupSize, run.Group));
         }
 
         static string Anonymize(string body, string name) => body.StartsWith(name + " ", StringComparison.Ordinal) ? "hero" + body.Substring(name.Length) : body;
@@ -136,11 +201,14 @@ namespace HordesOfAzeroth.Launcher
             string outbox = Outbox(folder);
             Directory.CreateDirectory(outbox);
             int board = ReadBoardChoice(run);
-            if (!settings.SendRunData && board != 1)
+            bool places = Places(folder, run);
+            if (!settings.SendRunData && !places)
                 return;
-            string file = Path.Combine(outbox, $"{run.Started:yyyyMMdd-HHmmss}-{run.Character}.json.gz");
-            if (File.Exists(file))
+            string key = $"{run.Started:yyyyMMdd-HHmmss}-{run.Character}";
+            string file = Path.Combine(outbox, key + ".json.gz");
+            if (File.Exists(file) || WasSent(folder, key))
                 return;
+            NoteSent(folder, key);
             using (FileStream output = File.Create(file))
             using (GZipStream gzip = new GZipStream(output, CompressionLevel.SmallestSize))
             using (Utf8JsonWriter json = new Utf8JsonWriter(gzip))
@@ -153,7 +221,7 @@ namespace HordesOfAzeroth.Launcher
                 json.WriteString("os", Platform.SystemName);
                 json.WriteString("started", run.Started.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
                 json.WriteNumber("character", run.Character);
-                if (board == 1 || (board < 0 && settings.ShowOnLeaderboard))
+                if (places && (board == 1 || (board < 0 && settings.ShowOnLeaderboard)))
                     json.WriteString("name", run.Name);
                 json.WriteBoolean("finished", finished);
                 json.WriteNumber("class", classMatch.Success ? int.Parse(classMatch.Groups[1].Value, CultureInfo.InvariantCulture) : 0);

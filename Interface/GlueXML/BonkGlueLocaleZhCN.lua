@@ -288,8 +288,6 @@ BonkGlueLocale.Register("zhCN", {
     ["Individual"] = "个人",
     ["Invalid request."] = "无效的请求。",
     ["Invasion"] = "入侵",
-    ["Ironman characters can't play co-op."] = "铁人角色无法进行联机合作。",
-    ["Ironman characters play solo only."] = "铁人角色只能单人游玩。",
     ["Ironman mode"] = "铁人模式",
     ["Join"] = "加入",
     ["Join request cancelled."] = "加入请求已取消。",

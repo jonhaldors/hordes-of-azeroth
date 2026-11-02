@@ -2616,7 +2616,7 @@ handlers["tier"] = function(f)
     end
     tinsert(VB.pendingTiers, { id = f[2], key = f[3], name = f[4], unlocked = f[5] == "1", hint = f[6] or "", best = tonumber(f[7]) or 0,
         description = f[8] or "", art = f[9] or "", maps = maps, levels = tonumber(f[11] or "") or 0, open = tonumber(f[12] or "") or 0,
-        dungeons = dungeons, details = f[14] or "" })
+        dungeons = dungeons, details = f[14] or "", firstLevel = tonumber(f[15] or "") })
 end
 
 handlers["starter"] = function(f)
@@ -3000,8 +3000,10 @@ local STATS = {
     [17] = { name = L["Shield"], pct = true, text = L["Absorbs damage equal to %s of maximum health."], note = L["Shield is restored after 4 sec without taking damage."] },
     [18] = { name = L["Luck"], text = L["Improves the rarity of chest and level-up choices."] },
     [19] = { name = L["Poison damage"], pct = true, text = L["Increases Poison damage by %s."] },
+    [20] = { name = L["Burning damage"], pct = true, text = L["Increases Burning damage by %s."] },
+    [21] = { name = L["Bleed damage"], pct = true, text = L["Increases Bleed damage by %s."] },
 }
-local STAT_ORDER = { 0, 12, 14, 15, 16, 17, 1, 10, 8, 18, 4, 3, 5, 9, 11, 19, 6, 7, 2 }
+local STAT_ORDER = { 0, 12, 14, 15, 16, 17, 1, 10, 8, 18, 4, 3, 5, 9, 11, 19, 20, 21, 6, 7, 2 }
 
 VB.statTips = {
     s0 = { name = L["Power"], text = L["Increases all damage you and your minions deal."] },

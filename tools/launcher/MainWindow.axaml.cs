@@ -132,13 +132,27 @@ namespace HordesOfAzeroth.Launcher
         {
             if (!RunUpload.IsConfigured)
                 return;
+            bool reached = false;
             try
             {
                 string board = await RunUpload.GetBoardAsync(m_settings.InstallId);
                 if (board.Length <= Leaderboard.MaxBytes)
-                    await File.WriteAllTextAsync(Leaderboard.File(m_folder), board);
+                {
+                    Leaderboard.SaveServerBoard(m_folder, board);
+                    m_settings.BoardSyncedAt = Leaderboard.SyncStamp();
+                    m_settings.Save();
+                    reached = true;
+                }
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || Web.IsProblem(e))
+            {
+                LauncherLog.Write(m_folder, "Leaderboard: " + (e.InnerException != null ? e.Message + " (" + e.InnerException.Message + ")" : e.Message));
+            }
+            try
+            {
+                Leaderboard.Write(m_folder, m_settings, reached, RunRecords.Pending(RunRecords.Outbox(m_folder)).Count());
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
                 LauncherLog.Write(m_folder, "Leaderboard: " + e.Message);
             }
@@ -1142,7 +1156,7 @@ namespace HordesOfAzeroth.Launcher
                 return;
             try
             {
-                await m_coop.LeaveAllAsync().WaitAsync(TimeSpan.FromSeconds(30));
+                await m_coop.EndAllAsync().WaitAsync(TimeSpan.FromSeconds(75));
             }
             catch (Exception e) when (!(e is OutOfMemoryException))
             {

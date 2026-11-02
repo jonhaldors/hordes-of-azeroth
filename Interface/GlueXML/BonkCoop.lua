@@ -61,7 +61,6 @@ BONK_COOP_NOTES = {
 	["The game server didn't answer. Is it running?"] = L["The game server didn't answer. Is it running?"],
 	["The joining player's account couldn't be created."] = L["The joining player's account couldn't be created."],
 	["broken ledger"] = L["broken ledger"],
-	["Ironman characters play solo only."] = L["Ironman characters play solo only."],
 	["The account progress couldn't be loaded."] = L["The account progress couldn't be loaded."],
 	["That character is online."] = L["That character is online."],
 	["That character belongs to another account."] = L["That character belongs to another account."],
@@ -119,7 +118,11 @@ BONK_COOP_TEXTS = {
 BONK_COOP_AWAY_WAIT = 30;
 BONK_COOP_RECONNECT_DELAY = 1;
 BONK_COOP_REJOIN_TRIES = 2;
+BONK_COOP_REJOIN_SECONDS = 110;
+BONK_COOP_REJOIN_LONGEST_WAIT = 10;
+BONK_COOP_POLL_FAILURES = 10;
 BONK_COOP_ENTER_DELAY = 1;
+BONK_COOP_NO_ANSWER = "The launcher didn't answer.";
 
 BonkCoop = {
 	mode = nil,
@@ -408,11 +411,7 @@ function BonkCoop_Apply()
 		local hero = BonkCoop_Hero();
 		BonkHeroPlayButton:Hide();
 		BonkCoopBar:Show();
-		if ( hero and hero.ironman ) then
-			BonkCoopBarText:SetText(L["Ironman characters can't play co-op."]);
-			BonkCoopFindButton:Disable();
-			BonkCoopHostButton:Disable();
-		elseif ( hero ) then
+		if ( hero ) then
 			BonkCoopBarText:SetText(L("Joins as {1}", hero.name));
 			BonkCoopFindButton:Enable();
 			BonkCoopHostButton:Enable();
@@ -621,9 +620,6 @@ function BonkCoop_Fit(lobby, hero)
 	if ( not hero ) then
 		return nil, L["Select a character first."];
 	end
-	if ( hero.ironman ) then
-		return nil, L["Ironman characters can't play co-op."];
-	end
 	if ( lobby.players >= lobby.max ) then
 		return nil, L["Game is full."];
 	end
@@ -731,10 +727,6 @@ function BonkCoop_Ask(target, hostName)
 	if ( not hero ) then
 		return;
 	end
-	if ( hero.ironman ) then
-		BonkCoop_ShowMessage(L["Ironman characters can't play co-op."]);
-		return;
-	end
 	target.name = hero.name;
 	target.class = strlower(hero.class);
 	target.race = hero.race;
@@ -742,26 +734,32 @@ function BonkCoop_Ask(target, hostName)
 	target.best = hero.best;
 	target.account = BonkCoop_OwnAccount();
 	local lines, problem = BonkCoop_Call("POST", "/ask?who="..BonkCoop_Encode(BonkCoop_Who()), target);
-	if ( not lines ) then
+	if ( not lines and problem ~= BONK_COOP_NO_ANSWER ) then
 		BonkCoop_ShowMessage(problem);
 		return;
 	end
 	BonkCoop.joining = { host = hostName, started = GetTime() };
-	BonkCoop_ReadJoin(lines);
+	BonkCoop_ReadJoin(lines or { { "state", "asking" } });
 end
 
 function BonkCoop_ReadJoin(lines)
 	local fields = lines[1] or {};
 	local state = fields[2];
-	if ( state == "waiting" ) then
+	if ( state == "asking" ) then
+		if ( BonkCoop.popup ~= "asking" ) then
+			BonkCoop_ShowPopup("asking", L["Sending your join request..."], nil, nil, L["Cancel"], nil);
+		end
+	elseif ( state == "waiting" ) then
 		local joining = BonkCoop.joining or { started = GetTime() };
 		BonkCoop.joining = joining;
 		joining.seconds = tonumber(fields[4]) or 30;
 		local who = joining.host and ("|cffffd100"..joining.host.."|r") or L["the host"];
 		BonkCoop_ShowPopup("waiting", L("Waiting on {1} to accept...", who), "\""..(fields[3] or "").."\"", nil, L["Cancel"], nil);
 	elseif ( state == "transferring" ) then
-		local hero = BonkCoop_Hero();
-		BonkCoop_ShowPopup("message", L("The host accepted. Joining with {1}...", hero and hero.name or L["your character"]), nil, nil, nil, nil);
+		if ( BonkCoop.popup ~= "transferring" ) then
+			local hero = BonkCoop_Hero();
+			BonkCoop_ShowPopup("transferring", L("The host accepted. Joining with {1}...", hero and hero.name or L["your character"]), nil, nil, L["Cancel"], nil);
+		end
 	elseif ( state == "accepted" ) then
 		BonkCoop.joining = nil;
 		BonkCoop_ShowPopup("message", L["Connecting to host..."], nil, nil, nil, nil);
@@ -785,11 +783,11 @@ function BonkCoop_Switch(address, token, user, password, character)
 	BonkCoop_Reconnect();
 end
 
-function BonkCoop_Reconnect()
+function BonkCoop_Reconnect(delay)
 	Bonk.loginTried = true;
 	Bonk.listLoaded = false;
 	Bonk.reuseList = false;
-	BonkCoop.reconnectAt = GetTime() + BONK_COOP_RECONNECT_DELAY;
+	BonkCoop.reconnectAt = GetTime() + (delay or BONK_COOP_RECONNECT_DELAY);
 	BonkCoop.checkedEnter = nil;
 	BonkCoop.enterAt = nil;
 	DisconnectFromServer();
@@ -821,14 +819,16 @@ end
 function BonkCoop_LostHost()
 	GlueDialog:Hide();
 	local lines = BonkCoop_Call("POST", "/join/rejoin?who="..BonkCoop_Encode(BonkCoop_Who()));
-	local tries = tonumber(lines and lines[1] and lines[1][3]) or BONK_COOP_REJOIN_TRIES + 1;
-	if ( tries > BONK_COOP_REJOIN_TRIES ) then
+	local fields = lines and lines[1] or {};
+	local tries = tonumber(fields[3]) or 0;
+	local seconds = tonumber(fields[4]) or BONK_COOP_REJOIN_SECONDS + 1;
+	if ( fields[2] ~= "rejoin" or seconds > BONK_COOP_REJOIN_SECONDS ) then
 		BonkLoginStatus:SetText(L["Can't reach the host. Returning to your own game..."]);
 		BonkCoop_Leave();
 		return;
 	end
 	BonkLoginStatus:SetText(L["Connection to host lost. Reconnecting..."]);
-	BonkCoop_Reconnect();
+	BonkCoop_Reconnect(math.min(BONK_COOP_REJOIN_LONGEST_WAIT, tries * 2));
 end
 
 function BonkCoop_RefusalNote(shown)
@@ -858,7 +858,7 @@ end
 
 function BonkCoop_ReadLeave(lines)
 	local fields = lines and lines[1] or { "state", "home", "" };
-	if ( fields[2] ~= "home" ) then
+	if ( fields[2] ~= "home" and fields[2] ~= "none" ) then
 		return;
 	end
 	BonkCoop.leaving = nil;
@@ -935,12 +935,12 @@ function BonkCoop_PopupButton(index)
 		BonkCoop_Ask({ id = data.lobby.id, password = BonkCoopPopupEdit:GetText() }, data.lobby.host);
 	elseif ( kind == "code" and index == 1 ) then
 		BonkCoop_Ask({ code = strupper(BonkCoopPopupEdit:GetText()) }, nil);
-	elseif ( kind == "waiting" ) then
+	elseif ( kind == "waiting" or kind == "asking" or kind == "transferring" ) then
 		BonkCoop.joining = nil;
 		BonkCoop_Call("POST", "/join/cancel?who="..BonkCoop_Encode(BonkCoop_Who()));
 	elseif ( kind == "rejoin" and index == 1 ) then
 		BonkCoop_Call("POST", "/join/rejoin?who="..BonkCoop_Encode(BonkCoop_Who()));
-		BonkCoop_Switch(data[3], data[4], data[5], data[6], data[8]);
+		BonkCoop_Switch(data[3], data[4], data[5], data[6], data[2] == "joined" and data[8] or data[7]);
 	elseif ( kind == "rejoin" ) then
 		BonkCoop_Leave();
 	end
@@ -949,7 +949,7 @@ end
 
 function BonkCoop_OpenHostForm()
 	local hero = BonkCoop_Hero();
-	if ( not hero or hero.ironman ) then
+	if ( not hero ) then
 		return;
 	end
 	if ( BonkCoopHostForm:IsShown() ) then
@@ -1115,12 +1115,13 @@ function BonkCoop_ReadHost(lines)
 		end
 	end
 	local before = BonkCoop.host and BonkCoop.host.state;
+	local beforeMessage = BonkCoop.host and BonkCoop.host.message;
 	if ( host.state == "off" ) then
 		BonkCoop.host = nil;
 	else
 		BonkCoop.host = host;
 	end
-	if ( host.state == "hosting" and before ~= "hosting" and host.message and host.message ~= "" ) then
+	if ( host.state == "hosting" and host.message and host.message ~= "" and (before ~= "hosting" or host.message ~= beforeMessage) ) then
 		BonkCoop_ShowMessage(host.message);
 	end
 	if ( host.state == "error" and before ~= "error" ) then
@@ -1196,6 +1197,11 @@ function BonkCoop_OnUpdate(elapsed)
 		return;
 	end
 	if ( not BonkHeroFrame:IsVisible() ) then
+		BonkCoop.hiddenTimer = (BonkCoop.hiddenTimer or 0) + elapsed;
+		if ( BonkCoop.leaving and BonkCoop.hiddenTimer >= BONK_COOP_POLL_EVERY ) then
+			BonkCoop.hiddenTimer = 0;
+			BonkCoop_PollLeave();
+		end
 		return;
 	end
 	if ( BonkCoop_IsJoined() and not BonkCoop.reconnectAt ) then
@@ -1234,18 +1240,10 @@ function BonkCoop_OnUpdate(elapsed)
 		BonkCoop.homeNote = nil;
 	end
 	if ( BonkCoop.joining ) then
-		BonkCoop_CallLater("GET", "/join?who="..BonkCoop_Encode(BonkCoop_Who()), nil, "join", function(lines)
-			if ( lines and BonkCoop.joining ) then
-				BonkCoop_ReadJoin(lines);
-			end
-		end);
+		BonkCoop_CallLater("GET", "/join?who="..BonkCoop_Encode(BonkCoop_Who()), nil, "join", BonkCoop_ReadJoinPoll);
 	end
 	if ( BonkCoop.leaving ) then
-		BonkCoop_CallLater("GET", "/join?who="..BonkCoop_Encode(BonkCoop_Who()), nil, "leave", function(lines)
-			if ( BonkCoop.leaving ) then
-				BonkCoop_ReadLeave(lines);
-			end
-		end);
+		BonkCoop_PollLeave();
 	elseif ( BonkCoop_IsJoined() and not BonkCoop.joining and Bonk.listLoaded ) then
 		BonkCoop_CallLater("GET", "/join?who="..BonkCoop_Encode(BonkCoop_Who()), nil, "joined", function(lines)
 			local fields = lines and lines[1];
@@ -1266,8 +1264,38 @@ function BonkCoop_OnUpdate(elapsed)
 	end
 end
 
+function BonkCoop_ReadJoinPoll(lines, problem)
+	if ( not BonkCoop.joining ) then
+		return;
+	end
+	if ( not lines ) then
+		BonkCoop.joinFailures = (BonkCoop.joinFailures or 0) + 1;
+		if ( BonkCoop.joinFailures >= BONK_COOP_POLL_FAILURES ) then
+			BonkCoop.joining = nil;
+			BonkCoop.joinFailures = nil;
+			BonkCoop_ShowMessage(problem or L["The launcher stopped answering. Restart the launcher and try again."]);
+		end
+		return;
+	end
+	BonkCoop.joinFailures = nil;
+	BonkCoop_ReadJoin(lines);
+end
+
+function BonkCoop_PollLeave()
+	BonkCoop_CallLater("GET", "/join?who="..BonkCoop_Encode(BonkCoop_Who()), nil, "leave", function(lines)
+		if ( BonkCoop.leaving ) then
+			BonkCoop_ReadLeave(lines);
+		end
+	end);
+end
+
 function BonkCoop_ReadHome(lines)
 	local fields = lines and lines[1] or {};
+	if ( fields[2] == "asking" or fields[2] == "waiting" or fields[2] == "transferring" ) then
+		BonkCoop.joining = { started = GetTime() };
+		BonkCoop_ReadJoin(lines);
+		return;
+	end
 	if ( (fields[2] == "joined" or fields[2] == "accepted") and fields[3] and fields[3] ~= "" ) then
 		BonkCoop_ShowPopup("rejoin", L["You're still in a co-op party."], L["Reconnect, or leave the party. Your progress there is already saved."], L["Reconnect"], L["Leave Party"], fields);
 	elseif ( fields[2] == "joined" or fields[2] == "accepted" ) then

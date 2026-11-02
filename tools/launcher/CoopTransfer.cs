@@ -99,7 +99,94 @@ namespace HordesOfAzeroth.Launcher
             File.WriteAllLines(path, lines);
         }
 
-        string AwayPath(string account) => Path.Combine(m_dir, "away-" + account + ".txt");
+        public void ForgetJoining(string user)
+        {
+            string path = Path.Combine(m_dir, "joining.txt");
+            try
+            {
+                if (File.Exists(path))
+                    File.WriteAllLines(path, File.ReadAllLines(path).Where(line => line.Split('\t')[0] != user));
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        public void ClearJoining() => File.Delete(Path.Combine(m_dir, "joining.txt"));
+
+        string JoinPath(string who) => Path.Combine(m_dir, "join-" + who.ToUpperInvariant() + ".json");
+
+        string SpoolPath(string who) => Path.Combine(m_dir, "spool-" + who.ToUpperInvariant() + ".txt");
+
+        public void SaveJoin(string who, string json)
+        {
+            Directory.CreateDirectory(m_dir);
+            string path = JoinPath(who);
+            File.WriteAllText(path + ".tmp", json);
+            File.Move(path + ".tmp", path, true);
+        }
+
+        public void DeleteJoin(string who)
+        {
+            File.Delete(JoinPath(who));
+            File.Delete(SpoolPath(who));
+        }
+
+        public IEnumerable<string> SavedJoins() =>
+            Directory.Exists(m_dir) ? Directory.GetFiles(m_dir, "join-*.json").Select(File.ReadAllText).ToList() : new List<string>();
+
+        public void SaveSpool(string who, string entries)
+        {
+            Directory.CreateDirectory(m_dir);
+            string path = SpoolPath(who);
+            File.WriteAllText(path + ".tmp", entries);
+            File.Move(path + ".tmp", path, true);
+        }
+
+        public string ReadSpool(string who) => File.Exists(SpoolPath(who)) ? File.ReadAllText(SpoolPath(who)) : "";
+
+        public void ClearSpool(string who) => File.Delete(SpoolPath(who));
+
+        public bool IsGuestOnline(string user)
+        {
+            try
+            {
+                using FileStream stream = new FileStream(Path.Combine(m_dir, "guests-online.txt"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using StreamReader reader = new StreamReader(stream);
+                return reader.ReadToEnd().Split('\n').Any(line => line.Trim() == user);
+            }
+            catch (IOException)
+            {
+                return true;
+            }
+        }
+
+        public List<string> TakeRemovedGuests()
+        {
+            string path = Path.Combine(m_dir, "removed.txt");
+            string work = path + ".work";
+            try
+            {
+                if (!File.Exists(path))
+                    return new List<string>();
+                File.Move(path, work, true);
+                List<string> users = File.ReadAllLines(work).Select(line => line.Trim()).Where(line => line.Length > 0).Distinct().ToList();
+                File.Delete(work);
+                return users;
+            }
+            catch (IOException)
+            {
+                return new List<string>();
+            }
+        }
+
+        public Task RemoveAllGuestsAsync()
+        {
+            Directory.CreateDirectory(m_dir);
+            return AskToRemoveAsync("*");
+        }
+
+        string AwayPath(string account) => Path.Combine(m_dir, "away-" + account.ToUpperInvariant() + ".txt");
 
         string HostSettingsPath => Path.Combine(m_dir, "host-settings.txt");
 
@@ -147,7 +234,7 @@ namespace HordesOfAzeroth.Launcher
 
         public void ClearAway(string account) => File.Delete(AwayPath(account));
 
-        public async Task LogOutGuestAsync(string user)
+        public async Task<bool> LogOutGuestAsync(string user)
         {
             Directory.CreateDirectory(m_dir);
             string online = Path.Combine(m_dir, "guests-online.txt");
@@ -159,13 +246,14 @@ namespace HordesOfAzeroth.Launcher
                 await Task.Delay(PollDelay);
                 try
                 {
-                    if (File.GetLastWriteTimeUtc(online) > asked.AddSeconds(1) && !File.ReadAllLines(online).Contains(user))
-                        break;
+                    if (File.GetLastWriteTimeUtc(online) > asked.AddSeconds(1) && !IsGuestOnline(user))
+                        return true;
                 }
                 catch (IOException)
                 {
                 }
             }
+            return false;
         }
 
         async Task AskToRemoveAsync(string user)

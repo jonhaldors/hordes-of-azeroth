@@ -26,6 +26,11 @@ CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CODE_LENGTH = 6
 MAX_LOBBIES_PER_ADDRESS = 2
 MAX_OPEN_ASKS_PER_ADDRESS = 3
+PASSWORD_TRIES = 10
+PASSWORD_WINDOW_SECONDS = 600
+REQUEST_TIMEOUT_SECONDS = 15
+PRUNE_EVERY_SECONDS = 60
+PROTOCOL_BEFORE_FIELD = 1
 LIMITS = {"host": (10, 600), "ask": (30, 600), "list": (120, 60), "poll": (600, 60)}
 TEXT_LIMITS = {"name": 40, "host_name": 12, "password": 32, "difficulty": 24, "race": 16, "class": 12, "version": 24, "playing": 48}
 CLASSES = {"warrior", "paladin", "hunter", "rogue", "priest", "shaman", "mage", "warlock", "druid"}
@@ -36,17 +41,28 @@ class RateLimiter:
         self.lock = threading.Lock()
         self.hits = collections.defaultdict(collections.deque)
 
+        self.pruned = time.monotonic()
+
     def allow(self, kind, client):
         count, window = LIMITS[kind]
         now = time.monotonic()
         with self.lock:
-            stamps = self.hits[(kind, client)]
+            self.prune(now)
+            stamps = self.hits[(kind, client_key(client))]
             while stamps and now - stamps[0] > window:
                 stamps.popleft()
             if len(stamps) >= count:
                 return False
             stamps.append(now)
             return True
+
+    def prune(self, now):
+        if now - self.pruned < PRUNE_EVERY_SECONDS:
+            return
+        self.pruned = now
+        longest = max(window for _, window in LIMITS.values())
+        for key in [key for key, stamps in self.hits.items() if not stamps or now - stamps[-1] > longest]:
+            del self.hits[key]
 
 
 class Lobbies:
@@ -55,6 +71,7 @@ class Lobbies:
         self.lobbies = {}
         self.asks = {}
         self.declined = {}
+        self.password_misses = collections.defaultdict(collections.deque)
 
     def new_code(self):
         taken = {lobby["code"] for lobby in self.lobbies.values()}
@@ -71,6 +88,8 @@ class Lobbies:
             del self.asks[ask_id]
         for key in [key for key, at in self.declined.items() if now - at > DECLINE_WAIT_SECONDS]:
             del self.declined[key]
+        for key in [key for key, misses in self.password_misses.items() if key[0] not in self.lobbies or not misses or now - misses[-1] > PASSWORD_WINDOW_SECONDS]:
+            del self.password_misses[key]
         for ask in self.asks.values():
             if ask["state"] == "waiting" and now - ask["created"] > ASK_SECONDS:
                 ask["state"] = "expired"
@@ -85,6 +104,12 @@ class Lobbies:
                 ask["state"] = "gone"
                 ask["answered"] = time.monotonic()
 
+    def password_locked(self, key, now):
+        misses = self.password_misses[key]
+        while misses and now - misses[0] > PASSWORD_WINDOW_SECONDS:
+            misses.popleft()
+        return len(misses) >= PASSWORD_TRIES
+
     def find(self, lobby_id, code):
         if lobby_id:
             return self.lobbies.get(lobby_id)
@@ -92,6 +117,29 @@ class Lobbies:
             code = code.strip().upper()
             return next((lobby for lobby in self.lobbies.values() if lobby["code"] == code), None)
         return None
+
+
+def client_key(client):
+    try:
+        address = ipaddress.ip_address(str(client).split("%")[0])
+    except ValueError:
+        return str(client)
+    if address.version == 6:
+        return str(ipaddress.ip_network("%s/64" % address, strict=False))
+    return str(address)
+
+
+def same_secret(expected, given):
+    return secrets.compare_digest(str(expected).encode("utf-8"), str(given or "").encode("utf-8"))
+
+
+def protocol_of(data):
+    return whole(data.get("protocol"), 1, 1000, PROTOCOL_BEFORE_FIELD)
+
+
+def hex_text(value, length):
+    text = str(value or "")
+    return text if len(text) == length and all(letter in string.hexdigits for letter in text) else ""
 
 
 LOBBIES = Lobbies()
@@ -238,6 +286,7 @@ def visible_to(lobby, client):
 class Handler(BaseHTTPRequestHandler):
     server_version = "hoa-lobby"
     sys_version = ""
+    timeout = REQUEST_TIMEOUT_SECONDS
 
     def log_message(self, fmt, *args):
         pass
@@ -260,7 +309,7 @@ class Handler(BaseHTTPRequestHandler):
             log_event("client-left", path=self.path.partition("?")[0], status=status)
 
     def body(self):
-        length = int(self.headers.get("Content-Length") or 0)
+        length = whole(self.headers.get("Content-Length"), 0, MAX_BODY_BYTES + 1, 0)
         if length <= 0 or length > MAX_BODY_BYTES:
             return None
         try:
@@ -299,7 +348,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def owned(self, data):
         lobby = LOBBIES.lobbies.get(data.get("id"))
-        if not lobby or not secrets.compare_digest(lobby["secret"], str(data.get("secret", ""))):
+        if not lobby or not same_secret(lobby["secret"], data.get("secret")):
             return None
         lobby["seen"] = time.monotonic()
         return lobby
@@ -344,14 +393,18 @@ class Handler(BaseHTTPRequestHandler):
         host_class = clip(data.get("host_class"), "class").lower()
         with LOBBIES.lock:
             LOBBIES.expire()
+            resumed_id, resumed_secret = hex_text(data.get("resume_id"), 16), hex_text(data.get("resume_secret"), 32)
+            resumed_code = str(data.get("resume_code") or "").strip().upper()
             for stale in [key for key, lobby in LOBBIES.lobbies.items() if lobby["address"] == client and lobby["port"] == port]:
                 LOBBIES.close(stale, "replaced")
             if sum(1 for lobby in LOBBIES.lobbies.values() if lobby["address"] == client) >= MAX_LOBBIES_PER_ADDRESS:
                 return self.send(429, {"error": "You're already hosting a game."})
+            resuming = bool(resumed_id and resumed_secret) and resumed_id not in LOBBIES.lobbies
+            code_free = len(resumed_code) == CODE_LENGTH and all(letter in CODE_LETTERS for letter in resumed_code) and not any(lobby["code"] == resumed_code for lobby in LOBBIES.lobbies.values())
             lobby = {
-                "id": secrets.token_hex(8),
-                "secret": secrets.token_hex(16),
-                "code": LOBBIES.new_code(),
+                "id": resumed_id if resuming else secrets.token_hex(8),
+                "secret": resumed_secret if resuming else secrets.token_hex(16),
+                "code": resumed_code if resuming and code_free else LOBBIES.new_code(),
                 "address": client,
                 "port": port,
                 "join_host": join_host,
@@ -374,6 +427,7 @@ class Handler(BaseHTTPRequestHandler):
                 "xp": bool(data.get("xp", True)),
                 "playing": "",
                 "version": clip(data.get("version"), "version"),
+                "protocol": protocol_of(data),
                 "classes": [host_class] if host_class in CLASSES else [],
                 "members": [],
                 "players": 1,
@@ -381,7 +435,7 @@ class Handler(BaseHTTPRequestHandler):
                 "seen": now,
             }
             LOBBIES.lobbies[lobby["id"]] = lobby
-            log_event("hosted", lobby=lobby["id"], mode=mode, listed=listed, version=lobby["version"], open=len(LOBBIES.lobbies))
+            log_event("resumed" if resuming else "hosted", lobby=lobby["id"], mode=mode, listed=listed, version=lobby["version"], open=len(LOBBIES.lobbies))
         self.send(200, {"id": lobby["id"], "secret": lobby["secret"], "code": lobby["code"], "address": client, "mode": mode, "listed": listed})
 
     def heartbeat(self, data):
@@ -448,7 +502,7 @@ class Handler(BaseHTTPRequestHandler):
                 ask["state"] = "declined"
                 log_event("join-declined", lobby=lobby["id"])
                 ask["reason"] = str(data.get("reason", ""))[:120]
-                LOBBIES.declined[(lobby["id"], ask["address"], ask["name"])] = time.monotonic()
+                LOBBIES.declined[(lobby["id"], client_key(ask["address"]), ask["name"])] = time.monotonic()
         self.send(200, {"ok": True})
 
     def ask(self, data):
@@ -462,20 +516,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(404, {"error": "No game found with that code." if data.get("code") else "That game has ended."})
             if not visible_to(lobby, client):
                 return self.send(403, {"error": "That game only takes players on the host's network."})
-            if lobby["version"] != clip(data.get("version"), "version"):
+            if lobby["version"] != clip(data.get("version"), "version") or lobby.get("protocol", PROTOCOL_BEFORE_FIELD) != protocol_of(data):
                 return self.send(409, {"error": "Version mismatch: that game runs a different version of Hordes of Azeroth."})
-            declined_at = LOBBIES.declined.get((lobby["id"], client, clip(data.get("name"), "host_name")))
+            now = time.monotonic()
+            asker = clip(data.get("name"), "host_name")
+            declined_at = LOBBIES.declined.get((lobby["id"], client_key(client), asker))
             if declined_at is not None:
-                wait = int(DECLINE_WAIT_SECONDS - (time.monotonic() - declined_at) + 0.999)
+                wait = int(DECLINE_WAIT_SECONDS - (now - declined_at) + 0.999)
                 if wait > 0:
                     return self.send(429, {"error": "The host declined your request. You can ask again in %d seconds." % wait})
-            if lobby["password"] and not secrets.compare_digest(lobby["password"], clip(data.get("password"), "password")):
-                return self.send(403, {"error": "Incorrect password."})
             if lobby["players"] >= lobby["max"]:
                 return self.send(409, {"error": "Game is full."})
+            if any(ask["lobby"] == lobby["id"] and ask["state"] == "waiting" and client_key(ask["address"]) == client_key(client) and ask["name"] == asker for ask in LOBBIES.asks.values()):
+                return self.send(429, {"error": "You already have a pending join request."})
             pending = sum(1 for ask in LOBBIES.asks.values() if ask["lobby"] == lobby["id"] and ask["state"] == "waiting")
             if lobby["players"] + pending >= lobby["max"]:
                 return self.send(409, {"error": "Every open slot has a pending join request. Try again shortly."})
+            if lobby["password"]:
+                if LOBBIES.password_locked((lobby["id"], client_key(client)), now):
+                    return self.send(429, {"error": "Too many wrong passwords for that game. Try again in a few minutes."})
+                if not same_secret(lobby["password"], clip(data.get("password"), "password")):
+                    LOBBIES.password_misses[(lobby["id"], client_key(client))].append(now)
+                    return self.send(403, {"error": "Incorrect password."})
             wanted = clip(data.get("class"), "class").lower()
             if wanted in lobby["classes"] and not lobby.get("same_class"):
                 return self.send(409, {"error": "Party already has that class."})
@@ -485,7 +547,7 @@ class Handler(BaseHTTPRequestHandler):
             mastery = whole(data.get("mastery"), 0, 999, 0)
             if lobby["mastery_limit"] and mastery > lobby["mastery_limit"]:
                 return self.send(409, {"error": "Requires Mastery %d or lower." % lobby["mastery_limit"]})
-            if sum(1 for ask in LOBBIES.asks.values() if ask["address"] == client and ask["state"] == "waiting") >= MAX_OPEN_ASKS_PER_ADDRESS:
+            if sum(1 for ask in LOBBIES.asks.values() if client_key(ask["address"]) == client_key(client) and ask["state"] == "waiting") >= MAX_OPEN_ASKS_PER_ADDRESS:
                 return self.send(429, {"error": "You already have a pending join request."})
             ask = {"id": secrets.token_hex(12), "lobby": lobby["id"], "address": client, "state": "waiting", "created": time.monotonic(),
                    "answered": 0.0, "name": clip(data.get("name"), "host_name"), "class": wanted, "race": clip(data.get("race"), "race"),

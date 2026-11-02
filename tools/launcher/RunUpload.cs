@@ -16,9 +16,21 @@ namespace HordesOfAzeroth.Launcher
             .OfType<AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == "StatsUrl")?.Value ?? "").TrimEnd('/');
         static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(20);
+        static readonly HttpClient Client = CreateClient();
         static readonly TimeSpan ReportTimeout = TimeSpan.FromMinutes(3);
 
         public static bool IsConfigured => StatsUrl.Length > 0;
+
+        static HttpClient CreateClient()
+        {
+            HttpClient client = new HttpClient(new SocketsHttpHandler
+            {
+                ConnectCallback = CoopAgent.ConnectPreferringIPv4Async,
+                AutomaticDecompression = System.Net.DecompressionMethods.GZip,
+            }) { Timeout = Timeout.InfiniteTimeSpan };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("HordesOfAzerothLauncher");
+            return client;
+        }
 
         public static async Task<int> SendRunsAsync(GameFolder folder)
         {
@@ -30,9 +42,12 @@ namespace HordesOfAzeroth.Launcher
                 ByteArrayContent body = new ByteArrayContent(await File.ReadAllBytesAsync(file));
                 body.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 body.Headers.ContentEncoding.Add("gzip");
-                Delivery delivery = await PostAsync("/run", body, RunTimeout);
+                (Delivery delivery, string problem) = await PostAsync("/run", body, RunTimeout);
                 if (delivery == Delivery.TryLater)
+                {
+                    LauncherLog.Write(folder, "Run upload: " + problem);
                     break;
+                }
                 File.Delete(file);
                 if (delivery == Delivery.Accepted)
                     ++sent;
@@ -43,7 +58,7 @@ namespace HordesOfAzeroth.Launcher
         public static async Task<string> GetBoardAsync(string installId)
         {
             using (CancellationTokenSource timeout = new CancellationTokenSource(RunTimeout))
-            using (HttpResponseMessage response = await Web.Client.GetAsync(StatsUrl + "/board?install=" + Uri.EscapeDataString(installId), timeout.Token))
+            using (HttpResponseMessage response = await Client.GetAsync(StatsUrl + "/board?install=" + Uri.EscapeDataString(installId), timeout.Token))
             {
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync(timeout.Token);
@@ -55,7 +70,7 @@ namespace HordesOfAzeroth.Launcher
             ByteArrayContent body = new ByteArrayContent(await File.ReadAllBytesAsync(zip));
             body.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
             using (CancellationTokenSource timeout = new CancellationTokenSource(ReportTimeout))
-            using (HttpResponseMessage response = await Web.Client.PostAsync(StatsUrl + "/report", body, timeout.Token))
+            using (HttpResponseMessage response = await Client.PostAsync(StatsUrl + "/report", body, timeout.Token))
             {
                 response.EnsureSuccessStatusCode();
                 return (await response.Content.ReadAsStringAsync(timeout.Token)).Trim();
@@ -64,17 +79,17 @@ namespace HordesOfAzeroth.Launcher
 
         enum Delivery { Accepted, Refused, TryLater }
 
-        static async Task<Delivery> PostAsync(string path, HttpContent body, TimeSpan limit)
+        static async Task<(Delivery, string)> PostAsync(string path, HttpContent body, TimeSpan limit)
         {
             try
             {
                 using (CancellationTokenSource timeout = new CancellationTokenSource(limit))
-                using (HttpResponseMessage response = await Web.Client.PostAsync(StatsUrl + path, body, timeout.Token))
-                    return Judge((int)response.StatusCode);
+                using (HttpResponseMessage response = await Client.PostAsync(StatsUrl + path, body, timeout.Token))
+                    return (Judge((int)response.StatusCode), "the stats server answered " + (int)response.StatusCode);
             }
             catch (Exception e) when (Web.IsProblem(e))
             {
-                return Delivery.TryLater;
+                return (Delivery.TryLater, e.InnerException != null ? e.Message + " (" + e.InnerException.Message + ")" : e.Message);
             }
         }
 

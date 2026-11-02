@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -16,9 +18,22 @@ namespace HordesOfAzeroth.Launcher
         const int MaxFailures = 10;
         static readonly TimeSpan LineTimeout = TimeSpan.FromSeconds(5);
         static readonly TimeSpan BlockTime = TimeSpan.FromMinutes(1);
+        public static readonly TimeSpan CollectWindow = TimeSpan.FromMinutes(5);
+        static readonly TimeSpan DrainPoll = TimeSpan.FromMilliseconds(250);
+        static readonly TimeSpan DrainWait = TimeSpan.FromSeconds(1);
 
-        readonly ConcurrentDictionary<string, string> m_tokens = new ConcurrentDictionary<string, string>();
-        readonly ConcurrentDictionary<string, DateTime> m_seen = new ConcurrentDictionary<string, DateTime>();
+        sealed class Pass
+        {
+            public string User;
+            public DateTime Seen = DateTime.UtcNow;
+            public DateTime RetiredAt;
+            public string Reason;
+            public bool Drained;
+            public CancellationTokenSource Links = new CancellationTokenSource();
+            public bool Retired => Reason != null;
+        }
+
+        readonly ConcurrentDictionary<string, Pass> m_passes = new ConcurrentDictionary<string, Pass>();
         readonly ConcurrentDictionary<IPAddress, (int Count, DateTime Since)> m_failures = new ConcurrentDictionary<IPAddress, (int, DateTime)>();
         readonly CancellationTokenSource m_stop = new CancellationTokenSource();
         TcpListener m_listener;
@@ -33,6 +48,8 @@ namespace HordesOfAzeroth.Launcher
 
         public Func<string, Task> Leave { get; set; }
 
+        public Func<string, bool> IsOffline { get; set; }
+
         public void Start(int port)
         {
             m_listener = new TcpListener(IPAddress.IPv6Any, port);
@@ -44,23 +61,54 @@ namespace HordesOfAzeroth.Launcher
 
         public void Allow(string token, string user)
         {
-            m_tokens[token] = user;
-            m_seen[token] = DateTime.UtcNow;
+            m_passes[token] = new Pass { User = user };
         }
 
-        public void Revoke(string token)
+        public void Retire(string token, string reason)
         {
-            m_tokens.TryRemove(token, out _);
-            m_seen.TryRemove(token, out _);
+            if (!m_passes.TryGetValue(token, out Pass pass) || pass.Retired)
+                return;
+            pass.RetiredAt = DateTime.UtcNow;
+            pass.Reason = reason;
         }
 
-        public TimeSpan SinceSeen(string token) => m_seen.TryGetValue(token, out DateTime seen) ? DateTime.UtcNow - seen : TimeSpan.MaxValue;
+        public void CutLinks(string token)
+        {
+            if (m_passes.TryGetValue(token, out Pass pass) && pass.Retired)
+                pass.Links.Cancel();
+        }
+
+        public TimeSpan SinceSeen(string token) => m_passes.TryGetValue(token, out Pass pass) && !pass.Retired ? DateTime.UtcNow - pass.Seen : TimeSpan.MaxValue;
+
+        public async Task WaitDrainedAsync(IEnumerable<string> tokens, TimeSpan cap)
+        {
+            List<string> waiting = tokens.ToList();
+            DateTime until = DateTime.UtcNow + cap;
+            while (DateTime.UtcNow < until && waiting.Any(token => m_passes.TryGetValue(token, out Pass pass) && !pass.Drained))
+                await Task.Delay(DrainPoll);
+        }
 
         public void Dispose()
         {
             m_stop.Cancel();
             m_listener?.Stop();
+            foreach (Pass pass in m_passes.Values)
+                pass.Links.Cancel();
         }
+
+        Pass Find(string token)
+        {
+            if (!m_passes.TryGetValue(token, out Pass pass))
+                return null;
+            if (pass.Retired && DateTime.UtcNow - pass.RetiredAt > CollectWindow)
+            {
+                m_passes.TryRemove(token, out _);
+                return null;
+            }
+            return pass;
+        }
+
+        static bool LooksLikeToken(string text) => text.Length == 32 && text.All(Uri.IsHexDigit);
 
         async Task AcceptLoopAsync()
         {
@@ -98,33 +146,42 @@ namespace HordesOfAzeroth.Launcher
                     return;
                 }
                 string[] parts = line?.Split(' ') ?? Array.Empty<string>();
-                bool known = parts.Length == 3 && parts[0] == "HOA1" && m_tokens.ContainsKey(parts[1]);
-                if (known && parts[2] == "UPLOAD")
+                bool wellFormed = parts.Length == 3 && parts[0] == "HOA1" && LooksLikeToken(parts[1]);
+                Pass pass = wellFormed ? Find(parts[1]) : null;
+                if (pass == null)
+                {
+                    if (!wellFormed)
+                        NoteFailure(from);
+                    await WriteAsync(stream, "HOA1 NO\n");
+                    await CloseGentlyAsync(client);
+                    return;
+                }
+                string leg = parts[2];
+                if (!pass.Retired)
+                    pass.Seen = DateTime.UtcNow;
+                if (leg == "UPLOAD" && !pass.Retired)
                 {
                     await ServeUploadAsync(stream, parts[1]);
                     return;
                 }
-                if (known)
-                    m_seen[parts[1]] = DateTime.UtcNow;
-                if (known && parts[2] == "LEAVE")
+                if (leg == "LEAVE")
                 {
                     await ServeLeaveAsync(stream, parts[1]);
                     return;
                 }
-                if (known && parts[2] == "LEDGER")
+                if (leg == "LEDGER")
                 {
-                    await ServeLedgerAsync(stream, m_tokens[parts[1]]);
+                    await ServeLedgerAsync(stream, pass);
                     return;
                 }
-                if (known && parts[2] == "ANSWERS")
+                if (leg == "ANSWERS")
                 {
-                    await ServeAnswersAsync(stream, m_tokens[parts[1]]);
+                    await ServeAnswersAsync(stream, pass.User);
                     return;
                 }
-                int target = known ? parts[2] switch { "LOGIN" => LoginPort, "WORLD" => WorldPort, _ => 0 } : 0;
+                int target = pass.Retired ? 0 : leg switch { "LOGIN" => LoginPort, "WORLD" => WorldPort, _ => 0 };
                 if (target == 0)
                 {
-                    NoteFailure(from);
                     await WriteAsync(stream, "HOA1 NO\n");
                     return;
                 }
@@ -140,7 +197,7 @@ namespace HordesOfAzeroth.Launcher
                 }
                 await WriteAsync(stream, "HOA1 OK\n");
                 NetworkStream inner = server.GetStream();
-                using CancellationTokenSource done = CancellationTokenSource.CreateLinkedTokenSource(m_stop.Token);
+                using CancellationTokenSource done = CancellationTokenSource.CreateLinkedTokenSource(m_stop.Token, pass.Links.Token);
                 Task up = PumpAsync(stream, inner, done.Token);
                 Task down = PumpAsync(inner, stream, done.Token);
                 await Task.WhenAny(up, down);
@@ -168,14 +225,22 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
-        async Task ServeLedgerAsync(NetworkStream stream, string user)
+        async Task ServeLedgerAsync(NetworkStream stream, Pass pass)
         {
             try
             {
                 long since = long.TryParse(await ReadGateLineAsync(stream), out long value) ? value : 0;
+                bool finished = pass.Retired && (IsOffline?.Invoke(pass.User) ?? true);
+                string lines = Ledger(pass.User, since);
+                if (lines.Length == 0 && finished)
+                {
+                    pass.Drained = true;
+                    await WriteAsync(stream, $"HOA1 END {pass.Reason}\n");
+                    return;
+                }
                 await WriteAsync(stream, "HOA1 DATA\n");
                 using CancellationTokenSource timeout = new CancellationTokenSource(CoopWire.TransferTimeout);
-                await CoopWire.WriteBlobAsync(stream, Encoding.UTF8.GetBytes(Ledger(user, since)), timeout.Token);
+                await CoopWire.WriteBlobAsync(stream, Encoding.UTF8.GetBytes(lines), timeout.Token);
             }
             catch (Exception error)
             {
@@ -253,6 +318,22 @@ namespace HordesOfAzeroth.Launcher
             return null;
         }
 
+        static async Task CloseGentlyAsync(TcpClient client)
+        {
+            try
+            {
+                client.Client.Shutdown(SocketShutdown.Send);
+                using CancellationTokenSource drain = new CancellationTokenSource(DrainWait);
+                byte[] rest = new byte[256];
+                while (await client.GetStream().ReadAsync(rest, drain.Token) > 0)
+                {
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         static async Task WriteAsync(NetworkStream stream, string text)
         {
             try
@@ -273,6 +354,8 @@ namespace HordesOfAzeroth.Launcher
         {
             if (IsTunnel(from))
                 return;
+            foreach (KeyValuePair<IPAddress, (int Count, DateTime Since)> old in m_failures.Where(entry => DateTime.UtcNow - entry.Value.Since > BlockTime).ToList())
+                m_failures.TryRemove(old.Key, out _);
             m_failures.AddOrUpdate(from, _ => (1, DateTime.UtcNow),
                 (_, old) => DateTime.UtcNow - old.Since > BlockTime ? (1, DateTime.UtcNow) : (old.Count + 1, old.Since));
         }

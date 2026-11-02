@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace HordesOfAzeroth.Launcher
 {
@@ -23,12 +25,17 @@ namespace HordesOfAzeroth.Launcher
         public bool AskToSendCrashes = true;
         public long CrashCheckedAt;
         public string InstallId = Guid.NewGuid().ToString("N");
+        public string InstallMachine = ThisMachine;
+        public string BoardSyncedAt = "";
         public long RunLogOffset;
         public bool UseDirectX12;
 
         public static int Workers(CoreShare share) => share == CoreShare.All ? Environment.ProcessorCount : HalfOfCores;
 
         public static int HalfOfCores => Math.Max(1, Environment.ProcessorCount / 2);
+
+        static string ThisMachine =>
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Environment.MachineName + "|" + Environment.UserName))).Substring(0, 16);
 
         LauncherSettings(string path)
         {
@@ -66,8 +73,11 @@ namespace HordesOfAzeroth.Launcher
                 settings.AskToSendCrashes = crashes != "0";
             if (values.TryGetValue("CrashCheckedAt", out string checkedAt) && long.TryParse(checkedAt, out long crashCheckedAt))
                 settings.CrashCheckedAt = crashCheckedAt;
-            if (values.TryGetValue("InstallId", out string id) && id.Length > 0)
+            if (values.TryGetValue("InstallId", out string id) && id.Length > 0 &&
+                values.TryGetValue("InstallMachine", out string machine) && machine == ThisMachine)
                 settings.InstallId = id;
+            if (values.TryGetValue("BoardSyncedAt", out string synced))
+                settings.BoardSyncedAt = synced;
             if (values.TryGetValue("RunLogOffset", out string offset) && long.TryParse(offset, out long runLogOffset))
                 settings.RunLogOffset = runLogOffset;
             if (values.TryGetValue("UseDirectX12", out string directX12))
@@ -92,6 +102,8 @@ namespace HordesOfAzeroth.Launcher
                 "AskToSendCrashes=" + (AskToSendCrashes ? "1" : "0"),
                 "CrashCheckedAt=" + CrashCheckedAt,
                 "InstallId=" + InstallId,
+                "InstallMachine=" + InstallMachine,
+                "BoardSyncedAt=" + BoardSyncedAt,
                 "RunLogOffset=" + RunLogOffset,
                 "UseDirectX12=" + (UseDirectX12 ? "1" : "0"),
             });

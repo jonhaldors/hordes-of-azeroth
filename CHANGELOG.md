@@ -1,5 +1,91 @@
 # Changelog
 
+## 0.6.2
+
+### Classes
+- When a burning, bleeding or poisoned enemy dies, the damage its stacks had left bursts onto up to 4 enemies within 8 yards, half on each.
+- New passives: Pyromaniac (+10% Burning damage) and Serrated Blades (+10% Bleed damage), offered to classes with Burning or Bleed spells.
+- Character stats show your Burning and Bleed damage.
+- Fixed: Small damage over time ticks lost part of their percent bonuses (Toxicology, spell ranks and talents) to rounding.
+
+#### Warrior
+- Rend: your Cleave, Whirlwind and Thunder Clap hits also apply 1 stack of Bleed.
+- Deep Wounds: your critical strike chance against a bleeding enemy is increased by 1% per stack of Bleed, up to 20%.
+- Mortal Strike: bleeding enemies it hits also take the damage their Bleed would deal over the next 2 sec, keeping their stacks.
+
+#### Paladin
+- Avenger's Shield replaces Hammer of Wrath. It hurls a holy shield that jumps to 4 more enemies, and each hit counts as a Paladin strike. New evolutions: Grand Crusader and Shield of the Righteous.
+- Seal of Righteousness: every hit from your other Paladin spells, splash and area hits included, deals 30% extra as Holy damage.
+- Seal of Command: every 2nd strike from your other Paladin spells releases a burst of light.
+- Divine Storm: each enemy hit counts as a strike for Seal of Command.
+- The Art of War damage retuned.
+
+#### Hunter
+- Viper Trap replaces Frost Trap. It releases 4 vipers that rush the nearest enemies and burst into poison clouds. Evolutions: Corrosive Vipers and Venom Burst.
+- Volatile Trap replaces Snake Trap. It explodes, burns the ground, and explodes again 2 sec later for 60% damage.
+- Trap talents (Clever Traps, Entrapment, Trap Mastery, Lingering Venom) now work on Viper Trap.
+- Pack Leader: your pets mark the enemies they bite with Hunter's Mark.
+- Volley: every 25 enemies it hits loads an Explosive Arrow into your Aimed Shot, up to 2.
+- Fixed: Sprung trap models could keep looping after the stage or run ended.
+
+#### Rogue
+- Deadly Poison also throws a vial at the largest group of enemies, applying 4 stacks of Poison.
+- Mutilate applies 1 more stack of Poison for every 5 stacks the enemy already has.
+- Envenom strikes the 3 enemies with the most Poison for all the damage their Poison would still deal, keeping their stacks.
+- Eviscerate: a kill carries the blow to the next enemy within 8 yards, up to 3 times.
+- Killing Spree: each strike reduces the cooldown of Eviscerate by 0.5 sec.
+
+#### Priest
+- Mind Flay deals 5% more per stack of Decay on the target.
+- Renew: with Power Word: Shield, healing past full health tops up your Shield.
+
+#### Shaman
+- Maelstrom Weapon: every 3rd hit from your other Shaman spells hurls a free Lightning Bolt.
+- Lightning Shield zaps 1 enemy for each charge you hold every 1.5 sec, and each zap gives you a Shield.
+- Earth Shock: each Static stack it consumes restores 1 Lightning Shield charge.
+- Stormstrike counts as 2 hits for Maelstrom Weapon.
+- Earth Shock and Stormstrike deal more damage.
+
+#### Mage
+- Blink: enemies near where you land gain 2 stacks of Chill, and Frost Nova is ready again.
+- Meteor's crater no longer leaves a patch of burning ground behind.
+
+#### Warlock
+- Hellfire applies 1 stack of Burning.
+- Shadow Bolt deals 4% more per stack of Decay on the target.
+- Curse of Agony: your Shadow Bolts add 1 stack of Agony to cursed enemies.
+- Drain Life: drained enemies take 20% more damage from your Decay and Agony.
+
+#### Druid
+- Thorns: enemies that strike you also gain 2 stacks of Moonfire.
+- Rejuvenation: healing past full health makes your spells attack 15% more often for 3 sec.
+
+### Co-op
+- Ironman characters can now play co-op. Their gold and progress stay separate from the rest of your account.
+- Joining shows that your request is being sent, and you can cancel it or the character transfer.
+- Co-op games end cleanly for party members when the host closes the game, the host's PC crashes, the lobby is down for a while or a launcher crashes. Party members leave with a message, and rewards earned up to that point arrive exactly once.
+- If the lobby restarts, hosted games are listed again with the same code.
+- Changes to the host's settings apply from the next run without restarting the game.
+- Party members cannot use the bank feature in co-op.
+- Co-op problems are written to the launcher log, so bug reports include them.
+- Fixed: Joining could get stuck on "The launcher didn't answer", with your character shown in the host's game while you stayed at the menu.
+- Fixed: After a co-op game ended, the launcher could keep refusing to let you enter your own game until it was restarted.
+- Fixed: Items in your own mailbox could be taken twice by taking them in someone else's game.
+- Fixed: Kicking a guest who was offline didn't end their session.
+- Fixed: A guest who lost connection still counted as standing, could be picked as the reviver and held up the party at portals.
+
+### Leaderboard
+- Each list shows the top 1000. Your personal best is always shown, ranked 1000+ when it is below that.
+- Your runs are only uploaded when they would place on the ladder.
+- The leaderboard shows when it last synced, and says when syncing failed.
+- Run Master says under 'Start' whether the chosen level counts for the leaderboard, and names the worn item that keeps it disabled.
+- Fixed: Tiered gear without a Season 1 record kept runs off the leaderboard without being marked Legacy.
+- Fixed: Uploads and the leaderboard failed on some connections.
+- Fixed: Copying the game folder to another PC made both PCs share one leaderboard identity.
+
+### Fixes
+- Fixed: The character screen showed English class names on Chinese clients.
+
 ## 0.6.1
 
 ### Hotfix 1

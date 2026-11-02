@@ -28,9 +28,25 @@ BONK_CLASS_COLORS = {
 	MAGE = { 0.41, 0.8, 0.94 }, WARLOCK = { 0.58, 0.51, 0.79 }, DRUID = { 1.0, 0.49, 0.04 },
 };
 
+BONK_CLIENT_CLASS_NAMES = {
+	WARRIOR = { "战士", "戰士" },
+	PALADIN = { "圣骑士", "聖騎士" },
+	HUNTER = { "猎人", "獵人" },
+	ROGUE = { "潜行者", "盜賊" },
+	PRIEST = { "牧师", "牧師" },
+	SHAMAN = { "萨满祭司", "薩滿" },
+	MAGE = { "法师", "法師" },
+	WARLOCK = { "术士", "術士" },
+	DRUID = { "德鲁伊", "德魯伊" },
+};
+
 BONK_CLASS_TOKENS = {};
 for _, class in BONK_CLASSES do
 	BONK_CLASS_TOKENS[class.name] = class.token;
+	BONK_CLASS_TOKENS[class.token] = class.token;
+	for _, clientName in BONK_CLIENT_CLASS_NAMES[class.token] do
+		BONK_CLASS_TOKENS[clientName] = class.token;
+	end
 end
 
 BONK_IRONMAN_TIP = L["This character does not share gold or unlocks with other characters."];
@@ -278,7 +294,11 @@ function GlueDialog_OnEvent()
 	local shown = GlueDialogText:GetText();
 	local noServer = shown == RESPONSE_FAILED_TO_CONNECT or shown == LOGIN_FAILED or shown == LOGIN_SERVER_DOWN or shown == REALM_LIST_FAILED
 		or shown == RESPONSE_DISCONNECTED or shown == DISCONNECTED;
-	if ( noServer and BonkCoop_IsJoined() and not BonkCoop.leaving ) then
+	local accountGone = shown and (shown == LOGIN_UNKNOWN_ACCOUNT or shown == LOGIN_INCORRECT_PASSWORD or shown == LOGIN_NO_GAME_ACCOUNT);
+	if ( accountGone and BonkCoop_IsJoined() and not BonkCoop.leaving ) then
+		GlueDialog:Hide();
+		BonkCoop_RefusedAtLogin(L["Your place in the host's game is gone. Returning to your own game..."]);
+	elseif ( noServer and BonkCoop_IsJoined() and not BonkCoop.leaving ) then
 		BonkCoop_LostHost();
 	elseif ( noServer and not Bonk.reachedServer ) then
 		GlueDialogText:SetText(L["The game's server isn't running. Close the game and start Hordes of Azeroth with HoALauncher.exe in your World of Warcraft folder."]);

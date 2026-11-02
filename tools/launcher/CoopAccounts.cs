@@ -6,6 +6,7 @@ using System.Linq;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HordesOfAzeroth.Launcher
@@ -26,6 +27,7 @@ namespace HordesOfAzeroth.Launcher
         const string PrimeHex = "894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7";
         const int Generator = 7;
         const int SaltBytes = 32;
+        static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(20);
         readonly string m_mariaDb;
         readonly GameFolder m_folder;
 
@@ -98,7 +100,16 @@ namespace HordesOfAzeroth.Launcher
             using Process process = Process.Start(info);
             Task<string> output = process.StandardOutput.ReadToEndAsync();
             Task<string> error = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
+            using CancellationTokenSource timeout = new CancellationTokenSource(QueryTimeout);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(true);
+                throw new InvalidOperationException("The game's database didn't answer. Is the game running?");
+            }
             if (process.ExitCode != 0)
                 throw new InvalidOperationException("Database error: " + (await error).Trim());
             return await output;

@@ -1286,6 +1286,39 @@ function RunMaster.Caption()
     return L("{1} {2}", tier.name, ChosenLevel()) .. "  ·  " .. place
 end
 
+local function WornItemName(slot)
+    local link = GetInventoryItemLink("player", slot)
+    local _, _, name = string.find(link or "", "%[(.-)%]")
+    return name or ""
+end
+
+local function BoardNote()
+    if tier.key ~= "mythic" or not tier.firstLevel then
+        return "", nil
+    end
+    local level = tier.firstLevel + ChosenLevel() - 1
+    for slot = 1, 19 do
+        local piece = UI.FoundAt("inv", slot)
+        if piece and piece.legacy then
+            return L("Leaderboard: {1} is legacy gear, so this run won't count.", WornItemName(slot)), "bad"
+        end
+    end
+    for slot = 1, 19 do
+        local piece = UI.FoundAt("inv", slot)
+        if piece and piece.tier > level then
+            return L("Leaderboard: {1} is above {2}, so this run won't count.", WornItemName(slot), UI.LevelName(level)), "bad"
+        end
+    end
+    if UI.boardChoice ~= 1 then
+        return L["Leaderboard: you haven't joined it, so this run won't be listed."], "off"
+    end
+    return L["This run counts for the leaderboard."], "good"
+end
+
+local BOARD_NOTE_WIDTH = 640
+local BOARD_NOTE_RIGHT = 40
+local BOARD_NOTE_COLORS = { bad = { 1, 0.45, 0.35 }, off = { 0.65, 0.65, 0.65 }, good = { 0.45, 0.85, 0.45 } }
+
 function RunMaster.Refresh()
     if not tier then
         return
@@ -1305,10 +1338,15 @@ function RunMaster.Refresh()
         end
         if not arena.button.legacy then
             arena.button.legacy = UI.Text(arena.button, 9)
-            arena.button.legacy:SetPoint("TOP", arena.button, "BOTTOM", 0, -2)
+            arena.button.legacy:SetPoint("TOPRIGHT", arena.button, "BOTTOMRIGHT", BOARD_NOTE_RIGHT, -2)
+            arena.button.legacy:SetWidth(BOARD_NOTE_WIDTH)
+            arena.button.legacy:SetJustifyH("RIGHT")
             arena.button.legacy:SetTextColor(1, 0.45, 0.35)
         end
-        arena.button.legacy:SetText(tier.key == "mythic" and UI.WearsLegacyGear() and L["You're wearing legacy gear. This run won't count for the leaderboard."] or "")
+        local note, kind = BoardNote()
+        local color = BOARD_NOTE_COLORS[kind or "off"]
+        arena.button.legacy:SetTextColor(color[1], color[2], color[3])
+        arena.button.legacy:SetText(note)
     end
 end
 
