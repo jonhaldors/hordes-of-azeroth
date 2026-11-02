@@ -494,6 +494,21 @@ namespace HordesOfAzeroth.Launcher
 
         static readonly string RunningExe = Path.GetFullPath(Environment.ProcessPath);
 
+        static string FreeOldName(string target)
+        {
+            string old = target + ".old";
+            try
+            {
+                if (File.Exists(old))
+                    File.Delete(old);
+                return old;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                return target + "." + DateTime.UtcNow.Ticks + ".old";
+            }
+        }
+
         public static readonly string LauncherFileName = Platform.Exe("HoALauncher");
         static readonly string[] RetiredLauncherNames = Platform.IsWindows ? new[] { "HordesOfAzerothLauncher.exe" } : new string[0];
 
@@ -501,6 +516,7 @@ namespace HordesOfAzeroth.Launcher
         {
             string folder = Path.GetDirectoryName(RunningExe);
             List<string> leftovers = new List<string> { RunningExe + ".old" };
+            leftovers.AddRange(Directory.GetFiles(folder, Path.GetFileName(RunningExe) + ".*.old"));
             if (string.Equals(Path.GetFileName(RunningExe), LauncherFileName, StringComparison.OrdinalIgnoreCase))
                 foreach (string retired in RetiredLauncherNames)
                 {
@@ -545,10 +561,7 @@ namespace HordesOfAzeroth.Launcher
                     Directory.CreateDirectory(Path.GetDirectoryName(target));
                     if (string.Equals(target, RunningExe, StringComparison.OrdinalIgnoreCase) && File.Exists(target))
                     {
-                        string old = target + ".old";
-                        if (File.Exists(old))
-                            File.Delete(old);
-                        File.Move(target, old);
+                        File.Move(target, FreeOldName(target));
                     }
                     entry.ExtractToFile(target, true);
                     Platform.MarkExecutableIfProgram(target);

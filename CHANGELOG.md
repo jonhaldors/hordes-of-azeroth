@@ -2,6 +2,21 @@
 
 ## 0.6.1
 
+### Hotfix 1
+- Items in the Extraction Vault now reach the guest's mailbox, also when the guest leaves or closes the game in the middle of a run.
+- Leaving a game no longer blocks your class when you try to join it again.
+- Gold, items and progress earned as a guest no longer go missing now and then.
+- If the host leaves in the middle of a run, the guests' runs end with it instead of getting stuck on the stage.
+- When the host closes the game, guests still get the rewards from their last moments.
+- A guest's Summoning Stone now summons the boss for the whole party, and the portal opens for everyone. Before, only the guest saw the portal, stopped attacking and couldn't change floors.
+- Everyone in the party sees the boss summoning countdown.
+- Cancelling a join just as the host accepts no longer locks your character until the launcher restarts.
+- A guest changing floors is no longer dropped from the party when someone else joins.
+- Guests who leave are removed from the host's game properly.
+- Players on the same VPN, such as Radmin VPN, Hamachi, ZeroTier or Tailscale, now connect to each other automatically, and you can host over a VPN.
+- Video settings have a Resolution option. Automatic fills your screen as before. Pick a size to play in a window of that size; on Steam Deck it is stretched to fill the screen.
+- Fixed rare launcher crashes when closing the game, when clicking the tray icon after closing the window, and when updating while an old copy of the launcher was still open.
+
 ### Co-op
 - **A note on Co-op: It is entirely self-hosted the host's own PC and everyone else connects straight to it. There is no central game server. The lobby only lists games and passes on join requests, and none of your game traffic goes through it.**
 - More players can host without touching their router. When outside players can't reach the host directly, the two launchers now connect to each other through the routers on their own (UDP hole punching).

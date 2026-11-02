@@ -18,9 +18,11 @@ namespace HordesOfAzeroth.Launcher
     {
         static readonly TimeSpan AnswerTimeout = TimeSpan.FromSeconds(30);
         static readonly TimeSpan PollDelay = TimeSpan.FromMilliseconds(250);
+        static readonly TimeSpan LogoutTimeout = TimeSpan.FromSeconds(15);
 
         readonly string m_dir;
         readonly SemaphoreSlim m_one = new SemaphoreSlim(1, 1);
+        readonly object m_leaveLock = new object();
 
         public CoopTransfer(GameFolder folder)
         {
@@ -70,8 +72,13 @@ namespace HordesOfAzeroth.Launcher
             string path = Path.Combine(m_dir, "ledger-" + user + ".out");
             if (!File.Exists(path))
                 return "";
+            string text;
+            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader reader = new StreamReader(stream))
+                text = reader.ReadToEnd();
+            int complete = text.LastIndexOf('\n');
             System.Text.StringBuilder lines = new System.Text.StringBuilder();
-            foreach (string line in File.ReadAllLines(path))
+            foreach (string line in (complete < 0 ? "" : text.Substring(0, complete)).Split('\n'))
             {
                 int tab = line.IndexOf('\t');
                 if (tab > 0 && long.TryParse(line.Substring(0, tab), out long seq) && seq > since)
@@ -139,6 +146,60 @@ namespace HordesOfAzeroth.Launcher
         }
 
         public void ClearAway(string account) => File.Delete(AwayPath(account));
+
+        public async Task LogOutGuestAsync(string user)
+        {
+            Directory.CreateDirectory(m_dir);
+            string online = Path.Combine(m_dir, "guests-online.txt");
+            DateTime asked = DateTime.UtcNow;
+            await AskToRemoveAsync(user);
+            DateTime until = asked + LogoutTimeout;
+            while (DateTime.UtcNow < until)
+            {
+                await Task.Delay(PollDelay);
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(online) > asked.AddSeconds(1) && !File.ReadAllLines(online).Contains(user))
+                        break;
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+
+        async Task AskToRemoveAsync(string user)
+        {
+            string request = Path.Combine(m_dir, "leave.req");
+            for (int attempt = 0; ; ++attempt)
+            {
+                try
+                {
+                    lock (m_leaveLock)
+                        File.AppendAllText(request, user + "\n");
+                    return;
+                }
+                catch (IOException) when (attempt < 20)
+                {
+                    await Task.Delay(PollDelay);
+                }
+            }
+        }
+
+        public void ClearGuestLedgers()
+        {
+            if (!Directory.Exists(m_dir))
+                return;
+            foreach (string pattern in new[] { "ledger-HOAC*.out", "ledger-HOAC*.answers" })
+                foreach (string file in Directory.GetFiles(m_dir, pattern))
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (IOException)
+                    {
+                    }
+        }
 
         public void AppendAnswers(string user, string answers)
         {

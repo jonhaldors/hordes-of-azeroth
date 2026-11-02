@@ -18,6 +18,7 @@ namespace HordesOfAzeroth.Launcher
         static readonly TimeSpan BlockTime = TimeSpan.FromMinutes(1);
 
         readonly ConcurrentDictionary<string, string> m_tokens = new ConcurrentDictionary<string, string>();
+        readonly ConcurrentDictionary<string, DateTime> m_seen = new ConcurrentDictionary<string, DateTime>();
         readonly ConcurrentDictionary<IPAddress, (int Count, DateTime Since)> m_failures = new ConcurrentDictionary<IPAddress, (int, DateTime)>();
         readonly CancellationTokenSource m_stop = new CancellationTokenSource();
         TcpListener m_listener;
@@ -30,6 +31,8 @@ namespace HordesOfAzeroth.Launcher
 
         public Action<string, string> Answers { get; set; }
 
+        public Func<string, Task> Leave { get; set; }
+
         public void Start(int port)
         {
             m_listener = new TcpListener(IPAddress.IPv6Any, port);
@@ -39,9 +42,19 @@ namespace HordesOfAzeroth.Launcher
             _ = AcceptLoopAsync();
         }
 
-        public void Allow(string token, string user) => m_tokens[token] = user;
+        public void Allow(string token, string user)
+        {
+            m_tokens[token] = user;
+            m_seen[token] = DateTime.UtcNow;
+        }
 
-        public void Revoke(string token) => m_tokens.TryRemove(token, out _);
+        public void Revoke(string token)
+        {
+            m_tokens.TryRemove(token, out _);
+            m_seen.TryRemove(token, out _);
+        }
+
+        public TimeSpan SinceSeen(string token) => m_seen.TryGetValue(token, out DateTime seen) ? DateTime.UtcNow - seen : TimeSpan.MaxValue;
 
         public void Dispose()
         {
@@ -89,6 +102,13 @@ namespace HordesOfAzeroth.Launcher
                 if (known && parts[2] == "UPLOAD")
                 {
                     await ServeUploadAsync(stream, parts[1]);
+                    return;
+                }
+                if (known)
+                    m_seen[parts[1]] = DateTime.UtcNow;
+                if (known && parts[2] == "LEAVE")
+                {
+                    await ServeLeaveAsync(stream, parts[1]);
                     return;
                 }
                 if (known && parts[2] == "LEDGER")
@@ -163,6 +183,19 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        async Task ServeLeaveAsync(NetworkStream stream, string token)
+        {
+            try
+            {
+                await Leave(token);
+                await WriteAsync(stream, "HOA1 DONE\n");
+            }
+            catch (Exception error)
+            {
+                await WriteAsync(stream, $"HOA1 FAIL {error.Message.Replace('\n', ' ')}\n");
+            }
+        }
+
         async Task ServeAnswersAsync(NetworkStream stream, string user)
         {
             try
@@ -178,6 +211,8 @@ namespace HordesOfAzeroth.Launcher
         }
 
         public static async Task<string> ReadLineAsync(NetworkStream stream) => await ReadGateLineAsync(stream);
+
+        public static async Task<string> ReadLineAsync(NetworkStream stream, TimeSpan wait) => await ReadGateLineAsync(stream, wait);
 
         static async Task PumpAsync(NetworkStream from, NetworkStream to, CancellationToken cancel)
         {
@@ -197,9 +232,9 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
-        static async Task<string> ReadGateLineAsync(NetworkStream stream)
+        static async Task<string> ReadGateLineAsync(NetworkStream stream, TimeSpan? wait = null)
         {
-            using CancellationTokenSource timeout = new CancellationTokenSource(LineTimeout);
+            using CancellationTokenSource timeout = new CancellationTokenSource(wait ?? LineTimeout);
             StringBuilder line = new StringBuilder();
             byte[] one = new byte[1];
             try

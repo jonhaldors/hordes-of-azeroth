@@ -220,7 +220,7 @@ namespace HordesOfAzeroth.Launcher
                 string path = null;
                 try
                 {
-                    path = process.MainModule.FileName;
+                    path = process.MainModule?.FileName;
                 }
                 catch (System.ComponentModel.Win32Exception)
                 {

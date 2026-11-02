@@ -232,6 +232,8 @@ namespace HordesOfAzeroth.Launcher
 
         public void ShowFromTray()
         {
+            if (m_shuttingDown)
+                return;
             Show();
             if (WindowState == WindowState.Minimized)
                 WindowState = WindowState.Normal;

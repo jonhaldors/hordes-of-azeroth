@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -30,6 +31,10 @@ namespace HordesOfAzeroth.Launcher
         readonly CoopAccounts m_accounts;
         readonly CoopTransfer m_transfer;
         static readonly TimeSpan LedgerInterval = TimeSpan.FromSeconds(1);
+        static readonly TimeSpan GuestSilenceLimit = TimeSpan.FromMinutes(2);
+        static readonly TimeSpan LeaveWait = TimeSpan.FromSeconds(25);
+        static readonly TimeSpan FinalCollectWait = TimeSpan.FromSeconds(3);
+        static readonly TimeSpan VpnPingWait = TimeSpan.FromSeconds(3);
         readonly CancellationTokenSource m_stop = new CancellationTokenSource();
         readonly ConcurrentDictionary<string, JoinState> m_joins = new ConcurrentDictionary<string, JoinState>();
         readonly object m_lock = new object();
@@ -101,6 +106,7 @@ namespace HordesOfAzeroth.Launcher
             public string LedgerProblem;
             public int RejoinTries;
             public bool Removed;
+            public bool Cancelled;
             public CoopPunch Punch;
             public CoopTunnel Tunnel;
 
@@ -150,7 +156,7 @@ namespace HordesOfAzeroth.Launcher
         {
             m_stop.Cancel();
             m_listener?.Stop();
-            StopHostingAsync().Wait(TimeSpan.FromSeconds(5));
+            StopHostingAsync().Wait(TimeSpan.FromSeconds(20));
         }
 
         static string ResolveLobbyUrl()
@@ -405,6 +411,72 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        static readonly string[] VpnAdapterWords = { "Radmin", "Hamachi", "ZeroTier", "Tailscale", "WireGuard", "OpenVPN", "TAP-Windows", "Wintun" };
+
+        static bool IsVpnRange(IPAddress address)
+        {
+            byte[] bytes = address.GetAddressBytes();
+            return bytes[0] == 25 || bytes[0] == 26 || (bytes[0] == 100 && (bytes[1] & 0xC0) == 64);
+        }
+
+        static List<string> VpnAddresses()
+        {
+            List<string> found = new List<string>();
+            try
+            {
+                foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (adapter.OperationalStatus != OperationalStatus.Up)
+                        continue;
+                    bool named = VpnAdapterWords.Any(word => adapter.Description.Contains(word, StringComparison.OrdinalIgnoreCase) ||
+                        adapter.Name.Contains(word, StringComparison.OrdinalIgnoreCase));
+                    foreach (UnicastIPAddressInformation info in adapter.GetIPProperties().UnicastAddresses)
+                        if (info.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(info.Address) && (named || IsVpnRange(info.Address)))
+                            found.Add(info.Address.ToString());
+                }
+            }
+            catch (NetworkInformationException)
+            {
+            }
+            return found.Distinct().Take(4).ToList();
+        }
+
+        static async Task<string> FirstVpnGateAsync(JsonNode details)
+        {
+            if (details?["vpn"] is not JsonArray addresses || addresses.Count == 0 || VpnAddresses().Count == 0)
+                return null;
+            int port = int.TryParse(details?["vpn_port"]?.ToString(), out int value) ? value : 0;
+            if (port <= 0)
+                return null;
+            List<Task<string>> tries = addresses.Select(node => node?.ToString()).Where(text => IPAddress.TryParse(text, out _))
+                .Select(text => PingGateAsync(text, port)).ToList();
+            while (tries.Count > 0)
+            {
+                Task<string> done = await Task.WhenAny(tries);
+                tries.Remove(done);
+                if (done.Result != null)
+                    return done.Result;
+            }
+            return null;
+        }
+
+        static async Task<string> PingGateAsync(string address, int port)
+        {
+            try
+            {
+                using TcpClient client = new TcpClient(AddressFamily.InterNetwork);
+                using CancellationTokenSource timeout = new CancellationTokenSource(VpnPingWait);
+                await client.ConnectAsync(address, port, timeout.Token);
+                NetworkStream stream = client.GetStream();
+                await stream.WriteAsync(Encoding.ASCII.GetBytes("HOA1 PING\n"), timeout.Token);
+                return await CoopGate.ReadLineAsync(stream, VpnPingWait) == "HOA1 PONG" ? address + ":" + port : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         static string LocalAddress()
         {
             try
@@ -573,10 +645,23 @@ namespace HordesOfAzeroth.Launcher
                         join.User = details?["user"]?.ToString() ?? "";
                         join.Password = details?["password"]?.ToString() ?? "";
                         join.State = "transferring";
-                        if (!await OpenTunnelAsync(join, details))
+                        string vpnGate = await FirstVpnGateAsync(details);
+                        if (vpnGate != null)
+                        {
+                            join.Address = vpnGate;
+                            join.EndNetwork();
+                        }
+                        else if (details?["vpn_only"]?.GetValue<bool>() == true)
                         {
                             join.State = "error";
-                            join.Message = "Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both use ZeroTier and enter a public address.";
+                            join.Message = "Couldn't connect to the host: they can only be reached over their VPN. Join the same VPN network as the host, such as Radmin VPN, ZeroTier or Hamachi, and try again.";
+                            join.EndNetwork();
+                            return;
+                        }
+                        else if (!await OpenTunnelAsync(join, details))
+                        {
+                            join.State = "error";
+                            join.Message = "Couldn't connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi, and try again.";
                             join.EndNetwork();
                             return;
                         }
@@ -643,7 +728,17 @@ namespace HordesOfAzeroth.Launcher
 
         async Task<string> CancelAskAsync(string who)
         {
-            if (m_joins.TryRemove(who, out JoinState join))
+            if (!m_joins.TryRemove(who, out JoinState join))
+                return Line("state", "none");
+            join.Cancelled = true;
+            if (join.State == "accepted" || join.State == "joined")
+            {
+                join.State = "returning";
+                join.Sync?.Cancel();
+                await ReturnCharacterAsync(join);
+                return Line("state", "none");
+            }
+            if (join.State != "transferring")
                 join.EndNetwork();
             if (join != null && join.Ask != null && join.State == "waiting")
             {
@@ -701,6 +796,12 @@ namespace HordesOfAzeroth.Launcher
                 if (!answer.StartsWith("HOA1 DONE"))
                     throw new InvalidOperationException(answer.StartsWith("HOA1 FAIL ") ? answer.Substring(10) : "The host couldn't take your character.");
                 join.State = "accepted";
+                if (join.Cancelled)
+                {
+                    join.State = "returning";
+                    await ReturnCharacterAsync(join);
+                    return;
+                }
                 join.Sync = new CancellationTokenSource();
                 _ = LedgerLoopAsync(join, join.Sync.Token);
             }
@@ -708,6 +809,8 @@ namespace HordesOfAzeroth.Launcher
             {
                 join.State = "error";
                 join.Message = error.Message;
+                if (join.Cancelled)
+                    join.EndNetwork();
             }
         }
 
@@ -784,6 +887,56 @@ namespace HordesOfAzeroth.Launcher
             }
         }
 
+        static async Task TellHostLeavingAsync(JoinState join)
+        {
+            using TcpClient client = await DialHostAsync(join, "LEAVE");
+            string answer = await CoopGate.ReadLineAsync(client.GetStream(), LeaveWait) ?? "";
+            if (answer != "HOA1 DONE")
+                Console.Error.WriteLine("Co-op: the host didn't confirm the leave: " + answer);
+        }
+
+        async Task GuestLeftAsync(HostState host, string token)
+        {
+            Member member;
+            lock (m_lock)
+            {
+                member = host.Members.FirstOrDefault(m => m.Token == token);
+                if (member != null)
+                    host.Members.Remove(member);
+            }
+            if (member == null)
+                return;
+            await m_transfer.LogOutGuestAsync(member.GuestUser);
+            _ = HeartbeatAsync(host);
+        }
+
+        async Task LetGuestsCollectAsync(HostState host)
+        {
+            List<Member> guests;
+            lock (m_lock)
+                guests = host.Members.Where(m => m.GuestUser != null).ToList();
+            if (guests.Count == 0 || host.Gate == null)
+                return;
+            await Task.WhenAll(guests.Select(guest => m_transfer.LogOutGuestAsync(guest.GuestUser)));
+            await Task.Delay(FinalCollectWait);
+        }
+
+        bool DropSilentGuests(HostState host)
+        {
+            List<Member> silent;
+            lock (m_lock)
+            {
+                silent = host.Members.Where(m => m.Token != null && host.Gate != null && host.Gate.SinceSeen(m.Token) > GuestSilenceLimit).ToList();
+                host.Members.RemoveAll(silent.Contains);
+            }
+            foreach (Member member in silent)
+            {
+                host.Gate.Revoke(member.Token);
+                _ = m_transfer.LogOutGuestAsync(member.GuestUser);
+            }
+            return silent.Count > 0;
+        }
+
         string Removed()
         {
             foreach (KeyValuePair<string, JoinState> entry in m_joins.ToArray())
@@ -840,6 +993,7 @@ namespace HordesOfAzeroth.Launcher
             string note = "";
             try
             {
+                await TellHostLeavingAsync(join);
                 await CarryLedgerAsync(join);
             }
             catch (Exception error)
@@ -874,6 +1028,7 @@ namespace HordesOfAzeroth.Launcher
             await RequireRegularAccountAsync(form, "Hosting");
             await StopHostingAsync();
             RequireLobby();
+            m_transfer.ClearGuestLedgers();
             HostState host = new HostState { Settings = form };
             host.Members.Add(new Member { Name = form.GetValueOrDefault("host_name", ""), Class = form.GetValueOrDefault("host_class", ""), Mastery = form.GetValueOrDefault("mastery", "0") });
             lock (m_lock)
@@ -889,7 +1044,7 @@ namespace HordesOfAzeroth.Launcher
             int port = Port("HOA_COOP_GATE_PORT", DefaultGatePort);
             try
             {
-                host.Gate = new CoopGate { Upload = (token, character) => ReceiveGuestAsync(host, token, character), Ledger = m_transfer.ReadLedger, Answers = m_transfer.AppendAnswers };
+                host.Gate = new CoopGate { Upload = (token, character) => ReceiveGuestAsync(host, token, character), Ledger = m_transfer.ReadLedger, Answers = m_transfer.AppendAnswers, Leave = token => GuestLeftAsync(host, token) };
                 host.Gate.Start(port);
             }
             catch (SocketException)
@@ -911,6 +1066,7 @@ namespace HordesOfAzeroth.Launcher
                     ["port"] = port,
                     ["address"] = s.GetValueOrDefault("address", "").Trim(),
                     ["local"] = LocalAddress(),
+                    ["vpn"] = new JsonArray(VpnAddresses().Select(address => (JsonNode)address).ToArray()),
                     ["punch"] = host.Punch?.PublicEndPoint?.ToString() ?? "",
                     ["name"] = s.GetValueOrDefault("name", ""),
                     ["host_name"] = s.GetValueOrDefault("host_name", ""),
@@ -937,6 +1093,8 @@ namespace HordesOfAzeroth.Launcher
                 }
                 if (host.Mode == "lan")
                     host.Message = $"Only players on your own network can join. To let others join, forward TCP port {port} on your router to this PC, or enter a public address when you host.";
+                if (host.Mode == "vpn")
+                    host.Message = $"Only players on your VPN can join. To let others join, forward TCP port {port} on your router to this PC.";
                 host.State = "hosting";
                 await HeartbeatAsync(host);
                 _ = HostLoopAsync(host);
@@ -992,7 +1150,7 @@ namespace HordesOfAzeroth.Launcher
                     if (host.Settings.GetValueOrDefault("auto") == "1")
                         foreach (Request request in requests)
                             await AnswerAsync(request.Ask, true);
-                    if (DateTime.UtcNow - lastBeat > HeartbeatInterval || SettingsText() != host.SentSettings)
+                    if (DateTime.UtcNow - lastBeat > HeartbeatInterval || SettingsText() != host.SentSettings || DropSilentGuests(host))
                     {
                         await HeartbeatAsync(host);
                         lastBeat = DateTime.UtcNow;
@@ -1064,7 +1222,19 @@ namespace HordesOfAzeroth.Launcher
                     host.Members.Add(new Member { Name = request.Name, Class = request.Class, Mastery = request.Mastery, Token = token, GuestUser = login.User });
                 m_transfer.NoteJoining(login.User, request.Name);
             }
-            await LobbyAsync(HttpMethod.Post, "/answer", body);
+            try
+            {
+                await LobbyAsync(HttpMethod.Post, "/answer", body);
+            }
+            catch (Exception) when (accept)
+            {
+                string token = body["token"]!.ToString();
+                lock (m_lock)
+                    host.Members.RemoveAll(m => m.Token == token);
+                host.Gate.Revoke(token);
+                _ = m_transfer.LogOutGuestAsync(body["user"]!.ToString());
+                throw;
+            }
             if (accept)
                 _ = HeartbeatAsync(host);
             return HostStatus();
@@ -1101,6 +1271,7 @@ namespace HordesOfAzeroth.Launcher
             m_transfer.NoteSameClass(false);
             m_transfer.ClearHostSettings();
             host.Stop.Cancel();
+            await LetGuestsCollectAsync(host);
             host.Gate?.Dispose();
             host.Punch?.Dispose();
             if (host.Ports != null)

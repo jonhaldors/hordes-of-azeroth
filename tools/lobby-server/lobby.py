@@ -21,7 +21,7 @@ ASK_SECONDS = 30
 MYTHIC_START = 9
 DECLINE_WAIT_SECONDS = 30
 ANSWER_KEEP_SECONDS = 120
-REACH_TIMEOUT_SECONDS = 4
+REACH_TIMEOUT_SECONDS = 2.5
 CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CODE_LENGTH = 6
 MAX_LOBBIES_PER_ADDRESS = 2
@@ -66,7 +66,7 @@ class Lobbies:
     def expire(self):
         now = time.monotonic()
         for lobby_id in [key for key, lobby in self.lobbies.items() if now - lobby["seen"] > HOST_TIMEOUT_SECONDS]:
-            self.close(lobby_id)
+            self.close(lobby_id, "expired")
         for ask_id in [key for key, ask in self.asks.items() if ask["state"] != "waiting" and now - ask["answered"] > ANSWER_KEEP_SECONDS]:
             del self.asks[ask_id]
         for key in [key for key, at in self.declined.items() if now - at > DECLINE_WAIT_SECONDS]:
@@ -76,8 +76,10 @@ class Lobbies:
                 ask["state"] = "expired"
                 ask["answered"] = now
 
-    def close(self, lobby_id):
-        self.lobbies.pop(lobby_id, None)
+    def close(self, lobby_id, reason="closed"):
+        lobby = self.lobbies.pop(lobby_id, None)
+        if lobby:
+            log_event(reason, lobby=lobby_id, mode=lobby.get("mode"), players=lobby.get("players"), minutes=int((time.monotonic() - lobby["created"]) / 60))
         for ask in self.asks.values():
             if ask["lobby"] == lobby_id and ask["state"] == "waiting":
                 ask["state"] = "gone"
@@ -94,6 +96,10 @@ class Lobbies:
 
 LOBBIES = Lobbies()
 LIMITER = RateLimiter()
+
+
+def log_event(event, **fields):
+    print(" ".join([event] + ["%s=%s" % (key, value) for key, value in fields.items()]), flush=True)
 
 
 def clip(value, key):
@@ -141,11 +147,32 @@ def resolve(host):
         return set()
 
 
+VPN_NETWORKS = [ipaddress.ip_network("25.0.0.0/8"), ipaddress.ip_network("26.0.0.0/8")]
+MAX_VPN_ADDRESSES = 4
+
+
+def is_vpn(address):
+    return any(address in network for network in VPN_NETWORKS) or address in ipaddress.ip_network("100.64.0.0/10")
+
+
 def is_public(ip):
     try:
-        return ipaddress.ip_address(ip.split("%")[0]).is_global
+        address = ipaddress.ip_address(ip.split("%")[0])
     except ValueError:
         return False
+    return address.is_global and not (address.version == 4 and is_vpn(address))
+
+
+def vpn_addresses(values):
+    found = []
+    for value in values if isinstance(values, list) else []:
+        try:
+            address = ipaddress.IPv4Address(str(value).strip())
+        except ValueError:
+            continue
+        if not address.is_loopback and not address.is_multicast and str(address) not in found:
+            found.append(str(address))
+    return found[:MAX_VPN_ADDRESSES]
 
 
 def local_address(text):
@@ -227,7 +254,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            log_event("client-left", path=self.path.partition("?")[0], status=status)
 
     def body(self):
         length = int(self.headers.get("Content-Length") or 0)
@@ -282,6 +312,7 @@ class Handler(BaseHTTPRequestHandler):
         if not port:
             return self.send(400, {"error": "Invalid request."})
         local = local_address(data.get("local"))
+        vpn = vpn_addresses(data.get("vpn"))
         punch = punch_address(data.get("punch"), client)
         listed = bool(data.get("listed", True))
         if data.get("address"):
@@ -304,14 +335,17 @@ class Handler(BaseHTTPRequestHandler):
             join_host, join_port, mode = client, port, "punch"
         elif local:
             join_host, join_port, mode = client, port, "lan"
+        elif vpn:
+            join_host, join_port, mode = client, port, "vpn"
         else:
+            log_event("host-unreachable", version=clip(data.get("version"), "version"))
             return self.send(409, {"error": "unreachable", "address": client})
         now = time.monotonic()
         host_class = clip(data.get("host_class"), "class").lower()
         with LOBBIES.lock:
             LOBBIES.expire()
             for stale in [key for key, lobby in LOBBIES.lobbies.items() if lobby["address"] == client and lobby["port"] == port]:
-                LOBBIES.close(stale)
+                LOBBIES.close(stale, "replaced")
             if sum(1 for lobby in LOBBIES.lobbies.values() if lobby["address"] == client) >= MAX_LOBBIES_PER_ADDRESS:
                 return self.send(429, {"error": "You're already hosting a game."})
             lobby = {
@@ -323,6 +357,7 @@ class Handler(BaseHTTPRequestHandler):
                 "join_host": join_host,
                 "join_port": join_port,
                 "local": local,
+                "vpn": vpn,
                 "mode": mode,
                 "punch": punch,
                 "name": clip(data.get("name"), "name") or "Co-op Game",
@@ -346,6 +381,7 @@ class Handler(BaseHTTPRequestHandler):
                 "seen": now,
             }
             LOBBIES.lobbies[lobby["id"]] = lobby
+            log_event("hosted", lobby=lobby["id"], mode=mode, listed=listed, version=lobby["version"], open=len(LOBBIES.lobbies))
         self.send(200, {"id": lobby["id"], "secret": lobby["secret"], "code": lobby["code"], "address": client, "mode": mode, "listed": listed})
 
     def heartbeat(self, data):
@@ -398,15 +434,19 @@ class Handler(BaseHTTPRequestHandler):
             ask["answered"] = time.monotonic()
             if data.get("accept"):
                 ask["state"] = "accepted"
+                log_event("join-accepted", lobby=lobby["id"], players=lobby["players"])
                 same_network = ask["address"] == lobby["address"] and lobby.get("local")
                 join_host, join_port = (lobby["local"], lobby["port"]) if same_network else (lobby["join_host"], lobby["join_port"])
                 session = session_id(data.get("session"))
                 use_punch = not same_network and lobby.get("mode") == "punch" and session and ask.get("punch")
                 ask["join"] = {"punch": lobby["punch"] if use_punch else "", "session": session if use_punch else "",
-                               "address": join_host, "port": join_port, "token": str(data.get("token", ""))[:64],
+                               "address": join_host, "port": join_port, "vpn": lobby.get("vpn", []), "vpn_port": lobby["port"],
+                               "vpn_only": lobby.get("mode") == "vpn",
+                               "token": str(data.get("token", ""))[:64],
                                "user": str(data.get("user", ""))[:16], "password": str(data.get("password", ""))[:16]}
             else:
                 ask["state"] = "declined"
+                log_event("join-declined", lobby=lobby["id"])
                 ask["reason"] = str(data.get("reason", ""))[:120]
                 LOBBIES.declined[(lobby["id"], ask["address"], ask["name"])] = time.monotonic()
         self.send(200, {"ok": True})
@@ -451,6 +491,7 @@ class Handler(BaseHTTPRequestHandler):
                    "answered": 0.0, "name": clip(data.get("name"), "host_name"), "class": wanted, "race": clip(data.get("race"), "race"),
                    "mastery": mastery, "best": best, "punch": punch_address(data.get("punch"), client)}
             LOBBIES.asks[ask["id"]] = ask
+            log_event("join-asked", lobby=lobby["id"], code=bool(data.get("code")))
             view = public_view(lobby, time.monotonic())
         self.send(200, {"ask": ask["id"], "lobby": view, "seconds": ASK_SECONDS})
 
