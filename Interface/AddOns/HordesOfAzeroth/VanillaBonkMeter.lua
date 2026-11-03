@@ -20,11 +20,12 @@ local GLYPH_INDEX = 100
 local OTHER_INDEX = 200
 local OTHER_FIELDS = 5
 local BAR_SPEED = 8
-local MODE_SPELLS, MODE_TYPES, MODE_HEALING = 1, 2, 3
+local MODE_SPELLS, MODE_TYPES, MODE_HEALING, MODE_PARTY = 1, 2, 3, 4
 local MODES = {
     { mode = MODE_SPELLS, label = L["Damage Done"] },
     { mode = MODE_TYPES, label = L["Damage Types"] },
     { mode = MODE_HEALING, label = L["Healing Done"] },
+    { mode = MODE_PARTY, label = L["Party Damage"] },
 }
 local HEAL_COLOR = UI.HEAL_COLOR
 local ABSORB_COLOR = UI.ABSORB_COLOR
@@ -89,6 +90,7 @@ local spells = {}
 local glyphs = {}
 local others = {}
 local support = {}
+local party = {}
 local seconds = 0
 local rows = {}
 local Refresh
@@ -447,6 +449,17 @@ local function TypeEntries()
     return entries
 end
 
+local function PartyEntries()
+    local entries = {}
+    for index, member in ipairs(party) do
+        tinsert(entries, {
+            id = "p" .. index, hideKey = "p:" .. member.name, index = index, icon = "INV_Misc_QuestionMark", name = member.name,
+            damage = member.damage, kills = 0, parts = { { key = "phys", damage = member.damage } },
+        })
+    end
+    return entries
+end
+
 local function HealEntries()
     local entries = {}
     for index, source in ipairs(support) do
@@ -472,6 +485,8 @@ local function AllEntries()
         return TypeEntries()
     elseif mode == MODE_HEALING then
         return HealEntries()
+    elseif mode == MODE_PARTY then
+        return PartyEntries()
     end
     return SpellEntries()
 end
@@ -656,6 +671,18 @@ handlers["xmeter"] = function(f)
         field = field + OTHER_FIELDS
     end
     if mode ~= MODE_HEALING then
+        Refresh()
+    end
+end
+
+handlers["pmeter"] = function(f)
+    party = {}
+    local field = 2
+    while f[field + 2] do
+        tinsert(party, { name = f[field], damage = tonumber(f[field + 1]) or 0 })
+        field = field + 3
+    end
+    if mode == MODE_PARTY then
         Refresh()
     end
 end

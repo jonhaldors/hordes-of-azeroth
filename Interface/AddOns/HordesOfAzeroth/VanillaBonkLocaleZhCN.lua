@@ -646,6 +646,7 @@ VanillaBonkLocale.Register("zhCN", {
     ["Paladins"] = "圣骑士",
     ["Paladins fight using melee weapons and shields."] = "圣骑士使用近战武器和盾牌战斗。",
     ["Parry"] = "招架",
+    ["Party Damage"] = "队伍伤害",
     ["Party Health Bars"] = "队伍生命条",
     ["Passive"] = "被动技能",
     ["Passive (all classes)"] = "被动技能（全职业）",
