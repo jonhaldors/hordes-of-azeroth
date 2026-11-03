@@ -170,8 +170,11 @@ namespace HordesOfAzeroth.Launcher
                 CreateNoWindow = true,
             };
             info.EnvironmentVariables["WOW_DATA"] = m_folder.Data;
+            info.EnvironmentVariables["BENILLA_HOME"] = m_folder.ClientState;
             if (UseDirectX12 && Platform.IsWindows)
                 info.EnvironmentVariables["WGPU_BACKEND"] = "dx12";
+            else if (Platform.IsMacOS)
+                info.EnvironmentVariables["WGPU_BACKEND"] = "metal";
             Directory.CreateDirectory(Path.GetDirectoryName(m_folder.ClientLog));
             m_log?.Dispose();
             m_log = new StreamWriter(m_folder.ClientLog, false, new UTF8Encoding(false)) { AutoFlush = true };

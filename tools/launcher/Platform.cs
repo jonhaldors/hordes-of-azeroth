@@ -14,11 +14,13 @@ namespace HordesOfAzeroth.Launcher
 
         public static bool IsWindows => OperatingSystem.IsWindows();
 
+        public static bool IsMacOS => OperatingSystem.IsMacOS();
+
         public static bool HasTray => IsWindows;
 
-        public static string ManifestName => IsWindows ? "manifest.json" : "manifest-linux.json";
+        public static string ManifestName => IsWindows ? "manifest.json" : IsMacOS ? "manifest-macos-arm64.json" : "manifest-linux.json";
 
-        public static string SystemName => IsWindows ? "Windows" : "Linux";
+        public static string SystemName => IsWindows ? "Windows" : IsMacOS ? "macOS" : "Linux";
 
         public static string Exe(string name) => IsWindows ? name + ".exe" : name;
 
@@ -28,6 +30,12 @@ namespace HordesOfAzeroth.Launcher
 
         public static void ShowFile(string file)
         {
+            if (IsMacOS)
+            {
+                if (!TryStart(new ProcessStartInfo("/usr/bin/open") { ArgumentList = { "-R", file }, UseShellExecute = false }))
+                    Open(Path.GetDirectoryName(file));
+                return;
+            }
             if (!IsWindows)
             {
                 Open(Path.GetDirectoryName(file));
@@ -41,7 +49,7 @@ namespace HordesOfAzeroth.Launcher
         {
             if (!IsWindows)
             {
-                TryStart(new ProcessStartInfo("xdg-open") { ArgumentList = { target }, UseShellExecute = false });
+                TryStart(new ProcessStartInfo(IsMacOS ? "/usr/bin/open" : "xdg-open") { ArgumentList = { target }, UseShellExecute = false });
                 return;
             }
             if (!TryStart(new ProcessStartInfo(target) { UseShellExecute = true }))
@@ -64,17 +72,25 @@ namespace HordesOfAzeroth.Launcher
 
         public static void MarkExecutableIfProgram(string file)
         {
-            if (IsWindows || !IsElf(file))
+            if (OperatingSystem.IsWindows() || !IsNativeProgram(file))
                 return;
             File.SetUnixFileMode(file, Executable);
         }
 
-        static bool IsElf(string file)
+        static bool IsNativeProgram(string file)
         {
             byte[] head = new byte[ElfMagic.Length];
             using (FileStream stream = File.OpenRead(file))
                 if (stream.Read(head, 0, head.Length) < head.Length)
                     return false;
+            if (IsMacOS)
+            {
+                uint magic = BitConverter.ToUInt32(head);
+                return magic == 0xFEEDFACE || magic == 0xCEFAEDFE
+                    || magic == 0xFEEDFACF || magic == 0xCFFAEDFE
+                    || magic == 0xCAFEBABE || magic == 0xBEBAFECA
+                    || magic == 0xCAFEBABF || magic == 0xBFBAFECA;
+            }
             for (int i = 0; i < head.Length; i++)
                 if (head[i] != ElfMagic[i])
                     return false;

@@ -113,6 +113,57 @@ The output is `client\target\release\HordesOfAzeroth.exe`. It reads the game dat
 
 The launcher is an Avalonia app for .NET 10 in `tools/launcher`, built for Windows and Linux: `dotnet publish tools\launcher\HordesOfAzerothLauncher.csproj -c Release -r win-x64` (or `linux-x64`). `HoALauncher.exe --source <folder>` installs and updates from a local folder of release assets instead of GitHub.
 
+### macOS development (Apple Silicon)
+
+Install the Xcode command line tools, Homebrew, Rust and the .NET 10 SDK. From the repository root:
+
+```bash
+brew install cmake ninja openssl@3 mariadb@11.4
+git submodule update --init
+bash tools/macos/build-server.sh
+bash tools/macos/build-client.sh
+```
+
+The native server and all four data tools install into `server/run`. The CMake cache is in `server/build-macos`, with an intermediate installation in `server/install-macos`. Set `BUILD_JOBS` to control parallel compilation (default: 6). `MARIADB_ROOT` and `OPENSSL_ROOT_DIR` can point at alternative Homebrew installations. Stack traces use macOS's `atos`, avoiding extra dependency downloads during configuration. These development binaries link against the local Homebrew libraries; keep those dependencies installed.
+
+Use your own Windows 1.12.1 build 5875 English (enUS) client as the asset source. Its Windows executable is never run:
+
+```bash
+client_source="/path/to/World of Warcraft"
+bash tools/macos/extract-client-data.sh "$client_source"
+bash tools/macos/build-telegraphs.sh "$client_source"
+python3 tools/macos/build-navtiles.py --threads 6
+```
+
+The source client stays read-only. Extraction writes DBC tables to `server/data/5875/dbc`, terrain to `server/data/maps` and collision data to `server/data/vmaps`. The intermediate collision files remain in `server/data/Buildings`; the extractor refuses to overwrite an existing extraction there. The navigation script builds the configured camp, dungeon, Heroic and Mythic tiles, skipping existing nonempty tile files on a rerun.
+
+The spell-effect script creates a local `Data` folder containing links to the source archives and the generated `patch-z.MPQ`. Generated addon textures and server DBC changes also stay in the project. Both asset scripts accept the source game's `Data` folder as well as its parent. The .NET scripts use `DOTNET`, `.devtools/dotnet/dotnet`, or `dotnet` on the PATH, in that order.
+
+Download the release's database packages and initialize a separate local database:
+
+```bash
+python3 tools/macos/fetch-database.py
+python3 tools/macos/server.py setup
+python3 tools/macos/server.py start
+python3 tools/macos/server.py console "account create player player"
+python3 tools/macos/server.py console "account set gmlevel player 6"
+bash tools/macos/play.sh
+```
+
+The downloader verifies package and SQL-file checksums against the release manifest cached in `server/manifest-linux.json`. Setup imports the base schemas and the project's world dump, applies missing migrations, merges the server config overrides, and configures the local realm. It preserves populated databases when rerun; stop the world server before applying migrations. MariaDB runs from Homebrew with its data in `server/mariadb-data`, a project-local socket, and TCP port 13306. It does not use a Homebrew service or the global database directory. All three services bind to `127.0.0.1`.
+
+After setup, `bash tools/macos/play.sh` starts the local services if needed and launches the client. The run script selects Metal, loads the generated local data and addon, and logs in as `player` / `player`. Set `WOW_USER` and `WOW_PASS` for another account. Client settings and caches live under `client/benilla-config`; `BENILLA_HOME` can select another state folder. An explicit client path or `WOW_DATA` overrides the generated local `Data` folder, so use the default after building spell effects. Unattended runs require explicit test credentials and follow the client repository's probe-identity rules.
+
+```bash
+python3 tools/macos/server.py status
+python3 tools/macos/server.py console "server info"
+python3 tools/macos/server.py stop
+```
+
+Console output and server logs are under `server/logs`. `start` reuses the project services if they are already running; `stop` shuts down the world, login server and database cleanly. The launcher can be compiled with `bash tools/macos/build-launcher.sh`, but macOS updater packages and installation through the launcher are not yet verified; use the development scripts locally. Packaging for another Mac remains separate work.
+
+Verified on November 2, 2026: the Apple Silicon server build (`ae62abb2c`), asset and spell-effect generation, database imports and migrations, launcher compilation, clean service shutdown/restart, and native-client authentication, hero creation and world entry on GM Island. This was a local login smoke test; combat and multiplayer were not exercised.
+
 <br>
 
 ---

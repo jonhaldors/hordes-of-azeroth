@@ -33,6 +33,7 @@
 # Local server tooling and settings.
 !/tools/
 /tools/telegraphs/bin/
+/tools/telegraphs/obj/
 /tools/launcher/bin/
 /tools/launcher/obj/
 !/config/
