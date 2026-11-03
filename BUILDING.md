@@ -162,7 +162,7 @@ python3 tools/macos/server.py stop
 
 Console output and server logs are under `server/logs`. `start` reuses the project services if they are already running; `stop` shuts down the world, login server and database cleanly. The launcher can be compiled with `bash tools/macos/build-launcher.sh`, but macOS updater packages and installation through the launcher are not yet verified; use the development scripts locally. Packaging for another Mac remains separate work.
 
-Verified on November 2, 2026: the Apple Silicon server build (`ae62abb2c`), asset and spell-effect generation, database imports and migrations, launcher compilation, clean service shutdown/restart, and native-client authentication, hero creation and world entry on GM Island. This was a local login smoke test; combat and multiplayer were not exercised.
+Verified on November 2, 2026: the Apple Silicon server build (`ae62abb2c`), asset and spell-effect generation, database imports and migrations, launcher compilation, clean service shutdown/restart, and native-client authentication, hero creation and world entry on GM Island. Manual gameplay testing also covered combat and completion of a full run lasting 10 minutes, 35 seconds. Multiplayer was not exercised.
 
 <br>
 
