@@ -45,7 +45,7 @@ https://github.com/user-attachments/assets/3a82f020-7192-48dc-b6be-f6316bda0225
 
 ### What you need
 
-- Your own copy of **World of Warcraft 1.12.1, build 5875**, in any language. Hordes of Azeroth doesn't include the game.
+- Your own copy of **World of Warcraft 1.12.1, build 5875**. Hordes of Azeroth doesn't include the game.
 - A copy of that client used only for Hordes of Azeroth. The launcher adds its own files to the folder, so don't use your folder for other servers.
 - Windows 10 or 11 (64-bit), or Linux and Steam Deck (beta). About 3 GB of free space next to the game, and up-to-date graphics drivers.
 
