@@ -3,8 +3,9 @@
 
     const LOCALE_INDEX = { koKR: 1, frFR: 2, deDE: 3, zhCN: 4, zhTW: 5, esES: 6, esMX: 7, ruRU: 8 };
     const NAME_TABLES = {
-        item_template: { localeTable: 'locales_item', size: 100 },
-        creature_template: { localeTable: 'locales_creature', size: 100 },
+        item_template: { localeTable: 'locales_item', size: 100, columns: ['name'] },
+        creature_template: { localeTable: 'locales_creature', size: 100, columns: ['name', 'subname'] },
+        broadcast_text: { localeTable: 'locales_broadcast_text', size: 65535, columns: ['male_text', 'female_text'] },
     };
     const FIRST_OWN_ENTRY = 900000;
 
@@ -161,6 +162,7 @@
     function tableOrder(table) {
         if (table === 'item_template') return 2;
         if (table === 'creature_template') return 3;
+        if (table === 'broadcast_text') return 4;
         return 1;
     }
 
@@ -203,9 +205,8 @@
                 }
             }
         }
-        for (const [table, info] of Object.entries(NAME_TABLES)) {
-            sizes.set(`${info.localeTable}.name`, info.size);
-            if (table === 'creature_template') sizes.set(`${info.localeTable}.subname`, info.size);
+        for (const info of Object.values(NAME_TABLES)) {
+            for (const column of info.columns) sizes.set(`${info.localeTable}.${column}`, info.size);
         }
         return sizes;
     }
@@ -457,7 +458,7 @@
         }
         if (loc) {
             for (const [table, info] of Object.entries(NAME_TABLES)) {
-                const columns = table === 'creature_template' ? ['name', 'subname'] : ['name'];
+                const columns = info.columns;
                 const cols = columns.map(c => `\`${c}_loc${loc}\``);
                 lines.push(`UPDATE \`${info.localeTable}\` SET ${cols.map(c => `${c} = ''`).join(', ')} WHERE \`entry\` >= ${FIRST_OWN_ENTRY};`);
                 const tableRows = [...names.values()].filter(r => r.table === table).sort((a, b) => a.entry - b.entry);
