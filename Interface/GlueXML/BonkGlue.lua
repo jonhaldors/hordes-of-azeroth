@@ -1,5 +1,17 @@
 local L = BonkGlueL;
 
+if ( not GetBillingPlan ) then
+	function GetBillingPlan()
+		return 0, 0, 0;
+	end
+	function GetBillingTimeRemaining()
+		return 0;
+	end
+	function GetBillingTimeRested()
+		return 0;
+	end
+end
+
 BONK_CLASSES = {
 	{ token = "WARRIOR", name = "Warrior", display = L["Warrior"], races = { "HUMAN", "DWARF", "NIGHTELF", "GNOME", "ORC", "SCOURGE", "TAUREN", "TROLL" } },
 	{ token = "PALADIN", name = "Paladin", display = L["Paladin"], races = { "HUMAN", "DWARF" } },
