@@ -303,6 +303,11 @@ namespace HordesOfAzeroth.Launcher
             ["That game only takes players on the host's network."] = "该房间只接受与房主处于同一网络的玩家。",
             ["That public address can't be found."] = "找不到该公网地址。",
             ["That public address isn't valid. Enter it as address:port, for example example.com:3725."] = "该公网地址无效。请按“地址:端口”的格式填写，例如 example.com:3725。",
+            ["Couldn't connect to the host. Their router doesn't accept direct connections, and the backup connection between your two networks failed too. The host can forward TCP port 3725, you can host the game yourself if your port is forwarded, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi."] = "无法连接到房主：对方的路由器不接受直接连接，你们两个网络之间的备用连接也失败了。房主可以转发 TCP 端口 3725；如果你的端口已转发，你也可以自己创建游戏；或者你们都加入同一个 VPN（例如 Radmin VPN、ZeroTier 或 Hamachi）后再试。",
+            ["Lost the connection to the host. Your progress up to the last few seconds is saved."] = "与房主的连接已断开。你直到最后几秒前的进度都已保存。",
+            ["The game's database didn't answer. Is the game running?"] = "游戏的数据库没有响应。游戏是否正在运行？",
+            ["Too many wrong passwords for that game. Try again in a few minutes."] = "该游戏的密码错误次数过多。请几分钟后再试。",
+            ["Can't reach the co-op service. Players in your game keep playing, but new players can't find or join it until it's back."] = "无法连接联机服务。你游戏中的玩家可以继续游戏，但在服务恢复之前，新玩家无法找到或加入你的游戏。",
         };
     }
 }
