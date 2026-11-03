@@ -356,7 +356,7 @@ namespace HordesOfAzeroth.Launcher
             if (!IsInstalled())
             {
                 if (!Installer.IsStockClient(m_folder))
-                    SetState(LauncherState.Missing, Loc.T("This client can't be used"), Loc.T("Hordes of Azeroth needs the English World of Warcraft 1.12.1 (build 5875) WoW.exe."));
+                    SetState(LauncherState.Missing, Loc.T("This client can't be used"), Loc.T("Hordes of Azeroth needs World of Warcraft 1.12.1 (build 5875) WoW.exe."));
                 else if (m_installer.IsComplete)
                     SetState(LauncherState.NotInstalled, Loc.T("Some game files are missing"), Loc.T("press Repair to put them back"));
                 else if (m_installer.CompletedSteps.Count > 0)

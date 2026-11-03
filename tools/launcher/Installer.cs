@@ -116,7 +116,9 @@ namespace HordesOfAzeroth.Launcher
                 return false;
             using (MD5 md5 = MD5.Create())
             using (FileStream stream = File.OpenRead(exe))
-                return BitConverter.ToString(md5.ComputeHash(stream)).Replace("-", "") == StockClientMd5;
+                if (BitConverter.ToString(md5.ComputeHash(stream)).Replace("-", "") == StockClientMd5)
+                    return true;
+            return ClientBuild.Is1_12_1(exe) && Directory.Exists(folder.Data);
         }
 
         public static readonly string[] UpdateSteps =
