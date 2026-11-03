@@ -59,6 +59,10 @@ for _, class in BONK_CLASSES do
 	for _, clientName in BONK_CLIENT_CLASS_NAMES[class.token] do
 		BONK_CLASS_TOKENS[clientName] = class.token;
 	end
+	local localized = getglobal("CLASS_" .. class.token);
+	if ( localized ) then
+		BONK_CLASS_TOKENS[localized] = class.token;
+	end
 end
 
 BONK_IRONMAN_TIP = L["This character does not share gold or unlocks with other characters."];
