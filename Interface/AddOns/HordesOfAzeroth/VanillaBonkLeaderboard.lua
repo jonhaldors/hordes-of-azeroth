@@ -213,7 +213,7 @@ end
 
 Heading(L["Rank"], 10, "RIGHT", RANK_WIDTH)
 window.whoHeading = Heading(L["Character"], 10 + MEMBERS_LEFT, "LEFT", 200)
-Heading(L["Highest clear"], 420, "LEFT", 76)
+Heading(L["Highest Clear"], 420, "LEFT", 76)
 Heading(L["Time"], 502, "RIGHT", 44)
 Heading(L["Date"], 550, "RIGHT", 76)
 
@@ -256,14 +256,14 @@ window.join:SetWidth(24)
 window.join:SetHeight(24)
 window.join:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", LEFT, 44)
 VanillaBonkLeaderboardJoinText:SetFontObject(GameFontHighlightSmall)
-VanillaBonkLeaderboardJoinText:SetText(L["Show my characters on the leaderboard"])
+VanillaBonkLeaderboardJoinText:SetText(L["Show on Leaderboard"])
 window.join:SetScript("OnClick", function()
     PlaySound(this:GetChecked() and "igMainMenuOptionCheckBoxOn" or "igMainMenuOptionCheckBoxOff")
     Command("joinboard " .. (this:GetChecked() and "1" or "0"))
 end)
 window.join:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L["Your Mythic clears are sent with the character's name and class. Group clears only show your name if this is on."], 1, 1, 1, 1, 1)
+    GameTooltip:SetText(L["When enabled, your Mythic clears are listed with your character's name and class, including group clears."], 1, 1, 1, 1, 1)
 end)
 window.join:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
@@ -359,7 +359,7 @@ local function SyncText()
     local sync = board.sync
     local waiting = sync and sync.pending > 0 and L("{1} runs waiting to upload", sync.pending) or nil
     if sync and sync.state == "failed" then
-        local text = sync.since ~= "" and L("Can't reach the leaderboard since {1}", sync.since) or L["Can't reach the leaderboard"]
+        local text = sync.since ~= "" and L("Leaderboard unreachable since {1}", sync.since) or L["Leaderboard unreachable"]
         return "|cffff6666" .. text .. (waiting and ("  ·  " .. waiting) or "") .. "|r"
     end
     local updated = board.updated and L("Updated {1}", board.updated) or ""
@@ -425,7 +425,7 @@ function window.Refresh()
     else
         ClearRow(window.you)
         if board.choice ~= 1 then
-            window.you.note:SetText(L["Turn on the box below to be listed."])
+            window.you.note:SetText(L["Check the box below to be listed."])
         elseif UI.WearsLegacyGear() then
             window.you.note:SetText(L["You're wearing legacy gear, so your runs don't count this season."])
         else
@@ -550,6 +550,7 @@ end
 handlers["boardchoice"] = function(f)
     board.choice = tonumber(f[2]) or -1
     UI.boardChoice = board.choice
+    UI.boardClimb = tonumber(f[3] or "") or 0
     if window:IsShown() then
         window.Refresh()
     end

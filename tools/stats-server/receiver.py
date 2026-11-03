@@ -1,5 +1,6 @@
 import collections
 import hashlib
+import hmac
 import datetime
 import gzip
 import io
@@ -8,9 +9,12 @@ import os
 import re
 import secrets
 import shutil
+import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE = os.environ.get("STATE_DIRECTORY", "/var/lib/hoa-stats")
@@ -24,6 +28,10 @@ LIMITS = {"/run": (60, 3600), "/report": (5, 3600)}
 BOARD_SEASON = 1
 BOARD_FILE = os.path.join(STATE, "board-s%d.json" % BOARD_SEASON)
 BOARD_ROWS = 1000
+BOARD_GAME = (0, 6)
+BANNED_FILE = os.path.join(STATE, "banned.txt")
+MAX_WAITING = 200
+LEVELS_PER_MISS = 10
 SEEN_RUNS = 300000
 GZIP_MIN_BYTES = 1024
 GROUP_SIZES = (2, 3, 4)
@@ -31,11 +39,17 @@ INSTALL_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 FIRST_MYTHIC_LEVEL = 10
 MYTHIC_STAGES = 3
 MIN_STAGE_MS = 60 * 1000
+FREE_CLIMB_LEVEL = FIRST_MYTHIC_LEVEL + 39
 MAX_BONUS_STATS = 2
 NAME_LENGTH = (2, 12)
 CLEAR_LINE = re.compile(r"^\d+ clear: hero clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, party (\S+))?$")
 FOUND_GEAR = re.compile(r"; found \[([^\]]*)\]")
 RUN_LEVEL = re.compile(r"; difficulty level (\d+)$")
+MIRROR_KEY = "board/board.txt"
+MIRROR_SECONDS = 300
+MIRROR_CACHE = "public, max-age=300"
+MIRROR_TIMEOUT = 30
+MIRROR_SETTINGS = ("HOA_R2_ACCOUNT_ID", "HOA_R2_ACCESS_KEY_ID", "HOA_R2_SECRET_ACCESS_KEY", "HOA_R2_BUCKET")
 
 
 class RateLimiter:
@@ -146,10 +160,36 @@ def better(a, b):
     return b is None or (a["level"], -a["ms"]) > (b["level"], -b["ms"])
 
 
+def game_version(record):
+    match = re.match(r"^(\d+)\.(\d+)", str(record.get("game", "")))
+    return (int(match.group(1)), int(match.group(2))) if match else (0, 0)
+
+
+def climb_top(levels):
+    top = FREE_CLIMB_LEVEL
+    missed = 0
+    for level in range(FREE_CLIMB_LEVEL + 1, max(levels, default=0) + 1):
+        if level in levels:
+            top = level
+            continue
+        missed += 1
+        if missed > 1 + (level - FREE_CLIMB_LEVEL - 1) // LEVELS_PER_MISS:
+            break
+    return top
+
+
+def read_banned():
+    if not os.path.exists(BANNED_FILE):
+        return set()
+    with open(BANNED_FILE, encoding="utf-8") as handle:
+        return {line.split("#", 1)[0].strip() for line in handle} - {""}
+
+
 def board_results(record):
     lines = record["lines"]
     name = board_name(record)
     date = str(record.get("started", ""))[:10]
+    cleared = set()
     solo = group = None
     for line in lines:
         match = CLEAR_LINE.match(line)
@@ -157,7 +197,10 @@ def board_results(record):
             continue
         level, ms, class_id = int(match.group(1)), int(match.group(2)), int(match.group(3))
         coop, gm, gear = match.group(4), match.group(5), match.group(7)
-        if level < FIRST_MYTHIC_LEVEL or gm != "0" or gear != "1" or ms < MYTHIC_STAGES * MIN_STAGE_MS:
+        if level < FIRST_MYTHIC_LEVEL or gm != "0" or ms < MYTHIC_STAGES * MIN_STAGE_MS:
+            continue
+        cleared.add(level)
+        if gear != "1":
             continue
         result = {"level": level, "ms": ms, "date": date}
         if coop == "0":
@@ -171,7 +214,7 @@ def board_results(record):
                 result["members"] = members
                 if better(result, group):
                     group = result
-    return solo, group
+    return cleared, solo, group
 
 
 def rank_key(entry):
@@ -193,47 +236,70 @@ def members_text(members):
 
 
 class Board:
-    def __init__(self):
+    def __init__(self, fresh=False):
         self.lock = threading.Lock()
         self.solo = {}
         self.groups = {}
+        self.climbs = {}
         self.updated = ""
-        if os.path.exists(BOARD_FILE):
+        self.banned = read_banned()
+        if os.path.exists(BOARD_FILE) and not fresh:
             with open(BOARD_FILE, encoding="utf-8") as handle:
                 saved = json.load(handle)
             self.solo = saved.get("solo", {})
             self.groups = saved.get("groups", {})
+            self.climbs = saved.get("climbs", {})
             self.updated = saved.get("updated", "")
 
-    def add(self, record):
-        solo, group = board_results(record)
-        if solo is None and group is None:
-            return
+    def add(self, record, write=True):
         install = record["install"]
+        if game_version(record) < BOARD_GAME or install in self.banned:
+            return
+        cleared, solo, group = board_results(record)
+        if not cleared:
+            return
+        climber = "%s:%s" % (install, record.get("character", 0))
         with self.lock:
+            climb = self.climbs.setdefault(climber, {"levels": [], "waiting": []})
+            climb["levels"] = sorted(set(climb["levels"]) | cleared)
             if solo:
-                key = "%s:%s" % (install, record.get("character", 0))
-                if better(solo, self.solo.get(key)):
-                    self.solo[key] = solo
-                else:
-                    self.solo[key]["name"] = solo["name"]
+                climb["waiting"].append(["solo", climber, solo])
             if group:
-                key = "%s|%s" % (install, ",".join(str(guid) for guid in sorted(member["guid"] for member in group["members"])))
                 group["size"] = len(group["members"])
-                if better(group, self.groups.get(key)):
-                    self.groups[key] = group
-            keep_best(self.solo, lambda entry: entry["class"])
-            keep_best(self.groups, lambda entry: entry["size"])
+                key = "%s|%s" % (install, ",".join(str(guid) for guid in sorted(member["guid"] for member in group["members"])))
+                climb["waiting"].append(["group", key, group])
+            self.place_climbed(climb)
             self.updated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-            partial = BOARD_FILE + ".part"
-            with open(partial, "w", encoding="utf-8") as handle:
-                json.dump({"updated": self.updated, "solo": self.solo, "groups": self.groups}, handle)
-            os.replace(partial, BOARD_FILE)
+            if write:
+                self.write()
+
+    def place_climbed(self, climb):
+        top = climb_top(set(climb["levels"]))
+        waiting = []
+        for kind, key, result in climb["waiting"]:
+            if result["level"] > top:
+                waiting.append([kind, key, result])
+                continue
+            entries = self.solo if kind == "solo" else self.groups
+            if better(result, entries.get(key)):
+                entries[key] = result
+            elif kind == "solo":
+                entries[key]["name"] = result["name"]
+        climb["waiting"] = waiting[-MAX_WAITING:]
+        keep_best(self.solo, lambda entry: entry["class"])
+        keep_best(self.groups, lambda entry: entry["size"])
+
+    def write(self):
+        partial = BOARD_FILE + ".part"
+        with open(partial, "w", encoding="utf-8") as handle:
+            json.dump({"updated": self.updated, "solo": self.solo, "groups": self.groups, "climbs": self.climbs}, handle)
+        os.replace(partial, BOARD_FILE)
 
     def text(self, install=None):
         with self.lock:
             solo = dict(self.solo)
             groups = dict(self.groups)
+            climbs = {key: climb for key, climb in self.climbs.items() if install and key.startswith(install + ":")}
             updated = self.updated
         lines = ["season~%d" % BOARD_SEASON]
         if updated:
@@ -270,13 +336,66 @@ class Board:
             for key, entry in everyone:
                 if key.startswith(install + ":"):
                     lines.append("mine~solo~%d~%d~%d~%s~%d~%d~%s" % (entry["class"], class_rank[key], overall[key], entry["name"], entry["level"], entry["ms"], entry["date"]))
+            for key, climb in climbs.items():
+                if key.startswith(install + ":"):
+                    lines.append("climb~%s~%d" % (key[len(install) + 1:], climb_top(set(climb["levels"]))))
             for key, entry in groups.items():
                 if key.startswith(install + "|"):
                     lines.append("mine~group~%d~%d~%d~%d~%s~%s" % (entry["size"], group_rank[key], entry["level"], entry["ms"], entry["date"], members_text(entry["members"])))
         return "\n".join(lines) + "\n"
 
 
-board = Board()
+board = None
+
+
+def signing_key(secret, day):
+    key = ("AWS4" + secret).encode()
+    for part in (day, "auto", "s3", "aws4_request"):
+        key = hmac.new(key, part.encode(), hashlib.sha256).digest()
+    return key
+
+
+def put_mirror_object(settings, key, body, content_type, cache_control):
+    account, key_id, secret, bucket = settings
+    host = "%s.r2.cloudflarestorage.com" % account
+    path = "/%s/%s" % (bucket, urllib.parse.quote(key))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    stamp = now.strftime("%Y%m%dT%H%M%SZ")
+    day = now.strftime("%Y%m%d")
+    payload_hash = hashlib.sha256(body).hexdigest()
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical = "\n".join(["PUT", path, "", "host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n" % (host, payload_hash, stamp), signed_headers, payload_hash])
+    scope = "%s/auto/s3/aws4_request" % day
+    to_sign = "\n".join(["AWS4-HMAC-SHA256", stamp, scope, hashlib.sha256(canonical.encode()).hexdigest()])
+    signature = hmac.new(signing_key(secret, day), to_sign.encode(), hashlib.sha256).hexdigest()
+    request = urllib.request.Request("https://%s%s" % (host, path), data=body, method="PUT", headers={
+        "Authorization": "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s" % (key_id, scope, signed_headers, signature),
+        "x-amz-content-sha256": payload_hash,
+        "x-amz-date": stamp,
+        "Content-Type": content_type,
+        "Cache-Control": cache_control,
+    })
+    with urllib.request.urlopen(request, timeout=MIRROR_TIMEOUT) as response:
+        response.read()
+
+
+def mirror_settings():
+    values = tuple(os.environ.get(name, "") for name in MIRROR_SETTINGS)
+    return values if all(values) else None
+
+
+def publish_board_to_mirror(settings):
+    published = None
+    while True:
+        time.sleep(MIRROR_SECONDS)
+        text = board.text()
+        if text == published:
+            continue
+        try:
+            put_mirror_object(settings, MIRROR_KEY, text.encode(), "text/plain; charset=utf-8", MIRROR_CACHE)
+            published = text
+        except (OSError, urllib.error.URLError) as error:
+            print("mirror: %s" % error, flush=True)
 
 
 def save(kind, name, body):
@@ -372,8 +491,37 @@ class Handler(BaseHTTPRequestHandler):
         self.answer(200, reference)
 
 
+def rebuild():
+    rebuilt = Board(fresh=True)
+    order = []
+    for day in sorted(os.listdir(os.path.join(STATE, "runs"))):
+        folder = os.path.join(STATE, "runs", day)
+        for name in os.listdir(folder):
+            record = read_run_file(os.path.join(folder, name))
+            if record:
+                order.append((str(record.get("started", "")), os.path.join(folder, name)))
+    order.sort()
+    for _, path in order:
+        rebuilt.add(read_run_file(path), write=False)
+    rebuilt.write()
+    print("%d runs, %d solo, %d groups, %d climbers" % (len(order), len(rebuilt.solo), len(rebuilt.groups), len(rebuilt.climbs)))
+
+
+def read_run_file(path):
+    with open(path, "rb") as handle:
+        return read_run(handle.read())
+
+
 def main():
+    global board
     os.makedirs(STATE, exist_ok=True)
+    if sys.argv[1:] == ["rebuild"]:
+        rebuild()
+        return
+    board = Board()
+    settings = mirror_settings()
+    if settings:
+        threading.Thread(target=publish_board_to_mirror, args=(settings,), daemon=True).start()
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     server.daemon_threads = True
     server.serve_forever()

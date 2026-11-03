@@ -94,7 +94,7 @@ frame.reroll = UI.Button(frame.chrome, 160, L["Restock"], function()
     end
 end)
 frame.reroll:SetHeight(24)
-ButtonTooltip(frame.reroll, L["Restock"], L["Replaces every card you haven't locked or bought; bought cards stay sold. Sayge's Restock upgrade sets how many restocks each visit allows. Each restock this visit costs 50% more."])
+ButtonTooltip(frame.reroll, L["Restock"], L["Replaces all unlocked cards. Each restock costs 50% more this visit."])
 
 frame.close = UI.Button(frame.chrome, 120, L["Close"], function()
     Leave()
@@ -187,7 +187,7 @@ for index = 1, SLOTS do
         Send("lock " .. this:GetParent().index)
     end)
     card.lock:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 16, 18)
-    ButtonTooltip(card.lock, L["Lock"], L["Restocks skip a locked card, and it comes back at the same price on the next visit."])
+    ButtonTooltip(card.lock, L["Lock"], L["Locked cards stay through restocks and return at the same price next visit."])
 
     card.buy = UI.Button(card, 100, L["Buy"], function()
         local slot = shop.slots[this:GetParent().index]
@@ -334,19 +334,19 @@ end)
 
 local function LevelText(slot)
     local rarity = slot.rarity and UI.RARITY[slot.rarity]
-    local rarityName = rarity and UI.RarityText(slot.rarity, rarity.name) .. " " or ""
+    local rarityName = rarity and UI.RarityText(slot.rarity, rarity.name)
     if slot.kind == "c" then
         return L["For level-ups and chests"]
     elseif slot.kind == "d" then
-        return rarityName .. L["Darkmoon Card"]
+        return rarityName and L("{1} Darkmoon Card", rarityName) or L["Darkmoon Card"]
     elseif slot.kind == "e" then
-        return UI.RarityText(4, L["Legendary"]) .. L[" Evolution"]
+        return L("{1} Evolution", UI.RarityText(4, L["Legendary"]))
     elseif slot.rank <= 1 then
         return slot.kind == "p" and L["|cff20ff20New passive|r"] or L["|cff20ff20New spell|r"]
     elseif slot.kind == "p" then
-        return rarityName .. L["Passive"]
+        return rarityName and L("{1} Passive", rarityName) or L["Passive"]
     end
-    return rarityName .. L["Spell"]
+    return rarityName and L("{1} Spell", rarityName) or L["Spell"]
 end
 
 local function CountText(slot)
@@ -354,14 +354,14 @@ local function CountText(slot)
         return ""
     elseif slot.kind == "d" then
         if slot.maxRank > 1 then
-            return slot.rank .. "/" .. slot.maxRank .. L[" copies"]
+            return L("{1}/{2} copies", slot.rank, slot.maxRank)
         elseif slot.rank > 1 then
-            return slot.rank .. L[" copies"]
+            return L("{1} copies", slot.rank)
         end
     elseif slot.maxRank > 1 then
-        return L["Rank "] .. slot.rank .. "/" .. slot.maxRank
+        return L("Rank {1}/{2}", slot.rank, slot.maxRank)
     elseif slot.rank > 1 then
-        return L["Rank "] .. slot.rank
+        return L("Rank {1}", slot.rank)
     end
     return ""
 end

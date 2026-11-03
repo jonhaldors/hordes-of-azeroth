@@ -134,7 +134,7 @@ function Get-KeptKeys {
     if ($LASTEXITCODE -ne 0) { throw "gh release list failed with exit code $LASTEXITCODE." }
     $manifestDir = Join-Path $cacheDir 'kept-manifests'
     $kept = @{}
-    $prefixes = @('latest/')
+    $prefixes = @('latest/', 'board/')
     foreach ($keptRelease in $releases) {
         $prefixes += "$($keptRelease.tagName)/"
         $dir = Join-Path $manifestDir $keptRelease.tagName

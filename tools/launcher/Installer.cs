@@ -666,7 +666,7 @@ namespace HordesOfAzeroth.Launcher
             MarkSpellEffectsBuilt();
         }
 
-        string SpellEffectsKey => InstalledHash(LauncherPackage) + "+" + InstalledHash(SpellEffectsPackage) + "+" + PlayerPatchesKey();
+        string SpellEffectsKey => typeof(Kit).Assembly.ManifestModule.ModuleVersionId.ToString("N") + "+" + InstalledHash(SpellEffectsPackage) + "+" + PlayerPatchesKey();
 
         string PlayerPatchesKey()
         {

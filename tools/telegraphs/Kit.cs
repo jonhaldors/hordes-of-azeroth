@@ -44,6 +44,8 @@ namespace BonkTelegraphs
                 IfClientHasArt("the Turkey Leg heal drop", files, creatureTables, () => Pickups.AddTurkey(client, creatureDisplays, creatureModels));
                 IfClientHasArt("the thrown trap looks", files, creatureTables, () => Traps.AddTraps(client, files, creatureDisplays, creatureModels));
                 ticketShard = IfClientHasArt("the Darkmoon Ticket's crystal", files, new Dbc[0], () => Pickups.ReadTicket(client), null);
+                if (ticketShard != null)
+                    Pickups.AddTicketCreature(creatureDisplays, creatureModels);
                 projectiles = IfClientHasArt("the projectiles", files, creatureTables,
                     () => Projectiles.AddProjectiles(client, files, creatureDisplays, creatureModels), new List<string>());
                 enemyMissiles = IfClientHasArt("the enemy bolts", files, creatureTables,
@@ -84,6 +86,10 @@ namespace BonkTelegraphs
                     () => LootBeams.AddLootBeams(client, files, spells, spellVisuals, spellVisualKits, spellEffectNames), new List<string>()));
                 castVisuals.AddRange(IfClientHasArt("the drop glows", files, spellTables,
                     () => DropGlows.AddDropGlows(client, files, spells, spellVisuals, spellVisualKits, spellEffectNames), new List<string>()));
+                castVisuals.AddRange(IfClientHasArt("the chest glows", files, spellTables,
+                    () => ChestLooks.AddChestLooks(client, files, spells, spellVisuals, spellVisualKits, spellEffectNames), new List<string>()));
+                castVisuals.AddRange(IfClientHasArt("Meteor and Flamestrike without lava", files, spellTables,
+                    () => CraterlessMeteor.Add(client, files, spells, spellVisuals, spellEffectNames), new List<string>()));
 
                 areaPois = new Dbc(client.Read("DBFilesClient\\AreaPOI.dbc"));
                 landmarks = Landmarks.HideFromMinimap(areaPois);

@@ -153,7 +153,7 @@ end
 
 local function UpgradeBlockedText(piece)
     if piece.left == 0 then
-        return L["This piece has had all its upgrades."]
+        return L["This item is fully upgraded."]
     end
     return L["Clear a higher level to upgrade it further."]
 end
@@ -375,8 +375,9 @@ local function LayoutReroll()
     if piece.left == 0 then
         reroll.upgrade:SetText(L["No upgrades left"])
     else
-        reroll.upgrade:SetText(piece.can and L("Upgrade to ilvl {1}: {2} Scrap", nextLevel, piece.cost) or L("Upgrade to ilvl {1}", nextLevel))
+        reroll.upgrade:SetText(piece.can and L("Upgrade to Item Level {1} ({2} Scrap)", nextLevel, piece.cost) or L("Upgrade to Item Level {1}", nextLevel))
     end
+    reroll.upgrade:SetWidth(max(200, reroll.upgrade:GetFontString():GetStringWidth() + 24))
     if piece.can and qm.scrap >= piece.cost then
         reroll.upgrade:Enable()
     else
@@ -679,7 +680,7 @@ local function Card(index)
                 if not this.item.can then
                     GameTooltip:AddLine(UpgradeBlockedText(this.item), 1, 0.5, 0.25, 1)
                 else
-                    GameTooltip:AddLine(L("Right-click to upgrade to ilvl {1} for {2} Scrap.", NextItemLevel(this.item), this.item.cost), 0.2, 1, 0.2, 1)
+                    GameTooltip:AddLine(L("Right-click to upgrade to item level {1} for {2} Scrap.", NextItemLevel(this.item), this.item.cost), 0.2, 1, 0.2, 1)
                 end
                 GameTooltip:AddLine(L["Left-click to select it."], 0.2, 1, 0.2, 1)
                 GameTooltip:Show()
@@ -952,9 +953,9 @@ end
 
 local function StockText()
     if qm.category == "upgrade" then
-        return L["Gear Vendor  |cff8a8478·|r  Upgrades |cff33ff33up to your highest level cleared|r  |cff8a8478(3 per piece)|r"]
+        return L["Gear Vendor  |cff8a8478·|r  Upgrades |cff33ff33up to your highest cleared level|r  |cff8a8478(3 per item)|r"]
     end
-    return L("Gear Vendor  |cff8a8478·|r  Stock: |cffffd100{1}|r  |cff8a8478(2 levels below your highest level cleared)|r", UI.ItemLevelRange(qm.tier, 1, 3))
+    return L("Gear Vendor  |cff8a8478·|r  Stock: |cffffd100{1}|r  |cff8a8478(2 levels below your highest cleared level)|r", UI.ItemLevelRange(qm.tier, 1, 3))
 end
 
 local function HeadingNote()
@@ -1005,7 +1006,7 @@ Refresh = function()
         panel.empty:Hide()
     end
     if upgrading then
-        panel.hint:SetText(noneExtracted and "" or L["Left-click a piece to upgrade it or reroll a bonus stat. Right-click upgrades it right away."])
+        panel.hint:SetText(noneExtracted and "" or L["Click an item to upgrade it or reroll a bonus stat. Right-click to upgrade it instantly."])
     else
         panel.hint:SetText(L["Right-click an item to buy it, Ctrl-click to preview it. Right-click your own items to sell them."])
     end

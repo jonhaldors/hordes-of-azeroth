@@ -98,11 +98,11 @@ function UI.ItemLevel(tier, quality)
 end
 
 function UI.ItemLevelText(tier, quality)
-    return L("ilvl {1}", UI.ItemLevel(tier, quality))
+    return L("Item Level {1}", UI.ItemLevel(tier, quality))
 end
 
 function UI.ItemLevelRange(tier, lowQuality, highQuality)
-    return L("ilvl {1}-{2}", UI.ItemLevel(tier, lowQuality), UI.ItemLevel(tier, highQuality))
+    return L("Item Level {1}-{2}", UI.ItemLevel(tier, lowQuality), UI.ItemLevel(tier, highQuality))
 end
 
 function UI.FoundLineText(piece)
@@ -134,6 +134,9 @@ handlers["foundend"] = function()
     if incoming then
         found = incoming
         incoming = nil
+    end
+    if UI.FoundRefreshed then
+        UI.FoundRefreshed()
     end
 end
 

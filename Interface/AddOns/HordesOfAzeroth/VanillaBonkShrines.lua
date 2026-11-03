@@ -169,7 +169,7 @@ handlers["capture"] = function(f)
     capture.target = min(1, percent / 100)
     if percent >= 100 then
         SetValue(capture, 1)
-        capture.text:SetText("|cff80ff80" .. label .. L[" captured|r"])
+        capture.text:SetText("|cff80ff80" .. L("{1} captured", label) .. "|r")
         if capture.flashLeft == 0 then
             capture.flashLeft = FLASH
             PlaySound("igQuestListComplete")
@@ -208,10 +208,10 @@ handlers["hearth"] = function(f)
         end
     elseif f[3] == "1" then
         hearth.bar:SetStatusBarColor(0.45, 0.6, 1.0)
-        hearth.text:SetText(L["Hearthstone  "] .. seconds .. "s")
+        hearth.text:SetText(L("Hearthstone  {1}s", seconds))
     else
         hearth.bar:SetStatusBarColor(0.8, 0.25, 0.2)
-        hearth.text:SetText(L["|cffff7060Get back in the ring!|r  "] .. seconds .. "s")
+        hearth.text:SetText(L("|cffff7060Get back in the ring!|r  {1}s", seconds))
     end
     FadeIn(hearth)
 end
@@ -230,10 +230,10 @@ handlers["moonwell"] = function(f)
         SetValue(moonwell, moonwell.target)
     end
     if inside then
-        moonwell.text:SetText(L["|cff80ff80Healing in the Moonwell|r ("] .. seconds .. "s)")
+        moonwell.text:SetText(L("|cff80ff80Healing in the Moonwell|r ({1}s)", seconds))
         moonwell.bar:SetStatusBarColor(0.3, 0.9, 0.75)
     else
-        moonwell.text:SetText(L["Step into the Moonwell to heal ("] .. seconds .. "s)")
+        moonwell.text:SetText(L("Step into the Moonwell to heal ({1}s)", seconds))
         moonwell.bar:SetStatusBarColor(0.2, 0.5, 0.42)
     end
     FadeIn(moonwell)

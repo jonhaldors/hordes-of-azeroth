@@ -219,6 +219,10 @@ namespace HordesOfAzeroth.Launcher
                 string name = await Upload(token, character);
                 await WriteAsync(stream, $"HOA1 DONE {name}\n");
             }
+            catch (OperationCanceledException)
+            {
+                await WriteAsync(stream, "HOA1 FAIL Couldn't reach the host. Try again.\n");
+            }
             catch (Exception error)
             {
                 await WriteAsync(stream, $"HOA1 FAIL {error.Message.Replace('\n', ' ')}\n");

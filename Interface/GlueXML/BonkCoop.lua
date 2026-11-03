@@ -23,7 +23,7 @@ BONK_COOP_PLACES = {
 BONK_COOP_NOTES = {
 	["The launcher isn't running."] = L["The launcher isn't running."],
 	["The launcher didn't answer."] = L["The launcher didn't answer."],
-	["The launcher sent a broken answer."] = L["The launcher sent a broken answer."],
+	["The launcher sent a broken answer."] = L["The launcher sent an invalid response."],
 	["Unknown call."] = L["Unknown call."],
 	["Invalid request."] = L["Invalid request."],
 	["Unknown request."] = L["Unknown request."],
@@ -32,8 +32,8 @@ BONK_COOP_NOTES = {
 	["Can't connect to the co-op service. Try again later."] = L["Can't connect to the co-op service. Try again later."],
 	["The co-op service sent an invalid response."] = L["The co-op service sent an invalid response."],
 	["The co-op service refused the request."] = L["The co-op service refused the request."],
-	["Hosting only works on a regular account. This account is a game master account."] = L["Hosting only works on a regular account. This account is a game master account."],
-	["Joining a co-op game only works on a regular account. This account is a game master account."] = L["Joining a co-op game only works on a regular account. This account is a game master account."],
+	["Hosting only works on a regular account. This account is a game master account."] = L["Game master accounts can't host games."],
+	["Joining a co-op game only works on a regular account. This account is a game master account."] = L["Game master accounts can't join co-op games."],
 	["Too many requests."] = L["Too many requests."],
 	["Too many requests. Try again in a minute."] = L["Too many requests. Try again in a minute."],
 	["Too many requests. Try again in a few minutes."] = L["Too many requests. Try again in a few minutes."],
@@ -41,26 +41,26 @@ BONK_COOP_NOTES = {
 	["You're already hosting a game."] = L["You're already hosting a game."],
 	["No game found with that code."] = L["No game found with that code."],
 	["That game has ended."] = L["That game has ended."],
-	["Version mismatch: that game runs a different version of Hordes of Azeroth."] = L["Version mismatch: that game runs a different version of Hordes of Azeroth."],
+	["Version mismatch: that game runs a different version of Hordes of Azeroth."] = L["That game runs a different version of Hordes of Azeroth."],
 	["Incorrect password."] = L["Incorrect password."],
-	["Game is full."] = L["Game is full."],
+	["Game is full."] = L["That game is full."],
 	["Every open slot has a pending join request. Try again shortly."] = L["Every open slot has a pending join request. Try again shortly."],
-	["Party already has that class."] = L["Party already has that class."],
+	["Party already has that class."] = L["The party already has that class."],
 	["You already have a pending join request."] = L["You already have a pending join request."],
 	["Join request expired."] = L["Join request expired."],
 	["The host didn't respond."] = L["The host didn't respond."],
 	["The host closed the lobby."] = L["The host closed the lobby."],
-	["The host couldn't take your character."] = L["The host couldn't take your character."],
+	["The host couldn't take your character."] = L["The host couldn't load your character."],
 	["Lost connection to the host. Your progress up to the last few seconds is saved."] = L["Lost connection to the host. Your progress up to the last few seconds is saved."],
 	["You were removed from the party."] = L["You were removed from the party."],
-	["That join has ended."] = L["That join has ended."],
-	["Other players can't connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games."] = L["Other players can't connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games."],
+	["That join has ended."] = L["Your join request has ended."],
+	["Other players can't connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games."] = L["Other players can't connect to you because your router blocks automatic port forwarding or your internet provider shares your address. You can still join other games."],
 	["Your lobby expired. Host again to list it."] = L["Your lobby expired. Host again to list it."],
 	["The transfer was too large."] = L["The transfer was too large."],
 	["The connection closed during the transfer."] = L["The connection closed during the transfer."],
 	["The game server didn't answer. Is it running?"] = L["The game server didn't answer. Is it running?"],
 	["The joining player's account couldn't be created."] = L["The joining player's account couldn't be created."],
-	["broken ledger"] = L["broken ledger"],
+	["broken ledger"] = L["The account progress is damaged."],
 	["The account progress couldn't be loaded."] = L["The account progress couldn't be loaded."],
 	["That character is online."] = L["That character is online."],
 	["That character belongs to another account."] = L["That character belongs to another account."],
@@ -79,9 +79,9 @@ BONK_COOP_TEXTS = {
 	{ "BonkCoopHeadPlayers", L["Players"] },
 	{ "BonkCoopDetailGroup", L["Party"] },
 	{ "BonkCoopFilterButton", L["Filters"] },
-	{ "BonkCoopHideFullText", L["Hide full games"] },
-	{ "BonkCoopHideLockedText", L["Hide passworded games"] },
-	{ "BonkCoopHideUnfitText", L["Hide games I can't join"] },
+	{ "BonkCoopHideFullText", L["Hide Full Games"] },
+	{ "BonkCoopHideLockedText", L["Hide Password-Protected Games"] },
+	{ "BonkCoopHideUnfitText", L["Hide Unjoinable Games"] },
 	{ "BonkCoopCodeButton", L["Join with Code"] },
 	{ "BonkCoopRefreshButton", L["Refresh"] },
 	{ "BonkCoopAskButton", L["Join"] },
@@ -95,16 +95,16 @@ BONK_COOP_TEXTS = {
 	{ "BonkCoopModeLabel", L["Mode"] },
 	{ "BonkCoopPlayersLabel", L["Players"] },
 	{ "BonkCoopAddressLabel", L["Public Address (optional)"] },
-	{ "BonkCoopAddressNote", L["For ZeroTier, Tailscale, a tunnel or a forward to another port. Leave empty otherwise. Games on ZeroTier or Tailscale addresses are invite-code only."] },
+	{ "BonkCoopAddressNote", L["For ZeroTier, Tailscale, a tunnel or a forwarded port. Otherwise leave empty. ZeroTier and Tailscale games can only be joined with a code."] },
 	{ "BonkCoopWhoOpenText", L["Public"] },
-	{ "BonkCoopWhoPasswordText", L["Password protected"] },
-	{ "BonkCoopWhoCodeText", L["Hidden, join with code"] },
+	{ "BonkCoopWhoPasswordText", L["Password Protected"] },
+	{ "BonkCoopWhoCodeText", L["Hidden (Code Only)"] },
 	{ "BonkCoopFloorEditLevel", L["difficulty level::level"] },
-	{ "BonkCoopAutoCheckText", L["Auto-accept join requests"] },
-	{ "BonkCoopSameClassCheckText", L["Allow duplicate classes"] },
+	{ "BonkCoopAutoCheckText", L["Auto-Accept Requests"] },
+	{ "BonkCoopSameClassCheckText", L["Allow Duplicate Classes"] },
 	{ "BonkCoopNewCheckText", L["Only allow Mastery"] },
 	{ "BonkCoopMasteryEditSuffix", L["after the number::or lower"] },
-	{ "BonkCoopMinCheckText", L["Requests need Mythic"] },
+	{ "BonkCoopMinCheckText", L["Require Mythic"] },
 	{ "BonkCoopMinEditSuffix", L["after the number::cleared"] },
 	{ "BonkCoopHostGoButton", L["verb::Host"] },
 	{ "BonkCoopHostCancelButton", L["Cancel"] },
@@ -260,7 +260,7 @@ function BonkCoop_Note(text)
 	end
 	_, _, value = string.find(text, "^No free name for (.*)%.$");
 	if ( value ) then
-		return L("No free name for {1}.", value);
+		return L("Couldn't find a free name for {1}.", value);
 	end
 	_, _, value = string.find(text, "^The character couldn't be loaded %((%d+)%)%.$");
 	if ( value ) then
@@ -621,11 +621,11 @@ function BonkCoop_Fit(lobby, hero)
 		return nil, L["Select a character first."];
 	end
 	if ( lobby.players >= lobby.max ) then
-		return nil, L["Game is full."];
+		return nil, L["That game is full."];
 	end
 	for _, class in lobby.classes do
 		if ( strupper(class) == hero.class and not lobby.sameClass ) then
-			return nil, L("Party already has a {1}.", hero.className);
+			return nil, L("The party already has a {1}.", hero.className);
 		end
 	end
 	if ( lobby.minMythic > 0 and hero.best < BONK_COOP_MYTHIC_START + lobby.minMythic ) then
@@ -662,7 +662,7 @@ function BonkCoop_UpdateDetails()
 		tags = BonkCoop_AddTag(tags, L("Mastery {1} or lower only", lobby.masteryLimit));
 	end
 	if ( lobby.minMythic > 0 ) then
-		tags = BonkCoop_AddTag(tags, L("Mythic {1} cleared required", lobby.minMythic));
+		tags = BonkCoop_AddTag(tags, L("Requires Mythic {1} cleared", lobby.minMythic));
 	end
 	if ( lobby.sameClass ) then
 		tags = BonkCoop_AddTag(tags, L["Duplicate classes allowed"]);
@@ -712,7 +712,7 @@ function BonkCoop_AskSelected()
 		return;
 	end
 	if ( lobby.locked ) then
-		BonkCoop_ShowPopup("password", L("Enter password for \"{1}\".", lobby.name), nil, L["Join"], L["Cancel"], { lobby = lobby });
+		BonkCoop_ShowPopup("password", L("Enter the password for \"{1}\".", lobby.name), nil, L["Join"], L["Cancel"], { lobby = lobby });
 		return;
 	end
 	BonkCoop_Ask({ id = lobby.id }, lobby.host);
@@ -754,7 +754,7 @@ function BonkCoop_ReadJoin(lines)
 		BonkCoop.joining = joining;
 		joining.seconds = tonumber(fields[4]) or 30;
 		local who = joining.host and ("|cffffd100"..joining.host.."|r") or L["the host"];
-		BonkCoop_ShowPopup("waiting", L("Waiting on {1} to accept...", who), "\""..(fields[3] or "").."\"", nil, L["Cancel"], nil);
+		BonkCoop_ShowPopup("waiting", L("Waiting for {1} to accept...", who), "\""..(fields[3] or "").."\"", nil, L["Cancel"], nil);
 	elseif ( state == "transferring" ) then
 		if ( BonkCoop.popup ~= "transferring" ) then
 			local hero = BonkCoop_Hero();

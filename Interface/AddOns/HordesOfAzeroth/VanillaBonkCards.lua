@@ -7,6 +7,9 @@ local PER_ROW = 10
 local NUMBER_COLOR = { 1, 1, 1 }
 local LABEL_HEIGHT = 16
 local LEY_RARITY = 2
+local PARTY_LEFT = 10
+local PARTY_TOP = -128
+local PARTY_GAP = 12
 
 local held = {}
 local tips = {}
@@ -20,6 +23,23 @@ holder:SetWidth(PER_ROW * (SIZE + GAP))
 holder:SetHeight(SIZE + 16)
 holder:SetPoint("TOPLEFT", PlayerFrame, "TOPLEFT", 89, -82)
 holder:Hide()
+
+local function PlacePartyFrames()
+    if not PartyMemberFrame1 then
+        return
+    end
+    local top = PARTY_TOP
+    local holderTop, screenTop = holder:GetTop(), UIParent:GetTop()
+    if holder:IsShown() and holderTop and screenTop then
+        top = min(PARTY_TOP, floor(holderTop - holder:GetHeight() - screenTop - PARTY_GAP))
+    end
+    if holder.partyTop == top then
+        return
+    end
+    holder.partyTop = top
+    PartyMemberFrame1:ClearAllPoints()
+    PartyMemberFrame1:SetPoint("TOPLEFT", UIParent, "TOPLEFT", PARTY_LEFT, top)
+end
 
 function UI.PlaceDarkmoonCards(withoutUnitFrame)
     holder:ClearAllPoints()
@@ -53,11 +73,11 @@ local function CardTooltip(owner, index, anchor)
     GameTooltip:AddLine(tip.name or L["Darkmoon Card"], color.r, color.g, color.b)
     local copies = ""
     if card.maxCopies > 1 then
-        copies = card.copies .. "/" .. card.maxCopies .. L[" copies"]
+        copies = L("{1}/{2} copies", card.copies, card.maxCopies)
     elseif card.copies > 1 then
         copies = "x" .. card.copies
     end
-    GameTooltip:AddDoubleLine(color.name .. L[" Darkmoon Card"], copies, 0.6, 0.6, 0.6, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L("{1} Darkmoon Card", color.name), copies, 0.6, 0.6, 0.6, 1, 1, 1)
     if tip.description and tip.description ~= "" then
         GameTooltip:AddLine(tip.description, 1, 0.82, 0, 1)
     end
@@ -229,6 +249,7 @@ local function Refresh()
     else
         holder:Hide()
     end
+    PlacePartyFrames()
 end
 
 holder:SetScript("OnUpdate", function()
@@ -237,6 +258,7 @@ holder:SetScript("OnUpdate", function()
         return
     end
     this.elapsed = 0
+    PlacePartyFrames()
     local now = GetTime()
     for index, card in ipairs(held) do
         local cooldown = cooldowns[card.id]

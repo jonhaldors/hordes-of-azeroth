@@ -57,14 +57,14 @@ button:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOPLEFT")
     if not bag then
         GameTooltip:AddDoubleLine(L["Hearthstone"], L["Not found yet"], 1, 1, 1, 0.5, 0.5, 0.5)
-        GameTooltip:AddLine(L["Mini-bosses on the last stage of a run sometimes drop one. It sends 1 piece you found this run home right away, and the run goes on."], 1, 0.82, 0, 1)
+        GameTooltip:AddLine(L["Sometimes dropped by mini-bosses on a run's last stage. Sends one piece of gear found this run home without ending the run."], 1, 0.82, 0, 1)
         GameTooltip:Show()
         return
     end
     GameTooltip:SetBagItem(bag, slot)
     local key = UI.BindingText(HEARTH)
     if key ~= "" then
-        GameTooltip:AddLine(L("Hit {1} to use it.", key), 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(L("Press {1} to use it.", key), 0.6, 0.6, 0.6)
     end
     GameTooltip:Show()
 end)
@@ -116,13 +116,13 @@ tip.arrow.texture:SetTexCoord(1, 1, 1, 0, 0, 1, 0, 0)
 local function KeyLine()
     local key = UI.BindingText(HEARTH)
     if key == "" then
-        return L["Pick a key for it under Key Bindings, Hordes of Azeroth, Use Hearthstone."]
+        return L["Bind a key to Use Hearthstone in Key Bindings."]
     end
-    return L("Hit {1} or click the stone to use it. You can change the key under Key Bindings.", key)
+    return L("Press {1} or click the Hearthstone to use it. You can change the key in Key Bindings.", key)
 end
 
 tip:SetScript("OnShow", function()
-    this.body:SetText(L["It opens a ring at your feet with a vault beside it. Stay inside until the ring fills, then open the vault and pick 1 piece you found this run to send home right away. "] ..
+    this.body:SetText(L["It opens a ring at your feet with a vault beside it. Stay inside until the ring fills, then open the vault and choose one piece of gear to send home. "] ..
         L["The run goes on. If you're outside the ring when it fills, the Hearthstone fades."])
     this.key:SetText(KeyLine())
     this:SetHeight(22 + this.title:GetHeight() + 10 + this.body:GetHeight() + 10 + this.key:GetHeight() + 22 + 30)

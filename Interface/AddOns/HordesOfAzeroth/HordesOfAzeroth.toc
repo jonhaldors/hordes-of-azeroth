@@ -3,7 +3,7 @@
 ## Notes: Run HUD, level-up choices and map picker for Hordes of Azeroth.
 ## Author: jonhaldors
 ## Version: 1
-## SavedVariables: VanillaBonkChoiceKeys, VanillaBonkMeterMode, VanillaBonkPerfLog, VanillaBonkTutorialDone, VanillaBonkDashShift, VanillaBonkPlateGuideDone, VanillaBonkControllerSettings, VanillaBonkControllerTipDone, VanillaBonkVendorTip, VanillaBonkOptions, VanillaBonkHearthTipDone, VanillaBonkKeysGiven, VanillaBonkBindings, VanillaBonkInnkeeperTip, VanillaBonkMeterHidden, VanillaBonkDeckTip
+## SavedVariables: VanillaBonkChoiceKeys, VanillaBonkMeterMode, VanillaBonkPerfLog, VanillaBonkTutorialDone, VanillaBonkDashShift, VanillaBonkPlateGuideDone, VanillaBonkControllerSettings, VanillaBonkControllerTipDone, VanillaBonkVendorTip, VanillaBonkOptions, VanillaBonkHearthTipDone, VanillaBonkKeysGiven, VanillaBonkBindings, VanillaBonkInnkeeperTip, VanillaBonkMeterHidden, VanillaBonkDeckTip, VanillaBonkPartyMeterOpen
 VanillaBonkLocale.lua
 VanillaBonkLocaleZhCN.lua
 VanillaBonkUI.lua
@@ -58,6 +58,7 @@ VanillaBonkGlyphs.lua
 VanillaBonkPerf.lua
 VanillaBonkController.lua
 VanillaBonkInteract.lua
+VanillaBonkRangeRing.lua
 VanillaBonkInnkeeper.lua
 VanillaBonkLeaderboard.lua
 VanillaBonkEnchanter.lua

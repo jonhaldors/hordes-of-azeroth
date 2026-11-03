@@ -1,15 +1,15 @@
 local L = BonkGlueL;
 
 BONK_CLASSES = {
-	{ token = "WARRIOR", name = "Warrior", display = L["Warrior"], races = { "HUMAN", "DWARF", "NIGHTELF", "GNOME", "ORC", "SCOURGE", "TAUREN", "TROLL" } },
-	{ token = "PALADIN", name = "Paladin", display = L["Paladin"], races = { "HUMAN", "DWARF" } },
-	{ token = "HUNTER",  name = "Hunter", display = L["Hunter"],  races = { "DWARF", "NIGHTELF", "ORC", "TAUREN", "TROLL" } },
-	{ token = "ROGUE",   name = "Rogue", display = L["Rogue"],   races = { "HUMAN", "DWARF", "NIGHTELF", "GNOME", "ORC", "SCOURGE", "TROLL" } },
-	{ token = "PRIEST",  name = "Priest", display = L["Priest"],  races = { "HUMAN", "DWARF", "NIGHTELF", "SCOURGE", "TROLL" } },
-	{ token = "SHAMAN",  name = "Shaman", display = L["Shaman"],  races = { "ORC", "TAUREN", "TROLL" } },
-	{ token = "MAGE",    name = "Mage", display = L["Mage"],    races = { "HUMAN", "GNOME", "SCOURGE", "TROLL" } },
-	{ token = "WARLOCK", name = "Warlock", display = L["Warlock"], races = { "HUMAN", "GNOME", "ORC", "SCOURGE" } },
-	{ token = "DRUID",   name = "Druid", display = L["Druid"],   races = { "NIGHTELF", "TAUREN" } },
+	{ token = "WARRIOR", id = 1, name = "Warrior", display = L["Warrior"], races = { "HUMAN", "DWARF", "NIGHTELF", "GNOME", "ORC", "SCOURGE", "TAUREN", "TROLL" } },
+	{ token = "PALADIN", id = 2, name = "Paladin", display = L["Paladin"], races = { "HUMAN", "DWARF" } },
+	{ token = "HUNTER",  id = 3, name = "Hunter", display = L["Hunter"],  races = { "DWARF", "NIGHTELF", "ORC", "TAUREN", "TROLL" } },
+	{ token = "ROGUE",   id = 4, name = "Rogue", display = L["Rogue"],   races = { "HUMAN", "DWARF", "NIGHTELF", "GNOME", "ORC", "SCOURGE", "TROLL" } },
+	{ token = "PRIEST",  id = 5, name = "Priest", display = L["Priest"],  races = { "HUMAN", "DWARF", "NIGHTELF", "SCOURGE", "TROLL" } },
+	{ token = "SHAMAN",  id = 7, name = "Shaman", display = L["Shaman"],  races = { "ORC", "TAUREN", "TROLL" } },
+	{ token = "MAGE",    id = 8, name = "Mage", display = L["Mage"],    races = { "HUMAN", "GNOME", "SCOURGE", "TROLL" } },
+	{ token = "WARLOCK", id = 9, name = "Warlock", display = L["Warlock"], races = { "HUMAN", "GNOME", "ORC", "SCOURGE" } },
+	{ token = "DRUID",   id = 11, name = "Druid", display = L["Druid"],   races = { "NIGHTELF", "TAUREN" } },
 };
 
 BONK_RACE_NAMES = {
@@ -41,7 +41,9 @@ BONK_CLIENT_CLASS_NAMES = {
 };
 
 BONK_CLASS_TOKENS = {};
+BONK_CLASS_BY_ID = {};
 for _, class in BONK_CLASSES do
+	BONK_CLASS_BY_ID[class.id] = class.token;
 	BONK_CLASS_TOKENS[class.name] = class.token;
 	BONK_CLASS_TOKENS[class.token] = class.token;
 	for _, clientName in BONK_CLIENT_CLASS_NAMES[class.token] do
@@ -71,15 +73,15 @@ local XML_TEXTS = {
 	BonkHeroTitle = L["HORDES OF AZEROTH"],
 	BonkHeroSubtitle = L["Choose your character"],
 	BonkRaceNote = L["Cosmetic only, no racial bonuses"],
-	BonkHeroRandomizeButton = L["Random look"],
-	BonkHeroIronmanText = L["Ironman mode"],
+	BonkHeroRandomizeButton = L["Randomize"],
+	BonkHeroIronmanText = L["Ironman Mode"],
 	BonkClassRacesLabel = L["Races"],
 	BonkClassStarterLabel = L["Starts with"],
-	BonkSpecNote = L["Just a preview. You don't pick a spec here."],
-	BonkHeroRetireButton = L["Delete character"],
+	BonkSpecNote = L["Preview only. You choose your specialization later."],
+	BonkHeroRetireButton = L["Delete Character"],
 	BonkHeroNameLabel = L["Name"],
 	BonkHeroQuitButton = L["Quit"],
-	BonkHeroWipeButton = L["Wipe account"],
+	BonkHeroWipeButton = L["Wipe Account"],
 	BonkHeroBackButton = L["Back"],
 };
 
@@ -113,6 +115,9 @@ Bonk = {
 	creating = nil,
 	wiping = nil,
 	appliedRace = nil,
+	classNamesLearned = false,
+	createdClasses = {},
+	unknownHero = nil,
 	screen = nil,
 	refreshing = false,
 	sceneDirty = false,
@@ -265,6 +270,9 @@ function CharacterCreate_OnShow()
 	OriginalCharacterCreateOnShow();
 	CharacterCreateFrame:Hide();
 	BonkHeroFrame:Show();
+	if ( Bonk.unknownHero and BonkHero_LearnClassNames() ) then
+		BonkHero_OnCharacterList();
+	end
 	Bonk.appliedRace = nil;
 	BonkHero_ApplyNewHero();
 end
@@ -297,15 +305,15 @@ function GlueDialog_OnEvent()
 	local accountGone = shown and (shown == LOGIN_UNKNOWN_ACCOUNT or shown == LOGIN_INCORRECT_PASSWORD or shown == LOGIN_NO_GAME_ACCOUNT);
 	if ( accountGone and BonkCoop_IsJoined() and not BonkCoop.leaving ) then
 		GlueDialog:Hide();
-		BonkCoop_RefusedAtLogin(L["Your place in the host's game is gone. Returning to your own game..."]);
+		BonkCoop_RefusedAtLogin(L["Your spot in the host's game is no longer available. Returning to your own game..."]);
 	elseif ( noServer and BonkCoop_IsJoined() and not BonkCoop.leaving ) then
 		BonkCoop_LostHost();
 	elseif ( noServer and not Bonk.reachedServer ) then
-		GlueDialogText:SetText(L["The game's server isn't running. Close the game and start Hordes of Azeroth with HoALauncher.exe in your World of Warcraft folder."]);
+		GlueDialogText:SetText(L["The Hordes of Azeroth server isn't running. Close the game and start it with HoALauncher.exe in your World of Warcraft folder."]);
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 		BonkLoginStatus:SetText("");
 	elseif ( noServer ) then
-		GlueDialogText:SetText(L["The game's server stopped. Close the game and start Hordes of Azeroth again with HoALauncher.exe. If it keeps happening, click Report a bug in the launcher."]);
+		GlueDialogText:SetText(L["The Hordes of Azeroth server stopped. Restart the game with HoALauncher.exe. If this keeps happening, click Report a bug in the launcher."]);
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 		BonkLoginStatus:SetText("");
 	elseif ( BonkCoop_IsJoined() and BonkCoop_RefusalNote(shown) ) then
@@ -315,7 +323,7 @@ function GlueDialog_OnEvent()
 		GlueDialogText:SetText(L["This character is in a co-op party. Leave the party first."]);
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 	elseif ( wipeRefused ) then
-		GlueDialogText:SetText(L["The account was not wiped because a character is still left. Try again."]);
+		GlueDialogText:SetText(L["The account was not wiped because a character couldn't be deleted. Try again."]);
 		GlueDialogBackground:SetHeight(32 + GlueDialogText:GetHeight() + 8 + GlueDialogButton1:GetHeight() + 16);
 	elseif ( Bonk.wiping and success and event == "UPDATE_STATUS_DIALOG" and arg2 ) then
 		GlueDialog:Hide();
@@ -516,7 +524,7 @@ function BonkHero_CustomizeLabel(id)
 end
 
 function BonkHero_ShowIronmanTip(owner)
-	BonkHero_ShowTip(owner, L["Ironman mode"], BONK_IRONMAN_TIP);
+	BonkHero_ShowTip(owner, L["Ironman Mode"], BONK_IRONMAN_TIP);
 end
 
 function BonkHero_ShowTip(owner, title, text)
@@ -544,12 +552,27 @@ function BonkHero_ShowRaceTip(frame)
 	end
 end
 
+local function HeroClassToken(name, className)
+	if ( not name ) then
+		return nil;
+	end
+	local created = Bonk.createdClasses[strlower(name)];
+	if ( created ) then
+		return created;
+	end
+	local stats = BONK_STATS and BONK_STATS.heroes and BONK_STATS.heroes[name];
+	if ( stats and BONK_CLASS_BY_ID[stats.class] ) then
+		return BONK_CLASS_BY_ID[stats.class];
+	end
+	return BONK_CLASS_TOKENS[className];
+end
+
 function BonkHero_ReadHeroes()
 	Bonk.heroes = {};
 	local unknown;
 	for index = 1, GetNumCharacters() do
 		local name, race, class, level, zone, fileString, gender = GetCharacterInfo(index);
-		local classToken = BONK_CLASS_TOKENS[class];
+		local classToken = HeroClassToken(name, class);
 		if ( name and not (classToken and fileString) ) then
 			unknown = name.." ("..tostring(class)..", "..tostring(fileString)..")";
 		end
@@ -561,9 +584,41 @@ function BonkHero_ReadHeroes()
 			Bonk.heroes[classToken] = { index = index, name = name, race = strupper(fileString), level = level, sex = sex };
 		end
 	end
-	if ( unknown ) then
+	Bonk.unknownHero = unknown;
+	if ( unknown and Bonk.classNamesLearned ) then
 		BonkHero_SetStatus(L("Could not read the class of {1}.", unknown));
 	end
+end
+
+local CLASS_NAME_RACES = { "HUMAN", "TAUREN" };
+
+local function LearnClassesOfSelectedRace()
+	local classes = { GetClassesForRace() };
+	for i = 1, getn(classes) / 2 do
+		local name = classes[i * 2 - 1];
+		local token = strupper(classes[i * 2] or "");
+		if ( name and BONK_CLASS_TOKENS[token] == token ) then
+			BONK_CLASS_TOKENS[name] = token;
+		end
+	end
+end
+
+function BonkHero_LearnClassNames()
+	if ( Bonk.classNamesLearned ) then
+		return false;
+	end
+	Bonk.classNamesLearned = true;
+	local races = { GetAvailableRaces() };
+	for _, raceToken in CLASS_NAME_RACES do
+		for i = 1, getn(races) / 2 do
+			if ( strupper(races[i * 2]) == raceToken ) then
+				SetSelectedRace(i);
+				SetCharacterRace(i);
+				LearnClassesOfSelectedRace();
+			end
+		end
+	end
+	return true;
 end
 
 local function SelectClassToken(classToken)
@@ -602,6 +657,11 @@ function BonkHero_OnCharacterList()
 		return;
 	end
 
+	if ( Bonk.unknownHero and not Bonk.classNamesLearned and Bonk.screen == "charselect" ) then
+		SetGlueScreen("charcreate");
+		return;
+	end
+
 	if ( Bonk.creating ) then
 		local hero = Bonk.heroes[Bonk.creating.class];
 		if ( hero ) then
@@ -630,8 +690,9 @@ function BonkHero_OnCharacterList()
 			start = 1;
 		end
 		local name, race, class = GetCharacterInfo(start);
-		if ( BONK_CLASS_TOKENS[class] ) then
-			SelectClassToken(BONK_CLASS_TOKENS[class]);
+		local classToken = HeroClassToken(name, class);
+		if ( classToken ) then
+			SelectClassToken(classToken);
 		end
 	end
 
@@ -943,7 +1004,7 @@ function BonkHero_UpdateRecord(hero)
 	end
 
 	if ( not HeroStats(hero) ) then
-		BonkHeroRecordNote:SetText(L("The record updates when {1} logs out.", hero.name));
+		BonkHeroRecordNote:SetText(L("These stats update when {1} logs out.", hero.name));
 	elseif ( runs == 0 ) then
 		BonkHeroRecordNote:SetText(L("{1} has not done a run yet.", hero.name));
 	else
@@ -1073,7 +1134,11 @@ end
 
 function BonkHero_CreateCharacter()
 	PlaySound("gsCharacterCreationCreateChar");
-	CreateCharacter(BonkHeroNameEdit:GetText());
+	local name = BonkHeroNameEdit:GetText();
+	if ( Bonk.creating ) then
+		Bonk.createdClasses[strlower(name)] = Bonk.creating.class;
+	end
+	CreateCharacter(name);
 end
 
 function BonkHero_EnterWorld(hero)

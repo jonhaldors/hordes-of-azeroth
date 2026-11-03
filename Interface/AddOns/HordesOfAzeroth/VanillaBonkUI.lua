@@ -173,7 +173,7 @@ end
 
 function UI.AddQuestProgress(tooltip, lock)
     if lock and lock.amount and lock.amount > 1 then
-        tooltip:AddLine(L["Progress: "] .. UI.Thousands(math.min(lock.progress, lock.amount)) .. "/" .. UI.Thousands(lock.amount), 0.62, 0.62, 0.62)
+        tooltip:AddLine(L("Progress: {1}/{2}", UI.Thousands(math.min(lock.progress, lock.amount)), UI.Thousands(lock.amount)), 0.62, 0.62, 0.62)
     end
 end
 

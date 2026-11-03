@@ -249,7 +249,7 @@ local LOCKED_SLOTS = {
 
 local function AddPassiveLines(entry)
     local info = run.info[entry.index] or {}
-    GameTooltip:AddDoubleLine(info.name or "?", L["Rank "] .. entry.rank .. (entry.max > 0 and " / " .. entry.max or ""), 1, 1, 1, 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine(info.name or "?", (entry.max > 0 and L("Rank {1} / {2}", entry.rank, entry.max) or L("Rank {1}", entry.rank)), 1, 1, 1, 0.6, 0.6, 0.6)
     GameTooltip:AddLine(L["Passive"], 0.6, 0.6, 0.6)
     if info.description and info.description ~= "" then
         GameTooltip:AddLine(info.description, 1, 0.82, 0, 1)
@@ -273,11 +273,11 @@ local function ShowSpellTip(owner, anchor, entry, stat)
     Tip:SetLegendary(evolved)
     Tip:Title(info.name or "?", { rarity.r, rarity.g, rarity.b })
     if evolved and info.evolvedFrom and info.evolvedFrom ~= "" then
-        Tip:AddSmallLine(L["Evolved from "] .. info.evolvedFrom, Tip.ORANGE)
+        Tip:AddSmallLine(L("Evolved from {1}", info.evolvedFrom), Tip.ORANGE)
     end
 
     local headerColor = info.faster and Tip.GREEN or Tip.WHITE
-    Tip:AddDoubleLine(((entry.max or 0) > 0 and entry.rank >= entry.max) and L["Max rank"] or (L["Rank "] .. entry.rank), Tip.ReachText(info.radius, info.range, info.currentRadius, info.currentRange),
+    Tip:AddDoubleLine(((entry.max or 0) > 0 and entry.rank >= entry.max) and L["Max rank"] or L("Rank {1}", entry.rank), Tip.ReachText(info.radius, info.range, info.currentRadius, info.currentRange),
         0.62, 0.62, 0.62, 1, 1, 1)
     if info.header and info.header ~= "" then
         Tip:AddDoubleLine(L["Instant"], info.header, 1, 1, 1, headerColor[1], headerColor[2], headerColor[3])
@@ -297,7 +297,7 @@ local function ShowSpellTip(owner, anchor, entry, stat)
         end
         local share = total > 0 and floor(stat.damage / total * 100 + 0.5) or 0
         Tip:AddRule()
-        Tip:AddDoubleLine(L("{1} damage · {2}% of total", VanillaBonkUI.Short(stat.damage), share), (stat.kills or 0) .. L[" kills"],
+        Tip:AddDoubleLine(L("{1} damage · {2}% of total", VanillaBonkUI.Short(stat.damage), share), L((stat.kills or 0) == 1 and "{1} kill" or "{1} kills", stat.kills or 0),
             0.62, 0.62, 0.62, 0.62, 0.62, 0.62, 11)
     end
     Tip:Show()
@@ -476,6 +476,17 @@ local function CreateSlot(parent, size, isSpell)
         slot.ready:SetWidth(size * 64 / 40)
         slot.ready:SetHeight(size * 64 / 40)
         slot.ready:SetPoint("CENTER", slot, "CENTER", 0, 0)
+        slot.reachMark = top:CreateTexture(nil, "OVERLAY")
+        slot.reachMark:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        slot.reachMark:SetWidth(10)
+        slot.reachMark:SetHeight(10)
+        slot.reachMark:SetPoint("TOPLEFT", slot, "TOPLEFT", 2, -2)
+        slot.reachMark:Hide()
+        slot:SetScript("OnClick", function()
+            if IsAltKeyDown() and this.entry and not this.locked then
+                UI.ChooseReachRingSlot(this.entry.index)
+            end
+        end)
     end
 
     slot.highlight = slot:CreateTexture(nil, "HIGHLIGHT")
@@ -552,8 +563,22 @@ local function UpdateCountdown(slot)
     end
 end
 
+local function RefreshReachMark(slot)
+    if not slot.reachMark then
+        return
+    end
+    if slot.entry and run.reachSlot and slot.entry.index == run.reachSlot then
+        local color = UI.ReachRingColor()
+        slot.reachMark:SetVertexColor(color.r, color.g, color.b)
+        slot.reachMark:Show()
+    else
+        slot.reachMark:Hide()
+    end
+end
+
 local function UpdateSlot(slot, entry)
     slot.entry = entry
+    RefreshReachMark(slot)
     if not entry then
         slot.icon:Hide()
         slot.badge:Hide()
@@ -695,11 +720,11 @@ local function ShowMasteryTooltip()
         GameTooltip:Show()
         return
     end
-    GameTooltip:AddDoubleLine(mastery.class .. L[" Mastery"], mastery.level .. " / " .. mastery.maxLevel, 1, 1, 1, 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine(L("{1} Mastery", mastery.class), mastery.level .. " / " .. mastery.maxLevel, 1, 1, 1, 0.6, 0.6, 0.6)
     if mastery.next > 0 then
-        GameTooltip:AddLine(mastery.xp .. " / " .. mastery.next .. L[" experience"], 1, 1, 1)
+        GameTooltip:AddLine(L("{1} / {2} experience", mastery.xp, mastery.next), 1, 1, 1)
     end
-    GameTooltip:AddLine(L("Runs as a {1} earn Mastery experience for every minute you survive and every mini-boss and stage boss you kill. Harder difficulties earn more.", strlower(mastery.class)), 1, 0.82, 0, 1)
+    GameTooltip:AddLine(L("{1} runs earn Mastery experience for each minute survived and each mini-boss and stage boss killed. Harder difficulties earn more.", mastery.class), 1, 0.82, 0, 1)
     if not mastery.trees then
         GameTooltip:AddLine(L["Your class's talent trees aren't available yet. The experience you earn is saved for them."], 0.6, 0.6, 0.6, 1)
     elseif mastery.unspent > 0 then
@@ -733,7 +758,7 @@ local function RefreshMastery()
         masteryBar:SetValue(1)
         masteryText:SetText(L["Max level"])
     end
-    masteryName:SetText("|cffffd100" .. mastery.class .. L[" Mastery|r"])
+    masteryName:SetText("|cffffd100" .. L("{1} Mastery", mastery.class) .. "|r")
     masteryLevel.text:SetText(mastery.level)
     if not mastery.trees then
         masteryPoints:SetText(L["|cffaaaaaaTrees coming soon|r"])
@@ -760,7 +785,7 @@ wallet:SetScript("OnEnter", function()
     if run.shards then
         GameTooltip:AddDoubleLine(L["Darkmoon Tickets"], "|cffc080ff" .. run.shards .. "|r", 1, 0.82, 0, 1, 1, 1)
     end
-    GameTooltip:AddLine(L["Shared by every hero."], 0.6, 0.6, 0.6)
+    GameTooltip:AddLine(L["Shared by all your characters."], 0.6, 0.6, 0.6)
     GameTooltip:Show()
 end)
 wallet:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -768,7 +793,7 @@ wallet:SetScript("OnLeave", function() GameTooltip:Hide() end)
 local function RefreshWallet()
     local text = UI.FormatGold(GetMoney())
     if run.shards then
-        text = text .. "    |cffc080ff" .. run.shards .. L[" Darkmoon Tickets|r"]
+        text = text .. "    |cffc080ff" .. L(run.shards == 1 and "{1} Darkmoon Ticket" or "{1} Darkmoon Tickets", run.shards) .. "|r"
     end
     wallet.text:SetText(text)
     wallet:SetWidth(wallet.text:GetStringWidth() + 4)
@@ -817,12 +842,12 @@ end
 dashButton:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOP")
     GameTooltip:AddDoubleLine(dash.blink and L["Blink"] or L["Dash"], dash.key ~= "" and dash.key or NOT_BOUND, 1, 1, 1, 0.6, 0.6, 0.6)
-    GameTooltip:AddDoubleLine(dash.charges .. "/" .. dash.max .. L[" charges"],
-        floor(dash.cooldown / 100 + 0.5) / 10 .. L[" sec recharge"], 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L("{1}/{2} charges", dash.charges, dash.max),
+        L("{1} sec recharge", floor(dash.cooldown / 100 + 0.5) / 10), 1, 1, 1, 1, 1, 1)
     if dash.blink then
-        GameTooltip:AddLine(L["Teleport a short distance in the direction you're moving. In midair, you teleport the way you're facing."], 1, 0.82, 0, 1)
+        GameTooltip:AddLine(L["Teleports you a short distance in the direction you're moving, or forward while in midair."], 1, 0.82, 0, 1)
     else
-        GameTooltip:AddLine(L["Dash a short distance in the direction you're moving. In midair, you dash the way you're facing."], 1, 0.82, 0, 1)
+        GameTooltip:AddLine(L["Dashes a short distance in the direction you're moving, or forward while in midair."], 1, 0.82, 0, 1)
     end
     GameTooltip:Show()
 end)
@@ -935,8 +960,8 @@ end
 local function ShowXpTooltip()
     GameTooltip:SetOwner(this, "ANCHOR_TOP")
     local level, current, maximum = RunXp()
-    GameTooltip:AddLine(L["Level "] .. level, 1, 1, 1)
-    GameTooltip:AddLine(current .. " / " .. maximum .. L[" experience"], 1, 1, 1)
+    GameTooltip:AddLine(L("Level {1}", level), 1, 1, 1)
+    GameTooltip:AddLine(L("{1} / {2} experience", current, maximum), 1, 1, 1)
     GameTooltip:AddLine(L["Every level brings a choice of 3 upgrades."], 1, 0.82, 0, 1)
     GameTooltip:AddLine(L["Each run starts again at level 1."], 0.6, 0.6, 0.6)
     GameTooltip:Show()
@@ -1179,6 +1204,18 @@ handlers["shop"] = function(f)
 end
 handlers["shard"] = function(f)
     run.shards = tonumber(f[3]) or run.shards
+end
+
+function UI.RefreshReachMarks()
+    for _, slot in ipairs(spellSlots) do
+        RefreshReachMark(slot)
+    end
+end
+
+handlers["reachring"] = function(f)
+    UI.SetReachRingSpell(tonumber(f[2]) or 0)
+    run.reachSlot = tonumber(f[3]) or 0
+    UI.RefreshReachMarks()
 end
 
 UI.Listen(handlers)

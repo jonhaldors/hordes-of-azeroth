@@ -124,16 +124,17 @@ end
 local function SettingSlider(setting)
     local slider = CreateFrame("Slider", "VanillaBonkInnkeeperSlider" .. setting.key, window, "OptionsSliderTemplate")
     slider:SetWidth(CONTENT_WIDTH - 70)
-    slider:SetMinMaxValues(0, 100)
-    slider:SetValueStep(10)
+    slider:SetMinMaxValues(setting.min or 0, setting.max or 100)
+    slider:SetValueStep(setting.step or 10)
     slider.setting = setting
     getglobal(slider:GetName() .. "Text"):SetText(setting.label)
-    getglobal(slider:GetName() .. "Low"):SetText(L["Off"])
-    getglobal(slider:GetName() .. "High"):SetText(L["All"])
+    getglobal(slider:GetName() .. "Low"):SetText(setting.low or L["Off"])
+    getglobal(slider:GetName() .. "High"):SetText(setting.high or L["All"])
     slider.value = UI.Text(slider, 11)
     slider.value:SetPoint("LEFT", slider, "RIGHT", 10, 0)
     slider:SetScript("OnValueChanged", function()
-        this.value:SetText(UI.OtherEffectsText(this:GetValue()))
+        local describe = this.setting.valueText or UI.OtherEffectsText
+        this.value:SetText(describe(this:GetValue()))
     end)
     slider:SetScript("OnMouseUp", function()
         local value = math.floor(this:GetValue() + 0.5)
@@ -206,9 +207,9 @@ local function HealthBarChoice(mode, column)
     tinsert(window.radios, radio)
 end
 
-Section(L["Interact key"])
+Section(L["Interact Key"])
 KeyRow(UI.KEYS[1], L["Interact with what's nearby"])
-Note(L["The key interacts with:"])
+Note(L["Interacts with:"])
 for index, setting in ipairs(UI.INTERACT_SETTINGS) do
     Check(setting, math.mod(index - 1, 2) + 1, math.mod(index, 2) == 0 or index == table.getn(UI.INTERACT_SETTINGS))
 end
@@ -225,6 +226,17 @@ for index, setting in ipairs(UI.DISPLAY_SETTINGS) do
     Check(setting, math.mod(index - 1, 2) + 1, math.mod(index, 2) == 0 or index == table.getn(UI.DISPLAY_SETTINGS))
 end
 SettingSlider(UI.OTHER_EFFECTS_SETTING)
+SettingSlider(UI.SIDE_CARD_SCALE_SETTING)
+window.rangeRing = UI.Button(window, 150, L["Range Ring..."], function()
+    PlaySound("igMainMenuOption")
+    UI.ShowRangeRingWindow(window)
+end)
+window.rangeRing:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L["Choose how the range ring around your character looks."], 1, 1, 1, 1, 1)
+end)
+window.rangeRing:SetScript("OnLeave", function() GameTooltip:Hide() end)
+Place(window.rangeRing, 1, 28)
 
 Section(L["Keys"])
 KeyRow(UI.KEYS[2])

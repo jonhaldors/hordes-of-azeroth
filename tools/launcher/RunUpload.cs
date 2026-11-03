@@ -16,6 +16,7 @@ namespace HordesOfAzeroth.Launcher
             .OfType<AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == "StatsUrl")?.Value ?? "").TrimEnd('/');
         static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(20);
+        static readonly TimeSpan BoardTimeout = TimeSpan.FromSeconds(30);
         static readonly HttpClient Client = CreateClient();
         static readonly TimeSpan ReportTimeout = TimeSpan.FromMinutes(3);
 
@@ -57,8 +58,27 @@ namespace HordesOfAzeroth.Launcher
 
         public static async Task<string> GetBoardAsync(string installId)
         {
-            using (CancellationTokenSource timeout = new CancellationTokenSource(RunTimeout))
-            using (HttpResponseMessage response = await Client.GetAsync(StatsUrl + "/board?install=" + Uri.EscapeDataString(installId), timeout.Token))
+            string own = StatsUrl + "/board?install=" + Uri.EscapeDataString(installId);
+            string mirrored = Mirror.BoardUrl;
+            Exception firstProblem = null;
+            foreach (string source in mirrored.Length > 0 ? new[] { own, mirrored } : new[] { own })
+            {
+                try
+                {
+                    return await FetchBoardAsync(source);
+                }
+                catch (Exception e) when (Web.IsProblem(e))
+                {
+                    firstProblem ??= e;
+                }
+            }
+            throw firstProblem;
+        }
+
+        static async Task<string> FetchBoardAsync(string url)
+        {
+            using (CancellationTokenSource timeout = new CancellationTokenSource(BoardTimeout))
+            using (HttpResponseMessage response = await Client.GetAsync(url, timeout.Token))
             {
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync(timeout.Token);

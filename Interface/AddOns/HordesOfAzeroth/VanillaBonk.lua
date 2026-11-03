@@ -212,7 +212,7 @@ local function SetBanishMode(on)
         end
     end
     if offerFrame.banish then
-        offerFrame.banish:SetText(on and L["Cancel"] or (L["|cffff6060Banish ("] .. (VB.banishes or 0) .. ")|r"))
+        offerFrame.banish:SetText(on and L["Cancel"] or (L("|cffff6060Banish ({1})|r", VB.banishes or 0)))
     end
     offerFrame.hint:SetText(on and L["|cffff6060Click a card to banish it, or press Escape to cancel.|r"] or "")
     if on then
@@ -247,7 +247,7 @@ local function Banish(index)
             return
         end
         offerFrame.banishWarned = true
-        UIErrorsFrame:AddMessage(L["You can't banish something you already have."], 1, 0.1, 0.1, 1)
+        UIErrorsFrame:AddMessage(L["You can't banish an upgrade you already have."], 1, 0.1, 0.1, 1)
         return
     end
     VB.picking = true
@@ -882,11 +882,11 @@ local CHOICE_KEYS = {
 }
 BINDING_HEADER_VANILLABONK = L["Hordes of Azeroth"]
 for index = 1, 6 do
-    setglobal("BINDING_NAME_VANILLABONK_CHOICE" .. index, L("Level-up choice: card {1}", index))
+    setglobal("BINDING_NAME_VANILLABONK_CHOICE" .. index, L("Choose Card {1}", index))
 end
-BINDING_NAME_VANILLABONK_REROLL = L["Level-up choice: reroll"]
-BINDING_NAME_VANILLABONK_SKIP = L["Level-up choice: skip"]
-BINDING_NAME_VANILLABONK_BANISH = L["Level-up choice: banish"]
+BINDING_NAME_VANILLABONK_REROLL = L["Reroll Cards"]
+BINDING_NAME_VANILLABONK_SKIP = L["Skip Cards"]
+BINDING_NAME_VANILLABONK_BANISH = L["Banish Card"]
 
 local function GiveBackChoiceKeys()
     if not VanillaBonkChoiceKeys or (VanillaBonkGlyphs and VanillaBonkGlyphs.open) then
@@ -924,6 +924,9 @@ function VanillaBonk_ChoiceKey(key)
     end
     local index = tonumber(key)
     if index and VanillaBonk_GlyphKey and VanillaBonk_GlyphKey(index) then
+        return
+    end
+    if key == "R" and VanillaBonk_GlyphReroll and VanillaBonk_GlyphReroll() then
         return
     end
     if not offerFrame.open then
@@ -1106,7 +1109,7 @@ local function LayoutStats(card, stats, width, room)
         block.before:SetFont(FONT, valueSize)
         block.after:SetFont(FONT, valueSize)
         local capped = stat.before == stat.after
-        block.before:SetText(capped and (stat.before .. L[" (at cap)"]) or stat.before)
+        block.before:SetText(capped and L("{1} (max)", stat.before) or stat.before)
         block.after:SetText(capped and "" or stat.after)
         block.arrow:SetWidth(arrowSize)
         block.arrow:SetHeight(arrowSize)
@@ -1197,6 +1200,7 @@ local function ShowOffer(level)
     end
     local fresh = not offerFrame.open
     offerFrame.side = VB.sideOffers and true or false
+    offerFrame.SIDE_SCALE = VanillaBonkUI.SideScale(0.5)
     offerFrame.ApplySideChrome()
     if not fresh and not offerFrame.anim then
         offerFrame.anim = { mode = "pop", t = 0 }
@@ -1207,7 +1211,7 @@ local function ShowOffer(level)
     elseif VB.offerSource == "ley" then
         offerFrame.title:SetText(L["Ley Line"])
     else
-        offerFrame.title:SetText(L["Level "] .. level)
+        offerFrame.title:SetText(L("Level {1}", level))
     end
     offerFrame.subtitle:SetText(offerFrame.Subtitle())
 
@@ -1274,28 +1278,28 @@ local function ShowOffer(level)
             end
             local rarityName = option.rarity and RARITIES[option.rarity] and RarityText(option.rarity, RARITIES[option.rarity].name)
             if option.kind == "e" then
-                card.level:SetText(RarityText(4, L["Legendary"]) .. L[" Evolution"])
+                card.level:SetText(L("{1} Evolution", RarityText(4, L["Legendary"])))
             elseif option.kind == "ley" then
-                card.level:SetText((rarityName and rarityName .. " " or "") .. L["Blessing"])
+                card.level:SetText(rarityName and L("{1} Blessing", rarityName) or L["Blessing"])
             elseif option.kind == "c" then
-                card.level:SetText((rarityName and rarityName .. " " or "") .. L["Darkmoon Card"])
+                card.level:SetText(rarityName and L("{1} Darkmoon Card", rarityName) or L["Darkmoon Card"])
             elseif option.newLevel == 1 then
                 card.level:SetText(option.kind == "p" and L["|cff20ff20New passive|r"] or L["|cff20ff20New spell|r"])
             elseif option.kind == "p" then
-                card.level:SetText((rarityName and rarityName .. " " or "") .. L["Passive"])
+                card.level:SetText(rarityName and L("{1} Passive", rarityName) or L["Passive"])
             else
-                card.level:SetText((rarityName and rarityName .. " " or "") .. L["Spell"])
+                card.level:SetText(rarityName and L("{1} Spell", rarityName) or L["Spell"])
             end
             if option.kind == "ley" or option.kind == "e" then
                 card.count:SetText("")
             elseif option.kind == "c" and option.maxLevel > 1 then
-                card.count:SetText(option.newLevel .. "/" .. option.maxLevel .. L[" copies"])
+                card.count:SetText(L("{1}/{2} copies", option.newLevel, option.maxLevel))
             elseif option.kind == "c" and option.newLevel > 1 then
-                card.count:SetText(option.newLevel .. L[" copies"])
+                card.count:SetText(L("{1} copies", option.newLevel))
             elseif option.maxLevel > 1 then
-                card.count:SetText(L["Rank "] .. option.newLevel .. "/" .. option.maxLevel)
+                card.count:SetText(L("Rank {1}/{2}", option.newLevel, option.maxLevel))
             elseif option.newLevel > 1 then
-                card.count:SetText(L["Rank "] .. option.newLevel)
+                card.count:SetText(L("Rank {1}", option.newLevel))
             else
                 card.count:SetText("")
             end
@@ -1322,7 +1326,7 @@ local function ShowOffer(level)
 
     local buttons = {}
     if (VB.rerolls or 0) > 0 then
-        offerFrame.reroll:SetText(L["Reroll ("] .. VB.rerolls .. ")")
+        offerFrame.reroll:SetText(L("Reroll ({1})", VB.rerolls))
         tinsert(buttons, offerFrame.reroll)
     else
         offerFrame.reroll:Hide()
@@ -1333,7 +1337,7 @@ local function ShowOffer(level)
         offerFrame.banish:Hide()
     end
     if (VB.skips or 0) > 0 then
-        offerFrame.skip:SetText(L["Skip ("] .. VB.skips .. ")")
+        offerFrame.skip:SetText(L("Skip ({1})", VB.skips))
         tinsert(buttons, offerFrame.skip)
     else
         offerFrame.skip:Hide()
@@ -1580,7 +1584,7 @@ arena.loadoutDivider:SetPoint("TOPLEFT", arena, "TOPLEFT", LOADOUT_X, -(LOADOUT_
 arena.loadoutLabel = UI.Text(content, 11)
 arena.loadoutLabel:SetPoint("TOPLEFT", arena, "TOPLEFT", LOADOUT_X, -LOADOUT_TOP)
 arena.loadoutLabel:SetTextColor(1, 0.82, 0)
-arena.loadoutLabel:SetText(L["Your loadout"])
+arena.loadoutLabel:SetText(L["Loadout"])
 
 arena.challengesLabel = UI.Text(content, 10)
 arena.challengesLabel:SetPoint("TOPLEFT", arena, "TOPLEFT", LOADOUT_X, -(LOADOUT_TOP + 84))
@@ -1600,6 +1604,27 @@ arena.perks:SetWidth(140)
 arena.perks:SetJustifyH("RIGHT")
 arena.perksLabel:SetPoint("LEFT", arena, "LEFT", LOADOUT_X, 0)
 arena.perksLabel:SetPoint("TOP", arena.perks, "TOP", 0, 0)
+
+arena.pauseCheck = CreateFrame("CheckButton", "VanillaBonkArenaPause", content, "UICheckButtonTemplate")
+arena.pauseCheck:SetWidth(22)
+arena.pauseCheck:SetHeight(22)
+arena.pauseCheck:SetPoint("LEFT", arena, "LEFT", LOADOUT_X - 4, 0)
+arena.pauseCheck:SetPoint("TOP", arena.perks, "BOTTOM", 0, -6)
+arena.pauseCheck.label = UI.Text(arena.pauseCheck, 10)
+arena.pauseCheck.label:SetPoint("LEFT", arena.pauseCheck, "RIGHT", 2, 0)
+arena.pauseCheck.label:SetTextColor(LOADOUT_GREY[1], LOADOUT_GREY[2], LOADOUT_GREY[3])
+arena.pauseCheck.label:SetText(L["Pause on Rewards"])
+arena.pauseCheck:SetScript("OnClick", function()
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    UI.SetOption("pauseOnChoices", this:GetChecked() and true or false)
+end)
+arena.pauseCheck:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L["Pause on Rewards"], 1, 1, 1)
+    GameTooltip:AddLine(L["When disabled, rewards appear at the bottom of the screen and combat continues."], 1, 0.82, 0, 1)
+    GameTooltip:Show()
+end)
+arena.pauseCheck:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 VB.starters = {}
 VB.pendingStarters = {}
@@ -1626,7 +1651,7 @@ local function ShowStarterTooltip(owner, option)
     if option.chosen then
         GameTooltip:AddLine(L["Your runs start with this spell."], 0.25, 1, 0.25, 1)
     elseif option.unlocked then
-        GameTooltip:AddLine(L["Click to start your runs with it."], 1, 0.82, 0, 1)
+        GameTooltip:AddLine(L["Click to make this your starter spell."], 1, 0.82, 0, 1)
     else
         GameTooltip:AddLine(option.hint, 1, 0.3, 0.3, 1)
     end
@@ -1653,7 +1678,7 @@ starterBox:SetHeight(48)
 starterBox.label = UI.Text(starterBox, 10)
 starterBox.label:SetPoint("TOPLEFT", starterBox, "TOPLEFT", 0, 0)
 starterBox.label:SetTextColor(LOADOUT_GREY[1], LOADOUT_GREY[2], LOADOUT_GREY[3])
-starterBox.label:SetText(L["Starter spell"])
+starterBox.label:SetText(L["Starter Spell"])
 starterBox.name = UI.Text(starterBox, 11)
 starterBox.name:SetJustifyH("LEFT")
 starterBox.slots = {}
@@ -1718,7 +1743,7 @@ local function RefreshStarters()
     starterBox:Show()
 end
 
-arena.button = UI.Button(content, 140, L["Start run"], function()
+arena.button = UI.Button(content, 140, L["Start Run"], function()
     local tier = arena.tier
     if not tier or not tier.unlocked or VB.inRun or not VanillaBonkRunMaster.CanStart(tier) then
         return
@@ -1731,11 +1756,8 @@ arena.button:SetHeight(38)
 arena.button:SetPoint("TOPLEFT", arena, "TOPLEFT", 560 + (ARENA_WIDTH - 22 - 560 - 262) / 2, -(ARENA_HEIGHT - 62))
 arena.button:SetText("")
 arena.button.label = UI.Text(arena.button, 15)
-arena.button.label:SetPoint("CENTER", arena.button, "CENTER", 0, 5)
+arena.button.label:SetPoint("CENTER", arena.button, "CENTER", 0, 0)
 arena.button.label:SetTextColor(1, 0.82, 0)
-arena.button.caption = UI.Text(arena.button, 9)
-arena.button.caption:SetPoint("CENTER", arena.button, "CENTER", 0, -9)
-arena.button.caption:SetTextColor(0.94, 0.82, 0.63)
 
 arena:SetScript("OnShow", function()
     PlaySound("igCharacterInfoOpen")
@@ -1759,15 +1781,21 @@ local ShowArenaDetail
 ShowArenaDetail = function(tier)
     arena.tier = tier
     RefreshStarters()
+    if GetNumPartyMembers() > 0 then
+        arena.pauseCheck:Hide()
+    else
+        arena.pauseCheck:SetChecked(UI.Option("pauseOnChoices", true))
+        arena.pauseCheck:Show()
+    end
     VanillaBonkRunMaster.Show(tier)
     if not tier.unlocked then
         arena.button.label:SetText(L["Locked"])
         arena.button:Disable()
     elseif not VanillaBonkRunMaster.CanStart(tier) then
-        arena.button.label:SetText(L["Start run"])
+        arena.button.label:SetText(L["Start Run"])
         arena.button:Disable()
     else
-        arena.button.label:SetText(L["Start run"])
+        arena.button.label:SetText(L["Start Run"])
         arena.button:Enable()
     end
 end
@@ -1807,7 +1835,7 @@ RefreshArena = function()
                 lines = lines .. (lines ~= "" and ", " or "") .. trimmed
             end
         end
-        arena.challenges:SetText("|cffffffff" .. lines .. "|r |cffffe873+" .. (info.goldBonus or 0) .. L["% gold|r"])
+        arena.challenges:SetText("|cffffffff" .. lines .. "|r |cffffe873" .. L("+{1}% gold", info.goldBonus or 0) .. "|r")
     else
         arena.challenges:SetText(L["|cff9d9d9dNone|r"])
     end
@@ -1845,16 +1873,16 @@ end
 
 local SHOP_TITLES = { ["1"] = L["Upgrades"], ["2"] = L["Sayge's Fortunes"], ["3"] = L["Talents"] }
 local SHOP_HINTS = {
-    ["1"] = L["Upgrades count for all your heroes. Right-click to refund a rank."],
+    ["1"] = L["Upgrades apply to all your characters. Right-click to refund a rank."],
     ["2"] = L["Click a Dark Fortune to buy it or switch it on or off. Right-click to refund it."],
-    ["3"] = L["Talent points come from Mastery levels. Right-click to refund one."],
+    ["3"] = L["Earn talent points from Mastery levels. Right-click a talent to refund a point."],
 }
 local MASTERY_SHOP = "3"
 local FORTUNE_SHOP = "2"
 local SHOP_REFUNDS = {
-    ["1"] = { label = L["Refund all"], text = L["Refunds every upgrade you bought. You get all your gold back."] },
-    ["2"] = { label = L["Refund all"], text = L["Refunds every Dark Fortune you bought. You get all your Darkmoon Tickets back."] },
-    ["3"] = { label = L["Reset points"], text = L["Refunds every talent point you spent."] },
+    ["1"] = { label = L["Refund All"], text = L["Refunds all upgrades for their full gold cost."] },
+    ["2"] = { label = L["Refund All"], text = L["Refunds all Dark Fortunes for their full Darkmoon Ticket cost."] },
+    ["3"] = { label = L["Reset Talents"], text = L["Refunds every talent point you spent."] },
 }
 
 local TREE_LAYOUTS = {
@@ -1888,7 +1916,7 @@ shop.respec = VanillaBonkUI.SliceButton(CreateFrame("Button", nil, shop, "UIPane
 shop.respec:SetWidth(110)
 shop.respec:SetHeight(22)
 shop.respec:SetPoint("BOTTOMRIGHT", shop, "BOTTOMRIGHT", -28, 22)
-shop.respec:SetText(L["Reset points"])
+shop.respec:SetText(L["Reset Talents"])
 shop.respec:SetScript("OnClick", function()
     if VB.shopBusy then
         return
@@ -1943,10 +1971,10 @@ do
         return button
     end
 
-    bar.activate = AddButton(84, L["Set active"])
+    bar.activate = AddButton(84, L["Activate"])
     bar.activate:SetScript("OnClick", SendPreset)
     bar.activate:SetScript("OnEnter", function()
-        ShowTip(L["Set active"], L["Switches to the talents saved in the selected preset. Your current talents stay in their preset."])
+        ShowTip(L["Activate"], L["Switches to this preset's talents. Your current talents stay saved."])
     end)
 
     bar.slots = {}
@@ -1963,7 +1991,7 @@ do
             local points = shop.presets and shop.presets.points[this.slot] or 0
             local text = points > 0 and (points == 1 and L["1 talent point"] or L("{1} talent points", points)) or L["Empty"]
             if shop.presets and shop.presets.active == this.slot then
-                text = text .. "\n|cff20ff20" .. L["Active. Talent changes save here."] .. "|r"
+                text = text .. "\n|cff20ff20" .. L["Active. Talent changes are saved to this preset."] .. "|r"
             end
             ShowTip(L("Preset {1}", this.slot), text)
         end)
@@ -2060,11 +2088,11 @@ local function ShopBalance()
 end
 
 local function FormatPoints(count)
-    return "|cff80d0ff" .. count .. (count == 1 and L[" Talent point"] or L[" Talent points"]) .. "|r"
+    return "|cff80d0ff" .. (count == 1 and L("{1} Talent Point", count) or L("{1} Talent Points", count)) .. "|r"
 end
 
 local function FormatShards(count)
-    return "|cffc080ff" .. count .. (count == 1 and L[" Darkmoon Ticket"] or L[" Darkmoon Tickets"]) .. "|r"
+    return "|cffc080ff" .. (count == 1 and L("{1} Darkmoon Ticket", count) or L("{1} Darkmoon Tickets", count)) .. "|r"
 end
 
 local function FormatCost(amount)
@@ -2097,13 +2125,15 @@ end
 
 local function MissingRequirement(node)
     if node.locked then
-        local text = L["Requires the quest \""] .. node.quest .. "\""
         if node.questDescription ~= "" then
             local what = gsub(node.questDescription, "%.$", "")
             what = strlower(strsub(what, 1, 1)) .. strsub(what, 2)
-            text = text .. " (" .. what .. ")"
+            return L("Requires the quest \"{1}\" ({2}).", node.quest, what)
         end
-        return text .. "."
+        return L("Requires the quest \"{1}\".", node.quest)
+    end
+    if node.rankLock and node.rankLock ~= "" and node.rank < node.maxRank then
+        return node.rankLock
     end
     local gate = VB.shop.gates and VB.shop.gates[node.row]
     if gate and gate.above < gate.need then
@@ -2118,7 +2148,7 @@ local function MissingRequirement(node)
         return nil
     end
     if required.maxRank <= 1 then
-        return L["Requires "] .. required.name
+        return L("Requires {1}", required.name)
     end
     return L(node.requiredRank == 1 and "Requires {1} rank in {2}" or "Requires {1} ranks in {2}", node.requiredRank, required.name)
 end
@@ -2195,7 +2225,7 @@ local function ShowNodeTooltip(button)
     if node.toggle then
         GameTooltip:AddLine(L["Dark Fortune"], 1, 1, 1)
     else
-        GameTooltip:AddLine(VB.IsEndless(node) and (L["Rank "] .. node.rank) or (L["Rank "] .. node.rank .. "/" .. node.maxRank), 1, 1, 1)
+        GameTooltip:AddLine(VB.IsEndless(node) and L("Rank {1}", node.rank) or L("Rank {1}/{2}", node.rank, node.maxRank), 1, 1, 1)
     end
 
     local missing = MissingRequirement(node)
@@ -2210,37 +2240,45 @@ local function ShowNodeTooltip(button)
         if node.rank > 0 then
             GameTooltip:AddLine(DescribeRanks(node, node.rank), 1, 0.82, 0, 1)
             if VB.IsEndless(node) then
-                GameTooltip:AddLine(L["Next rank: |cff20ff20"] .. nextRank .. "|r", 1, 1, 1, 1)
+                GameTooltip:AddLine(L("Next rank: |cff20ff20{1}|r", nextRank), 1, 1, 1, 1)
             elseif node.rank < node.maxRank then
-                GameTooltip:AddLine(L["Next rank: |cff20ff20"] .. nextValue .. "|r", 1, 1, 1)
+                GameTooltip:AddLine(L("Next rank: |cff20ff20{1}|r", nextValue), 1, 1, 1)
             end
         else
             GameTooltip:AddLine(nextRank, 1, 0.82, 0, 1)
         end
     elseif node.maxRank > 1 then
-        GameTooltip:AddLine(L["Each rank: "] .. node.description, 1, 0.82, 0, 1)
+        GameTooltip:AddLine(L("Each rank: {1}", node.description), 1, 0.82, 0, 1)
     else
         GameTooltip:AddLine(node.description, 1, 0.82, 0, 1)
     end
     if node.description and string.find(node.description, L["Valor"], 1, true) then
-        GameTooltip:AddLine(L["Valor is spent during a run to open chests and buy from shops. Resets every run, it's not kept."], 0.6, 0.6, 0.6, 1)
+        GameTooltip:AddLine(L["Valor is spent on chests and shops during a run. Resets when the run ends."], 0.6, 0.6, 0.6, 1)
     end
 
     GameTooltip:AddLine(" ")
+    if VB.shop.coopGuest and node.toggle then
+        if node.rank > 0 then
+            GameTooltip:AddLine(node.enabled and L["Enabled"] or L["Disabled"], 0.6, 0.6, 0.6)
+        end
+        GameTooltip:AddLine(L["In co-op, the host's Dark Fortunes count for everyone."], 0.6, 0.6, 0.6, 1)
+        GameTooltip:Show()
+        return
+    end
     if node.rank < node.maxRank then
-        GameTooltip:AddLine(L["Cost: "] .. FormatCost(node.cost), 1, 1, 1)
+        GameTooltip:AddLine(L("Cost: {1}", FormatCost(node.cost)), 1, 1, 1)
         if ShopBalance() < node.cost then
-            GameTooltip:AddLine(L["You have "] .. FormatCost(ShopBalance()), 1, 0.1, 0.1)
+            GameTooltip:AddLine(L("You have {1}", FormatCost(ShopBalance())), 1, 0.1, 0.1)
         elseif not missing then
             GameTooltip:AddLine(L["Click to learn"], 0.1, 1, 0.1)
         end
     elseif node.toggle then
         if node.enabled then
-            GameTooltip:AddLine(L["Switched on"], 0.1, 1, 0.1)
-            GameTooltip:AddLine(L["Click to switch off"], 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(L["Enabled"], 0.1, 1, 0.1)
+            GameTooltip:AddLine(L["Click to disable"], 0.7, 0.7, 0.7)
         else
-            GameTooltip:AddLine(L["Switched off"], 0.6, 0.6, 0.6)
-            GameTooltip:AddLine(L["Click to switch on"], 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(L["Disabled"], 0.6, 0.6, 0.6)
+            GameTooltip:AddLine(L["Click to enable"], 0.7, 0.7, 0.7)
         end
     else
         GameTooltip:AddLine(L["Fully learned"], 1, 0.82, 0)
@@ -2250,7 +2288,7 @@ local function ShowNodeTooltip(button)
         if blocker then
             GameTooltip:AddLine(blocker, 0.6, 0.6, 0.6, 1)
         elseif node.refund > 0 then
-            GameTooltip:AddLine(L["Right-click to refund "] .. FormatCost(node.refund), 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(L("Right-click to refund {1}", FormatCost(node.refund)), 0.7, 0.7, 0.7)
         else
             GameTooltip:AddLine(L["Right-click to refund"], 0.7, 0.7, 0.7)
         end
@@ -2260,7 +2298,7 @@ end
 
 local function ShopNode_OnClick()
     local node = this.node
-    if VB.shopBusy then
+    if VB.shopBusy or (VB.shop.coopGuest and node.toggle) then
         return
     end
 
@@ -2288,7 +2326,7 @@ local function ShopNode_OnClick()
             return
         end
         if ShopBalance() < node.cost then
-            Notice(L["You need "] .. FormatCost(node.cost))
+            Notice(L("You need {1}.", FormatCost(node.cost)))
             return
         end
         command = "learn " .. node.id
@@ -2334,6 +2372,10 @@ local function SetNode(button, node)
         which = node.rank > 0 and "part" or "open"
     elseif not missing and node.rank > 0 then
         which = "max"
+    end
+    if VB.shop.coopGuest and node.toggle then
+        which = "locked"
+        colour = colour and { 0.5, 0.5, 0.5 }
     end
     VanillaBonkTalents.StyleNode(button, node.toggle, which, node.icon ~= "" and node.icon or "INV_Misc_QuestionMark", text, colour)
     button:Show()
@@ -2432,9 +2474,9 @@ local function DrawTree(panel, tree)
     end
     panel.header:SetText(tree.name)
     if tree.tickets then
-        panel.spent:SetText(tree.tickets .. (tree.tickets == 1 and L[" ticket spent"] or L[" tickets spent"]))
+        panel.spent:SetText(tree.tickets == 1 and L("{1} ticket spent", tree.tickets) or L("{1} tickets spent", tree.tickets))
     else
-        panel.spent:SetText(spent .. (spent == 1 and L[" point spent"] or L[" points spent"]))
+        panel.spent:SetText(spent == 1 and L("{1} point spent", spent) or L("{1} points spent", spent))
     end
 
     local height = panel:GetHeight()
@@ -2465,7 +2507,7 @@ local function DrawTree(panel, tree)
             if gates[row].need > gates[row - 1].need then
                 count = count + 1
                 local lit = gates[row].above >= gates[row].need
-                local text = lit and L("Unlocked at {1} tickets spent", gates[row].need) or L("{1} tickets spent to unlock", gates[row].need)
+                local text = lit and L("Unlocked at {1} tickets spent", gates[row].need) or L("Requires {1} tickets spent", gates[row].need)
                 VanillaBonkTalents.ShopGate(panel, panel.arrows, count, -(TREE_OFFSET_Y + (row - 1.5) * TREE_SPACING + SHOP_NODE_HALF), text, lit)
             end
         end
@@ -2527,14 +2569,15 @@ RefreshShop = function()
     shop.title:SetText((data.className and (data.className .. " ") or "") .. (SHOP_TITLES[data.kind] or ""))
     shop.header:SetText(data.npc)
     shop.hint:SetText(data.inspect and L["Talents can only be changed at the Inn."] or
-        previewSlot and L("Preset {1}. Click Set active to use these talents.", previewSlot) or SHOP_HINTS[data.kind] or "")
+        data.coopGuest and L["Click a fortune to buy it. Right-click to refund it. In co-op, the host's Dark Fortunes count for everyone."] or
+        previewSlot and L("Preset {1}. Click Activate to use these talents.", previewSlot) or SHOP_HINTS[data.kind] or "")
     if VanillaBonkTalents then
         VanillaBonkTalents.readOnly = data.inspect or previewSlot ~= nil
     end
     if data.currency == "shards" then
         shop.gold:SetText(FormatShards(data.balance))
     elseif data.currency == "points" then
-        local level = L["|cffffffffMastery "] .. data.level .. "/" .. data.maxLevel .. "|r"
+        local level = L("|cffffffffMastery {1}/{2}|r", data.level, data.maxLevel)
         if data.xpNext > 0 then
             level = level .. " |cff9d9d9d(" .. data.xp .. "/" .. data.xpNext .. ")|r"
         end
@@ -2543,7 +2586,7 @@ RefreshShop = function()
         shop.gold:SetText(FormatGold(GetMoney()))
     end
     shop.kind = data.kind
-    local refund = not data.inspect and not previewSlot and SHOP_REFUNDS[data.kind]
+    local refund = not data.inspect and not data.coopGuest and not previewSlot and SHOP_REFUNDS[data.kind]
     if refund then
         shop.respec:SetText(refund.label)
         shop.respec:Show()
@@ -2800,8 +2843,8 @@ handlers["end"] = function(f)
     end
     results.body:SetText(L("Reached stage {1} in {2}", f[7] or "1", FormatTime(f[3])) .. "\n" ..
         L("Kills: {1}    Level: {2}", f[4], f[6]) .. "\n" ..
-        L["Gold earned: "] .. FormatGold(f[5]) .. "\n" ..
-        L["Darkmoon Tickets: |cffc080ff"] .. (f[8] or "0") .. "|r\n\n" ..
+        L("Gold earned: {1}", FormatGold(f[5])) .. "\n" ..
+        L("Darkmoon Tickets: |cffc080ff{1}|r", f[8] or "0") .. "\n\n" ..
         L["|cffaaaaaaReturning to the Inn...|r"])
     results:Show()
 end
@@ -2843,6 +2886,9 @@ handlers["shop"] = function(f)
         for need, above in string.gfind(f[7], "(%d+):(%d+)") do
             tinsert(data.gates, { need = tonumber(need), above = tonumber(above) })
         end
+    end
+    if f[2] == FORTUNE_SHOP then
+        VB.shopIncoming.coopGuest = f[8] == "1"
     end
 end
 
@@ -2901,6 +2947,7 @@ handlers["node"] = function(f)
         valuePerRank = f[18] or "",
         refund = tonumber(f[19]) or 0,
         questDescription = f[20] or "",
+        rankLock = VB.shopIncoming.kind ~= MASTERY_SHOP and f[21] or "",
     }
     if VB.shopIncoming.kind == MASTERY_SHOP and VanillaBonkTalents then
         VanillaBonkTalents.ParseNode(VB.shopIncoming.nodes[f[3]], f)
@@ -2982,11 +3029,11 @@ end
 
 local STATS = {
     [0]  = { name = L["Power"], pct = true, text = L["Increases all damage you and your minions deal by %s."] },
-    [1]  = { name = L["Haste"], pct = true, curve = 75, gearCap = 20, text = L["Increases the speed of your attacks, damage over time and minions by %s."] },
+    [1]  = { name = L["Haste"], pct = true, curve = 75, gearCap = 20, text = L["Increases the speed of your attacks, periodic effects and minions by %s."] },
     [2]  = { name = L["Count"], cap = 5, text = L["Your spells fire %s extra bolts, shots or swings."] },
     [3]  = { name = L["Movement speed"], short = L["Speed"], pct = true, cap = 50, text = L["Increases movement speed by %s."] },
     [4]  = { name = L["Max health"], pct = true, text = L["Increases maximum health by %s."] },
-    [5]  = { name = L["Regen"], pct = true, text = L["Restores %s of maximum health every sec."] },
+    [5]  = { name = L["Regen"], pct = true, text = L["Restores %s of maximum health per second."] },
     [6]  = { name = L["Gold"], pct = true, text = L["Increases gold found by %s."] },
     [7]  = { name = L["Experience"], pct = true, text = L["Increases experience gained by %s."] },
     [8]  = { name = L["Pickup range"], pct = true, cap = 400, text = L["Increases pickup range by %s."] },
@@ -3007,13 +3054,13 @@ local STAT_ORDER = { 0, 12, 14, 15, 16, 17, 1, 10, 8, 18, 4, 3, 5, 9, 11, 19, 20
 
 VB.statTips = {
     s0 = { name = L["Power"], text = L["Increases all damage you and your minions deal."] },
-    s1 = { name = L["Haste"], text = L["Increases the speed of your attacks, damage over time and minions."] },
+    s1 = { name = L["Haste"], text = L["Increases the speed of your attacks, periodic effects and minions."] },
     s2 = { name = L["Count"], text = L["Your spells fire extra bolts, shots or swings. Does not affect AoE spells."] },
     s3 = { name = L["Movement speed"], text = L["Increases movement speed."] },
     s4 = { name = L["Maximum health"], text = L["Increases maximum health."] },
-    s5 = { name = L["Health regeneration"], text = L["Restores a share of maximum health every sec."] },
+    s5 = { name = L["Health regeneration"], text = L["Restores a portion of maximum health per second."] },
     s7 = { name = L["Experience"], text = L["Increases experience gained."] },
-    s8 = { name = L["Pickup range"], text = L["Increases the range you collect experience, food and gear from."] },
+    s8 = { name = L["Pickup range"], text = L["Increases the range at which you pick up experience, food and gear."] },
     s10 = { name = L["Area"], text = L["Increases the size of your AoE spells."] },
     s12 = { name = L["Armor"], text = L["Reduces damage taken."] },
     s14 = { name = L["Dodge chance"], text = L["Increases your chance to dodge attacks."] },
@@ -3031,15 +3078,15 @@ end
 
 VB.BuildStatTerms({
     [L["Power"]] = "s0", [L["Haste"]] = "s1", [L["Count"]] = "s2",
-    [L["Movement speed"]] = "s3", [L["movement speed"]] = "s3",
-    [L["Maximum health"]] = "s4", [L["maximum health"]] = "s4", [L["Max health"]] = "s4",
+    [L["Movement speed"]] = "s3", [L["movement speed"]] = "s3", [L["Movement Speed"]] = "s3",
+    [L["Maximum health"]] = "s4", [L["maximum health"]] = "s4", [L["Max health"]] = "s4", [L["Max Health"]] = "s4",
     [L["Health regained each second"]] = "s5",
     [L["Experience"]] = "s7", [L["experience"]] = "s7",
     [L["Pickup range"]] = "s8", [L["pickup range"]] = "s8",
     [L["Area"]] = "s10", [L["Armor"]] = "s12",
     [L["Dodge chance"]] = "s14", [L["chance to dodge"]] = "s14",
-    [L["Critical strike chance"]] = "s15", [L["critical strike chance"]] = "s15", [L["Crit chance"]] = "s15",
-    [L["Critical strike damage"]] = "s16", [L["critical strike damage"]] = "s16",
+    [L["Critical strike chance"]] = "s15", [L["critical strike chance"]] = "s15", [L["Crit chance"]] = "s15", [L["Critical Strike"]] = "s15",
+    [L["Critical strike damage"]] = "s16", [L["critical strike damage"]] = "s16", [L["Critical Strike Damage"]] = "s16",
     [L["Luck"]] = "s18",
 })
 
@@ -3187,10 +3234,10 @@ local function AddGearLines(tooltip, link, found, enchantLine)
         elseif not (bindText and strfind(bindText, L["Unique-Equipped"], 1, true)) then
             tooltip:AddLine(L["Unique-Equipped (1)"], 1, 1, 1)
         end
-        tooltip:AddLine(L["Equip: "] .. proc, 0.12, 1, 0.12, 1)
+        tooltip:AddLine(L("Equip: {1}", proc), 0.12, 1, 0.12, 1)
     end
     if found and found.legacy then
-        tooltip:AddLine(L["Legacy item: doesn't count for this season's leaderboard."], 0.6, 0.6, 0.6, 1)
+        tooltip:AddLine(L["Legacy item. Doesn't count toward this season's leaderboard."], 0.6, 0.6, 0.6, 1)
     end
     tooltip:Show()
 end
@@ -3481,13 +3528,13 @@ local function RefreshHeroStats()
         end
         line.lines = { format(stat.text, explained) }
         if statId == 9 and shown > 0 then
-            tinsert(line.lines, L("Heals at most {1} of maximum health per sec.", Percent(floor(3 * shown + 0.5) / 100)))
+            tinsert(line.lines, L("Heals up to {1} of maximum health per second.", Percent(floor(3 * shown + 0.5) / 100)))
         end
         if statId == 12 and shown > 300 then
             tinsert(line.lines, L("Armor past 300 gives {1} maximum health.", Percent(floor(5 * (shown - 300) + 0.5) / 10)))
         end
         if stat.cap then
-            tinsert(line.lines, L["Maximum "] .. FormatStat(statId, stat.cap) .. ".")
+            tinsert(line.lines, L("Maximum {1}.", FormatStat(statId, stat.cap)))
         end
         if stat.note then
             tinsert(line.lines, " ")
@@ -3528,6 +3575,12 @@ handlers["gear"] = function(f)
 end
 
 handlers["gearend"] = function()
+    if PaperDollFrame:IsVisible() then
+        RefreshHeroStats()
+    end
+end
+
+function VanillaBonkUI.FoundRefreshed()
     if PaperDollFrame:IsVisible() then
         RefreshHeroStats()
     end
@@ -3580,7 +3633,7 @@ necroticText:SetTextColor(0.4, 1, 0.3)
 handlers["necrotic"] = function(f)
     local stacks = tonumber(f[2]) or 0
     if stacks > 0 then
-        necroticText:SetText(L["Necrotic x"] .. stacks .. ": " .. (f[3] or "") .. L[" less healing"])
+        necroticText:SetText(L("Necrotic x{1}: {2} less healing", stacks, f[3] or ""))
     else
         necroticText:SetText("")
     end
@@ -3595,7 +3648,7 @@ do
     handlers["wounds"] = function(f)
         local stacks = tonumber(f[2]) or 0
         if stacks > 0 then
-            woundsText:SetText(L["Wounded x"] .. stacks .. ": " .. (f[3] or "") .. L[" less healing"])
+            woundsText:SetText(L("Wounded x{1}: {2} less healing", stacks, f[3] or ""))
         else
             woundsText:SetText("")
         end

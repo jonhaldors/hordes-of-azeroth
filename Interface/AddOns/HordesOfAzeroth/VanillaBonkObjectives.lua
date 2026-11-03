@@ -67,7 +67,7 @@ local function ShowTooltip()
     local north, west = HeroPosition()
     if north then
         local dn, dw = objective.x - north, objective.y - west
-        tooltip:AddLine(floor(sqrt(dn * dn + dw * dw)) .. L[" yards away"], 0.7, 0.7, 0.7)
+        tooltip:AddLine(L("{1} yards away", floor(sqrt(dn * dn + dw * dw))), 0.7, 0.7, 0.7)
     end
     if objective.leaves then
         tooltip:AddLine(L("Gone in {1} sec", max(0, ceil(objective.leaves - GetTime()))), 0.7, 0.7, 0.7)

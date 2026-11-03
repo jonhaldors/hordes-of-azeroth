@@ -34,22 +34,22 @@ local PLATE_KINDS = {
     { kind = 5, name = L["Bruiser"], text = L["A big enemy with four times the health that hits twice as hard."] },
     { kind = 6, name = L["Veteran"], text = L["A stronger version of a regular enemy, with more health and harder hits."],
         note = L["Only appears on Heroic and Mythic."] },
-    { kind = 1, name = L["Elite"], text = L["Named, with special powers called affixes. The Spellbook Keeper in town lists what each one does."],
+    { kind = 1, name = L["Elite"], text = L["Has special powers called affixes. The Spellbook Keeper at the Inn explains each one."],
         sample = L["Kolkar Pack Runner"] },
-    { kind = 0, name = L["Your debuffs"], text = L["Shown under an enemy's bar with their stacks. On a boss's bar, each icon wipes away as its time runs out unless you hit the boss again."],
+    { kind = 0, name = L["Your debuffs"], text = L["Shown under an enemy's health bar with their stacks. On bosses, hitting again refreshes each icon before it runs out."],
         debuffs = { { 3, 12 }, { 4, 5 } } },
-    { kind = 0, name = L["You"], text = L["Your own health, shown over your character. A bright cyan glow on it is your Shield."], own = true },
+    { kind = 0, name = L["You"], text = L["Your health, shown above your character. A cyan glow shows your Shield."], own = true },
 }
 local OWN_BAR_COLOR = { 0.24, 0.70, 0.28 }
 local CURRENCY_WIDTH = 400
 local CURRENCY_ICON_SIZE = 32
 local CURRENCIES = {
     { icon = "INV_Misc_Coin_02", name = L["Gold"], color = { 1, 0.82, 0 },
-        text = L["Buys gear and upgrades at the Inn. You keep it between runs."] },
+        text = L["Spent on gear and upgrades at the Inn. Kept between runs."] },
     { icon = "INV_Misc_Ticket_Darkmoon_01", name = L["Darkmoon Tickets"], color = { 0.75, 0.5, 1 },
         text = L["Spent at the Darkmoon vendors. You keep them between runs."] },
     { icon = "INV_Misc_Coin_04", name = L["Valor"], color = { 1, 0.91, 0.45 },
-        text = L["Spent during a run to open chests and buy from shops. Resets every run, it's not kept."] },
+        text = L["Spent on chests and shops during a run. Lost when the run ends."] },
 }
 
 local tutorial = CreateFrame("Frame")
@@ -169,7 +169,7 @@ local function BuildControllerTip()
     box.hint:SetWidth(CONTROLLER_TIP_WIDTH - 52)
     box.hint:SetTextColor(1, 0.82, 0)
     box.hint:SetPoint("TOP", box.body, "BOTTOM", 0, -8)
-    box.settings = UI.Button(box, 150, L["Controller settings"], function() tutorial:OpenControllerSettings() end)
+    box.settings = UI.Button(box, 150, L["Controller Settings"], function() tutorial:OpenControllerSettings() end)
     box.settings:SetPoint("BOTTOMRIGHT", box, "BOTTOM", -4, 18)
     box.next = UI.Button(box, 96, L["Next"], function() box:Hide() end)
     box.next:SetPoint("BOTTOMLEFT", box, "BOTTOM", 4, 18)
@@ -258,6 +258,41 @@ guideBox.hint:SetWidth(CALLOUT_WIDTH - 52)
 guideBox.hint:SetTextColor(1, 0.82, 0)
 guideBox.hint:SetPoint("TOP", guideBox.body, "BOTTOM", 0, -8)
 local guideArrow = Arrow(GUIDE_ARROW_SIZE)
+
+local rangeBox = Callout()
+rangeBox.title:SetText(L["Range Ring"])
+SetBody(rangeBox, L["Alt-click a spell on your action bar to show its range during a run. Open Range Ring to change its color, fill and opacity."])
+local rangeArrow = Arrow(DASH_ARROW_SIZE)
+RotateTexture(rangeArrow.texture, -math.pi / 2)
+rangeBox:SetFrameStrata("FULLSCREEN_DIALOG")
+rangeArrow:SetFrameStrata("FULLSCREEN_DIALOG")
+local rangeDismissed = false
+rangeBox.close:SetScript("OnClick", function()
+    rangeDismissed = true
+    rangeBox:Hide()
+    rangeArrow:Hide()
+end)
+
+local function UpdateRangeTip()
+    local button = VanillaBonkInnkeeper and VanillaBonkInnkeeper.rangeRing
+    if VanillaBonkRangeRing and VanillaBonkRangeRing:IsVisible() then
+        rangeDismissed = true
+    end
+    if rangeDismissed or not (button and button:IsVisible()) then
+        rangeBox:Hide()
+        rangeArrow:Hide()
+        return
+    end
+    local inset = button:GetLeft() - VanillaBonkInnkeeper:GetLeft()
+    rangeArrow:ClearAllPoints()
+    rangeArrow:SetPoint("RIGHT", button, "LEFT", -inset - 2 - Bob(), 0)
+    if not rangeBox:IsShown() then
+        rangeBox:ClearAllPoints()
+        rangeBox:SetPoint("RIGHT", button, "LEFT", -inset - DASH_ARROW_SIZE - BOB_HEIGHT - 4, 0)
+        rangeBox:Show()
+        rangeArrow:Show()
+    end
+end
 guideArrow.distance = UI.Text(guideArrow, 12, UI.NUMBER_FONT, "OUTLINE")
 guideArrow.distance:SetPoint("TOP", guideArrow, "BOTTOM", 0, -2)
 
@@ -273,7 +308,7 @@ local function DashText()
     end
     local key = UI.DashKeyText and UI.DashKeyText() or ""
     if key == "" then
-        return L("Your hero can {1} a short way in the direction you're moving. Give it a key under Key Bindings, at the top of the list.", verb)
+        return L("Your character can {1} a short way in the direction you're moving. Set a key for it at the top of Key Bindings.", verb)
     end
     return L("Press |cffffffff{1}|r to {2} a short way in the direction you're moving. {3}", key, verb, safety)
         .. L["\n\nTry it now! You can change the key under Key Bindings."]
@@ -324,6 +359,8 @@ local function HideCallouts()
     dashArrow:Hide()
     guideBox:Hide()
     guideArrow:Hide()
+    rangeBox:Hide()
+    rangeArrow:Hide()
 end
 
 local function EndLesson()
@@ -426,7 +463,7 @@ function tutorial:ShowInnkeeper()
     dashBox:Hide()
     dashArrow:Hide()
     currencyTip:Hide()
-    ShowGuide(L["Make yourself at home"], L("Talk to {1}, the Innkeeper. He keeps your settings: the interact key and what it works on, chests that open by themselves, where your health bar sits and more.", UI.INNKEEPER_NAME))
+    ShowGuide(L["Make yourself at home"], L("Talk to {1}, the Innkeeper, to change settings such as the interact key, auto-opening chests and your health bar position.", UI.INNKEEPER_NAME))
 end
 
 function tutorial:InnkeeperSeen()
@@ -455,8 +492,7 @@ end
 function tutorial:ShowDeck()
     step = "deck"
     waypointReached = false
-    ShowGuide(L["The Darkmoon Deck"], L["The Darkmoon Deck table at the foot of the stairs shows every Darkmoon Card and Glyph you own. "]
-        .. L["Ban the ones you don't want to see in your runs."])
+    ShowGuide(L["The Darkmoon Deck"], L["The Darkmoon Deck table at the foot of the stairs shows every Darkmoon Card and Glyph you own. Ban the ones you don't want to see in your runs."])
 end
 
 local function MarkStepSeen()
@@ -584,7 +620,7 @@ local function PointArrow(angle, distance)
     local bob = Bob()
     guideArrow:ClearAllPoints()
     guideArrow:SetPoint("TOP", guideBox, "BOTTOM", -math.sin(angle) * bob, -8 + math.cos(angle) * bob - BOB_HEIGHT / 2)
-    guideArrow.distance:SetText(floor(distance + 0.5) .. L[" yd"])
+    guideArrow.distance:SetText(L("{1} yd", floor(distance + 0.5)))
     guideArrow:Show()
 end
 
@@ -719,7 +755,11 @@ tutorial:SetScript("OnUpdate", function()
         end
     elseif step == "innkeeperopen" then
         if not (VanillaBonkInnkeeper and VanillaBonkInnkeeper:IsVisible()) then
+            rangeBox:Hide()
+            rangeArrow:Hide()
             this:InnkeeperSeen()
+        else
+            UpdateRangeTip()
         end
     elseif step == "dash" then
         SetBody(dashBox, DashText(), 30)
@@ -773,7 +813,7 @@ local function PlateKeyText()
     if not key or key == "" then
         return L["Turn enemy health bars on and off under Key Bindings."]
     end
-    return L["Hit |cffffd100"] .. key .. L["|r to toggle enemy health bars."]
+    return L("Press |cffffd100{1}|r to toggle enemy health bars.", key)
 end
 
 local function SampleDebuffs(entries)
@@ -851,7 +891,7 @@ local function BuildPlateGuide()
     box.selfBar = UI.Text(box, 12)
     box.selfBar:SetWidth(GUIDE_WIDTH - 44)
     box.selfBar:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -GUIDE_ROW_GAP - 6)
-    box.selfBar:SetText(L["Prefer the classic unit frame in the top left? Under Interface Options, Your Health Bar, you can show your health there instead, or in both places."])
+    box.selfBar:SetText(L["Prefer the classic player frame in the top left? Change it under Interface Options, Your Health Bar."])
     box:Hide()
     return box
 end

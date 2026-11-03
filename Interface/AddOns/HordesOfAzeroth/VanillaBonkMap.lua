@@ -280,7 +280,7 @@ local function PlacePin(objective, scale)
         px, py = cx + dx * reach, cy + dy * reach
         pin:SetAlpha(0.8)
         local yards = YardsTo(objective)
-        pin.yards:SetText(yards and (yards .. L[" yd"]) or "")
+        pin.yards:SetText(yards and L("{1} yd", yards) or "")
         pin.yards:Show()
     end
     pin:ClearAllPoints()
@@ -338,7 +338,7 @@ local function FillList(list)
             row.pin.icon:SetTexture(UI.ObjectiveIcon(objective))
             row.pin:Show()
             row.label:SetText(objective.label ~= "" and objective.label or L["Objective"])
-            row.yards:SetText(objective.distance .. L[" yd"])
+            row.yards:SetText(L("{1} yd", objective.distance))
             row:Show()
         else
             row.pin.objective = nil

@@ -250,7 +250,7 @@ function RefreshBoard()
 
     board.list:SetHeight(max(LIST_HEIGHT, table.getn(list) * ROW_HEIGHT))
     board.scroll:UpdateScrollChildRect()
-    board.headerRight:SetText("|cffffffff" .. done .. " / " .. table.getn(list) .. L[" done|r"])
+    board.headerRight:SetText("|cffffffff" .. L("{1} / {2} done", done, table.getn(list)) .. "|r")
     board.scroll:SetVerticalScroll(0)
 end
 

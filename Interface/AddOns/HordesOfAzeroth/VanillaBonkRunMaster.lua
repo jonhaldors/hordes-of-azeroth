@@ -15,10 +15,11 @@ local BANNER_TOP, BANNER_HEIGHT = 100, 100
 local PREVIEW_TOP = 212
 local PICKER_WIDTH, PICKER_HEIGHT = 262, 22
 local PICKER_X = RIGHT_X + (RIGHT_WIDTH - PICKER_WIDTH) / 2
-local PICKER_TOP = H - 62 - 8 - PICKER_HEIGHT
+local STONE_LINE_HEIGHT = 14
+local PICKER_TOP = H - 62 - STONE_LINE_HEIGHT - PICKER_HEIGHT
 local PICKER_ROWS, PICKER_ROW = 10, 18
 local PICKER_LOCKED_AHEAD = 2
-local BEST_BOTTOM = PICKER_TOP - 22
+local BEST_BOTTOM = H - 62 - 8 - PICKER_HEIGHT - 22
 local BEST_LINE = 13
 local ROW_HEIGHT, ROW_STEP, ROW_ICON = 34, 36, 26
 local STAT_STEP = 15
@@ -372,7 +373,7 @@ local function ZoneTooltip(row)
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
     if not map then
         GameTooltip:AddLine(L["Random zone"], 1, 0.82, 0)
-        GameTooltip:AddLine(L("Stage 1 takes you to any {1} zone.", tier.name), 1, 1, 1, 1)
+        GameTooltip:AddLine(L("Stage 1 is a random {1} zone.", tier.name), 1, 1, 1, 1)
     else
         GameTooltip:AddLine(map.name, 1, 0.82, 0)
         if MAP_TYPES[map.type] then
@@ -383,7 +384,7 @@ local function ZoneTooltip(row)
             GameTooltip:AddLine(info.description, 1, 1, 1, 1)
         end
         if map.reward and map.reward ~= 100 then
-            GameTooltip:AddLine(L["Pays "] .. Multiplier(map.reward) .. L["x gold, Darkmoon Tickets and Mastery experience."], 0.25, 1, 0.25, 1)
+            GameTooltip:AddLine(L("Rewards {1}x gold, Darkmoon Tickets and Mastery experience.", Multiplier(map.reward)), 0.25, 1, 0.25, 1)
         end
     end
     GameTooltip:Show()
@@ -436,7 +437,7 @@ local function ShowList()
             row.map, row.dungeon, row.tooltip = map, nil, ZoneTooltip
             local key = map.key
             row.pick = function() state.zone[tier.id] = key end
-            local tag = map.reward and map.reward ~= 100 and ("|cff40ff40" .. Multiplier(map.reward) .. L["x Tickets and Mastery|r"]) or nil
+            local tag = map.reward and map.reward ~= 100 and ("|cff40ff40" .. L("{1}x Tickets and Mastery", Multiplier(map.reward)) .. "|r") or nil
             FillRow(row, map.icon, map.name, Info(map.key).summary, zone == map, dimmed, tag)
         end
     else
@@ -581,7 +582,7 @@ local function ShowBanner()
     banner.risk = nil
     if mode == "dungeon" and dungeon then
         SetArt(DUNGEON_ART[dungeon.key] or tier.art, false, locked)
-        banner.tag:SetText(Hex(INVADED_COLOR) .. L["Dungeon challenge  ·  every stage inside|r"])
+        banner.tag:SetText(Hex(INVADED_COLOR) .. L["Dungeon challenge  ·  every stage inside the dungeon|r"])
         banner.name:SetText(dungeon.name)
         banner.description:SetText(Info(dungeon.key).summary or "")
         banner.risk = DUNGEON_REWARD
@@ -601,16 +602,17 @@ local function ShowBanner()
         end
         banner.name:SetText(zone and zone.name or L["Random zone"])
         if invader then
-            banner.tag:SetText(Hex(INVADED_COLOR) .. L["Invaded by "] .. invader.name .. "|r")
-            banner.description:SetText((Info(invader.key).summary or L["Its enemies"]) .. L[" roam the zone."])
+            banner.tag:SetText(Hex(INVADED_COLOR) .. L("Invaded by {1}", invader.name) .. "|r")
+            local invaders = Info(invader.key).summary
+            banner.description:SetText(invaders and invaders ~= "" and L("{1} roam the zone.", invaders) or L["Its enemies roam the zone."])
             banner.risk = INVASION_REWARD
         else
             if zone and zone.reward and zone.reward ~= 100 then
-                banner.tag:SetText(L["|cff40ff40Pays "] .. Multiplier(zone.reward) .. L["x Tickets and Mastery|r"])
+                banner.tag:SetText("|cff40ff40" .. L("Rewards {1}x Tickets and Mastery", Multiplier(zone.reward)) .. "|r")
             else
                 banner.tag:SetText("")
             end
-            banner.description:SetText(zone and (info.description or "") or L("Stage 1 takes you to any {1} zone.", tier.name))
+            banner.description:SetText(zone and (info.description or "") or L("Stage 1 is a random {1} zone.", tier.name))
         end
     end
 end
@@ -651,12 +653,79 @@ local function PickerEntries()
         local kind = "cleared"
         if band > open then
             kind = "locked"
+        elseif row and row.cleared == "2" then
+            kind = "carried"
         elseif not row or row.cleared ~= "1" then
             kind = "next"
         end
         tinsert(entries, { band = band, state = kind })
     end
     return entries
+end
+
+local function ShowPickerRowTooltip()
+    local level = this.band and LevelRow(tier, this.band)
+    if not level or not level.stone then
+        return
+    end
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:SetText(LevelName(this.band), 1, 1, 1)
+    if level.cleared == "2" then
+        GameTooltip:AddLine(L("Unlocked by your best clear ({1}).", (tierInfo[tier.id] or {}).carriedFrom or ""), 1, 0.82, 0, 1)
+    end
+    GameTooltip:AddLine(L["The last stage has a Summoning Stone."], 1, 1, 1, 1)
+    GameTooltip:AddLine(L["All your characters can start any level up to 10 below your best clear."], 0.8, 0.8, 0.8, 1)
+    GameTooltip:Show()
+end
+
+local function HidePickerRowTooltip()
+    GameTooltip:Hide()
+end
+
+local function CarriedFrom(level)
+    local from = (tierInfo[tier.id] or {}).carriedFrom or ""
+    return level and level.cleared == "2" and from ~= "" and from or nil
+end
+
+local function ShowStoneRule()
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L["The last stage has a Summoning Stone."], 1, 1, 1, 1)
+    local from = CarriedFrom(LevelRow(tier, ChosenLevel()))
+    if from then
+        GameTooltip:AddLine(L("Unlocked by your best clear ({1}).", from), 1, 0.82, 0, 1)
+    end
+    GameTooltip:AddLine(L["All your characters can start any level up to 10 below your best clear."], 0.8, 0.8, 0.8, 1)
+    GameTooltip:Show()
+end
+
+local function HookPickerRows()
+    for _, row in ipairs(preview.choices.rows) do
+        row:SetScript("OnEnter", ShowPickerRowTooltip)
+        row:SetScript("OnLeave", HidePickerRowTooltip)
+    end
+end
+
+local function BuildStoneLine()
+    local line = CreateFrame("Button", nil, preview)
+    line:SetPoint("TOP", preview.picker, "BOTTOM", 0, 0)
+    line:SetWidth(PICKER_WIDTH)
+    line:SetHeight(STONE_LINE_HEIGHT)
+    line.text = UI.Text(line, 9)
+    line.text:SetPoint("CENTER", line, "CENTER", 0, 0)
+    line.text:SetTextColor(1, 0.82, 0)
+    line:SetScript("OnEnter", ShowStoneRule)
+    line:SetScript("OnLeave", HidePickerRowTooltip)
+    preview.stone = line
+end
+
+local function ShowStoneLine(current)
+    local level = LevelRow(tier, current)
+    if not level or not level.stone then
+        preview.stone:Hide()
+        return
+    end
+    preview.stone.text:SetText(L["The last stage has a Summoning Stone."])
+    preview.stone:Show()
 end
 
 local function FillChoices()
@@ -693,7 +762,7 @@ local function FillChoices()
                 row.note:SetTextColor(MUTED[1], MUTED[2], MUTED[3])
             else
                 row.name:SetTextColor(selected and 1 or color[1], selected and 1 or color[2], selected and 1 or color[3])
-                row.note:SetText(entry.state == "next" and L["next"] or L["cleared"])
+                row.note:SetText(entry.state == "next" and L["next"] or entry.state == "carried" and L["open"] or L["cleared"])
                 if entry.state == "next" then
                     row.note:SetTextColor(1, 0.82, 0)
                 else
@@ -737,6 +806,7 @@ local function ShowPicker(current)
         end
     end
     preview.picker.best:SetText(best > 0 and L("best {1}", LevelName(best)) or "")
+    ShowStoneLine(current)
     if preview.choices:IsShown() then
         FillChoices()
     end
@@ -943,7 +1013,8 @@ local function ShowPreview()
     local current = ChosenLevel()
     state.level[tier.id] = current
     preview.title:SetText(LevelName(current))
-    preview.note:SetText(L["Clearing this level opens the next one."])
+    local from = CarriedFrom(LevelRow(tier, current))
+    preview.note:SetText(from and L("Unlocked by your best clear ({1}).", from) or L["Clearing this level opens the next one."])
     local top = PREVIEW_TOP + 40
     preview.stats:ClearAllPoints()
     preview.stats:SetPoint("TOPLEFT", arena, "TOPLEFT", RIGHT_X + 2, -top)
@@ -1207,7 +1278,7 @@ local function BuildPreview()
             line.hover:SetScript("OnEnter", function()
                 GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
                 GameTooltip:AddLine(L["Bad luck protection"], 0.64, 0.21, 0.93)
-                GameTooltip:AddLine(L("Your epic chance on Mythic levels is raised by {1}%.", epicLuck), 1, 1, 1, 1)
+                GameTooltip:AddLine(L("Epic drop chance on Mythic levels increased by {1}%.", epicLuck), 1, 1, 1, 1)
                 GameTooltip:AddLine(L["Every Mythic gear drop that isn't an epic adds 5%. It resets when an epic or legendary drops."], 0.8, 0.8, 0.8, 1)
                 GameTooltip:Show()
             end)
@@ -1234,7 +1305,7 @@ local function BuildPreview()
                 line.hover:SetScript("OnEnter", function()
                     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
                     GameTooltip:AddLine(L["Bad luck protection"], 0.64, 0.21, 0.93)
-                    GameTooltip:AddLine(L("Your epic chance on Mythic levels is raised by {1}%.", epicLuck), 1, 1, 1, 1)
+                    GameTooltip:AddLine(L("Epic drop chance on Mythic levels increased by {1}%.", epicLuck), 1, 1, 1, 1)
                     GameTooltip:AddLine(L["Every Mythic gear drop that isn't an epic adds 5%. It resets when an epic or legendary drops."], 0.8, 0.8, 0.8, 1)
                     GameTooltip:Show()
                 end)
@@ -1255,6 +1326,8 @@ local function Build()
     BuildList()
     BuildBanner()
     BuildPreview()
+    HookPickerRows()
+    BuildStoneLine()
 end
 
 function RunMaster.SetTiers(tiers, selectedId, onClick)
@@ -1270,27 +1343,13 @@ function RunMaster.SetTiers(tiers, selectedId, onClick)
     end
 end
 
-function RunMaster.Caption()
-    if not tier then
-        return ""
-    end
-    local mode = Mode()
-    local dungeon = ChosenDungeon()
-    local zone = ChosenZone()
-    local place = zone and zone.name or L["Random zone"]
-    if mode == "dungeon" and dungeon then
-        place = dungeon.name
-    elseif mode == "invasion" and dungeon then
-        place = place .. L[", invaded"]
-    end
-    return L("{1} {2}", tier.name, ChosenLevel()) .. "  ·  " .. place
-end
-
 local function WornItemName(slot)
     local link = GetInventoryItemLink("player", slot)
     local _, _, name = string.find(link or "", "%[(.-)%]")
     return name or ""
 end
+
+local BOARD_FREE_CLIMB_LEVEL = 49
 
 local function BoardNote()
     if tier.key ~= "mythic" or not tier.firstLevel then
@@ -1300,17 +1359,21 @@ local function BoardNote()
     for slot = 1, 19 do
         local piece = UI.FoundAt("inv", slot)
         if piece and piece.legacy then
-            return L("Leaderboard: {1} is legacy gear, so this run won't count.", WornItemName(slot)), "bad"
+            return L("This run won't count for the leaderboard because {1} is legacy gear.", WornItemName(slot)), "bad"
         end
     end
     for slot = 1, 19 do
         local piece = UI.FoundAt("inv", slot)
         if piece and piece.tier > level then
-            return L("Leaderboard: {1} is above {2}, so this run won't count.", WornItemName(slot), UI.LevelName(level)), "bad"
+            return L("This run won't count for the leaderboard because {1} is above {2}.", WornItemName(slot), UI.LevelName(level)), "bad"
         end
     end
+    if UI.boardClimb and UI.boardClimb > 0 and level > UI.boardClimb + 1 then
+        return L("Above {1}, a level counts for the leaderboard only after you clear the one below it this season. Clear {2} first, or this run won't count.",
+            UI.LevelName(BOARD_FREE_CLIMB_LEVEL), UI.LevelName(UI.boardClimb + 1)), "bad"
+    end
     if UI.boardChoice ~= 1 then
-        return L["Leaderboard: you haven't joined it, so this run won't be listed."], "off"
+        return L["You haven't joined the leaderboard, so this run won't be listed."], "off"
     end
     return L["This run counts for the leaderboard."], "good"
 end
@@ -1332,9 +1395,6 @@ function RunMaster.Refresh()
             arena.button:Enable()
         else
             arena.button:Disable()
-        end
-        if arena.button.caption then
-            arena.button.caption:SetText(RunMaster.Caption())
         end
         if not arena.button.legacy then
             arena.button.legacy = UI.Text(arena.button, 9)
@@ -1378,6 +1438,9 @@ function RunMaster.StartArgs(startTier)
     if dungeon then
         args = args .. " " .. dungeon.key .. (mode == "invasion" and " invade" or "")
     end
+    if GetNumPartyMembers() == 0 and not UI.Option("pauseOnChoices", true) then
+        args = args .. " nopause"
+    end
     return args .. " " .. ChosenLevel()
 end
 
@@ -1401,7 +1464,7 @@ UI.Listen({
             levelInfo[f[2]] = {}
             levelBests[f[2]] = {}
             tierInfo[f[2]] = { aim = f[3] or "", boss = f[4] or "", charge = (f[5] and f[5] ~= "") and L("every {1} sec", f[5]) or "",
-                crowd = f[6] or "" }
+                crowd = f[6] or "", carriedFrom = f[7] or "" }
         end
     end,
     level = function(f)
@@ -1412,7 +1475,7 @@ UI.Listen({
         levelInfo[tierId] = levelInfo[tierId] or {}
         levelInfo[tierId][band] = { health = f[4] or "", damage = f[5] or "", veterans = f[6] or "", affixes = f[7] or "",
             gold = f[8] or "", legendary = f[9] or "", epic = f[10] or "", blue = f[11] or "", green = f[12] or "", white = f[13] or "",
-            cleared = f[14] or "0", dropTier = f[15] or "" }
+            cleared = f[14] or "0", dropTier = f[15] or "", stone = f[16] == "1" }
     end,
     levelbest = function(f)
         local tierId, band = f[2], tonumber(f[3] or "")

@@ -332,7 +332,7 @@ do
 		if ( distance > radius ) then
 			leashTitle:SetText(L["You're too far from your party!"]);
 		else
-			leashTitle:SetText(L["You're near the edge of your party."]);
+			leashTitle:SetText(L["You're straying too far from your party."]);
 		end
 		if ( slow > 0 ) then
 			leashSub:SetText(L("Slowed by {1}%. Return to your party.", slow));

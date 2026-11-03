@@ -144,11 +144,11 @@ local function Missing(node)
         return L("Requires {1} points in {2}.", gate, tree.name)
     end
     if not HasParent(node) then
-        return L["Learn a talent that leads here first."]
+        return L["Requires a connected talent."]
     end
     local rival = Excluded(node)
     if rival then
-        return L["Can't be learned with "] .. rival.name .. "."
+        return L("Can't be learned with {1}.", rival.name)
     end
     return nil
 end
@@ -215,7 +215,7 @@ local function ShowTooltip(button)
     end
     GameTooltip:AddLine(node.name, 1, 1, 1)
     if not IsFree(node) then
-        GameTooltip:AddLine(L["Rank "] .. node.rank .. "/" .. node.maxRank, 1, 1, 1)
+        GameTooltip:AddLine(L("Rank {1}/{2}", node.rank, node.maxRank), 1, 1, 1)
     end
     GameTooltip:AddLine(DescriptionAtRank(node, node.rank), 1, 0.82, 0, 1)
     if node.rank > 0 and node.rank < node.maxRank and not IsFree(node) then
@@ -228,7 +228,7 @@ local function ShowTooltip(button)
     if missing then
         GameTooltip:AddLine(missing, 1, 0.1, 0.1, 1)
     elseif IsFree(node) then
-        GameTooltip:AddLine(L["Always yours"], 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(L["Always learned"], 0.6, 0.6, 0.6)
     elseif node.rank < node.maxRank and not VanillaBonkTalents.readOnly then
         GameTooltip:AddLine(L["Click to learn"], 0.1, 1, 0.1)
     end
@@ -728,7 +728,7 @@ function T.Show(shop, data, top)
         panel:SetHeight(height)
         LayoutArt(panel, tree.background, PANEL_WIDTH, height)
         panel.name:SetText(tree.name)
-        panel.spent:SetText(tree.spent .. (tree.spent == 1 and L[" point"] or L[" points"]))
+        panel.spent:SetText(L(tree.spent == 1 and "{1} point" or "{1} points", tree.spent))
         DrawTree(panel, tree, height)
         panel:Show()
     end

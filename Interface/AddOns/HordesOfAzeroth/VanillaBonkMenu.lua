@@ -601,7 +601,7 @@ end
 handlers["portalendless"] = function()
     Open()
     SetConfirm(L["Continue in endless mode?"],
-        L["This endless mode gives no extra rewards, a proper endless mode is coming later. Enemies and bosses keep coming, and they spawn faster and faster until you fall. Your time and score are saved as your best finale."],
+        L["Enemies and bosses keep coming, faster and faster, until you fall. Your time and score count as your best finale. Endless mode gives no extra rewards yet."],
         "endless", L["Continue"], L["Back"])
     confirm:Show()
 end

@@ -221,7 +221,8 @@ local function ReplacesTwoHander()
 end
 
 local function SideBottom()
-    return -UIParent:GetHeight() / SIDE_SCALE / 2 + SIDE_HOTBAR_TOP / SIDE_SCALE + SIDE_BUTTON_ROOM
+    local scale = UI.SideScale(SIDE_SCALE)
+    return -UIParent:GetHeight() / scale / 2 + SIDE_HOTBAR_TOP / scale + SIDE_BUTTON_ROOM
 end
 
 local function RowTop(tallest)
@@ -308,7 +309,7 @@ local function Refresh()
 end
 
 local function ApplySideChrome()
-    frame:SetScale(frame.side and SIDE_SCALE or 1)
+    frame:SetScale(frame.side and UI.SideScale(SIDE_SCALE) or 1)
     if frame.side then
         frame.dim:Hide()
         frame.title:Hide()
@@ -348,8 +349,8 @@ local function HideSheet()
 end
 
 local function Open()
-    frame.salvage:SetText(L["Salvage  |cffffe873+"] .. offer.valor .. L[" Valor|r"])
-    local keep = L["Worn or looted, found gear is only kept if you put it in the Extraction Vault at a stage portal or send it home with a Hearthstone."]
+    frame.salvage:SetText(L("Salvage  |cffffe873+{1} Valor|r", offer.valor))
+    local keep = L["Found gear is only kept if you put it in the Extraction Vault at a stage portal or send it home with a Hearthstone."]
     if offer.quality >= QUALITY_EPIC then
         frame.ruleText = "|cffffd100" .. keep .. L[" A permanent copy arrives by mail when the run ends, even if you die.|r"]
     else

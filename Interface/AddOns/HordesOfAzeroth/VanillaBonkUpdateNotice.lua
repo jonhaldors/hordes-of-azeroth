@@ -5,10 +5,10 @@ local NOTICE_WIDTH = 440
 local BODY_INSET = 52
 
 local GEAR_TITLE = L["Gear has changed"]
-local GEAR_BODY = L["All gear now has a tier and a quality: white, green, blue, epic or legendary."] .. " " ..
-    L["The level you play sets the tier of the gear it drops, and the quality of each piece is rolled."] .. "\n\n" ..
+local GEAR_BODY = L["All gear now has a tier and a quality, from Common to Legendary."] .. " " ..
+    L["Higher levels drop higher-tier gear, and each piece's quality is random."] .. "\n\n" ..
     L["Your gear has been updated to the new system:"]
-local GEAR_CHANGES = L["Every old piece was converted to the new gear."] .. "\n" ..
+local GEAR_CHANGES = L["All your old gear has been converted."] .. "\n" ..
     L["Item sets and their bonuses are gone."] .. "\n" ..
     L["Durgan now sells all shop gear and upgrades your found gear with Scrap."]
 

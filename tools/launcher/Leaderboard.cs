@@ -30,6 +30,7 @@ namespace HordesOfAzeroth.Launcher
         public const int MaxBytes = 2 * 1024 * 1024;
         const int MaxLocalBests = 200;
         const string SyncTimeFormat = "yyyy-MM-dd HH:mm";
+        const int DefaultSeason = 1;
 
         public static string File(GameFolder folder) => Path.Combine(folder.ServerRun, "leaderboard.txt");
 
@@ -47,6 +48,24 @@ namespace HordesOfAzeroth.Launcher
         {
             string path = CachePath(folder);
             return System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : "";
+        }
+
+        static string SeasonPrefix(GameFolder folder)
+        {
+            int season = DefaultSeason;
+            foreach (string line in ServerBoard(folder).Split('\n'))
+            {
+                string[] fields = line.Trim().Split('~');
+                if (fields.Length == 2 && fields[0] == "season" && int.TryParse(fields[1], out int listed))
+                    season = listed;
+            }
+            return "s" + season.ToString(CultureInfo.InvariantCulture) + ":";
+        }
+
+        static Dictionary<string, string> ReadSeasonBests(GameFolder folder)
+        {
+            string prefix = SeasonPrefix(folder);
+            return ReadLocalBests(folder).Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal)).ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
         public static BoardCutoffs Cutoffs(GameFolder folder)
@@ -92,7 +111,8 @@ namespace HordesOfAzeroth.Launcher
 
         public static void NoteLocalBest(GameFolder folder, string key, string boardLine, int levelField, int msField)
         {
-            Dictionary<string, string> bests = ReadLocalBests(folder);
+            Dictionary<string, string> bests = ReadSeasonBests(folder);
+            key = SeasonPrefix(folder) + key;
             BoardScore score = ScoreOf(boardLine, levelField, msField);
             if (score == null || (bests.TryGetValue(key, out string old) && !score.Beats(ScoreOf(old, levelField, msField))))
                 return;
@@ -106,7 +126,7 @@ namespace HordesOfAzeroth.Launcher
             StringBuilder text = new StringBuilder(ServerBoard(folder));
             if (text.Length > 0 && text[text.Length - 1] != '\n')
                 text.Append('\n');
-            foreach (string line in ReadLocalBests(folder).Values)
+            foreach (string line in ReadSeasonBests(folder).Values)
                 text.Append(line).Append('\n');
             text.Append("sync~").Append(reached ? "ok" : "failed").Append('~').Append(SyncedText(settings.BoardSyncedAt)).Append('~').Append(pending).Append('\n');
             if (text.Length <= MaxBytes && Directory.Exists(folder.ServerRun))

@@ -10,6 +10,8 @@ namespace BonkTelegraphs
         public const uint FirstJewelDisplayId = 17990;
         const uint FirstJewelModelId = 2490;
         public const uint TicketDisplayId = 7900;
+        public const uint TicketCreatureDisplayId = 17995;
+        const uint TicketModelId = 2495;
         public const uint TurkeyDisplayId = 17994;
         const uint TurkeyModelId = 2494;
         const string TurkeyModel = "World\\Generic\\Human\\Passive Doodads\\Food&Utensils\\TurkeyLeg";
@@ -138,6 +140,28 @@ namespace BonkTelegraphs
             row[0] = TicketDisplayId;
             row[1] = displays.AddString(path + ".mdx");
             displays.Records.Add(row);
+        }
+
+        public static void AddTicketCreature(Dbc displays, Dbc models)
+        {
+            uint[] templateDisplay = displays.Find(TemplateDisplayId), templateModel = models.Find(TemplateModelId);
+            if (templateDisplay == null || templateModel == null)
+                throw new InvalidDataException("The blue wisp's rows are not where 1.12 has them.");
+            displays.Release(TicketCreatureDisplayId);
+            uint modelId = models.ClaimId(TicketModelId);
+
+            uint[] modelRow = (uint[])templateModel.Clone();
+            modelRow[0] = modelId;
+            modelRow[2] = models.AddString(Folder + "TicketShard.mdx");
+            modelRow[Wisps.ModelSoundField] = 0;
+            models.Records.Add(modelRow);
+
+            uint[] display = (uint[])templateDisplay.Clone();
+            display[0] = TicketCreatureDisplayId;
+            display[1] = modelId;
+            display[DisplayScaleField] = BitConverter.ToUInt32(BitConverter.GetBytes(1.0f), 0);
+            display[6] = display[7] = display[8] = 0;
+            displays.Records.Add(display);
         }
 
         static byte[] Require(ClientData client, string name)

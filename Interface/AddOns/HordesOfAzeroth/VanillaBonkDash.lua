@@ -120,7 +120,7 @@ local function SyncKeys()
     if not SetOverrideBinding or not ClearOverrideBindings then
         if onShift and not warned then
             warned = true
-            DEFAULT_CHAT_FRAME:AddMessage(L["Hordes of Azeroth: Shift can't dash in this client. Bind Dash to another key under Key Bindings instead."])
+            DEFAULT_CHAT_FRAME:AddMessage(L["Hordes of Azeroth: Shift can't be bound to Dash. Choose another key in Key Bindings."])
         end
         return
     end

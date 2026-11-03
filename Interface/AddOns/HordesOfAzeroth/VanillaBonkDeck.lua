@@ -240,11 +240,11 @@ local function ShowLockedTooltip(card, entry)
     local rarity = Rarity(entry)
     local lock = book.locks[Kind().key .. entry.id]
     GameTooltip:SetOwner(card, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(L["Undiscovered "] .. (Kind().key == "g" and L["Glyph"] or L["Darkmoon Card"]), 0.62, 0.62, 0.62)
+    GameTooltip:AddLine((Kind().key == "g" and L["Undiscovered Glyph"] or L["Undiscovered Darkmoon Card"]), 0.62, 0.62, 0.62)
     GameTooltip:AddLine(rarity.name, rarity.r, rarity.g, rarity.b)
     if lock then
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(L["Quest: "] .. lock.name, 1, 0.82, 0)
+        GameTooltip:AddLine(L("Quest: {1}", lock.name), 1, 0.82, 0)
         GameTooltip:AddLine(lock.description, 1, 1, 1, 1)
         UI.AddQuestProgress(GameTooltip, lock)
     end
@@ -363,11 +363,11 @@ end
 local function UnlockText(entry)
     if entry.locked then
         local lock = book.locks[Kind().key .. entry.id]
-        return L["|cffff6060Locked: "] .. (lock and lock.name or L["a quest"]) .. "|r"
+        return L("|cffff6060Locked: {1}|r", lock and lock.name or L["a quest"])
     end
     local lock = book.locks[Kind().key .. entry.id]
     if lock then
-        return L["|cff40ff40Unlocked by "] .. lock.name .. "|r"
+        return L("|cff40ff40Unlocked by {1}|r", lock.name)
     end
     return L["|cff9d9d9dStarter|r"]
 end
@@ -400,10 +400,10 @@ local function ShowDetail()
     end
     local pool = Pool()
     if entry.off then
-        side.ban:SetText(L["Allow this "] .. Kind().noun)
+        side.ban:SetText(Kind().key == "g" and L["Allow This Glyph"] or L["Allow This Card"])
         side.ban:Enable()
     else
-        side.ban:SetText(L["Ban this "] .. Kind().noun)
+        side.ban:SetText(Kind().key == "g" and L["Ban This Glyph"] or L["Ban This Card"])
         if pool.used < pool.slots then
             side.ban:Enable()
         else
@@ -474,22 +474,22 @@ local function ShowSlots()
     else
         side.buy:Hide()
     end
-    side.tickets:SetText((book.tickets or 0) .. L[" Darkmoon Tickets"])
+    side.tickets:SetText((book.tickets or 0) == 1 and L("{1} Darkmoon Ticket", 1) or L("{1} Darkmoon Tickets", book.tickets or 0))
 end
 
 local function ShowHelp(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
-    GameTooltip:AddLine(L["Getting more "] .. strlower(Kind().bans), 1, 0.82, 0)
+    GameTooltip:AddLine(L["How to Get More Ban Slots"], 1, 0.82, 0)
     for _, source in ipairs(Bans()) do
-        local right = source.earned and L["Earned"] or (source.tickets > 0 and (source.tickets .. L[" tickets"]) or source.detail)
+        local right = source.earned and L["Earned"] or (source.tickets == 1 and L("{1} ticket", 1) or source.tickets > 0 and L("{1} tickets", source.tickets) or source.detail)
         if source.earned then
             GameTooltip:AddDoubleLine(source.label, right, 0.25, 1, 0.25, 0.25, 1, 0.25)
         else
             GameTooltip:AddDoubleLine(source.label, right, 1, 1, 1, 0.62, 0.62, 0.62)
         end
     end
-    GameTooltip:AddLine(Kind().key == "c" and L["Glyph bans are counted on their own, on the Glyphs tab."] or
-        L["Card bans are counted on their own, on the Darkmoon Cards tab."], 0.62, 0.62, 0.62, 1)
+    GameTooltip:AddLine(Kind().key == "c" and L["Glyph bans use separate slots on the Glyphs tab."] or
+        L["Card bans use separate slots on the Darkmoon Cards tab."], 0.62, 0.62, 0.62, 1)
     GameTooltip:Show()
 end
 

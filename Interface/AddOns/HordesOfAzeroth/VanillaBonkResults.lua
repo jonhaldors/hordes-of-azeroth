@@ -227,7 +227,7 @@ end
 
 local function AddRunLines(entry)
     GameTooltip:AddLine(" ")
-    GameTooltip:AddDoubleLine(Short(entry.damage) .. L[" damage"], Thousands(entry.kills) .. L[" kills"], 1, 1, 1, 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine(L("{1} damage", Short(entry.damage)), L(entry.kills == 1 and "{1} kill" or "{1} kills", Thousands(entry.kills)), 1, 1, 1, 0.6, 0.6, 0.6)
 end
 
 local function SpellLineTooltip(line, entry)
@@ -239,7 +239,7 @@ local function SpellLineTooltip(line, entry)
     if entry.evolved then
         r, g, b = 1, 0.5, 0
     end
-    GameTooltip:AddDoubleLine(entry.name, entry.level > 0 and (L["Rank "] .. entry.level) or "", r, g, b, 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine(entry.name, entry.level > 0 and L("Rank {1}", entry.level) or "", r, g, b, 0.6, 0.6, 0.6)
     AddRunLines(entry)
     GameTooltip:Show()
 end
@@ -251,7 +251,7 @@ local function EffectLineTooltip(line, entry)
     if kind.note then
         GameTooltip:AddLine(kind.note, 1, 0.82, 0, 1)
     end
-    GameTooltip:AddLine(L["Applied by "] .. entry.parent.name .. ".", 0.6, 0.6, 0.6, 1)
+    GameTooltip:AddLine(L("Applied by {1}.", entry.parent.name), 0.6, 0.6, 0.6, 1)
     AddRunLines(entry)
     GameTooltip:Show()
 end
@@ -626,9 +626,9 @@ end
 
 local function BlowText(source)
     if source.spell == "Melee" then
-        return source.name .. L["'s melee hit"]
+        return L("{1}'s melee hit", source.name)
     end
-    return source.spell ~= "" and (source.name .. L["'s "] .. source.spell) or source.name
+    return source.spell ~= "" and L("{1}'s {2}", source.name, source.spell) or source.name
 end
 
 local function HealthPoints(permille)
@@ -779,9 +779,9 @@ local function KillerText()
     local blow = BlowText(killer)
     local numbers = Thousands(recap.killAmount)
     if recap.overkill > 0 then
-        numbers = numbers .. ", " .. Thousands(recap.overkill) .. L[" overkill"]
+        numbers = L("{1}, {2} overkill", numbers, Thousands(recap.overkill))
     end
-    return L[" · killed by |cffff6a50"] .. blow .. " (" .. numbers .. ")|r"
+    return L(" · killed by |cffff6a50{1} ({2})|r", blow, numbers)
 end
 
 local function FillRecapLegend()
@@ -816,7 +816,7 @@ local function FillRecapLegend()
 end
 
 local function LayoutRecap(y)
-    recapFrame.summary:SetText(L["Took |cffffffff"] .. Thousands(recap.taken) .. L["|r · healed |cffffffff"] .. Thousands(recap.healed) .. "|r" .. KillerText())
+    recapFrame.summary:SetText(L("Took |cffffffff{1}|r · healed |cffffffff{2}|r", Thousands(recap.taken), Thousands(recap.healed)) .. KillerText())
     graph.maxLabel:SetText(Thousands(recap.maxHealth))
     DrawRecapLine()
     DrawRecapTicks()
@@ -955,7 +955,7 @@ local function FillLine(line, entry, top, total, y)
         line.damage:SetTextColor(0.78, 0.78, 0.78)
         line.kills:SetTextColor(0.78, 0.78, 0.78)
     else
-        local rank = entry.level > 0 and (L["  |cffc8c8c8Rank "] .. entry.level .. "|r") or ""
+        local rank = entry.level > 0 and ("  |cffc8c8c8" .. L("Rank {1}", entry.level) .. "|r") or ""
         local color = entry.evolved and "|cffff8000" or "|cffffffff"
         line.name:SetText(color .. entry.name .. "|r" .. rank)
         line.damage:SetTextColor(1, 1, 1)
@@ -1146,7 +1146,7 @@ local function FillHeading()
         color = TITLE_VICTORY
         panel.title:SetText(L["Victory"])
         local finale = tonumber(run.finaleSeconds or "") or 0
-        panel.subtitle:SetText(finale > 0 and L("You cleared {1} and held out {2} in the finale.", Place(), UI.FormatTime(finale)) or
+        panel.subtitle:SetText(finale > 0 and L("You cleared {1} and survived {2} in the finale.", Place(), UI.FormatTime(finale)) or
             L("You cleared {1} in {2}.", Place(), UI.FormatTime(run.seconds)))
     elseif run.wentHome then
         color = TITLE_HOME

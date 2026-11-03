@@ -686,7 +686,7 @@ namespace HordesOfAzeroth.Launcher
             }
             catch (Exception error)
             {
-                FailJoin(join, error.Message);
+                FailJoin(join, JoinFailureText(error));
             }
         }
 
@@ -702,6 +702,15 @@ namespace HordesOfAzeroth.Launcher
             {
             }
         }
+
+        const string HostUnreachable = "Couldn't connect to the host. Their router doesn't accept direct connections, and the backup connection between your two networks failed too. The host can forward TCP port 3725, you can host the game yourself if your port is forwarded, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi.";
+
+        static string JoinFailureText(Exception error) => error switch
+        {
+            OperationCanceledException => "Couldn't reach the host. Try again.",
+            IOException or SocketException => "Lost connection to the host. Try again.",
+            _ => error.Message,
+        };
 
         static void FailJoin(JoinState join, string message, string state = "error")
         {
@@ -796,14 +805,14 @@ namespace HordesOfAzeroth.Launcher
                 }
                 else if (!await OpenTunnelAsync(join, details))
                 {
-                    FailJoin(join, "Couldn't connect to the host. Their router doesn't accept direct connections, and the backup connection between your two networks failed too. The host can forward TCP port 3725, you can host the game yourself if your port is forwarded, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi.");
+                    FailJoin(join, HostUnreachable);
                     return;
                 }
                 await BringCharacterAsync(join);
             }
             catch (Exception error)
             {
-                FailJoin(join, error.Message);
+                FailJoin(join, JoinFailureText(error));
             }
         }
 
@@ -932,7 +941,7 @@ namespace HordesOfAzeroth.Launcher
                 catch (Exception)
                 {
                 }
-                FailJoin(join, error.Message);
+                FailJoin(join, JoinFailureText(error));
             }
         }
 
@@ -949,6 +958,11 @@ namespace HordesOfAzeroth.Launcher
                 NetworkStream stream = client.GetStream();
                 await stream.WriteAsync(Encoding.ASCII.GetBytes($"HOA1 {join.Token} {leg}\n"), timeout.Token);
                 return client;
+            }
+            catch (Exception error) when (error is OperationCanceledException or SocketException or IOException)
+            {
+                client.Dispose();
+                throw new CoopError(HostUnreachable);
             }
             catch (Exception)
             {

@@ -3,7 +3,7 @@ local UI = VanillaBonkUI
 
 local SOCKET_SIZE = 26
 local SOCKETS = 7
-local ORDINALS = { L["first"], L["second"], L["third"], L["fourth"], L["fifth"], L["sixth"], L["seventh"] }
+local GLYPH_SUBTITLES = { L["Your first Glyph lasts the whole run."], L["Your second Glyph lasts the whole run."], L["Your third Glyph lasts the whole run."], L["Your fourth Glyph lasts the whole run."], L["Your fifth Glyph lasts the whole run."], L["Your sixth Glyph lasts the whole run."], L["Your seventh Glyph lasts the whole run."] }
 local FADE = 0.2
 local BAD = { 1, 0.25, 0.2 }
 local MAX_CARDS = 4
@@ -21,7 +21,7 @@ local SIDE_BOTTOM = 140
 
 local info = {}
 VanillaBonkGlyphInfo = info
-local offer = { pick = 1, ids = {} }
+local offer = { pick = 1, ids = {}, rerolls = 0 }
 local taken = {}
 local counts = {}
 
@@ -34,11 +34,10 @@ local function Rarity(glyph)
 end
 
 local function KindText(glyph)
-    local text = Rarity(glyph).name .. L[" Glyph"]
     if glyph and glyph.drawback ~= "" then
-        text = text .. L[" with a |cffff4a3adrawback|r"]
+        return L("{1} Glyph with a |cffff4a3adrawback|r", Rarity(glyph).name)
     end
-    return text
+    return L("{1} Glyph", Rarity(glyph).name)
 end
 
 local function GlyphTooltip(owner, glyph)
@@ -126,6 +125,23 @@ local function Pick(index)
     PlaySound("igMainMenuOptionCheckBoxOn")
     SendChatMessage(".bonk glyph " .. index, "SAY")
 end
+
+local function Reroll()
+    if not frame.open or (frame.picking and GetTime() - (frame.pickingAt or 0) < 3) or offer.rerolls < 1 then
+        return
+    end
+    frame.picking = true
+    frame.pickingAt = GetTime()
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    SendChatMessage(".bonk glyph reroll", "SAY")
+end
+
+frame.reroll = UI.SliceButton(CreateFrame("Button", nil, frame, "UIPanelButtonTemplate"))
+frame.reroll:SetWidth(140)
+frame.reroll:SetHeight(26)
+frame.reroll:SetPoint("CENTER", frame, "CENTER", 0, -182)
+frame.reroll:SetScript("OnClick", Reroll)
+frame.reroll:Hide()
 
 local function Divider(card, r, g, b)
     local left = card:CreateTexture(nil, "ARTWORK")
@@ -245,22 +261,6 @@ for index = 1, MAX_CARDS do
     frame.cards[index] = card
 end
 
-frame.mine = CreateFrame("Frame", nil, frame)
-frame.mine:SetHeight(SOCKET_SIZE)
-frame.mine:SetPoint("CENTER", frame, "CENTER", 0, -182)
-frame.mine.label = UI.Text(frame.mine, 11)
-frame.mine.label:SetPoint("LEFT", frame.mine, "LEFT", 0, 0)
-frame.mine.label:SetTextColor(0.78, 0.72, 0.56)
-frame.mine.label:SetText(L["Your Glyphs"])
-frame.mine.sockets = {}
-for index = 1, SOCKETS do
-    local socket = UI.Ring(frame.mine, SOCKET_SIZE, true)
-    socket:SetPoint("LEFT", frame.mine.label, "RIGHT", 10 + (index - 1) * (SOCKET_SIZE + 6), 0)
-    socket.icon = UI.RingArt(socket, "")
-    frame.mine.sockets[index] = socket
-end
-frame.mine:SetWidth(frame.mine.label:GetStringWidth() + 10 + SOCKETS * (SOCKET_SIZE + 6) - 6)
-
 local function FillCard(card, glyph)
     local rarity = Rarity(glyph)
     card.icon:SetTexture(GlyphIcon(glyph))
@@ -278,7 +278,7 @@ local function FillCard(card, glyph)
     SetCardLine(card, card.lineColor)
     card.name:SetText(glyph.name)
     card.name:SetTextColor(rarity.r, rarity.g, rarity.b)
-    card.kind:SetText(UI.RarityText(glyph.rarity, rarity.name) .. L[" Glyph"])
+    card.kind:SetText(L("{1} Glyph", UI.RarityText(glyph.rarity, rarity.name)))
     card.description:SetText(glyph.description)
     card.drawback:SetText(glyph.drawback)
     for _, part in ipairs({ card.badLeft, card.badRight, card.badLabel, card.drawback }) do
@@ -290,40 +290,27 @@ local function FillCard(card, glyph)
     end
 end
 
-local function FillMine()
-    for index, socket in ipairs(frame.mine.sockets) do
-        local glyph = info[taken[index]]
-        if glyph then
-            socket.icon:SetTexture(GlyphIcon(glyph))
-            socket.icon:Show()
-        else
-            socket.icon:Hide()
-        end
-    end
-end
-
 local function ApplySideChrome()
     frame.subtitle:ClearAllPoints()
     if frame.side then
         frame.title:Hide()
         frame.dim:Hide()
-        frame.mine:Hide()
         frame.subtitle:SetPoint("TOP", UIParent, "BOTTOM", 0, SIDE_BOTTOM - 6)
-        frame.subtitle:SetText(L("Your {1} Glyph lasts the whole run.", ORDINALS[offer.pick] or L["next"]))
+        frame.subtitle:SetText(GLYPH_SUBTITLES[offer.pick] or L["Your next Glyph lasts the whole run."])
         return
     end
     frame.title:Show()
     frame.dim:Show()
-    frame.mine:Show()
     frame.subtitle:SetPoint("CENTER", frame, "CENTER", 0, 202)
-    frame.subtitle:SetText(L("Your {1} Glyph lasts the whole run. The run is paused while you choose.", ORDINALS[offer.pick] or L["next"]))
+    frame.subtitle:SetText((GLYPH_SUBTITLES[offer.pick] or L["Your next Glyph lasts the whole run."]) .. " " .. L["The run is paused while you choose."])
 end
 
 local function PlaceGlyphCard(card, x)
     card:ClearAllPoints()
     if frame.side then
-        card:SetScale(SIDE_SCALE)
-        card:SetPoint("BOTTOM", UIParent, "BOTTOM", x, SIDE_BOTTOM / SIDE_SCALE)
+        local scale = UI.SideScale(SIDE_SCALE)
+        card:SetScale(scale)
+        card:SetPoint("BOTTOM", UIParent, "BOTTOM", x, SIDE_BOTTOM / scale)
         return
     end
     card:SetScale(1)
@@ -351,8 +338,13 @@ local function Fill()
             card:Hide()
         end
     end
-    FillMine()
     frame.hint:SetText("")
+    if offer.rerolls > 0 then
+        frame.reroll:SetText(L("Reroll ({1})", offer.rerolls))
+        frame.reroll:Show()
+    else
+        frame.reroll:Hide()
+    end
 end
 
 frame:SetScript("OnUpdate", function()
@@ -391,6 +383,14 @@ local function Close()
     if VanillaBonk_GiveBackChoiceKeys and not (VanillaBonkOffer and VanillaBonkOffer.open) then
         VanillaBonk_GiveBackChoiceKeys()
     end
+end
+
+function VanillaBonk_GlyphReroll()
+    if not frame.open then
+        return false
+    end
+    Reroll()
+    return true
 end
 
 function VanillaBonk_GlyphKey(index)
@@ -475,6 +475,7 @@ end
 handlers["glyphoffer"] = function(f)
     offer.pick = tonumber(f[2] or "") or 1
     offer.ids = {}
+    offer.rerolls = tonumber(f[4] or "") or 0
 end
 
 handlers["glyphopt"] = function(f)

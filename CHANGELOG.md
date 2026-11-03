@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.6.3
+
+### Zones
+- 12 new zones: Normal: Loch Modan, Darkshore, Redridge Mountains and Silverpine Forest. Heroic: Hillsbrad Foothills, Thousand Needles, Dustwallow Marsh and Wetlands. Mythic: Winterspring, Azshara, Blasted Lands and Silithus.
+- Normal and Heroic zones are now available in Mythic difficulty.
+- Enemies, chests and power-ups no longer spawn in lava, slime or deep water. The treasure goblin, kobold thieves and kodo caravan path around lava and slime.
+- Standing in lava or slime for 3 sec puts you back on solid ground.
+
+### Bosses and Enemies
+- Boss rework: bosses and mini-bosses use one big ability about every 16 sec and a smaller one about every 6 sec, faster on Heroic and Mythic. Other bosses hold their abilities while a big one is active.
+- Boss abilities are larger. New abilities: Meteor Shower, Ring and Sweep.
+- Bosses, mini-bosses, elites and bounties have more health. (Will be adjusted if needed)
+- Enemy hits are capped at a share of your max health based on the enemy type. Each difficulty adds more enemy damage (No more oneshots).
+- Elites, mini-bosses and bosses walk through regular enemies instead of getting body-blocked. They still collide with each other.
+
+### Progression
+- Alts unlock Mythic levels up to 10 below your account's best clear, talent points included. Ironman characters keep their own progress.
+- On those levels the last stage has a Summoning Stone to spawn the boss. The Run Master shows it under the level dropdown.
+- Epic, legendary and reward chances increase a little at Mythic 11 then every 10 levels after.
+- Leaderboard season climb: clears up to Mythic 40 always count. Above 40, each level needs the one below it cleared this season. The Run Master warns you when a level skips the climb.
+- The launcher loads the leaderboard from the download mirror when the stats server can't be reached.
+
+### Rewards and Shops
+- New at Sayge: Rewritten Fate (2 ranks), +1 Glyph reroll per run. The Glyph choice has a Reroll button (R).
+- Darkmoon Card: Blue Dragon now grants 30% Haste and is Unique (limit 1).
+- Darkmoon Tickets fly to you once you're in Pickup Range, like experience orbs.
+- Valor chests, free chests and Valor pouches now glow. Free chests from elites and bosses get their own purple minimap icon.
+- Rank-ups that add nothing no longer show up as offers.
+- Shop requirements you don't meet show in red, and locked nodes are greyed out.
+- Vault compare shows your own saved piece with its item level and stats, and the piece you're wearing shows as Currently Equipped.
+
+### Classes
+- Range Ring: Alt-click a spell on your action bar to show its range around your character. Set color, fill and opacity with the Range Ring button at Innkeeper Tarn Oakhoof.
+
+#### Warrior
+- Fixed: Rend's Bleed only applied from Cleave, not from Whirlwind and Thunder Clap.
+
+#### Mage
+- Flamestrike, Firewalk and Burning Ground now apply 4 stacks of Burning and leave a fire patch for 4 sec that burns enemies standing in it.
+- Meteor and Flamestrike no longer leave lava on the ground.
+
+#### Priest
+- Vampiric Embrace healing cap doubled to 0.6% max health per second per rank.
+- Inner Focus: each Penance kill now reduces its cooldown by 0.5 sec instead of resetting it.
+- Rapture, Atonement Shield and Holy Word: Sanctify nerfed.
+
+#### Hunter
+- Stampede: charge hits reduced to 70% of a pet hit (was 100%).
+- Pack Hunter: reduced to +2% Power per pet (was 3%).
+- Bestial Wrath: penalty to your other spells increased to 25% (was 15%).
+
+### Co-op
+- New Party Damage meter above the damage meter: party total plus each player's damage and share.
+- The host's Dark Fortunes apply to the whole group. Guests see them greyed out at Sayge.
+- Party frames moved below Darkmoon Cards and Ley Lines.
+- A failed join now tells you why.
+- Fixed: Guests lost their gear's item level and stats on the host and after returning to solo.
+- Fixed: Guests' extracted gear didn't arrive in their mailbox in the host's game.
+
+### Interface
+- New option: Pause on Rewards. Turn it off to keep a solo run going while you pick level-up, chest and Glyph rewards. Reward Card Scale sets how big those cards are.
+- Wording pass on the whole game: Option and button names, shorter tooltips, spell and codex text matched to what spells actually do.
+- The tutorial's first Innkeeper visit points you to Range Ring.
+- Simplified Chinese for everything new in 0.6.1 and 0.6.2 (by xenoglossy-asyncio).
+- Fixed: Characters didn't show on the character screen with non-English clients.
+- Fixed: Berserking and other power-ups showed as debuffs.
+
 ## 0.6.2
 
 ### Hotfix 2

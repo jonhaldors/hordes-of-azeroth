@@ -1,3 +1,5 @@
+local L = VanillaBonkL
+
 local MISSILES = {
     "Spells\\Frostbolt.mdx",
     "Spells\\Fireball_Missile_Low.mdx",
@@ -44,7 +46,7 @@ holder:SetScript("OnEvent", function()
         end
     end)
     if not ok then
-        DEFAULT_CHAT_FRAME:AddMessage("Hordes of Azeroth: missile models were not preloaded (" .. tostring(err) .. ").")
+        DEFAULT_CHAT_FRAME:AddMessage(L("Hordes of Azeroth: missile models were not preloaded ({1}).", tostring(err)))
     end
     this.shownFor = 0
     this:SetScript("OnUpdate", function()

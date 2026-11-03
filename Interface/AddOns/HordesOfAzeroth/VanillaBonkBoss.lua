@@ -98,7 +98,7 @@ end
 local function ShowEntryTooltip()
     GameTooltip:SetOwner(this, "ANCHOR_BOTTOM")
     GameTooltip:AddDoubleLine(this.bossName or "", this.look and this.look.kind or "", 1, 0.82, 0, 1, 0.3, 0.3)
-    GameTooltip:AddLine(Short(this.hp or 0) .. " / " .. Short(this.hpMax or 0) .. L[" health"], 1, 1, 1)
+    GameTooltip:AddLine(L("{1} / {2} health", Short(this.hp or 0), Short(this.hpMax or 0)), 1, 1, 1)
     if getn(this.affixNames) > 0 then
         GameTooltip:AddLine(table.concat(this.affixNames, ", "), 1, 0.82, 0, 1)
     end

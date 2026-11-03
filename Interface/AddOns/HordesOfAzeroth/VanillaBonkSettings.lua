@@ -30,9 +30,18 @@ UI.DISPLAY_SETTINGS = {
         apply = function() UI.ApplyPartyPlates() end },
 }
 
-UI.OTHER_EFFECTS_SETTING = { key = "otherEffects", label = L["Other players' spell effects"], default = 100,
-    tooltip = L["How many of your group's spell effects you see. Lower it when the screen gets too busy. Your own effects always show."],
+UI.OTHER_EFFECTS_SETTING = { key = "otherEffects", label = L["Party Spell Effects"], default = 100,
+    tooltip = L["Lower this to see fewer of your party's spell effects. Your own always show."],
     apply = function() UI.SendOtherEffects() end }
+
+UI.SIDE_CARD_SCALE_SETTING = { key = "sideCardScale", label = L["Reward Card Scale"], default = 50, min = 50, max = 100, step = 10,
+    tooltip = L["Size of reward cards when Pause on Rewards is disabled."], low = "50%", high = "100%",
+    valueText = function(value) return format("%d%%", value) end }
+
+function UI.SideScale(smallest)
+    local value = UI.SettingValue(UI.SIDE_CARD_SCALE_SETTING)
+    return smallest + (1 - smallest) * (value - UI.SIDE_CARD_SCALE_SETTING.min) / (UI.SIDE_CARD_SCALE_SETTING.max - UI.SIDE_CARD_SCALE_SETTING.min)
+end
 
 function UI.OtherEffectsText(value)
     if value <= 0 then
@@ -45,14 +54,78 @@ function UI.SendOtherEffects()
     SendChatMessage(".bonk effects " .. UI.SettingValue(UI.OTHER_EFFECTS_SETTING), "SAY")
 end
 
+UI.REACH_RING_COLORS = {
+    { style = 3, label = L["Blue"], r = 0.65, g = 0.90, b = 1.0 },
+    { style = 1, label = L["Purple"], r = 0.75, g = 0.55, b = 1.0 },
+    { style = 2, label = L["Green"], r = 0.55, g = 1.0, b = 0.45 },
+    { style = 0, label = L["Red"], r = 1.0, g = 0.30, b = 0.18 },
+    { style = 4, label = L["Dark red"], r = 0.85, g = 0.10, b = 0.10 },
+}
+UI.REACH_RING_PREVIEW_SECONDS = 5
+
+UI.REACH_RING_COLOR_SETTING = { key = "reachRingColor", default = 3, apply = function() UI.SendReachRing() end }
+UI.REACH_RING_FILL_SETTING = { key = "reachRingFill", label = L["Fill Range Ring"], default = false,
+    tooltip = L["Shades the whole area inside the range ring, not just its edge."], apply = function() UI.SendReachRing() end }
+UI.REACH_RING_OPACITY_SETTING = { key = "reachRingOpacity", label = L["Range Ring Opacity"], default = 60, min = 10,
+    tooltip = L["How strongly the range ring shows on the ground."], low = "10%", high = "100%",
+    valueText = function(value) return format("%d%%", value) end, apply = function() UI.SendReachRing() end }
+
+function UI.ReachRingColor()
+    local style = UI.SettingValue(UI.REACH_RING_COLOR_SETTING)
+    for _, color in ipairs(UI.REACH_RING_COLORS) do
+        if color.style == style then
+            return color
+        end
+    end
+    return UI.REACH_RING_COLORS[1]
+end
+
+local function ReachRingSpellKey()
+    local _, classToken = UnitClass("player")
+    return "reachRingSpell" .. (classToken or "")
+end
+
+function UI.ReachRingSpell()
+    return UI.Option(ReachRingSpellKey(), 0)
+end
+
+function UI.SetReachRingSpell(spellId)
+    UI.SetOption(ReachRingSpellKey(), spellId)
+end
+
+function UI.SendReachRing()
+    SendChatMessage(format(".bonk ring set %d %d %d %d", UI.ReachRingSpell(), UI.ReachRingColor().style,
+        UI.SettingValue(UI.REACH_RING_FILL_SETTING) and 1 or 0, UI.SettingValue(UI.REACH_RING_OPACITY_SETTING)), "SAY")
+end
+
+function UI.ChooseReachRingSlot(index)
+    SendChatMessage(".bonk ring slot " .. index, "SAY")
+end
+
+local reachPreview = CreateFrame("Frame")
+reachPreview:Hide()
+reachPreview:SetScript("OnUpdate", function()
+    if GetTime() >= this.endsAt then
+        this:Hide()
+        SendChatMessage(".bonk ring preview 0", "SAY")
+    end
+end)
+
+function UI.PreviewReachRing()
+    UI.SendReachRing()
+    SendChatMessage(".bonk ring preview 1", "SAY")
+    reachPreview.endsAt = GetTime() + UI.REACH_RING_PREVIEW_SECONDS
+    reachPreview:Show()
+end
+
 UI.INTERACT_SETTINGS = {}
 for _, kind in ipairs(UI.INTERACT_TYPES) do
     tinsert(UI.INTERACT_SETTINGS, { key = kind.key, label = kind.label, default = true,
-        tooltip = L["The interact key interacts with "] .. string.lower(kind.label) .. ". " .. kind.hint .. ".",
+        tooltip = L("The interact key interacts with {1}. {2}.", string.lower(kind.label), kind.hint),
         apply = function() UI.ApplyInteract() end })
 end
-UI.AUTO_CHEST_SETTING = { key = "autoChests", label = L["Automatically open chests when you walk up to them"], default = false,
-    tooltip = L["Chests open by themselves when you get close. People, shrines and portals still wait for the interact key."],
+UI.AUTO_CHEST_SETTING = { key = "autoChests", label = L["Auto Open Chests"], default = false,
+    tooltip = L["When enabled, chests open as you walk up to them. Everything else still uses the interact key."],
     apply = function() UI.ApplyInteract() end }
 
 UI.KEYS = {
@@ -60,7 +133,7 @@ UI.KEYS = {
     { command = "VANILLABONK_HEARTH", label = L["Use Hearthstone"], default = "T" },
     { command = "VANILLABONK_DASH", label = L["Dash"], modifierAllowed = true },
     { command = "VANILLABONK_SHAPESHIFT", label = L["Shapeshift (Druid)"], default = "R", class = "Druid", replaces = { REPLY = true } },
-    { command = "VANILLABONK_INSPECT", label = L["Inspect talents (in a run)"], default = "N", replaces = { TOGGLETALENTS = true } },
+    { command = "VANILLABONK_INSPECT", label = L["Inspect Talents"], default = "N", replaces = { TOGGLETALENTS = true } },
 }
 
 local settingsWatchers = {}
@@ -74,6 +147,12 @@ local function SettingsChanged()
         watcher()
     end
 end
+
+UI.WatchSettings(function()
+    if UI.RefreshReachMarks then
+        UI.RefreshReachMarks()
+    end
+end)
 
 function UI.SettingValue(setting)
     return UI.Option(setting.key, setting.default)
@@ -292,5 +371,6 @@ events:SetScript("OnUpdate", function()
         if UI.SettingValue(UI.OTHER_EFFECTS_SETTING) < 100 then
             UI.SendOtherEffects()
         end
+        UI.SendReachRing()
     end
 end)

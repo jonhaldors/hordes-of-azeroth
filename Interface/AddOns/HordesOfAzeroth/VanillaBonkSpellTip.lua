@@ -154,9 +154,9 @@ end
 function Tip.Yards(value)
     local tenths = floor(value * 10 + 0.5)
     if mod(tenths, 10) == 0 then
-        return format("%d", tenths / 10) .. L[" yd"]
+        return L("{1} yd", format("%d", tenths / 10))
     end
-    return format("%.1f", tenths / 10) .. L[" yd"]
+    return L("{1} yd", format("%.1f", tenths / 10))
 end
 
 local function Grown(base, current, phrase)
@@ -188,7 +188,7 @@ end
 function Tip:AddFooter(spec, school, aoe)
     local text = (spec and spec ~= "") and spec or (school or "")
     if aoe then
-        text = text ~= "" and (text .. L["  ·  AoE"]) or L["AoE"]
+        text = text ~= "" and L("{1}  ·  AoE", text) or L["AoE"]
     end
     if text ~= "" then
         self:AddSmallLine(text, Tip.GREY)

@@ -7,6 +7,9 @@ local CARD_GAP = 10
 local PER_ROW = 8
 local PER_PAGE = PER_ROW * 2
 local SLOT_SIZE = 52
+local WORN_SLOTS = 19
+local TOOLTIP_GAP = 4
+local COMPARE_DROP = -10
 local CARDS_TOP = 40
 local CARDS_ROOM = 320
 local WALK_AWAY = 3
@@ -84,32 +87,174 @@ local function CursorOnRightHalf()
     return x / UIParent:GetEffectiveScale() > GetScreenWidth() / 2
 end
 
-local function ShowSaved(find)
-    local onLeft = CursorOnRightHalf()
-    local previous = GameTooltip
+local function SavedFound(saved)
+    if not saved.place then
+        return nil
+    end
+    local parts = UI.Split(saved.place, ":")
+    local bag = parts[1] == "inv" and "inv" or tonumber(parts[1])
+    local piece = UI.FoundAt(bag, tonumber(parts[2]))
+    if piece and piece.entry == saved.entry then
+        return piece
+    end
+    return nil
+end
+
+local function IsWorn(saved)
+    local parts = saved.place and UI.Split(saved.place, ":")
+    local slot = parts and parts[1] == "inv" and tonumber(parts[2])
+    if not slot or slot > WORN_SLOTS then
+        return false
+    end
+    local link = GetInventoryItemLink("player", slot)
+    return link and strfind(link, "item:" .. saved.entry .. ":", 1, true) and true or false
+end
+
+local function BindText(text, replacement)
+    if strsub(text, 1, strlen(ITEM_BIND_ON_PICKUP)) ~= ITEM_BIND_ON_PICKUP then
+        return text
+    end
+    local rest = gsub(strsub(text, strlen(ITEM_BIND_ON_PICKUP) + 1), "^\n", "")
+    if replacement then
+        return rest ~= "" and replacement .. "\n" .. rest or replacement
+    end
+    return rest
+end
+
+local function RebuildItemTooltip(tooltip, entry, header, bindReplacement)
+    local name = tooltip:GetName()
+    local lines = {}
+    for index = 1, tooltip:NumLines() do
+        local left = getglobal(name .. "TextLeft" .. index)
+        local right = getglobal(name .. "TextRight" .. index)
+        local line = { text = BindText(left:GetText() or " ", bindReplacement) }
+        line.r, line.g, line.b = left:GetTextColor()
+        if right:IsShown() and right:GetText() then
+            line.right = right:GetText()
+            line.rr, line.rg, line.rb = right:GetTextColor()
+        end
+        if line.text ~= "" or line.right then
+            tinsert(lines, line)
+        end
+    end
+    local _, _, quality = GetItemInfo(entry)
+    if lines[1] and quality then
+        lines[1].r, lines[1].g, lines[1].b = GetItemQualityColor(quality)
+    end
+    tooltip:ClearLines()
+    if header then
+        tooltip:AddLine(header, 0.5, 0.5, 0.5)
+    end
+    for _, line in ipairs(lines) do
+        if line.right then
+            tooltip:AddDoubleLine(line.text, line.right, line.r, line.g, line.b, line.rr, line.rg, line.rb)
+        else
+            tooltip:AddLine(line.text, line.r, line.g, line.b, 1)
+        end
+    end
+    tooltip.bonkHeader = header and true or nil
+    tooltip.bonkItem = lines[1] and lines[1].text
+    tooltip.bonkLines = tooltip:NumLines()
+end
+
+local function SetLineFont(tooltip, index, font)
+    getglobal(tooltip:GetName() .. "TextLeft" .. index):SetFontObject(font)
+    getglobal(tooltip:GetName() .. "TextRight" .. index):SetFontObject(font)
+end
+
+local function ResetItemFonts(tooltip)
+    SetLineFont(tooltip, 1, GameTooltipHeaderText)
+    SetLineFont(tooltip, 2, GameTooltipText)
+end
+
+local function ShowItemFonts(tooltip)
+    local name = tooltip:GetName()
+    if tooltip.bonkHeader then
+        SetLineFont(tooltip, 1, GameTooltipTextSmall)
+        SetLineFont(tooltip, 2, GameTooltipHeaderText)
+    else
+        ResetItemFonts(tooltip)
+    end
+    for index = 1, tooltip:NumLines() do
+        getglobal(name .. "TextLeft" .. index):SetJustifyH("LEFT")
+    end
+    tooltip:Show()
+end
+
+for index = 1, 2 do
+    local tooltip = getglobal("ShoppingTooltip" .. index)
+    if tooltip then
+        local onHide = tooltip:GetScript("OnHide")
+        tooltip:SetScript("OnHide", function()
+            if onHide then
+                onHide()
+            end
+            if this.bonkHeader then
+                this.bonkHeader = nil
+                ResetItemFonts(this)
+            end
+        end)
+    end
+end
+
+local function AnchorBeside(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+    GameTooltip:ClearAllPoints()
+    if CursorOnRightHalf() then
+        GameTooltip:SetPoint("TOPRIGHT", owner, "TOPLEFT", -TOOLTIP_GAP, 0)
+    else
+        GameTooltip:SetPoint("TOPLEFT", owner, "TOPRIGHT", TOOLTIP_GAP, 0)
+    end
+end
+
+local function PlaceSaved(owner, tooltips)
+    local width = 0
+    for _, tooltip in ipairs(tooltips) do
+        width = width + tooltip:GetWidth()
+    end
+    local screenWidth = GetScreenWidth() * UIParent:GetEffectiveScale() / GameTooltip:GetEffectiveScale()
+    local mainOnLeft = GameTooltip:GetRight() <= owner:GetLeft() * owner:GetEffectiveScale() / GameTooltip:GetEffectiveScale() + 1
+    local outward = mainOnLeft and GameTooltip:GetLeft() >= width or not mainOnLeft and screenWidth - GameTooltip:GetRight() >= width
+    local leftward = (mainOnLeft and outward) or (not mainOnLeft and not outward)
+    local previous = outward and GameTooltip or owner
+    for index, tooltip in ipairs(tooltips) do
+        tooltip:ClearAllPoints()
+        local gap = index == 1 and (outward and COMPARE_DROP or 0) or 0
+        local spacing = index == 1 and not outward and TOOLTIP_GAP or 0
+        if leftward then
+            tooltip:SetPoint("TOPRIGHT", previous, "TOPLEFT", -spacing, gap)
+        else
+            tooltip:SetPoint("TOPLEFT", previous, "TOPRIGHT", spacing, gap)
+        end
+        previous = tooltip
+    end
+end
+
+local function ShowSaved(find, owner)
+    local tooltips = {}
     for index = 1, min(2, getn(find.saved)) do
         local tooltip = getglobal("ShoppingTooltip" .. index)
         if not tooltip then
-            return
+            break
         end
         tooltip:SetOwner(GameTooltip, "ANCHOR_NONE")
         tooltip:ClearAllPoints()
-        local gap = previous == GameTooltip and -10 or 0
-        if onLeft then
-            tooltip:SetPoint("TOPRIGHT", previous, "TOPLEFT", 0, gap)
-        else
-            tooltip:SetPoint("TOPLEFT", previous, "TOPRIGHT", 0, gap)
-        end
-        local link = "item:" .. find.saved[index] .. ":0:0:0"
+        tooltip:SetPoint("TOPLEFT", UIParent, "BOTTOMRIGHT", 0, 0)
+        local saved = find.saved[index]
+        local link = "item:" .. saved.entry .. ":0:0:0"
         tooltip:SetHyperlink(link)
         if VanillaBonk_AddGearLines then
-            VanillaBonk_AddGearLines(tooltip, link)
+            VanillaBonk_AddGearLines(tooltip, link, SavedFound(saved))
         end
         tooltip:AddLine(" ")
         tooltip:AddLine(SAVED_LABEL, 1, 0.82, 0)
-        tooltip:AddLine(L["You came into the run with it."], 0.7, 0.7, 0.7)
-        tooltip:Show()
-        previous = tooltip
+        tooltip:AddLine(L["You brought this into the run."], 0.7, 0.7, 0.7)
+        RebuildItemTooltip(tooltip, saved.entry, IsWorn(saved) and CURRENTLY_EQUIPPED or nil, ITEM_SOULBOUND)
+        ShowItemFonts(tooltip)
+        tinsert(tooltips, tooltip)
+    end
+    if getn(tooltips) > 0 then
+        PlaceSaved(owner, tooltips)
     end
 end
 
@@ -124,35 +269,44 @@ local function WorthText(find)
     return table.concat(parts, L[" and "])
 end
 
-local function LeftOutText(gold, scrap)
+local function LeftOutText(gold, scrap, rest)
     if gold > 0 and scrap > 0 then
-        return L("sells for {1} and gives {2} Scrap", UI.FormatGold(gold), scrap)
+        if rest then
+            return L("The rest sell for {1} and give {2} Scrap.", UI.FormatGold(gold), scrap)
+        end
+        return L("Sells for {1} and gives {2} Scrap if you leave it out of the vault.", UI.FormatGold(gold), scrap)
     elseif scrap > 0 then
-        return L("gives {1} Scrap", scrap)
+        if rest then
+            return L("The rest give {1} Scrap.", scrap)
+        end
+        return L("Gives {1} Scrap if you leave it out of the vault.", scrap)
     end
-    return L("sells for {1}", UI.FormatGold(gold))
+    if rest then
+        return L("The rest sell for {1}.", UI.FormatGold(gold))
+    end
+    return L("Sells for {1} if you leave it out of the vault.", UI.FormatGold(gold))
 end
 
 local function ShowItemTooltip(owner, find, line)
-    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    AnchorBeside(owner)
     UI.nextFound = find.found
     GameTooltip:SetHyperlink("item:" .. find.entry .. ":0:0:0")
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(line, 1, 0.82, 0)
+    GameTooltip:AddLine(line, 1, 0.82, 0, 1)
     if find.owned then
-        GameTooltip:AddLine(L["You already own this piece at this tier."], 1, 0.5, 0.25)
+        GameTooltip:AddLine(L["You already own this piece at this tier."], 1, 0.5, 0.25, 1)
     elseif find.tier > 0 and find.best > 0 then
-        GameTooltip:AddLine(L["Your best for this slot: Tier "] .. find.best .. ".", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(L("Your best in this slot: Tier {1}.", find.best), 0.7, 0.7, 0.7, 1)
     end
     if not vault.hearth then
-        local text = LeftOutText(find.sell, find.scrap)
-        GameTooltip:AddLine(L("{1} if you leave it out of the vault.", strupper(strsub(text, 1, 1)) .. strsub(text, 2)), 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(LeftOutText(find.sell, find.scrap), 0.7, 0.7, 0.7, 1)
     end
     if getn(find.saved) == 0 then
-        GameTooltip:AddLine(L["You have nothing saved in this slot."], 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(L["You have nothing saved in this slot."], 0.7, 0.7, 0.7, 1)
     end
-    GameTooltip:Show()
-    ShowSaved(find)
+    RebuildItemTooltip(GameTooltip, find.entry)
+    ShowItemFonts(GameTooltip)
+    ShowSaved(find, owner)
 end
 
 local function VaultSlot(index)
@@ -462,15 +616,15 @@ local function SavedText(find)
         return L["|cff9d9d9dYours: nothing|r"], true
     end
     local names = {}
-    for _, entry in ipairs(find.saved) do
-        local name, _, quality = GetItemInfo(entry)
+    for _, saved in ipairs(find.saved) do
+        local name, _, quality = GetItemInfo(saved.entry)
         if not name then
             return "", false
         end
         local r, g, b = QualityColor(quality or 2)
         tinsert(names, format("|cff%02x%02x%02x%s|r", r * 255, g * 255, b * 255, name))
     end
-    return L["|cff9d9d9dYours:|r "] .. table.concat(names, ", "), true
+    return L("|cff9d9d9dYours:|r {1}", table.concat(names, ", ")), true
 end
 
 local function FillCard(card, find)
@@ -554,7 +708,7 @@ function Refresh()
     local slots = max(1, vault.slots)
     frame.title:SetText(vault.hearth and L["Hearthstone"] or L["Extraction Vault"])
     if vault.hearth then
-        frame.subtitle:SetText(L["1 piece goes home right now. It leaves your character."])
+        frame.subtitle:SetText(L["Sends 1 piece home now. You lose it for the rest of the run."])
         frame.box:Hide()
         ShowSent()
     else
@@ -675,14 +829,14 @@ function Refresh()
     elseif vault.hearth then
         frame.rest:SetText(L["The Hearthstone can send 1 piece."])
     else
-        frame.rest:SetText(L("The rest {1}.", LeftOutText(rest, restScrap)))
+        frame.rest:SetText(LeftOutText(rest, restScrap, true))
     end
 
     frame.done:ClearAllPoints()
     frame.hint:ClearAllPoints()
     frame.hint:SetPoint("TOP", frame.rest, "BOTTOM", 0, -8)
     if vault.hearth then
-        frame.hint:SetText(L["Click an item to send it home now. It leaves your character for the rest of the run."])
+        frame.hint:SetText(L["Click an item to send it home now. You lose it for the rest of the run."])
     else
         frame.hint:SetText(L["Gear in the vault goes home when the run ends, even if you die."])
     end
@@ -744,9 +898,10 @@ end
 local function SavedEntries(field)
     local entries = {}
     for _, text in ipairs(UI.Split(field or "", ",")) do
-        local entry = tonumber(text)
+        local parts = UI.Split(text, "@")
+        local entry = tonumber(parts[1])
         if entry then
-            tinsert(entries, entry)
+            tinsert(entries, { entry = entry, place = parts[2] })
         end
     end
     return entries

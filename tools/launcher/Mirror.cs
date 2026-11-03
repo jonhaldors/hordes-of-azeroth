@@ -25,6 +25,8 @@ namespace HordesOfAzeroth.Launcher
 
         static string ReleasesUrl => $"https://github.com/{UpdateCheck.Repository}/releases/";
 
+        public static string BoardUrl => BaseUrl.Length > 0 ? BaseUrl + "/board/board.txt" : "";
+
         public static string KeyFor(string url)
         {
             string latest = ReleasesUrl + "latest/download/";

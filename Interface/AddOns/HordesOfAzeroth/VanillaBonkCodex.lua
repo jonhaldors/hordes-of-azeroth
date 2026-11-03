@@ -132,7 +132,7 @@ local function AddLock(lock)
     tooltip:AddLine(" ")
     tooltip:AddLine(L["Locked"], 1, 0.3, 0.3)
     if lock then
-        tooltip:AddLine(L["Quest: "] .. lock.name, 1, 0.6, 0.6)
+        tooltip:AddLine(L("Quest: {1}", lock.name), 1, 0.6, 0.6)
         tooltip:AddLine(lock.description, 0.9, 0.9, 0.9, 1)
         VanillaBonkUI.AddQuestProgress(tooltip, lock)
     end
@@ -155,7 +155,7 @@ local function ShowSpellTooltip(owner, spell)
     Tip:AddDoubleLine(spell.spec or "", classes, Tip.SPEC[1], Tip.SPEC[2], Tip.SPEC[3], 0.62, 0.62, 0.62)
     local base = evolved and book.weapons[spell.evolvesFrom]
     if base then
-        Tip:AddDoubleLine(L["Evolved from "] .. base.name, "", 1, 0.5, 0, 1, 1, 1, 11)
+        Tip:AddDoubleLine(L("Evolved from {1}", base.name), "", 1, 0.5, 0, 1, 1, 1, 11)
     end
     Tip:AddReach(spell.radius, spell.range)
     if spell.description ~= "" then
@@ -165,11 +165,11 @@ local function ShowSpellTooltip(owner, spell)
 
     Tip:AddRule()
     if base then
-        Tip:AddSmallLine(L("{1} evolves into this through a Legendary rank, offered from rank {2}.", base.name, EVOLVE_RANK), Tip.ORANGE)
+        Tip:AddSmallLine(L("Evolves from {1} through a Legendary rank, offered at rank {2} or higher.", base.name, EVOLVE_RANK), Tip.ORANGE)
     else
         local evolutions = book.evolutionOf[spell.id]
         if evolutions then
-            Tip:AddSmallLine(L("From rank {1}, a Legendary rank can evolve it into {2}.", EVOLVE_RANK, EvolutionNames(evolutions)), Tip.ORANGE)
+            Tip:AddSmallLine(L("Can evolve into {2} through a Legendary rank, offered at rank {1} or higher.", EVOLVE_RANK, EvolutionNames(evolutions)), Tip.ORANGE)
         end
     end
     if spell.starterMask > 0 then
@@ -187,7 +187,7 @@ local function ShowPassiveTooltip(owner, passive)
     tooltip:AddLine(passive.description, 1, 1, 1, 1)
     if passive.maxRank > 0 then
         tooltip:AddLine(" ")
-        tooltip:AddLine(L["Max rank "] .. passive.maxRank, 1, 0.82, 0)
+        tooltip:AddLine(L("Max rank {1}", passive.maxRank), 1, 0.82, 0)
     end
     AddState(passive)
     tooltip:Show()
@@ -198,7 +198,7 @@ local function ShowCardTooltip(owner, card)
     tooltip = GameTooltip
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     tooltip:AddLine(card.name, rarity.r, rarity.g, rarity.b)
-    tooltip:AddLine(rarity.name .. L[" Darkmoon Card (all classes)"], 0.7, 0.7, 0.7)
+    tooltip:AddLine(L("{1} Darkmoon Card (all classes)", rarity.name), 0.7, 0.7, 0.7)
     if card.description ~= "" then
         tooltip:AddLine(card.description, 1, 1, 1, 1)
     end
@@ -213,7 +213,7 @@ local function ShowGlyphTooltip(owner, glyph)
     tooltip = GameTooltip
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     tooltip:AddLine(glyph.name, rarity.r, rarity.g, rarity.b)
-    tooltip:AddLine(rarity.name .. L[" Glyph (all classes)"], 0.7, 0.7, 0.7)
+    tooltip:AddLine(L("{1} Glyph (all classes)", rarity.name), 0.7, 0.7, 0.7)
     if glyph.description ~= "" then
         tooltip:AddLine(glyph.description, 1, 1, 1, 1)
     end
@@ -251,7 +251,7 @@ local function ShowEntryTooltip(owner, entry, manage)
         elseif book and entry.owned and POOL_KINDS[entry.kind] then
             local pool = book.pool[entry.kind]
             tooltip:AddLine(" ")
-            tooltip:AddLine(pool.slots > 0 and (L["All your ban slots are in use ("] .. pool.used .. "/" .. pool.slots .. ").") or
+            tooltip:AddLine(pool.slots > 0 and L("All your ban slots are in use ({1}/{2}).", pool.used, pool.slots) or
                 L["You have no ban slots yet."], 0.7, 0.7, 0.7, 1)
             tooltip:Show()
         end
@@ -704,13 +704,13 @@ local function ShowCards(entries, grouped)
 
         local lock = book.locks[entry.kind .. entry.id]
         if entry.locked then
-            card.detail:SetText(L["Locked by "] .. (lock and ("\"" .. lock.name .. "\"") or L["a quest"]))
+            card.detail:SetText(lock and L("Locked by \"{1}\"", lock.name) or L["Locked by a quest"])
         elseif entry.kind == "p" then
-            card.detail:SetText(entry.maxRank > 0 and L["Unlocked, max rank "] .. entry.maxRank or L["Unlocked"])
+            card.detail:SetText(entry.maxRank > 0 and L("Unlocked, max rank {1}", entry.maxRank) or L["Unlocked"])
         else
             local text = ClassNames(entry.classMask)
             if entry.starterMask > 0 and (classFilter == 0 or HasFlag(entry.starterMask, classFilter)) then
-                text = text .. L[" starting spell"]
+                text = L("{1} starter spell", text)
             end
             card.detail:SetText(text)
         end
@@ -724,7 +724,7 @@ local function ShowCards(entries, grouped)
         StyleCard(card, entry)
         if entry.off then
             card.name:SetTextColor(0.55, 0.55, 0.55)
-            card.detail:SetText(L["|cffff6060Switched off: never offered|r"])
+            card.detail:SetText(L["|cffff6060Disabled. Never offered in runs.|r"])
             SetDesaturation(card.icon, 1)
             card:SetBackdropColor(0.04, 0.04, 0.04, 0.6)
             card.offTag:Show()
@@ -1061,7 +1061,7 @@ function Refresh(keepScroll)
         window.tally:SetText("")
         window.pool:SetText("")
         local name = rules.Show(book.rules)
-        window.header:SetText(L["Rules|cff9d9d9d: "] .. name .. "|r")
+        window.header:SetText(L("Rules|cff9d9d9d: {1}|r", name))
         return
     end
     rules.Hide()
@@ -1128,7 +1128,7 @@ function Refresh(keepScroll)
             end
         end
     end
-    window.subtitle:SetText("|cffffffff" .. locked .. L[" locked by quests|r"])
+    window.subtitle:SetText("|cffffffff" .. L("{1} locked by quests", locked) .. "|r")
 
     if TabHasClasses() or TabHasInfoRows() then
         window.tally:SetText("")
@@ -1457,7 +1457,7 @@ handlers["cdxend"] = function()
     received.glyphCount = 0
     for key, glyph in pairs(received.glyphs) do
         local text = VanillaBonkGlyphInfo and VanillaBonkGlyphInfo[key]
-        glyph.name = text and text.name or (L["Glyph "] .. key)
+        glyph.name = text and text.name or L("Glyph {1}", key)
         glyph.icon = text and text.icon or ""
         glyph.rarity = text and text.rarity or 0
         glyph.description = text and text.description or ""

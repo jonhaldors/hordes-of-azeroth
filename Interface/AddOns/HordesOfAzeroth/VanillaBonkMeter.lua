@@ -16,16 +16,19 @@ local BORDER_TEXTURE = "Interface\\Tooltips\\UI-Tooltip-Border"
 local ARROW_TEXTURE = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown"
 local EYE_TEXTURE = "Interface\\Icons\\Ability_EyeOfTheOwl"
 local EYE_SIZE = 16
+local PARTY_ROWS = 4
+local PARTY_CLOSED_TEXTURE = "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up"
+local PARTY_OPEN_TEXTURE = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up"
+local CLASS_TOKENS = { [1] = "WARRIOR", [2] = "PALADIN", [3] = "HUNTER", [4] = "ROGUE", [5] = "PRIEST", [7] = "SHAMAN", [8] = "MAGE", [9] = "WARLOCK", [11] = "DRUID" }
 local GLYPH_INDEX = 100
 local OTHER_INDEX = 200
 local OTHER_FIELDS = 5
 local BAR_SPEED = 8
-local MODE_SPELLS, MODE_TYPES, MODE_HEALING, MODE_PARTY = 1, 2, 3, 4
+local MODE_SPELLS, MODE_TYPES, MODE_HEALING = 1, 2, 3
 local MODES = {
     { mode = MODE_SPELLS, label = L["Damage Done"] },
     { mode = MODE_TYPES, label = L["Damage Types"] },
     { mode = MODE_HEALING, label = L["Healing Done"] },
-    { mode = MODE_PARTY, label = L["Party Damage"] },
 }
 local HEAL_COLOR = UI.HEAL_COLOR
 local ABSORB_COLOR = UI.ABSORB_COLOR
@@ -212,7 +215,7 @@ meter.eye:Hide()
 meter.eye:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_LEFT")
     local count = HiddenCount()
-    GameTooltip:AddLine(count .. (count == 1 and L[" hidden entry"] or L[" hidden entries"]), 1, 1, 1)
+    GameTooltip:AddLine(L(count == 1 and "{1} hidden entry" or "{1} hidden entries", count), 1, 1, 1)
     GameTooltip:AddLine(L["Click to show everything again."], 0.75, 0.75, 0.75)
     GameTooltip:Show()
 end)
@@ -449,17 +452,6 @@ local function TypeEntries()
     return entries
 end
 
-local function PartyEntries()
-    local entries = {}
-    for index, member in ipairs(party) do
-        tinsert(entries, {
-            id = "p" .. index, hideKey = "p:" .. member.name, index = index, icon = "INV_Misc_QuestionMark", name = member.name,
-            damage = member.damage, kills = 0, parts = { { key = "phys", damage = member.damage } },
-        })
-    end
-    return entries
-end
-
 local function HealEntries()
     local entries = {}
     for index, source in ipairs(support) do
@@ -485,8 +477,6 @@ local function AllEntries()
         return TypeEntries()
     elseif mode == MODE_HEALING then
         return HealEntries()
-    elseif mode == MODE_PARTY then
-        return PartyEntries()
     end
     return SpellEntries()
 end
@@ -574,6 +564,115 @@ meter:SetScript("OnHide", function()
     menu:Hide()
 end)
 
+local partyFrame = CreateFrame("Frame", nil, meter)
+partyFrame:SetPoint("BOTTOMLEFT", meter, "TOPLEFT", 0, 2)
+partyFrame:SetPoint("BOTTOMRIGHT", meter, "TOPRIGHT", 0, 2)
+partyFrame:SetHeight(HEADER)
+Framed(partyFrame, 0.62)
+partyFrame:Hide()
+
+partyFrame.header = partyFrame:CreateTexture(nil, "BORDER")
+partyFrame.header:SetTexture(UI.FLAT)
+partyFrame.header:SetGradientAlpha("VERTICAL", 0.1, 0.08, 0.05, 0.9, 0.24, 0.19, 0.12, 0.9)
+partyFrame.header:SetPoint("TOPLEFT", partyFrame, "TOPLEFT", 3, -3)
+partyFrame.header:SetPoint("TOPRIGHT", partyFrame, "TOPRIGHT", -3, -3)
+partyFrame.header:SetHeight(HEADER - 4)
+
+partyFrame.toggle = CreateFrame("Button", nil, partyFrame)
+partyFrame.toggle:SetAllPoints(partyFrame.header)
+partyFrame.toggle:SetScript("OnClick", function()
+    VanillaBonkPartyMeterOpen = not VanillaBonkPartyMeterOpen
+    PlaySound(VanillaBonkPartyMeterOpen and "igMainMenuOptionCheckBoxOn" or "igMainMenuOptionCheckBoxOff")
+    partyFrame.Refresh()
+end)
+
+partyFrame.title = UI.Text(partyFrame.toggle, 13)
+partyFrame.title:SetPoint("LEFT", partyFrame.header, "LEFT", 6, 0)
+partyFrame.title:SetTextColor(1, 0.82, 0)
+partyFrame.title:SetText(L["Party Damage"])
+
+partyFrame.total = UI.Text(partyFrame.toggle, 12, UI.NUMBER_FONT)
+partyFrame.total:SetPoint("RIGHT", partyFrame.header, "RIGHT", -6, 0)
+partyFrame.total:SetJustifyH("RIGHT")
+
+partyFrame.arrow = partyFrame.toggle:CreateTexture(nil, "OVERLAY")
+partyFrame.arrow:SetWidth(EYE_SIZE + 2)
+partyFrame.arrow:SetHeight(EYE_SIZE + 2)
+partyFrame.arrow:SetPoint("RIGHT", partyFrame.total, "LEFT", -4, 0)
+
+partyFrame.rows = {}
+for index = 1, PARTY_ROWS do
+    local row = CreateFrame("Frame", nil, partyFrame)
+    local top = -(HEADER + PAD + (index - 1) * (ROW + ROW_GAP))
+    row:SetHeight(ROW)
+    row:SetPoint("TOPLEFT", partyFrame, "TOPLEFT", PAD, top)
+    row:SetPoint("TOPRIGHT", partyFrame, "TOPRIGHT", -PAD, top)
+    row.crest = row:CreateTexture(nil, "ARTWORK")
+    row.crest:SetWidth(ROW)
+    row.crest:SetHeight(ROW)
+    row.crest:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    row.track = row:CreateTexture(nil, "BACKGROUND")
+    row.track:SetTexture(UI.FLAT)
+    row.track:SetVertexColor(0, 0, 0, 0.55)
+    row.track:SetPoint("TOPLEFT", row.crest, "TOPRIGHT", 2, 0)
+    row.track:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+    row.fill = row:CreateTexture(nil, "BORDER")
+    row.fill:SetTexture(UI.FLAT)
+    row.fill:SetPoint("TOPLEFT", row.track, "TOPLEFT", 0, 0)
+    row.fill:SetHeight(ROW)
+    row.value = UI.Text(row, 13, UI.NUMBER_FONT)
+    row.value:SetPoint("RIGHT", row, "RIGHT", -5, 0)
+    row.value:SetJustifyH("RIGHT")
+    row.name = UI.Text(row, 11)
+    row.name:SetPoint("LEFT", row.track, "LEFT", 5, 0)
+    row.name:SetPoint("RIGHT", row.value, "LEFT", -4, 0)
+    row.name:SetJustifyH("LEFT")
+    row:Hide()
+    partyFrame.rows[index] = row
+end
+
+function partyFrame.Refresh()
+    if getn(party) < 2 then
+        partyFrame:Hide()
+        return
+    end
+    local members = {}
+    local total, top = 0, 0
+    for _, member in ipairs(party) do
+        tinsert(members, member)
+        total = total + member.damage
+        top = max(top, member.damage)
+    end
+    table.sort(members, function(a, b) return a.damage > b.damage end)
+    partyFrame.total:SetText(Short(total) .. " |cffa0a0a0(" .. Short(seconds > 0 and total / seconds or 0) .. "/s)|r")
+    local open = VanillaBonkPartyMeterOpen
+    partyFrame.arrow:SetTexture(open and PARTY_OPEN_TEXTURE or PARTY_CLOSED_TEXTURE)
+    local barWidth = meter:GetWidth() - PAD * 2 - ROW - 2
+    local count = 0
+    for index, row in ipairs(partyFrame.rows) do
+        local member = members[index]
+        if open and member then
+            count = index
+            local class = CLASS_TOKENS[member.class or 0]
+            local color = RAID_CLASS_COLORS and class and RAID_CLASS_COLORS[class]
+            UI.SetClassCrest(row.crest, class)
+            if color then
+                row.fill:SetVertexColor(color.r * BAR_BRIGHTNESS, color.g * BAR_BRIGHTNESS, color.b * BAR_BRIGHTNESS, 0.9)
+            else
+                row.fill:SetVertexColor(0.5, 0.5, 0.5, 0.9)
+            end
+            row.fill:SetWidth(max(1, barWidth * (top > 0 and member.damage / top or 0)))
+            row.name:SetText(index .. ". " .. member.name)
+            row.value:SetText(Short(member.damage) .. "  |cffc8c8c8" .. Percent(member.damage, total) .. "%|r")
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+    partyFrame:SetHeight(count > 0 and HEADER + PAD * 2 + count * (ROW + ROW_GAP) - ROW_GAP or HEADER)
+    partyFrame:Show()
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("VARIABLES_LOADED")
 events:SetScript("OnEvent", function()
@@ -614,6 +713,8 @@ handlers["start"] = function()
     glyphs = {}
     others = {}
     support = {}
+    party = {}
+    partyFrame.Refresh()
     seconds = 0
     for _, row in ipairs(rows) do
         row.key = nil
@@ -679,12 +780,10 @@ handlers["pmeter"] = function(f)
     party = {}
     local field = 2
     while f[field + 2] do
-        tinsert(party, { name = f[field], damage = tonumber(f[field + 1]) or 0 })
+        tinsert(party, { name = f[field], damage = tonumber(f[field + 1]) or 0, class = tonumber(f[field + 2]) })
         field = field + 3
     end
-    if mode == MODE_PARTY then
-        Refresh()
-    end
+    partyFrame.Refresh()
 end
 
 handlers["support"] = function(f)
