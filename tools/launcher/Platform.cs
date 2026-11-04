@@ -55,7 +55,7 @@ namespace HordesOfAzeroth.Launcher
                 Process.Start(info)?.Dispose();
                 return true;
             }
-            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is PlatformNotSupportedException)
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is PlatformNotSupportedException || error is IOException)
             {
                 Console.Error.WriteLine($"Couldn't open {info.FileName} {info.Arguments}: {error.Message}");
                 return false;

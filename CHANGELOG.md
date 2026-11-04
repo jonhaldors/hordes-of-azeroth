@@ -2,6 +2,14 @@
 
 ## 0.6.3
 
+### Hotfix 1
+- NPC names switch right away when you change the game language, no relog needed.
+- Leaderboard: when a Mythic clear won't be listed, the game now tells you why: Game Master character, legacy gear or gear above the level (with the item named), a group member's gear or Game Master account, or a climb level you still need to clear.
+- Leaderboard: your gear is checked when you clear, not when the run starts.
+- Anti-cheat: if a trainer or cheat tool changes the game while it's running, your clears no longer count for the leaderboard until you restart the game, and you're told why.
+- Fixed: The launcher could crash when Windows blocked its restart or the database tool, when Show in folder couldn't find a file, when stopping the server, or when reopening its window after closing it.
+- Simplified Chinese for everything new in 0.6.3, plus the rest of the Options page (by xenoglossy-asyncio).
+
 ### Zones
 - 12 new zones: Normal: Loch Modan, Darkshore, Redridge Mountains and Silverpine Forest. Heroic: Hillsbrad Foothills, Thousand Needles, Dustwallow Marsh and Wetlands. Mythic: Winterspring, Azshara, Blasted Lands and Silithus.
 - Normal and Heroic zones are now available in Mythic difficulty.

@@ -42,7 +42,7 @@ MIN_STAGE_MS = 60 * 1000
 FREE_CLIMB_LEVEL = FIRST_MYTHIC_LEVEL + 39
 MAX_BONUS_STATS = 2
 NAME_LENGTH = (2, 12)
-CLEAR_LINE = re.compile(r"^\d+ clear: hero clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, party (\S+))?$")
+CLEAR_LINE = re.compile(r"^\d+ clear: hero clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, party (\S+))?$")
 FOUND_GEAR = re.compile(r"; found \[([^\]]*)\]")
 RUN_LEVEL = re.compile(r"; difficulty level (\d+)$")
 MIRROR_KEY = "board/board.txt"
@@ -124,7 +124,7 @@ def board_name(record):
     return name
 
 
-def gear_fits_level(lines):
+def gear_is_sane(lines):
     for line in lines:
         if " loadout: " not in line:
             continue
@@ -136,7 +136,7 @@ def gear_fits_level(lines):
             parts = piece.split(":")
             if len(parts) != 4 or not all(part.isdigit() for part in parts):
                 return False
-            if int(parts[1]) > int(level.group(1)) or int(parts[2]) > MAX_BONUS_STATS or int(parts[3]) != BOARD_SEASON:
+            if int(parts[2]) > MAX_BONUS_STATS:
                 return False
     return True
 
@@ -197,19 +197,19 @@ def board_results(record):
             continue
         level, ms, class_id = int(match.group(1)), int(match.group(2)), int(match.group(3))
         coop, gm, gear = match.group(4), match.group(5), match.group(7)
-        if level < FIRST_MYTHIC_LEVEL or gm != "0" or ms < MYTHIC_STAGES * MIN_STAGE_MS:
+        if level < FIRST_MYTHIC_LEVEL or gm != "0" or match.group(8) == "1" or ms < MYTHIC_STAGES * MIN_STAGE_MS:
             continue
         cleared.add(level)
         if gear != "1":
             continue
         result = {"level": level, "ms": ms, "date": date}
         if coop == "0":
-            if name and gear_fits_level(lines):
+            if name and gear_is_sane(lines):
                 result.update({"name": name, "class": class_id})
                 if better(result, solo):
                     solo = result
         else:
-            members = read_party(match.group(8))
+            members = read_party(match.group(9))
             if members:
                 result["members"] = members
                 if better(result, group):

@@ -22,7 +22,7 @@ namespace HordesOfAzeroth.Launcher
         static readonly Regex EndMinute = new Regex(@" at run minute ([\d.]+) ");
         static readonly Regex RunClass = new Regex(@", class (\d+)\)");
         static readonly Regex BoardChoice = new Regex(@", board (-?\d+), gear ");
-        static readonly Regex Clear = new Regex(@"clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, party (\S+))?$");
+        static readonly Regex Clear = new Regex(@"clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, party (\S+))?$");
         const int FirstMythicLevel = 10;
         const int MinClearMs = 3 * 60 * 1000;
         const int MaxSentKeys = 5000;
@@ -142,7 +142,7 @@ namespace HordesOfAzeroth.Launcher
             int level = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
             int ms = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
             int classId = int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
-            if (level < FirstMythicLevel || ms < MinClearMs || match.Groups[5].Value != "0" || match.Groups[7].Value != "1")
+            if (level < FirstMythicLevel || ms < MinClearMs || match.Groups[5].Value != "0" || match.Groups[7].Value != "1" || match.Groups[8].Value == "1")
                 return;
             BoardScore score = new BoardScore { Level = level, Ms = ms };
             string date = run.Started.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -156,7 +156,7 @@ namespace HordesOfAzeroth.Launcher
                 Leaderboard.NoteLocalBest(folder, "solo:" + run.Character, $"local~solo~{classId}~{run.Name}~{level}~{ms}~{date}", 4, 5);
                 return;
             }
-            List<string[]> members = match.Groups[8].Value.Split(';').Select(piece => piece.Split(':')).Where(parts => parts.Length == 6).ToList();
+            List<string[]> members = match.Groups[9].Value.Split(';').Select(piece => piece.Split(':')).Where(parts => parts.Length == 6).ToList();
             if (members.Count < 2)
                 return;
             if (score.Beats(run.Group))

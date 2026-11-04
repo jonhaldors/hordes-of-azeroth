@@ -182,10 +182,10 @@ namespace HordesOfAzeroth.Launcher
                 KillQuietly(m_login);
             if (m_database != null && !m_database.HasExited)
             {
-                string admin = MariaDbProgram("mariadb-admin");
-                Process shutdown = StartHidden(admin, m_folder.MariaDb, DatabaseLogin.Concat(new[] { "shutdown" }).ToArray());
-                await WaitForExitAsync(shutdown, TimeSpan.FromSeconds(30));
+                await AskDatabaseToShutDownAsync();
                 await WaitForExitAsync(m_database, TimeSpan.FromSeconds(30));
+                if (!m_database.HasExited)
+                    KillQuietly(m_database);
             }
             m_world = m_login = m_database = null;
             await StopLeftoversAsync();
@@ -199,14 +199,29 @@ namespace HordesOfAzeroth.Launcher
                 KillQuietly(login);
             if (OwnProcesses("mariadbd").Any())
             {
-                string admin = MariaDbProgram("mariadb-admin");
-                if (File.Exists(admin))
-                {
-                    Process shutdown = StartHidden(admin, m_folder.MariaDb, DatabaseLogin.Concat(new[] { "shutdown" }).ToArray());
-                    await WaitForExitAsync(shutdown, TimeSpan.FromSeconds(30));
-                }
+                await AskDatabaseToShutDownAsync();
                 foreach (Process database in OwnProcesses("mariadbd"))
+                {
                     await WaitForExitAsync(database, TimeSpan.FromSeconds(30));
+                    if (!database.HasExited)
+                        KillQuietly(database);
+                }
+            }
+        }
+
+        async Task AskDatabaseToShutDownAsync()
+        {
+            string admin = MariaDbProgram("mariadb-admin");
+            if (!File.Exists(admin))
+                return;
+            try
+            {
+                Process shutdown = StartHidden(admin, m_folder.MariaDb, DatabaseLogin.Concat(new[] { "shutdown" }).ToArray());
+                await WaitForExitAsync(shutdown, TimeSpan.FromSeconds(30));
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                LauncherLog.Write(m_folder, "Database shutdown: " + error.Message);
             }
         }
 

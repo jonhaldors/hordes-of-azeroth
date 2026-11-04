@@ -551,6 +551,8 @@ handlers["boardchoice"] = function(f)
     board.choice = tonumber(f[2]) or -1
     UI.boardChoice = board.choice
     UI.boardClimb = tonumber(f[3] or "") or 0
+    UI.boardGameMaster = f[4] == "1"
+    UI.boardModified = f[5] == "1"
     if window:IsShown() then
         window.Refresh()
     end

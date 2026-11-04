@@ -1356,6 +1356,12 @@ local function BoardNote()
         return "", nil
     end
     local level = tier.firstLevel + ChosenLevel() - 1
+    if UI.boardGameMaster then
+        return L["Game Master characters don't appear on the leaderboard, so this run won't be listed."], "bad"
+    end
+    if UI.boardModified then
+        return L["Another program changed the game while it was running. Restart the game for runs to count for the leaderboard."], "bad"
+    end
     for slot = 1, 19 do
         local piece = UI.FoundAt("inv", slot)
         if piece and piece.legacy then
