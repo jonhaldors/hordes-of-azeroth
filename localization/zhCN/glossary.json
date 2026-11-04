@@ -135,6 +135,15 @@
     { "en": "lobby", "zh": "房间", "check": false },
     { "en": "revive", "zh": "复活", "check": false },
     { "en": "downed", "zh": "倒地", "check": false, "note": "co-op: down but not dead; bled out = 流血过多倒下" },
-    { "en": "Ironman", "zh": "铁人", "check": false, "note": "铁人角色 / 铁人模式" }
+    { "en": "Ironman", "zh": "铁人", "check": false, "note": "铁人角色 / 铁人模式" },
+    { "en": "Range Ring", "zh": "范围环", "anyCase": true },
+    { "en": "Leaderboard", "zh": "排行榜", "anyCase": true },
+    { "en": "Highest Clear", "zh": "最高通关", "anyCase": true },
+    { "en": "Auto Open Chests", "zh": "自动开启宝箱", "anyCase": true },
+    { "en": "Pause on Rewards", "zh": "奖励时暂停", "anyCase": true },
+    { "en": "Reward Card Scale", "zh": "奖励卡牌缩放", "anyCase": true },
+    { "en": "Party Spell Effects", "zh": "队伍法术特效", "anyCase": true },
+    { "en": "Rewritten Fate", "zh": "改写命运" },
+    { "en": "placement range", "zh": "放置距离", "anyCase": true }
   ]
 }
