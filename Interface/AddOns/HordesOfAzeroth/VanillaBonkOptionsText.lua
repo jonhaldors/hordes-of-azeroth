@@ -161,6 +161,18 @@ if VanillaBonkLocale.language ~= "enUS" then
     for name, text in pairs(STRINGS) do
         setglobal(name, text)
     end
+    setglobal("OPTION_TOOLTIP_SHOW_MULTIBAR1", "显示左下方动作条。")
+    setglobal("OPTION_TOOLTIP_SHOW_MULTIBAR2", "显示右下方动作条。")
+    setglobal("OPTION_TOOLTIP_SHOW_MULTIBAR3", "显示右侧动作条。")
+    setglobal("OPTION_TOOLTIP_SHOW_MULTIBAR4", "显示第二条右侧动作条。")
+    setglobal("OPTION_TOOLTIP_ALWAYS_SHOW_MULTIBARS", "始终显示动作条。")
+    setglobal("OPTION_TOOLTIP_LOCK_ACTIONBAR", "锁定动作条，防止拖动。")
+    setglobal("OPTION_TOOLTIP_UI_SCALE", "调整界面元素的大小。")
+    setglobal("OPTION_TOOLTIP_FARCLIP", "调整地形可见距离。")
+    setglobal("OPTION_TOOLTIP_ENVIRONMENT_DETAIL", "调整环境细节。")
+    setglobal("OPTION_TOOLTIP_SPELL_DETAIL", "调整法术效果的细节程度。")
+    setglobal("OPTION_TOOLTIP_WEATHER_DETAIL", "调整天气效果强度。")
+    setglobal("OPTION_TOOLTIP_VERTICAL_SYNC", "将帧率与显示器刷新率同步。")
 
     SetText("UIOptionsFrameTitle", INTERFACE_TITLE)
     for _, prefix in ipairs({ "UIOptionsFrame", "SoundOptionsFrame" }) do
@@ -312,6 +324,27 @@ local BENILLA_OPTIONS_ZHCN = {
     ["Windowed"] = "窗口",
     ["Windowed (Fullscreen)"] = "窗口（全屏）",
     ["Windowed (Fullscreen) fills the screen with a borderless window; Windowed runs in an ordinary one.\n\nThere is no exclusive fullscreen mode. WoW itself removed one in 8.0.1, and modern Classic offers these same two."] = "“窗口（全屏）”用无边窗口铺满屏幕；“窗口”则在普通窗口中运行。\n\n没有独占全屏模式。WoW 本身在 8.0.1 中移除了它，现代魔兽经典版也只提供这两种方式。",
+    ["Show Bottom Left ActionBar"] = "显示左下方动作条",
+    ["Show Bottom Right ActionBar"] = "显示右下方动作条",
+    ["Show Right ActionBar"] = "显示右侧动作条",
+    ["Show Right ActionBar 2"] = "显示右侧动作条 2",
+    ["Show Cloak"] = "显示披风",
+    ["Show Helm"] = "显示头盔",
+    ["Enemy Name Plates"] = "敌方姓名板",
+    ["Friendly Name Plates"] = "友方姓名板",
+    ["Brightness"] = "亮度",
+    ["Low"] = "低",
+    ["Medium"] = "中",
+    ["High"] = "高",
+    ["Minimal"] = "最低",
+    ["Full"] = "最高",
+    ["Show Tutorials"] = "显示教程",
+    ["Tip of the Day"] = "每日提示",
+    ["Newbie Tips"] = "新手提示",
+    ["Unbind Key"] = "取消绑定按键",
+    ["Spell Detail"] = "法术细节",
+    ["Click this to toggle between general key bindings and key bindings specific to this character."] = "点击此处在通用按键绑定和此角色的专用按键绑定之间切换。",
+    ["yards"] = "码",
 }
 
 local function TranslateOptions(frame)
