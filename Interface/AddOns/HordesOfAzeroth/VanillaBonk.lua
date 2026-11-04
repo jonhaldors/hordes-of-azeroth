@@ -2662,6 +2662,15 @@ handlers["tier"] = function(f)
         dungeons = dungeons, details = f[14] or "", firstLevel = tonumber(f[15] or "") })
 end
 
+handlers["tiermap"] = function(f)
+    local tier = VB.pendingTiers[table.getn(VB.pendingTiers)]
+    if not tier or tier.id ~= f[2] or not f[3] or f[3] == "" then
+        return
+    end
+    local parts = Split(f[3], ":")
+    tinsert(tier.maps, { icon = parts[1] or "", name = parts[2] or parts[1], type = parts[3], reward = tonumber(parts[4] or ""), key = parts[5] or "" })
+end
+
 handlers["starter"] = function(f)
     tinsert(VB.pendingStarters, { id = f[2], icon = f[3] or "", name = f[4] or "", unlocked = f[5] == "1", chosen = f[6] == "1",
         hint = f[7] or "", description = f[8] or "" })

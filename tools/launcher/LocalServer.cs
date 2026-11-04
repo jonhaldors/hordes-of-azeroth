@@ -111,8 +111,7 @@ namespace HordesOfAzeroth.Launcher
             if (!IsPortOpen(m_databasePort))
             {
                 progress.Report(Loc.T("Starting the database"));
-                m_database = StartDatabase();
-                await WaitForPortAsync(m_databasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
+                await LaunchDatabaseAsync(cancel);
             }
 
             if (!IsPortOpen(LoginPort))
@@ -310,17 +309,46 @@ namespace HordesOfAzeroth.Launcher
 
         string DatabaseErrorLogLine()
         {
+            string[] errors = LastDatabaseStartErrors().Distinct().Take(2).ToArray();
+            return errors.Length == 0 ? null : string.Join(" ", errors);
+        }
+
+        IEnumerable<string> LastDatabaseStartErrors()
+        {
+            string log = NewestDatabaseLog();
+            if (log == null)
+                return Enumerable.Empty<string>();
+            string[] lines = ReadLogTail(log).Split('\n');
+            int lastStart = Array.FindLastIndex(lines, l => l.Contains("Starting MariaDB"));
+            return lines.Skip(Math.Max(0, lastStart)).Select(l => l.Trim())
+                .Where(l => l.IndexOf("[ERROR]", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+        }
+
+        string NewestDatabaseLog()
+        {
             if (!Directory.Exists(m_folder.MariaDbData))
                 return null;
-            foreach (string log in Directory.GetFiles(m_folder.MariaDbData, "*.err"))
+            return Directory.GetFiles(m_folder.MariaDbData, "*.err").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+        }
+
+        const int DatabaseLogTailBytes = 256 * 1024;
+
+        static string ReadLogTail(string log)
+        {
+            try
             {
-                string[] lines = File.ReadAllLines(log);
-                int lastStart = Array.FindLastIndex(lines, l => l.Contains("Starting MariaDB"));
-                string line = lines.Skip(Math.Max(0, lastStart)).Select(l => l.Trim()).FirstOrDefault(l => l.IndexOf("[ERROR]", StringComparison.OrdinalIgnoreCase) >= 0);
-                if (line != null)
-                    return line;
+                using (FileStream stream = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    if (stream.Length > DatabaseLogTailBytes)
+                        stream.Seek(-DatabaseLogTailBytes, SeekOrigin.End);
+                    using (StreamReader reader = new StreamReader(stream))
+                        return reader.ReadToEnd();
+                }
             }
-            return null;
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                return "";
+            }
         }
 
         public async Task StartDatabaseOnlyAsync(CancellationToken cancel)
@@ -328,8 +356,52 @@ namespace HordesOfAzeroth.Launcher
             await ChooseDatabasePortAsync();
             if (IsPortOpen(m_databasePort))
                 return;
+            await LaunchDatabaseAsync(cancel);
+        }
+
+        async Task LaunchDatabaseAsync(CancellationToken cancel)
+        {
+            await RemoveLeftoverTempTablespaceAsync(cancel);
             m_database = StartDatabase();
-            await WaitForPortAsync(m_databasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
+            try
+            {
+                await WaitForPortAsync(m_databasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
+            }
+            catch (InvalidOperationException) when (m_database.HasExited && LastDatabaseStartMentions(TempTablespaceFile))
+            {
+                LauncherLog.Write(m_folder, "Database could not open " + TempTablespaceFile + "; retrying once.");
+                await Task.Delay(TimeSpan.FromSeconds(3), cancel);
+                await RemoveLeftoverTempTablespaceAsync(cancel);
+                m_database.Dispose();
+                m_database = StartDatabase();
+                await WaitForPortAsync(m_databasePort, m_database, TimeSpan.FromSeconds(60), Loc.Key("the database"), cancel);
+            }
+        }
+
+        const string TempTablespaceFile = "ibtmp1";
+
+        async Task RemoveLeftoverTempTablespaceAsync(CancellationToken cancel)
+        {
+            string leftover = Path.Combine(m_folder.MariaDbData, TempTablespaceFile);
+            for (int attempt = 0; File.Exists(leftover) && attempt < 10; attempt++)
+            {
+                try
+                {
+                    File.SetAttributes(leftover, FileAttributes.Normal);
+                    File.Delete(leftover);
+                }
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+                {
+                    if (attempt == 0)
+                        LauncherLog.Write(m_folder, "Leftover " + TempTablespaceFile + " is locked: " + error.Message);
+                    await Task.Delay(500, cancel);
+                }
+            }
+        }
+
+        bool LastDatabaseStartMentions(string text)
+        {
+            return LastDatabaseStartErrors().Any(line => line.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         public Task RunSqlFileAsync(string database, string file)

@@ -23,6 +23,11 @@ local BEST_BOTTOM = H - 62 - 8 - PICKER_HEIGHT - 22
 local BEST_LINE = 13
 local ROW_HEIGHT, ROW_STEP, ROW_ICON = 34, 36, 26
 local STAT_STEP = 15
+local ARROW_RIGHT = 62
+local ARROW_GAP = 10
+local BEST_GAP = 6
+local BEST_TITLE = 15
+local BEST_NOTE = 14
 local LOCK_ICON = "Interface\\ChatFrame\\UI-ChatFrame-LockIcon"
 local OPEN_ARROW = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
 local NAME_COLOR = "|cff8a8278"
@@ -837,16 +842,34 @@ local function ByName(value, name)
     return value .. " " .. NAME_COLOR .. name .. "|r"
 end
 
-local function ShowBest(current)
+local function HideBestLines(best)
+    for _, line in ipairs(best.lines) do
+        line.label:Hide()
+        line.value:Hide()
+    end
+end
+
+local function ShowBest(current, room)
     local best = preview.best
     local record = (levelBests[tier.id] or {})[current]
+    local full = record and BEST_TITLE + 5 * BEST_LINE + BEST_NOTE or BEST_TITLE + BEST_NOTE
+    if room < BEST_TITLE then
+        best:Hide()
+        return
+    end
+    best:Show()
     best.title:SetText(L("Your best on {1}", LevelName(current)))
     best.note:ClearAllPoints()
+    if room < full then
+        best:SetHeight(BEST_TITLE)
+        HideBestLines(best)
+        best.note:SetText("")
+        best.clears:SetText(record and UI.FormatTime(floor(record.bestMs / 1000)) or L["No clears on this level yet."])
+        return
+    end
+    best:SetHeight(full)
     if not record then
-        for _, line in ipairs(best.lines) do
-            line.label:Hide()
-            line.value:Hide()
-        end
+        HideBestLines(best)
         best.clears:SetText("")
         best.note:SetPoint("TOPLEFT", best.title, "BOTTOMLEFT", 0, -4)
         best.note:SetText(L["No clears on this level yet."])
@@ -969,9 +992,14 @@ local function ShowStats(current)
             else
                 local value = StatValue(row, spec, true)
                 local base = StatValue(first, spec)
-                line.value:ClearAllPoints()
-                line.value:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", 0, -y)
+                local statsWidth = RIGHT_WIDTH - 4
                 line.value:SetText(value)
+                local valueY = y
+                if line.label:GetStringWidth() + ARROW_GAP + line.value:GetStringWidth() > statsWidth then
+                    valueY = y + STAT_STEP
+                end
+                line.value:ClearAllPoints()
+                line.value:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", 0, -valueY)
                 line.value:Show()
                 if line.hover and epicLuck > 0 then
                     line.hover:ClearAllPoints()
@@ -981,13 +1009,15 @@ local function ShowStats(current)
                 elseif line.hover then
                     line.hover:Hide()
                 end
-                if current > 1 then
+                local arrowX = -max(ARROW_RIGHT, line.value:GetStringWidth() + ARROW_GAP)
+                line.base:SetText(base)
+                local baseRoom = statsWidth + arrowX - ARROW_GAP - line.label:GetStringWidth() - ARROW_GAP
+                if current > 1 and valueY == y and line.base:GetStringWidth() <= baseRoom then
                     line.base:ClearAllPoints()
-                    line.base:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", -72, -y - 1)
-                    line.base:SetText(base)
+                    line.base:SetPoint("TOPRIGHT", preview.stats, "TOPRIGHT", arrowX - ARROW_GAP, -y - 1)
                     line.base:Show()
                     line.arrow:ClearAllPoints()
-                    line.arrow:SetPoint("TOP", preview.stats, "TOPRIGHT", -62, -y - 1)
+                    line.arrow:SetPoint("TOP", preview.stats, "TOPRIGHT", arrowX, -y - 1)
                     line.arrow:Show()
                 else
                     line.base:Hide()
@@ -1002,7 +1032,7 @@ local function ShowStats(current)
                 else
                     line.value:SetTextColor(1, 1, 1)
                 end
-                y = y + STAT_STEP
+                y = valueY + STAT_STEP
             end
         end
     end
@@ -1019,8 +1049,8 @@ local function ShowPreview()
     preview.stats:ClearAllPoints()
     preview.stats:SetPoint("TOPLEFT", arena, "TOPLEFT", RIGHT_X + 2, -top)
     preview.stats:SetPoint("TOPRIGHT", arena, "TOPLEFT", RIGHT_X + RIGHT_WIDTH - 2, -top)
-    ShowStats(current)
-    ShowBest(current)
+    local statsHeight = ShowStats(current)
+    ShowBest(current, BEST_BOTTOM - top - statsHeight - BEST_GAP)
     ShowPicker(current)
 end
 
@@ -1147,7 +1177,7 @@ local function BuildPreview()
     preview.best = CreateFrame("Frame", nil, preview)
     preview.best:SetPoint("BOTTOMLEFT", arena, "TOPLEFT", RIGHT_X + 2, -BEST_BOTTOM)
     preview.best:SetWidth(RIGHT_WIDTH - 4)
-    preview.best:SetHeight(15 + 5 * BEST_LINE + 14)
+    preview.best:SetHeight(BEST_TITLE + 5 * BEST_LINE + BEST_NOTE)
     preview.best.title = UI.Text(preview.best, 10)
     preview.best.title:SetPoint("TOPLEFT", preview.best, "TOPLEFT", 0, 0)
     preview.best.title:SetTextColor(MUTED[1], MUTED[2], MUTED[3])

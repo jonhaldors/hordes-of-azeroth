@@ -1,5 +1,114 @@
 # Changelog
 
+## 0.6.4
+
+### Hardcore Mode
+- New: Hardcore Mode checkbox when you create a character. Die once and the character is no longer Hardcore.
+- Hardcore characters share their own gold, mastery and bank, apart from your regular characters. Hardcore Ironman characters keep their own, like Ironman.
+- When a Hardcore character dies, the You Have Fallen screen shows their record. Lay to Rest sends them to the Graveyard, Keep Playing keeps them as a regular character with their gear and mastery.
+- New: Graveyard at character select lists your fallen characters and how they died.
+- Closing the game or losing connection mid-fight leaves your character in the fight for 15 sec. Dying in that time counts.
+- Ending the game's server mid-run (Task Manager, power cut) counts as a death.
+- Hardcore characters can't play co-op yet.
+
+### Characters
+- You can now have several characters of the same class. Class headers at character select fold open into that class's characters, with Hardcore and Ironman badges. Up to 50 characters.
+- Mastery, talents, presets and Mythic bests now belong to each character.
+
+### Transmog
+- New: Esmeralda Glimmerstitch <Transmogrifier> at the Inn. Every gear piece you equip, loot or salvage adds its look to your account-wide collection, and so do the current items in your bags and bank.
+- Pick a look for each slot around a live model of your character. Looks you haven't collected show greyed out, can be tried on in the Dressing Room, and their tooltip says where they drop.
+- Hide your helm, shoulders or cloak.
+- Save up to 5 outfits per character.
+- Molten Core, Zul'Gurub and Ruins of Ahn'Qiraj runs drop their own epic looks.
+- The Loot window marks looks you haven't collected yet.
+- Durgan Ironbelly sells a Blank Tabard (Accessories). Tabard looks: Darkmoon Tabard from Sayge (30 tickets), Stormwind from For the King (clear Heroic 5), Flame from Heart of the Mountain (clear Molten Core), Frost from Winter's Edge (clear Mythic 20), and rare boss drops: Scarlet Crusade (Western Plaguelands), Argent Dawn (Eastern Plaguelands) and Arathor (Arathi Highlands).
+- Controller: LB/RB turn the pages.
+
+### Leaderboard
+- Regular and Hardcore leaderboards, each with Solo and 2, 3 and 4 player tabs.
+- Hardcore entries show Fell (keeps its place), Revived (restored from a backup, not ranked) or Unverified (runs missing from the leaderboard, not ranked).
+- When your best clear is held by the season climb, the leaderboard says which level to clear next.
+- Moving your game with a backup keeps your season climb. Clears above Mythic 40 are still sent with run data off, as long as you're shown on the leaderboard.
+
+### Co-op
+- Loot bags roll rarity for each player, and everyone sees their own beam colour.
+- Party members can enchant at the host's Enchanter after a stage.
+- Everyone rolls their own tabard drops.
+
+### Warrior
+- Bloodthirst: +38% damage, and 50% more while Enraged.
+- Execute: +43% damage.
+- Revenge: each enemy in reach adds 2% of your max health to your Shield, up to 6% per swing.
+- Thunder Clap: +43% damage. Shield Slam: +36% damage.
+- Rend and Blood Pool apply 4 Bleed (was 3). Deep Wounds applies 3 Bleed (was 2).
+
+### Paladin
+- Consecration: +67% damage. Standing in your Consecration heals 0.25% max health per sec (Blessed Ground 0.75%).
+- Consecration and Blessed Ground last 12 sec on an 8 sec cooldown and stack up to 4 at once. Hallowed Ground lasts 18 sec, up to 5.
+- Retribution Aura deals double damage to enemies standing in your Consecration.
+- Seal of the Templar and Seal of Vengeance: -10% damage.
+
+### Hunter
+- Aimed Shot and Steady Aim: +40% damage.
+- Chain Detonation: +40% damage, explosions deal 56% (was 40%).
+- Trick Shots: +30% damage.
+- Serpent Spread: +83% damage and applies 3 Poison.
+- Viper Trap clouds last 6 sec (was 4). Venom Burst: +50% damage and leaves a 3 sec cloud.
+- Explosive Trap: +5% explosion damage per Poison stack.
+- Stampede: -10% damage.
+
+### Rogue
+- Envenom: +40% damage. Fan of Knives: +50% damage. Killing Spree: +50% damage.
+- Mutilate on an enemy with 10+ Poison cuts 0.5 sec off Envenom's cooldown, once per cast.
+- Find Weakness: -10% damage.
+
+### Priest
+- Mind Flay: +40% damage. Flaying an enemy with 10+ Decay heals you for 0.2% max health.
+- Halo, Divine Hymn: +50% damage. Light's Edge: +45% damage. Shackle: +40% damage.
+- Fixed: Holy Word: Chastise's cooldown on the action bar now drops when Smite, Halo or Light of the Naaru shortens it.
+
+### Shaman
+- Earth Shock: +50% damage. Flame Shock: +33% damage (evolutions +38%).
+- Windfury Weapon: +33% damage. Stormstrike: +25% damage.
+- Totem of Wrath and Aftershock: -10% damage.
+
+### Mage
+- Arcane Missiles deals 50% more to elites, mini-bosses and bosses.
+- Blizzard: +50% damage. Frozen enemies inside Deep Freeze take 30% more Frost damage.
+- Fireball: +33% damage. Flamestrike: +30% damage.
+
+### Warlock
+- Hellfire: +150% damage and applies 2 Burning.
+- Shadow Bolt: +20% damage, and scales with Decay or Burning, whichever is higher.
+- Rain of Fire and Rain of Chaos: +50% damage.
+- Curse of Agony applies 1 more Agony. Drain Life: +38% damage.
+- Voidwalker and Succubus: +50% damage. Felhunter: +25% damage. Summon Infernal: +50% damage.
+- Fel Imps and Imp Swarm: -15% damage. Plague Beast and Dark Harvest: -5% damage.
+
+### Druid
+- Hurricane: +50% damage. Thrash: +75% damage.
+- Swipe: +30% damage, plus 10% per Bleed stack on the target (up to 100%).
+- Rejuvenation: +50% damage. Tranquility deals double damage.
+
+### Interface
+- Run Master: a value too long for its row moves below the stat name instead of overlapping it.
+- The Extraction Vault widens to fit 3 and 4 slots.
+- Innkeeper sliders save however you move them. Controllers can reroll Glyphs.
+
+### Launcher
+- Downloads that stall retry, pick up where they stopped (even after closing the launcher), and switch to the download mirror.
+- If the game doesn't open within a minute on Vulkan, the launcher restarts it on DirectX 12 and remembers that.
+- Fixed: The game's server sometimes wouldn't start after the PC shut down mid-game.
+- Fixed: A full disk showed up as a connection problem.
+
+### Fixes
+- Fixed: The stage portal could spawn inside trees, rocks and rubble.
+- Fixed: Boss void zones and pools stayed on the ground after the stage ended.
+- Fixed: Run enchants still showed on item tooltips and the character panel after the run.
+- Fixed: The leaderboard note under Start Run was missing on Mythic.
+- Fixed: An error at character select.
+
 ## 0.6.3
 
 ### Hotfix 1

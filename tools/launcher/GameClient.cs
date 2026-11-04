@@ -16,6 +16,7 @@ namespace HordesOfAzeroth.Launcher
 
         readonly GameFolder m_folder;
         StreamWriter m_log;
+        Process m_started;
 
         public GameClient(GameFolder folder)
         {
@@ -177,6 +178,7 @@ namespace HordesOfAzeroth.Launcher
             m_log = new StreamWriter(m_folder.ClientLog, false, new UTF8Encoding(false)) { AutoFlush = true };
             LaunchedAt = DateTime.UtcNow;
             Process game = new Process { StartInfo = info, EnableRaisingEvents = true };
+            m_started = game;
             game.OutputDataReceived += (_, line) => WriteLog(line.Data);
             game.ErrorDataReceived += (_, line) => WriteLog(line.Data);
             game.Exited += (_, __) => CloseLog();
@@ -218,6 +220,36 @@ namespace HordesOfAzeroth.Launcher
         {
             while (IsRunning)
                 await Task.Delay(1000, cancel);
+        }
+
+        public async Task<bool> OpensWindowOrClosesWithinAsync(TimeSpan limit)
+        {
+            Process game = m_started;
+            if (game == null)
+                return true;
+            Stopwatch clock = Stopwatch.StartNew();
+            while (clock.Elapsed < limit)
+            {
+                if (game.HasExited)
+                    return true;
+                game.Refresh();
+                if (game.MainWindowHandle != IntPtr.Zero)
+                    return true;
+                await Task.Delay(500);
+            }
+            return game.HasExited;
+        }
+
+        public void StopStartedGame()
+        {
+            try
+            {
+                if (m_started != null && !m_started.HasExited)
+                    m_started.Kill(true);
+            }
+            catch (Exception e) when (e is InvalidOperationException || e is System.ComponentModel.Win32Exception)
+            {
+            }
         }
 
         static string LuaString(string text) => "\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";

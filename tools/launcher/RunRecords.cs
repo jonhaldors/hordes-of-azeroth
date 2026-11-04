@@ -22,8 +22,11 @@ namespace HordesOfAzeroth.Launcher
         static readonly Regex EndMinute = new Regex(@" at run minute ([\d.]+) ");
         static readonly Regex RunClass = new Regex(@", class (\d+)\)");
         static readonly Regex BoardChoice = new Regex(@", board (-?\d+), gear ");
-        static readonly Regex Clear = new Regex(@"clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, party (\S+))?$");
+        static readonly Regex SettleLine = new Regex(@"^(\S+ \S+) \[LevelUp\] \(acc (\d+)\) Bonk hardcore: guid (\d+), name ([^,]+), (.*)$");
+        static readonly Regex Clear = new Regex(@"clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, hardcore (\d+))?(?:, party (\S+))?$");
+        const string HardcoreStart = " starts hardcore run ";
         const int FirstMythicLevel = 10;
+        const int FreeClimbLevel = FirstMythicLevel + 39;
         const int MinClearMs = 3 * 60 * 1000;
         const int MaxSentKeys = 5000;
 
@@ -33,12 +36,14 @@ namespace HordesOfAzeroth.Launcher
             public DateTime Started;
             public string Name;
             public uint Character;
+            public bool Hardcore;
             public int LastSecond;
             public readonly List<string> Lines = new List<string>();
             public int SoloClass;
             public BoardScore Solo;
             public int GroupSize;
             public BoardScore Group;
+            public int ClimbLevel;
         }
 
         static string SentPath(GameFolder folder) => Path.Combine(folder.LauncherData, "run-sent.txt");
@@ -100,7 +105,10 @@ namespace HordesOfAzeroth.Launcher
         {
             Match match = BonkLine.Match(line);
             if (!match.Success)
+            {
+                ReadSettleLine(folder, settings, open, line, lineOffset);
                 return;
+            }
             if (!DateTime.TryParseExact(match.Groups[1].Value, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime stamp))
                 return;
             uint character = uint.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
@@ -119,18 +127,42 @@ namespace HordesOfAzeroth.Launcher
             int seconds = (int)(stamp - run.Started).TotalSeconds;
             run.LastSecond = seconds;
             run.Lines.Add(seconds.ToString(CultureInfo.InvariantCulture) + " " + kind + ": " + Anonymize(body, run.Name));
+            if (kind == "hardcore" && body.Contains(HardcoreStart, StringComparison.Ordinal))
+                run.Hardcore = true;
             if (kind == "clear")
                 NoteClear(folder, run, body);
             if (kind != "end")
                 return;
             open.Remove(character);
-            if (RunMinutes(body) >= MinRunMinutes)
+            if (run.Hardcore || RunMinutes(body) >= MinRunMinutes)
                 Save(folder, settings, run, body, true);
+        }
+
+        static void ReadSettleLine(GameFolder folder, LauncherSettings settings, Dictionary<uint, OpenRun> open, string line, long lineOffset)
+        {
+            Match match = SettleLine.Match(line);
+            if (!match.Success)
+                return;
+            if (!DateTime.TryParseExact(match.Groups[1].Value, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime stamp))
+                return;
+            uint character = uint.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+            string name = match.Groups[4].Value;
+            string body = match.Groups[5].Value;
+            if (open.TryGetValue(character, out OpenRun run))
+            {
+                open.Remove(character);
+                run.Lines.Add(Math.Max(0, (int)(stamp - run.Started).TotalSeconds).ToString(CultureInfo.InvariantCulture) + " hardcore: " + Anonymize(body, run.Name));
+                Save(folder, settings, run, run.Lines[0], false);
+                return;
+            }
+            OpenRun settled = new OpenRun { StartOffset = lineOffset, Started = stamp, Name = name, Character = character, Hardcore = true };
+            settled.Lines.Add("0 hardcore: " + Anonymize(body, name));
+            Save(folder, settings, settled, body, false);
         }
 
         static void SaveInterrupted(GameFolder folder, LauncherSettings settings, OpenRun run)
         {
-            if (run.LastSecond >= MinRunMinutes * 60 && run.Lines.Count > 0)
+            if ((run.Hardcore || run.LastSecond >= MinRunMinutes * 60) && run.Lines.Count > 0)
                 Save(folder, settings, run, run.Lines[0], false);
         }
 
@@ -142,10 +174,18 @@ namespace HordesOfAzeroth.Launcher
             int level = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
             int ms = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
             int classId = int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+            if (level >= FirstMythicLevel && ms >= MinClearMs && match.Groups[5].Value == "0" && match.Groups[8].Value != "1")
+                run.ClimbLevel = Math.Max(run.ClimbLevel, level);
             if (level < FirstMythicLevel || ms < MinClearMs || match.Groups[5].Value != "0" || match.Groups[7].Value != "1" || match.Groups[8].Value == "1")
                 return;
             BoardScore score = new BoardScore { Level = level, Ms = ms };
             string date = run.Started.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (match.Groups[9].Success)
+            {
+                if (match.Groups[4].Value == "0")
+                    Leaderboard.NoteLocalBest(folder, "hard:" + run.Character, $"local~hard~{classId}~{run.Name}~{level}~{ms}~{date}", 4, 5);
+                return;
+            }
             if (match.Groups[4].Value == "0")
             {
                 if (score.Beats(run.Solo))
@@ -156,7 +196,7 @@ namespace HordesOfAzeroth.Launcher
                 Leaderboard.NoteLocalBest(folder, "solo:" + run.Character, $"local~solo~{classId}~{run.Name}~{level}~{ms}~{date}", 4, 5);
                 return;
             }
-            List<string[]> members = match.Groups[9].Value.Split(';').Select(piece => piece.Split(':')).Where(parts => parts.Length == 6).ToList();
+            List<string[]> members = match.Groups[10].Value.Split(';').Select(piece => piece.Split(':')).Where(parts => parts.Length == 6).ToList();
             if (members.Count < 2)
                 return;
             if (score.Beats(run.Group))
@@ -167,6 +207,17 @@ namespace HordesOfAzeroth.Launcher
             string key = "group:" + members.Count + ":" + string.Join(",", members.Select(parts => parts[0]).OrderBy(guid => guid, StringComparer.Ordinal));
             string names = string.Join(",", members.Select(parts => parts[1] + ":" + parts[2]));
             Leaderboard.NoteLocalBest(folder, key, $"local~group~{members.Count}~{level}~{ms}~{date}~{names}", 3, 4);
+        }
+
+        static string HardcoreShownPath(GameFolder folder) => Path.Combine(folder.LauncherData, "hardcore-shown.txt");
+
+        static bool WasHardcoreShown(GameFolder folder, uint character) =>
+            File.Exists(HardcoreShownPath(folder)) && File.ReadLines(HardcoreShownPath(folder)).Contains(character.ToString(CultureInfo.InvariantCulture));
+
+        static void NoteHardcoreShown(GameFolder folder, uint character)
+        {
+            if (!WasHardcoreShown(folder, character))
+                File.AppendAllLines(HardcoreShownPath(folder), new[] { character.ToString(CultureInfo.InvariantCulture) });
         }
 
         static bool WasSent(GameFolder folder, string key) => File.Exists(SentPath(folder)) && File.ReadLines(SentPath(folder)).Contains(key);
@@ -201,8 +252,12 @@ namespace HordesOfAzeroth.Launcher
             string outbox = Outbox(folder);
             Directory.CreateDirectory(outbox);
             int board = ReadBoardChoice(run);
-            bool places = Places(folder, run);
-            if (!settings.SendRunData && !places)
+            bool shown = board == 1 || (board < 0 && (settings.ShowOnLeaderboard || (run.Hardcore && WasHardcoreShown(folder, run.Character))));
+            bool places = Places(folder, run) || (run.Hardcore && shown);
+            if (run.Hardcore && board == 1)
+                NoteHardcoreShown(folder, run.Character);
+            bool climbs = shown && run.ClimbLevel > FreeClimbLevel;
+            if (!settings.SendRunData && !places && !climbs)
                 return;
             string key = $"{run.Started:yyyyMMdd-HHmmss}-{run.Character}";
             string file = Path.Combine(outbox, key + ".json.gz");
@@ -221,7 +276,7 @@ namespace HordesOfAzeroth.Launcher
                 json.WriteString("os", Platform.SystemName);
                 json.WriteString("started", run.Started.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
                 json.WriteNumber("character", run.Character);
-                if (places && (board == 1 || (board < 0 && settings.ShowOnLeaderboard)))
+                if (places && shown)
                     json.WriteString("name", run.Name);
                 json.WriteBoolean("finished", finished);
                 json.WriteNumber("class", classMatch.Success ? int.Parse(classMatch.Groups[1].Value, CultureInfo.InvariantCulture) : 0);

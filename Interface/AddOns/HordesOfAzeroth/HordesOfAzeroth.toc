@@ -40,6 +40,7 @@ VanillaBonkHearth.lua
 VanillaBonkDetermination.lua
 VanillaBonkTalents.lua
 VanillaBonkDeath.lua
+VanillaBonkHardcore.lua
 VanillaBonkTutorial.lua
 VanillaBonkUpdateNotice.lua
 VanillaBonkHurt.lua
@@ -62,6 +63,7 @@ VanillaBonkRangeRing.lua
 VanillaBonkInnkeeper.lua
 VanillaBonkLeaderboard.lua
 VanillaBonkEnchanter.lua
+VanillaBonkTransmog.lua
 VanillaBonkControllerPanel.lua
 VanillaBonkControllerHud.lua
 VanillaBonkShapeshift.lua

@@ -98,6 +98,10 @@ local newCard = Card("VanillaBonkGearNewTip", L["New"])
 local wornCard = Card("VanillaBonkGearWornTip", L["Equipped"])
 local otherCard = Card("VanillaBonkGearOtherTip", L["Equipped"])
 local newTip, wornTip, otherTip = newCard.tip, wornCard.tip, otherCard.tip
+newCard.lookTag = UI.Text(newCard, 11)
+newCard.lookTag:SetPoint("TOPRIGHT", newCard, "TOPRIGHT", -14, -12)
+newCard.lookTag:SetTextColor(0.75, 0.55, 1)
+newCard.lookTag:SetText(L["Not collected"])
 
 frame.rule = UI.Text(frame, 12)
 frame.rule:SetPoint("CENTER", frame, "CENTER", 0, -150)
@@ -303,6 +307,11 @@ local function Refresh()
     else
         below, center = RefreshOneSlot()
     end
+    if offer.newLook then
+        newCard.lookTag:Show()
+    else
+        newCard.lookTag:Hide()
+    end
     frame.rule:SetText(frame.side and "" or frame.ruleText .. (ReplacesTwoHander() and frame.twoHanderText or ""))
     frame.rule:ClearAllPoints()
     frame.rule:SetPoint("TOP", frame, "CENTER", center, below - 46)
@@ -427,6 +436,7 @@ handlers["gearoffer"] = function(f)
         slot = tonumber(f[8] or ""),
         otherSlot = tonumber(f[9] or ""),
         otherReplaced = tonumber(f[10] or "") or 0,
+        newLook = f[12] == "1",
     }
     Open()
 end

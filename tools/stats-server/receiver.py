@@ -42,7 +42,13 @@ MIN_STAGE_MS = 60 * 1000
 FREE_CLIMB_LEVEL = FIRST_MYTHIC_LEVEL + 39
 MAX_BONUS_STATS = 2
 NAME_LENGTH = (2, 12)
-CLEAR_LINE = re.compile(r"^\d+ clear: hero clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, party (\S+))?$")
+CLEAR_LINE = re.compile(r"^\d+ clear: hero clears level (\d+) at run minute [\d.]+ in (\d+) ms \(.*class (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, hardcore (\d+))?(?:, party (\S+))?$")
+HARD_START = re.compile(r"^\d+ hardcore: hero starts hardcore run (\d+) \(class (\d+), (\w+), crashes (\d+)\): coop (\d+), gm (\d+), board (-?\d+), gear (\d+)(?:, modified (\d+))?(?:, hardcore \d+)?$")
+END_LINE = re.compile(r"^\d+ end: ")
+HARD_FALL = re.compile(r"^\d+ hardcore: hero falls in hardcore run (\d+)\b")
+HARD_LEFT = re.compile(r"^\d+ hardcore: hero left hardcore run (\d+): (fell|crash)$")
+HARD_MODES = ("hardcore", "ironman")
+HARD_CRASH_FLAG = 3
 FOUND_GEAR = re.compile(r"; found \[([^\]]*)\]")
 RUN_LEVEL = re.compile(r"; difficulty level (\d+)$")
 MIRROR_KEY = "board/board.txt"
@@ -200,7 +206,7 @@ def board_results(record):
         if level < FIRST_MYTHIC_LEVEL or gm != "0" or match.group(8) == "1" or ms < MYTHIC_STAGES * MIN_STAGE_MS:
             continue
         cleared.add(level)
-        if gear != "1":
+        if gear != "1" or match.group(9):
             continue
         result = {"level": level, "ms": ms, "date": date}
         if coop == "0":
@@ -209,12 +215,87 @@ def board_results(record):
                 if better(result, solo):
                     solo = result
         else:
-            members = read_party(match.group(9))
+            members = read_party(match.group(10))
             if members:
                 result["members"] = members
                 if better(result, group):
                     group = result
     return cleared, solo, group
+
+
+def hardcore_results(record):
+    lines = record["lines"]
+    started = set()
+    closed = set()
+    clears = []
+    fell = None
+    crashes = 0
+    mode = None
+    class_id = None
+    for line in lines:
+        start = HARD_START.match(line)
+        if start:
+            started.add(int(start.group(1)))
+            class_id = int(start.group(2))
+            mode = start.group(3) if start.group(3) in HARD_MODES else "hardcore"
+            crashes = max(crashes, int(start.group(4)))
+            continue
+        fall = HARD_FALL.match(line)
+        left = HARD_LEFT.match(line)
+        if fall or left:
+            run = int((fall or left).group(1))
+            closed.add(run)
+            if fall or left.group(2) == "fell":
+                fell = run if fell is None else min(fell, run)
+            continue
+        if END_LINE.match(line):
+            closed |= started
+            continue
+        clear = CLEAR_LINE.match(line)
+        if not clear or not clear.group(9):
+            continue
+        level, ms = int(clear.group(1)), int(clear.group(2))
+        if level < FIRST_MYTHIC_LEVEL or clear.group(4) != "0" or clear.group(5) != "0" or clear.group(7) != "1" or clear.group(8) == "1":
+            continue
+        if ms < MYTHIC_STAGES * MIN_STAGE_MS or not gear_is_sane(lines):
+            continue
+        clears.append((level, ms, int(clear.group(9))))
+    if not started and not closed:
+        return None
+    return {"started": started, "closed": closed, "clears": clears, "fell": fell, "crashes": crashes, "mode": mode, "class": class_id}
+
+
+def hard_status(entry):
+    runs = sorted(int(run) for run in entry["runs"])
+    gaps = bool(runs) and runs[-1] - runs[0] + 1 != len(runs)
+    closed = {int(run) for run in entry.get("closed", [])}
+    unclosed = any(run not in closed for run in runs)
+    fell = entry.get("fell")
+    if fell is not None and (entry.get("restored") or (runs and runs[-1] > fell)):
+        return "revived"
+    if fell is not None:
+        return "fell"
+    if gaps or unclosed or entry.get("restored"):
+        return "unverified"
+    return ""
+
+
+def hard_best(entry, top):
+    fell = entry.get("fell")
+    best = None
+    for level, (ms, date, run) in entry["clears"].items():
+        level = int(level)
+        if level > top or (fell is not None and run > fell):
+            continue
+        result = {"level": level, "ms": ms, "date": date}
+        if better(result, best):
+            best = result
+    return best
+
+
+def hard_order(item):
+    entry = item[1]
+    return (0 if entry["ranked"] else 1,) + rank_key(entry)
 
 
 def rank_key(entry):
@@ -241,6 +322,7 @@ class Board:
         self.solo = {}
         self.groups = {}
         self.climbs = {}
+        self.hard = {}
         self.updated = ""
         self.banned = read_banned()
         if os.path.exists(BOARD_FILE) and not fresh:
@@ -249,6 +331,7 @@ class Board:
             self.solo = saved.get("solo", {})
             self.groups = saved.get("groups", {})
             self.climbs = saved.get("climbs", {})
+            self.hard = saved.get("hard", {})
             self.updated = saved.get("updated", "")
 
     def add(self, record, write=True):
@@ -256,9 +339,15 @@ class Board:
         if game_version(record) < BOARD_GAME or install in self.banned:
             return
         cleared, solo, group = board_results(record)
+        climber = "%s:%s" % (install, record.get("character", 0))
+        hard = hardcore_results(record)
+        if hard:
+            with self.lock:
+                self.add_hardcore(climber, record, hard)
+                if not cleared:
+                    self.stamp(write)
         if not cleared:
             return
-        climber = "%s:%s" % (install, record.get("character", 0))
         with self.lock:
             climb = self.climbs.setdefault(climber, {"levels": [], "waiting": []})
             climb["levels"] = sorted(set(climb["levels"]) | cleared)
@@ -269,9 +358,54 @@ class Board:
                 key = "%s|%s" % (install, ",".join(str(guid) for guid in sorted(member["guid"] for member in group["members"])))
                 climb["waiting"].append(["group", key, group])
             self.place_climbed(climb)
-            self.updated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-            if write:
-                self.write()
+            self.stamp(write)
+
+    def stamp(self, write):
+        self.updated = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if write:
+            self.write()
+
+    def add_hardcore(self, climber, record, hard):
+        entry = self.hard.setdefault(climber, {"runs": {}, "clears": {}, "fell": None, "crashes": 0, "restored": False})
+        started = str(record.get("started", ""))
+        for run in hard["started"]:
+            seen = entry["runs"].get(str(run))
+            if seen is not None and seen != started:
+                entry["restored"] = True
+            entry["runs"].setdefault(str(run), started)
+        entry["closed"] = sorted(set(entry.get("closed", [])) | {str(run) for run in hard["closed"]}, key=int)
+        if hard["fell"] is not None:
+            entry["fell"] = hard["fell"] if entry["fell"] is None else min(entry["fell"], hard["fell"])
+        entry["crashes"] = max(entry["crashes"], hard["crashes"])
+        if hard["class"] is not None:
+            entry["class"] = hard["class"]
+        if hard["mode"]:
+            entry["mode"] = hard["mode"]
+        name = board_name(record)
+        if name:
+            entry["name"] = name
+        for level, ms, run in hard["clears"]:
+            kept = entry["clears"].get(str(level))
+            if kept is None or ms < kept[0]:
+                entry["clears"][str(level)] = [ms, started[:10], run]
+
+    def hard_entries(self):
+        shown = []
+        for key, entry in self.hard.items():
+            if entry.get("class") is None:
+                continue
+            climb = self.climbs.get(key)
+            best = hard_best(entry, climb_top(set(climb["levels"])) if climb else FREE_CLIMB_LEVEL)
+            if not best:
+                continue
+            status = hard_status(entry)
+            crashes = entry.get("crashes", 0)
+            if not status and crashes >= HARD_CRASH_FLAG:
+                status = "crashes"
+            shown.append((key, {"class": entry["class"], "name": entry.get("name", ""), "level": best["level"], "ms": best["ms"], "date": best["date"],
+                                "status": status, "crashes": crashes, "ranked": status in ("", "fell") and crashes < HARD_CRASH_FLAG}))
+        shown.sort(key=hard_order)
+        return shown
 
     def place_climbed(self, climb):
         top = climb_top(set(climb["levels"]))
@@ -292,7 +426,7 @@ class Board:
     def write(self):
         partial = BOARD_FILE + ".part"
         with open(partial, "w", encoding="utf-8") as handle:
-            json.dump({"updated": self.updated, "solo": self.solo, "groups": self.groups, "climbs": self.climbs}, handle)
+            json.dump({"updated": self.updated, "solo": self.solo, "groups": self.groups, "climbs": self.climbs, "hard": self.hard}, handle)
         os.replace(partial, BOARD_FILE)
 
     def text(self, install=None):
@@ -300,6 +434,7 @@ class Board:
             solo = dict(self.solo)
             groups = dict(self.groups)
             climbs = {key: climb for key, climb in self.climbs.items() if install and key.startswith(install + ":")}
+            hard = self.hard_entries()
             updated = self.updated
         lines = ["season~%d" % BOARD_SEASON]
         if updated:
@@ -332,7 +467,23 @@ class Board:
             if len(by_size[size]) >= BOARD_ROWS:
                 last = groups[by_size[size][BOARD_ROWS - 1]]
                 lines.append("cutoff~group~%d~%d~%d" % (size, last["level"], last["ms"]))
+        hard_class = collections.defaultdict(list)
+        for key, entry in hard:
+            hard_class[entry["class"]].append((key, entry))
+        hard_rank = {}
+        for class_id in sorted(hard_class):
+            rank = 0
+            for key, entry in hard_class[class_id][:BOARD_ROWS]:
+                rank += 1 if entry["ranked"] else 0
+                hard_rank[key] = rank if entry["ranked"] else 0
+                if entry["name"]:
+                    lines.append("hard~%d~%d~%s~%d~%d~%s~%s~%d" % (class_id, hard_rank[key], entry["name"], entry["level"], entry["ms"], entry["date"],
+                                                                 entry["status"], entry["crashes"]))
         if install:
+            for key, entry in hard:
+                if key.startswith(install + ":") and key in hard_rank:
+                    lines.append("mine~hard~%d~%d~%s~%d~%d~%s~%s~%d" % (entry["class"], hard_rank[key], entry["name"] or "-", entry["level"], entry["ms"],
+                                                                      entry["date"], entry["status"], entry["crashes"]))
             for key, entry in everyone:
                 if key.startswith(install + ":"):
                     lines.append("mine~solo~%d~%d~%d~%s~%d~%d~%s" % (entry["class"], class_rank[key], overall[key], entry["name"], entry["level"], entry["ms"], entry["date"]))

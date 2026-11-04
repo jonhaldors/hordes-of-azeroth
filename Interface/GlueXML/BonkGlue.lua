@@ -52,13 +52,35 @@ for _, class in BONK_CLASSES do
 end
 
 BONK_IRONMAN_TIP = L["This character does not share gold or unlocks with other characters."];
+BONK_HARDCORE_TIP = L["Hardcore characters share their own gold, mastery and bank. If this character dies, it leaves Hardcore and plays on as a regular character."];
 
 local NUM_STAT_ROWS = 9;
 local NUM_SPELL_ROWS = 7;
 local NUM_SPECS = 3;
 local NUM_CLASS_RACES = 8;
-local ROW_STEP = 58;
+local NUM_LIST_ROWS = 12;
+local LIST_ROW_HEIGHT = 40;
 local IRONMAN_NAME = "Ironmanmode";
+local HARDCORE_NAME = "Hardcoremode";
+local SIDE_PANEL_ALPHA = 0.75;
+local NUM_FALLEN_ROWS = 9;
+local FALLEN_ROW_HEIGHT = 40;
+local FALLEN_LIST_HEIGHT = 384;
+local FALLEN_DETAIL_TOP = 28;
+local FALLEN_DETAIL_LINE = 16;
+local FALLEN_DETAIL_PAD = 8;
+local FALLEN_DETAIL_COLUMN = 216;
+local FALLEN_DETAIL_VALUE_RIGHT = 196;
+local FALLEN_DETAIL_LEFT = 16;
+local NUM_FALLEN_DETAILS = 6;
+local SCROLL_ARROW_SPACE = 34;
+local SCROLL_THUMB_MIN = 16;
+local PLUS_BOX = "Interface\\Buttons\\UI-PlusButton-Up";
+local MINUS_BOX = "Interface\\Buttons\\UI-MinusButton-Up";
+local BADGE_LOOKS = {
+	hardcore = { icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull", disc = { 0.3, 0.04, 0.03 }, ring = { 1.0, 0.35, 0.3 } },
+	ironman = { icon = "Interface\\Icons\\INV_Shield_06", disc = { 0.05, 0.05, 0.06 }, ring = { 0.8, 0.85, 0.95 }, round = true },
+};
 local RACES_PER_ROW = 4;
 local RACE_COLUMN_STEP = 70;
 local RACE_ROW_STEP = 64;
@@ -75,6 +97,8 @@ local XML_TEXTS = {
 	BonkRaceNote = L["Cosmetic only, no racial bonuses"],
 	BonkHeroRandomizeButton = L["Randomize"],
 	BonkHeroIronmanText = L["Ironman Mode"],
+	BonkHeroHardcoreText = L["Hardcore Mode"],
+	BonkHeroFallenButton = L["Graveyard"],
 	BonkClassRacesLabel = L["Races"],
 	BonkClassStarterLabel = L["Starts with"],
 	BonkSpecNote = L["Preview only. You choose your specialization later."],
@@ -110,6 +134,15 @@ Bonk = {
 	specIndex = 1,
 	customizing = nil,
 	heroes = {},
+	heroesByClass = {},
+	heroName = nil,
+	openClass = nil,
+	listOffset = 0,
+	revealSelection = nil,
+	fallenOffset = 0,
+	fallenOpen = nil,
+	fallenReady = nil,
+	backTo = nil,
 	listLoaded = false,
 	reuseList = false,
 	creating = nil,
@@ -160,6 +193,13 @@ function AccountLogin_OnShow()
 	Bonk.creating = nil;
 	Bonk.wiping = nil;
 	Bonk.heroes = {};
+	Bonk.heroesByClass = {};
+	Bonk.heroName = nil;
+	Bonk.openClass = nil;
+	Bonk.listOffset = 0;
+	Bonk.fallenOffset = 0;
+	Bonk.fallenOpen = nil;
+	Bonk.backTo = nil;
 
 	if ( not BONK_ACCOUNT or not EULAAccepted() or not TOSAccepted() ) then
 		BonkLoginFrame:Hide();
@@ -254,7 +294,7 @@ function CharacterSelect_OnEvent()
 	if ( event == "CHARACTER_LIST_UPDATE" ) then
 		BonkHero_OnCharacterList();
 	elseif ( event == "UPDATE_SELECTED_CHARACTER" and Bonk.listLoaded ) then
-		local hero = Bonk.heroes[BONK_CLASSES[Bonk.classIndex].token];
+		local hero = BonkHero_Selected();
 		if ( hero and arg1 ~= hero.index ) then
 			Bonk.sceneDirty = true;
 		end
@@ -406,8 +446,54 @@ local function CurrentClass()
 	return BONK_CLASSES[Bonk.classIndex];
 end
 
+local NO_HEROES = {};
+
+local function HeroesOfClass(token)
+	return Bonk.heroesByClass[token] or NO_HEROES;
+end
+
+local function FindHero(name)
+	if ( not name ) then
+		return nil;
+	end
+	local wanted = strlower(name);
+	for index = 1, getn(Bonk.heroes) do
+		local hero = Bonk.heroes[index];
+		if ( strlower(hero.name) == wanted ) then
+			return hero;
+		end
+	end
+	return nil;
+end
+
+local function ClassIndexOf(token)
+	for index = 1, getn(BONK_CLASSES) do
+		if ( BONK_CLASSES[index].token == token ) then
+			return index;
+		end
+	end
+	return 1;
+end
+
 local function CurrentHero()
-	return Bonk.heroes[CurrentClass().token];
+	local hero = FindHero(Bonk.heroName);
+	if ( hero and hero.class == CurrentClass().token ) then
+		return hero;
+	end
+	return nil;
+end
+
+function BonkHero_Selected()
+	return CurrentHero();
+end
+
+function BonkHero_SelectedClass()
+	return CurrentClass();
+end
+
+local function FirstHeroName(token)
+	local first = HeroesOfClass(token)[1];
+	return first and first.name;
 end
 
 local function NewHeroRace()
@@ -419,6 +505,24 @@ local function HeroStats(hero)
 		return BONK_STATS.heroes[hero.name];
 	end
 	return nil;
+end
+
+local function HeroDetail(hero, class)
+	local stats = HeroStats(hero) or {};
+	local mastery = format("%d", stats.mastery or 0);
+	local race = BONK_RACE_DISPLAY_NAMES[hero.race] or "";
+	if ( stats.hardcore and stats.ironman ) then
+		return L("Mastery {1} {2} {3} (Hardcore Ironman)", mastery, race, class.display);
+	elseif ( stats.hardcore ) then
+		return L("Mastery {1} {2} {3} (Hardcore)", mastery, race, class.display);
+	elseif ( stats.fell and (stats.fellBest or 0) > 0 ) then
+		return L("Mastery {1} {2} {3} (Fell in Hardcore, {4})", mastery, race, class.display, BonkLevelName(stats.fellBest));
+	elseif ( stats.fell ) then
+		return L("Mastery {1} {2} {3} (Fell in Hardcore)", mastery, race, class.display);
+	elseif ( stats.ironman ) then
+		return L("Mastery {1} {2} {3} (Ironman)", mastery, race, class.display);
+	end
+	return L("Mastery {1} {2} {3}", mastery, race, class.display);
 end
 
 local function SetTexCoords(texture, coords)
@@ -445,28 +549,108 @@ local function SetClassColor(fontString, token)
 	fontString:SetTextColor(color[1], color[2], color[3]);
 end
 
-local function IsSelectable(class)
-	return not class.locked or Bonk.heroes[class.token];
+local function CharacterCount(count)
+	if ( count == 1 ) then
+		return L["1 character"];
+	end
+	return L("{1} characters", count);
 end
 
-local function PlayableCount()
-	local playable = 0;
-	for _, class in BONK_CLASSES do
-		if ( not class.locked ) then
-			playable = playable + 1;
-		end
+function BonkHero_SetBadge(badge, kind)
+	local look = BADGE_LOOKS[kind];
+	local name = badge:GetName();
+	local icon = getglobal(name.."Icon");
+	if ( look.round and SetPortraitToTexture ) then
+		SetPortraitToTexture(icon:GetName(), look.icon);
+	else
+		icon:SetTexture(look.icon);
 	end
-	return playable;
+	getglobal(name.."Disc"):SetVertexColor(look.disc[1], look.disc[2], look.disc[3]);
+	getglobal(name.."Ring"):SetVertexColor(look.ring[1], look.ring[2], look.ring[3]);
+	badge:Show();
 end
 
-local function HeroCount()
-	local count = 0;
-	for _, class in BONK_CLASSES do
-		if ( Bonk.heroes[class.token] ) then
-			count = count + 1;
-		end
+local function ShowBadges(first, second, hardcore, ironman)
+	first:Hide();
+	second:Hide();
+	if ( hardcore and ironman ) then
+		BonkHero_SetBadge(first, "ironman");
+		BonkHero_SetBadge(second, "hardcore");
+	elseif ( hardcore ) then
+		BonkHero_SetBadge(second, "hardcore");
+	elseif ( ironman ) then
+		BonkHero_SetBadge(second, "ironman");
 	end
-	return count;
+end
+
+function BonkHero_SetupLegend(legend)
+	local name = legend:GetName();
+	local hardcore = getglobal(name.."Hardcore");
+	local hardcoreText = getglobal(name.."HardcoreText");
+	local ironman = getglobal(name.."Ironman");
+	local ironmanText = getglobal(name.."IronmanText");
+	local both1 = getglobal(name.."Both1");
+	local both2 = getglobal(name.."Both2");
+	local bothText = getglobal(name.."BothText");
+	BonkHero_SetBadge(hardcore, "hardcore");
+	BonkHero_SetBadge(ironman, "ironman");
+	BonkHero_SetBadge(both1, "ironman");
+	BonkHero_SetBadge(both2, "hardcore");
+	hardcoreText:SetText(L["Hardcore"]);
+	ironmanText:SetText(L["Ironman"]);
+	bothText:SetText(L["Hardcore Ironman"]);
+	hardcore:SetPoint("LEFT", legend, "LEFT", 0, 0);
+	hardcoreText:SetPoint("LEFT", hardcore, "RIGHT", 2, 0);
+	ironman:SetPoint("LEFT", hardcoreText, "RIGHT", 12, 0);
+	ironmanText:SetPoint("LEFT", ironman, "RIGHT", 2, 0);
+	both1:Hide();
+	both2:Hide();
+	bothText:Hide();
+end
+
+function BonkScroll_Step(bar, delta)
+	if ( bar.scroll ) then
+		bar.scroll(delta);
+	end
+end
+
+local function UpdateScrollBar(bar, offset, maxOffset, visible, total)
+	if ( maxOffset <= 0 or total <= 0 ) then
+		bar:Hide();
+		return;
+	end
+	local name = bar:GetName();
+	local track = getglobal(name.."Track");
+	local thumb = getglobal(name.."Thumb");
+	local height = bar:GetHeight() - SCROLL_ARROW_SPACE;
+	local thumbHeight = math.max(SCROLL_THUMB_MIN, floor(height * visible / total));
+	if ( thumbHeight > height ) then
+		thumbHeight = height;
+	end
+	thumb:SetHeight(thumbHeight);
+	thumb:ClearAllPoints();
+	thumb:SetPoint("TOP", track, "TOP", 0, -floor((height - thumbHeight) * offset / maxOffset));
+	if ( offset > 0 ) then
+		getglobal(name.."Up"):Enable();
+	else
+		getglobal(name.."Up"):Disable();
+	end
+	if ( offset < maxOffset ) then
+		getglobal(name.."Down"):Enable();
+	else
+		getglobal(name.."Down"):Disable();
+	end
+	bar:Show();
+end
+
+local function Clamp(value, low, high)
+	if ( value > high ) then
+		value = high;
+	end
+	if ( value < low ) then
+		value = low;
+	end
+	return value;
 end
 
 function BonkHero_SetStatus(text)
@@ -474,11 +658,15 @@ function BonkHero_SetStatus(text)
 end
 
 function BonkHero_OnLoad()
-	for index, class in BONK_CLASSES do
-		local row = getglobal("BonkCharRow"..index);
-		row:SetPoint("TOPLEFT", "BonkListPanel", "TOPLEFT", 20, -50 - (index - 1) * ROW_STEP);
-		SetTexCoords(getglobal(row:GetName().."Icon"), CLASS_ICON_TCOORDS[class.token]);
+	for _, panel in { BonkInfoPanel, BonkListPanel, BonkAppearPanel } do
+		panel:SetBackdropColor(0.11, 0.1, 0.1, SIDE_PANEL_ALPHA);
+		getglobal(panel:GetName().."Fill"):SetAlpha(SIDE_PANEL_ALPHA);
 	end
+	for index = 1, NUM_LIST_ROWS do
+		getglobal("BonkCharRow"..index):SetPoint("TOPLEFT", "BonkCharList", "TOPLEFT", 0, -(index - 1) * LIST_ROW_HEIGHT);
+	end
+	BonkCharScroll.scroll = BonkHero_ScrollList;
+	BonkHero_SetupLegend(BonkListLegend);
 
 	for index = 1, NUM_STAT_ROWS do
 		getglobal("BonkHeroStat"..index):SetPoint("TOPLEFT", "BonkHeroRecordFrame", "TOPLEFT", 0, -(index - 1) * 22);
@@ -507,7 +695,7 @@ function BonkHero_OnLoad()
 end
 
 function BonkHero_UpdateCount()
-	BonkListCount:SetText(L("{1} of {2} classes created", HeroCount(), PlayableCount()));
+	BonkListCount:SetText(CharacterCount(getn(Bonk.heroes)));
 end
 
 function BonkHero_ToggleIronman()
@@ -517,6 +705,19 @@ function BonkHero_ToggleIronman()
 	else
 		PlaySound("igMainMenuOptionCheckBoxOff");
 	end
+end
+
+function BonkHero_ToggleHardcore()
+	Bonk.hardcore = BonkHeroHardcore:GetChecked() and true or nil;
+	if ( Bonk.hardcore ) then
+		PlaySound("igMainMenuOptionCheckBoxOn");
+	else
+		PlaySound("igMainMenuOptionCheckBoxOff");
+	end
+end
+
+function BonkHero_ShowHardcoreTip(owner)
+	BonkHero_ShowTip(owner, L["Hardcore Mode"], BONK_HARDCORE_TIP);
 end
 
 function BonkHero_CustomizeLabel(id)
@@ -569,6 +770,7 @@ end
 
 function BonkHero_ReadHeroes()
 	Bonk.heroes = {};
+	Bonk.heroesByClass = {};
 	local unknown;
 	for index = 1, GetNumCharacters() do
 		local name, race, class, level, zone, fileString, gender = GetCharacterInfo(index);
@@ -576,12 +778,17 @@ function BonkHero_ReadHeroes()
 		if ( name and not (classToken and fileString) ) then
 			unknown = name.." ("..tostring(class)..", "..tostring(fileString)..")";
 		end
-		if ( name and classToken and fileString and not Bonk.heroes[classToken] ) then
+		if ( name and classToken and fileString ) then
 			local sex = 1;
 			if ( gender and gender ~= 0 ) then
 				sex = 2;
 			end
-			Bonk.heroes[classToken] = { index = index, name = name, race = strupper(fileString), level = level, sex = sex };
+			local hero = { index = index, name = name, race = strupper(fileString), level = level, sex = sex, class = classToken };
+			tinsert(Bonk.heroes, hero);
+			if ( not Bonk.heroesByClass[classToken] ) then
+				Bonk.heroesByClass[classToken] = {};
+			end
+			tinsert(Bonk.heroesByClass[classToken], hero);
 		end
 	end
 	Bonk.unknownHero = unknown;
@@ -621,11 +828,36 @@ function BonkHero_LearnClassNames()
 	return true;
 end
 
-local function SelectClassToken(classToken)
-	for index, class in BONK_CLASSES do
-		if ( class.token == classToken ) then
-			Bonk.classIndex = index;
+function BonkHero_ShowHero(hero)
+	local classIndex = ClassIndexOf(hero.class);
+	if ( classIndex ~= Bonk.classIndex ) then
+		Bonk.raceIndex = 1;
+		Bonk.specIndex = 1;
+	end
+	Bonk.classIndex = classIndex;
+	Bonk.heroName = hero.name;
+	Bonk.openClass = hero.class;
+	Bonk.revealSelection = true;
+end
+
+local function StartHero()
+	local lastHero = BONK_STATS and BONK_STATS.lastHero;
+	if ( lastHero and lastHero ~= "" and FindHero(lastHero) ) then
+		return FindHero(lastHero);
+	end
+	local selected = CharacterSelect.selectedIndex;
+	for index = 1, getn(Bonk.heroes) do
+		if ( Bonk.heroes[index].index == selected ) then
+			return Bonk.heroes[index];
 		end
+	end
+	return Bonk.heroes[1];
+end
+
+local function KeepSelectionValid()
+	if ( Bonk.heroName and not CurrentHero() ) then
+		Bonk.heroName = FirstHeroName(CurrentClass().token);
+		Bonk.revealSelection = true;
 	end
 end
 
@@ -651,9 +883,9 @@ function BonkHero_OnCharacterList()
 		return;
 	end
 
-	if ( Bonk.creating and Bonk.creating.ironmanSent ) then
-		Bonk.creating.ironmanSent = nil;
-		BonkHero_CreateCharacter();
+	if ( Bonk.creating and Bonk.creating.modeSent ) then
+		Bonk.creating.modeSent = nil;
+		BonkHero_SendNextMode();
 		return;
 	end
 
@@ -663,38 +895,27 @@ function BonkHero_OnCharacterList()
 	end
 
 	if ( Bonk.creating ) then
-		local hero = Bonk.heroes[Bonk.creating.class];
-		if ( hero ) then
+		local hero = FindHero(Bonk.creating.name);
+		if ( hero and hero.class == Bonk.creating.class ) then
 			Bonk.creating = nil;
 			Bonk.customizing = nil;
 			BonkHeroNameEdit:SetText("");
+			BonkHero_ShowHero(hero);
 			BonkHero_EnterWorld(hero);
 			return;
 		end
 	end
 
 	Bonk.listLoaded = true;
-	local count = GetNumCharacters();
-	if ( not Bonk.startPicked and count > 0 ) then
+	if ( not Bonk.startPicked and getn(Bonk.heroes) > 0 ) then
 		Bonk.startPicked = true;
-		local start;
-		for index = 1, count do
-			if ( BONK_STATS and BONK_STATS.lastHero and GetCharacterInfo(index) == BONK_STATS.lastHero ) then
-				start = index;
-			end
+		local start = StartHero();
+		if ( start ) then
+			BonkHero_ShowHero(start);
 		end
-		if ( not start and CharacterSelect.selectedIndex and CharacterSelect.selectedIndex > 0 and CharacterSelect.selectedIndex <= count ) then
-			start = CharacterSelect.selectedIndex;
-		end
-		if ( not start ) then
-			start = 1;
-		end
-		local name, race, class = GetCharacterInfo(start);
-		local classToken = HeroClassToken(name, class);
-		if ( classToken ) then
-			SelectClassToken(classToken);
-		end
+		Bonk.openClass = CurrentClass().token;
 	end
+	KeepSelectionValid();
 
 	BonkHero_Refresh();
 end
@@ -716,38 +937,278 @@ function BonkHero_Refresh()
 	Bonk.sceneDirty = true;
 end
 
+local function ListEntries()
+	local entries = {};
+	for classIndex = 1, getn(BONK_CLASSES) do
+		local class = BONK_CLASSES[classIndex];
+		tinsert(entries, { kind = "class", classIndex = classIndex });
+		if ( Bonk.openClass == class.token ) then
+			local heroes = HeroesOfClass(class.token);
+			for index = 1, getn(heroes) do
+				tinsert(entries, { kind = "hero", classIndex = classIndex, hero = heroes[index] });
+			end
+			tinsert(entries, { kind = "new", classIndex = classIndex });
+		end
+	end
+	return entries;
+end
+
+local function IsEntrySelected(entry)
+	if ( entry.kind == "class" ) then
+		return Bonk.openClass == BONK_CLASSES[entry.classIndex].token;
+	elseif ( entry.kind == "hero" ) then
+		return entry.classIndex == Bonk.classIndex and entry.hero == CurrentHero();
+	end
+	return entry.classIndex == Bonk.classIndex and not CurrentHero();
+end
+
+local function RevealSelection(entries)
+	local header, chosen;
+	for index = 1, getn(entries) do
+		local entry = entries[index];
+		if ( entry.kind == "class" and entry.classIndex == Bonk.classIndex ) then
+			header = index;
+		elseif ( entry.kind ~= "class" and IsEntrySelected(entry) ) then
+			chosen = index;
+		end
+	end
+	chosen = chosen or header;
+	if ( not chosen ) then
+		return;
+	end
+	local top = chosen;
+	if ( header and chosen - header < NUM_LIST_ROWS ) then
+		top = header;
+	end
+	if ( top <= Bonk.listOffset ) then
+		Bonk.listOffset = top - 1;
+	elseif ( chosen > Bonk.listOffset + NUM_LIST_ROWS ) then
+		Bonk.listOffset = chosen - NUM_LIST_ROWS;
+	end
+end
+
+local function HeroLine(hero)
+	local stats = HeroStats(hero) or {};
+	local mastery = format("%d", stats.mastery or 0);
+	local race = BONK_RACE_DISPLAY_NAMES[hero.race] or "";
+	if ( stats.fell ) then
+		return L("Mastery {1} · fell in Hardcore", mastery);
+	end
+	return L("Mastery {1} {2}", mastery, race);
+end
+
+local function ClearRow(row)
+	local name = row:GetName();
+	getglobal(name.."Box"):Hide();
+	getglobal(name.."Icon"):Hide();
+	getglobal(name.."Sub"):Hide();
+	getglobal(name.."Count"):Hide();
+	getglobal(name.."BestLabel"):Hide();
+	getglobal(name.."Best"):Hide();
+	getglobal(name.."Badge1"):Hide();
+	getglobal(name.."Badge2"):Hide();
+end
+
+local function PlaceRowName(row, centered)
+	local text = getglobal(row:GetName().."Name");
+	text:ClearAllPoints();
+	if ( centered ) then
+		text:SetPoint("LEFT", row, "LEFT", 62, 0);
+	else
+		text:SetPoint("TOPLEFT", row, "TOPLEFT", 62, -4);
+	end
+	return text;
+end
+
+local function DrawClassRow(row, class)
+	local name = row:GetName();
+	local count = getn(HeroesOfClass(class.token));
+	local box = getglobal(name.."Box");
+	box:ClearAllPoints();
+	box:SetPoint("LEFT", row, "LEFT", 6, 0);
+	if ( Bonk.openClass == class.token ) then
+		box:SetTexture(MINUS_BOX);
+	else
+		box:SetTexture(PLUS_BOX);
+	end
+	box:Show();
+	local icon = getglobal(name.."Icon");
+	SetTexCoords(icon, CLASS_ICON_TCOORDS[class.token]);
+	icon:Show();
+	local text = PlaceRowName(row, true);
+	text:SetText(class.display);
+	local countText = getglobal(name.."Count");
+	if ( count > 0 ) then
+		icon:SetVertexColor(1.0, 1.0, 1.0);
+		SetClassColor(text, class.token);
+		countText:SetText(CharacterCount(count));
+	else
+		icon:SetVertexColor(0.5, 0.5, 0.5);
+		text:SetTextColor(0.55, 0.55, 0.55);
+		countText:SetText(L["Create"]);
+	end
+	countText:SetTextColor(0.75, 0.75, 0.75);
+	countText:Show();
+end
+
+local function DrawHeroRow(row, hero)
+	local name = row:GetName();
+	local stats = HeroStats(hero) or {};
+	ShowBadges(getglobal(name.."Badge1"), getglobal(name.."Badge2"), stats.hardcore, stats.ironman);
+	local text = PlaceRowName(row, false);
+	text:SetText(hero.name);
+	SetClassColor(text, hero.class);
+	local sub = getglobal(name.."Sub");
+	sub:SetText(HeroLine(hero));
+	sub:SetTextColor(0.8, 0.8, 0.8);
+	sub:Show();
+	getglobal(name.."BestLabel"):SetText(L["Best"]);
+	getglobal(name.."BestLabel"):Show();
+	getglobal(name.."Best"):SetText(BonkLevelName(stats.bestLevel));
+	getglobal(name.."Best"):Show();
+end
+
+local function DrawNewRow(row, class)
+	local box = getglobal(row:GetName().."Box");
+	box:ClearAllPoints();
+	box:SetPoint("LEFT", row, "LEFT", 40, 0);
+	box:SetTexture(PLUS_BOX);
+	box:Show();
+	local text = PlaceRowName(row, true);
+	text:SetText(L("New {1}", class.display));
+	text:SetTextColor(1.0, 0.82, 0);
+end
+
+local ROW_LOOKS = {
+	class = { fill = { 0.24, 0.18, 0.12, 0.95 }, edge = { 0.66, 0.53, 0.33 } },
+	hero = { fill = { 0, 0, 0, 0 }, edge = { 0, 0, 0, 0 } },
+	new = { fill = { 0, 0, 0, 0 }, edge = { 0, 0, 0, 0 } },
+};
+
+function BonkHero_StyleRow(row, look)
+	row:SetBackdropColor(look.fill[1], look.fill[2], look.fill[3], look.fill[4]);
+	row:SetBackdropBorderColor(look.edge[1], look.edge[2], look.edge[3], look.edge[4] or 1);
+end
+
+local function DrawRow(row, entry)
+	ClearRow(row);
+	local class = BONK_CLASSES[entry.classIndex];
+	if ( entry.kind == "class" ) then
+		DrawClassRow(row, class);
+	elseif ( entry.kind == "hero" ) then
+		DrawHeroRow(row, entry.hero);
+	else
+		DrawNewRow(row, class);
+	end
+	local selected = IsEntrySelected(entry);
+	if ( selected ) then
+		getglobal(row:GetName().."Selected"):Show();
+	else
+		getglobal(row:GetName().."Selected"):Hide();
+	end
+	BonkHero_StyleRow(row, ROW_LOOKS[entry.kind]);
+end
+
 function BonkHero_UpdateRoster()
-	for index, class in BONK_CLASSES do
-		local row = getglobal("BonkCharRow"..index);
-		local icon = getglobal(row:GetName().."Icon");
-		local name = getglobal(row:GetName().."Name");
-		local sub = getglobal(row:GetName().."Sub");
-		local hero = Bonk.heroes[class.token];
-		if ( index == Bonk.classIndex ) then
-			getglobal(row:GetName().."Selected"):Show();
+	local entries = ListEntries();
+	local total = getn(entries);
+	local maxOffset = math.max(0, total - NUM_LIST_ROWS);
+	if ( Bonk.revealSelection ) then
+		Bonk.revealSelection = nil;
+		RevealSelection(entries);
+	end
+	Bonk.listOffset = Clamp(Bonk.listOffset, 0, maxOffset);
+	for slot = 1, NUM_LIST_ROWS do
+		local row = getglobal("BonkCharRow"..slot);
+		local entry = entries[Bonk.listOffset + slot];
+		row.entry = entry;
+		if ( entry ) then
+			DrawRow(row, entry);
+			row:Show();
 		else
-			getglobal(row:GetName().."Selected"):Hide();
+			row:Hide();
 		end
-		if ( hero ) then
-			local stats = HeroStats(hero) or {};
-			icon:SetVertexColor(1.0, 1.0, 1.0);
-			name:SetText(hero.name);
-			name:SetTextColor(1.0, 0.82, 0);
-			sub:SetText(L("Mastery {1} {2} {3}", format("%d", stats.mastery or 0), BONK_RACE_DISPLAY_NAMES[hero.race] or "", class.display));
-			sub:SetTextColor(1.0, 1.0, 1.0);
-		elseif ( class.locked ) then
-			icon:SetVertexColor(0.25, 0.25, 0.25);
-			name:SetText(class.display);
-			name:SetTextColor(0.4, 0.4, 0.4);
-			sub:SetText(L["Locked"]);
-			sub:SetTextColor(0.4, 0.4, 0.4);
-		else
-			icon:SetVertexColor(0.4, 0.4, 0.4);
-			name:SetText(class.display);
-			name:SetTextColor(0.55, 0.55, 0.55);
-			sub:SetText(L("Create a {1}", class.display));
-			sub:SetTextColor(0.5, 0.5, 0.5);
-		end
+	end
+	UpdateScrollBar(BonkCharScroll, Bonk.listOffset, maxOffset, NUM_LIST_ROWS, total);
+	BonkHero_UpdateFallen();
+end
+
+function BonkHero_ScrollList(delta)
+	Bonk.listOffset = Bonk.listOffset - delta;
+	BonkHero_UpdateRoster();
+end
+
+local function Busy()
+	return Bonk.creating or Bonk.wiping or Bonk.customizing;
+end
+
+function BonkHero_Choose(classIndex, heroName)
+	if ( Busy() ) then
+		return;
+	end
+	if ( classIndex ~= Bonk.classIndex ) then
+		Bonk.raceIndex = 1;
+		Bonk.specIndex = 1;
+	end
+	Bonk.classIndex = classIndex;
+	Bonk.heroName = heroName;
+	Bonk.openClass = BONK_CLASSES[classIndex].token;
+	Bonk.revealSelection = true;
+	BonkHero_SetStatus("");
+	BonkHero_Refresh();
+end
+
+function BonkHero_ClickClass(classIndex)
+	if ( Busy() ) then
+		return;
+	end
+	local class = BONK_CLASSES[classIndex];
+	if ( Bonk.openClass == class.token ) then
+		PlaySound("igMainMenuOptionCheckBoxOff");
+		Bonk.openClass = nil;
+		BonkHero_UpdateRoster();
+		return;
+	end
+	PlaySound("gsCharacterCreationClass");
+	if ( classIndex == Bonk.classIndex ) then
+		Bonk.openClass = class.token;
+		Bonk.revealSelection = true;
+		BonkHero_UpdateRoster();
+		return;
+	end
+	BonkHero_Choose(classIndex, FirstHeroName(class.token));
+end
+
+function BonkHero_NewHero(classIndex)
+	if ( Busy() ) then
+		return;
+	end
+	local current = CurrentHero();
+	local back = { classIndex = Bonk.classIndex, heroName = current and current.name };
+	BonkHero_Choose(classIndex, nil);
+	BonkHero_StartCustomizing();
+	Bonk.backTo = back;
+end
+
+function BonkHero_ClickRow(slot)
+	local entry = getglobal("BonkCharRow"..slot).entry;
+	if ( not entry ) then
+		return;
+	end
+	if ( entry.kind == "class" ) then
+		BonkHero_ClickClass(entry.classIndex);
+	elseif ( entry.kind == "hero" ) then
+		PlaySound("gsCharacterCreationClass");
+		BonkHero_Choose(entry.classIndex, entry.hero.name);
+	else
+		BonkHero_NewHero(entry.classIndex);
+	end
+end
+
+function BonkHero_DoubleClickRow(slot)
+	local entry = getglobal("BonkCharRow"..slot).entry;
+	if ( entry and entry.kind == "hero" and entry.hero == CurrentHero() ) then
+		BonkHero_Play();
 	end
 end
 
@@ -767,6 +1228,8 @@ function BonkHero_UpdateControls()
 		BonkHeroNameEdit:Show();
 		BonkHeroQuitButton:Hide();
 		BonkHeroWipeButton:Hide();
+		BonkHeroFallenButton:Hide();
+		BonkFallenPanel:Hide();
 		BonkHeroBackButton:Show();
 		BonkHeroSubtitle:SetText(L("Create your {1}", CurrentClass().display));
 		BonkHeroPreview:SetText("");
@@ -778,6 +1241,7 @@ function BonkHero_UpdateControls()
 		BonkHeroBackButton:Hide();
 		BonkHeroQuitButton:Show();
 		BonkHeroWipeButton:Show();
+		BonkHero_UpdateFallen();
 		BonkHeroSubtitle:SetText(L["Choose your character"]);
 		if ( hero ) then
 			BonkHeroPreview:SetText("");
@@ -887,14 +1351,7 @@ function BonkHero_UpdateInfo()
 		BonkInfoPanelTitle:SetText(L["Stats"]);
 		BonkHeroName:SetText(hero.name);
 		SetClassColor(BonkHeroName, class.token);
-		local stats = HeroStats(hero) or {};
-		local detail;
-		if ( stats.ironman ) then
-			detail = L("Mastery {1} {2} {3} (Ironman)", format("%d", stats.mastery or 0), BONK_RACE_DISPLAY_NAMES[hero.race] or "", class.display);
-		else
-			detail = L("Mastery {1} {2} {3}", format("%d", stats.mastery or 0), BONK_RACE_DISPLAY_NAMES[hero.race] or "", class.display);
-		end
-		BonkHeroDetail:SetText(detail);
+		BonkHeroDetail:SetText(HeroDetail(hero, class));
 		BonkHeroRetireButton:Show();
 		BonkClassFrame:Hide();
 		BonkHeroRecordFrame:Show();
@@ -921,6 +1378,7 @@ end
 
 function BonkHero_UpdateAppearance(class)
 	BonkHeroIronman:SetChecked(Flag(Bonk.ironman));
+	BonkHeroHardcore:SetChecked(Flag(Bonk.hardcore));
 	local raceCount = getn(class.races);
 	local rows = ceil(raceCount / RACES_PER_ROW);
 	for index = 1, 8 do
@@ -996,7 +1454,7 @@ function BonkHero_UpdateRecord(hero)
 		SetStatRow(7, L["Gear"], "-");
 	end
 	SetStatRow(8, L["Gear value"], FormatGold(stats.gearValue));
-	if ( stats.ironman ) then
+	if ( stats.ironman or stats.hardcore ) then
 		SetStatRow(9, L["Gold"], FormatGold(stats.gold));
 		BonkHeroStat9:Show();
 	else
@@ -1083,24 +1541,6 @@ function BonkHero_UpdateCustomization()
 	end
 end
 
-function BonkHero_SelectClass(index)
-	local class = BONK_CLASSES[index];
-	if ( not IsSelectable(class) ) then
-		PlaySound("igMainMenuOptionCheckBoxOff");
-		BonkHero_SetStatus(L("The {1} is not available yet.", class.display));
-		BonkHero_UpdateRoster();
-		return;
-	end
-	PlaySound("gsCharacterCreationClass");
-	if ( not Bonk.creating and not Bonk.wiping and not Bonk.customizing and index ~= Bonk.classIndex ) then
-		Bonk.classIndex = index;
-		Bonk.raceIndex = 1;
-		Bonk.specIndex = 1;
-		BonkHero_SetStatus("");
-	end
-	BonkHero_Refresh();
-end
-
 function BonkHero_SelectSpec(index)
 	PlaySound("igMainMenuOptionCheckBoxOn");
 	Bonk.specIndex = index;
@@ -1137,6 +1577,7 @@ function BonkHero_CreateCharacter()
 	local name = BonkHeroNameEdit:GetText();
 	if ( Bonk.creating ) then
 		Bonk.createdClasses[strlower(name)] = Bonk.creating.class;
+		Bonk.creating.name = name;
 	end
 	CreateCharacter(name);
 end
@@ -1150,10 +1591,27 @@ end
 
 function BonkHero_StartCustomizing()
 	PlaySound("gsCharacterSelectionCreateNew");
+	Bonk.backTo = nil;
 	Bonk.customizing = true;
 	BonkHero_SetStatus("");
 	BonkHero_Refresh();
 	BonkHeroNameEdit:SetFocus();
+end
+
+local function ReturnFromNewHero()
+	local back = Bonk.backTo;
+	Bonk.backTo = nil;
+	if ( not back or not FindHero(back.heroName) ) then
+		return;
+	end
+	if ( back.classIndex ~= Bonk.classIndex ) then
+		Bonk.raceIndex = 1;
+		Bonk.specIndex = 1;
+	end
+	Bonk.classIndex = back.classIndex;
+	Bonk.heroName = back.heroName;
+	Bonk.openClass = BONK_CLASSES[back.classIndex].token;
+	Bonk.revealSelection = true;
 end
 
 function BonkHero_Back()
@@ -1162,6 +1620,7 @@ function BonkHero_Back()
 	end
 	PlaySound("gsCharacterCreationCancel");
 	Bonk.customizing = nil;
+	ReturnFromNewHero();
 	BonkHero_SetStatus("");
 	BonkHero_Refresh();
 end
@@ -1194,12 +1653,272 @@ function BonkHero_Play()
 	BonkHeroNameEdit:ClearFocus();
 	Bonk.creating = { class = CurrentClass().token };
 	BonkHero_SetStatus(L["Creating your character..."]);
+	Bonk.creating.modes = {};
+	if ( Bonk.hardcore ) then
+		tinsert(Bonk.creating.modes, HARDCORE_NAME);
+	end
 	if ( Bonk.ironman ) then
-		Bonk.creating.ironmanSent = true;
-		CreateCharacter(IRONMAN_NAME);
+		tinsert(Bonk.creating.modes, IRONMAN_NAME);
+	end
+	BonkHero_SendNextMode();
+end
+
+function BonkHero_SendNextMode()
+	local mode = Bonk.creating.modes and tremove(Bonk.creating.modes, 1);
+	if ( mode ) then
+		Bonk.creating.modeSent = true;
+		CreateCharacter(mode);
 		return;
 	end
 	BonkHero_CreateCharacter();
+end
+
+local function FallenRecords()
+	return BONK_STATS and BONK_STATS.fallen or {};
+end
+
+local function FallenClass(record)
+	for index = 1, getn(BONK_CLASSES) do
+		if ( BONK_CLASSES[index].id == record.class ) then
+			return BONK_CLASSES[index];
+		end
+	end
+	return nil;
+end
+
+local function ServerName(name)
+	if ( not name or name == "" ) then
+		return L["unknown"];
+	end
+	return L[name];
+end
+
+local function FallenDate(diedAt)
+	diedAt = tonumber(diedAt);
+	if ( not date or not diedAt or diedAt <= 0 ) then
+		return "";
+	end
+	return date("%b %d", diedAt) or "";
+end
+
+local function FallenDetails(record)
+	local details = {
+		{ L["Best level"], BonkLevelName(record.bestLevel) },
+		{ L["Mastery"], record.mastery or 0 },
+		{ L["Runs"], record.runs or 0 },
+		{ L["Enemies slain"], record.kills or 0 },
+		{ L["Time played"], FormatPlayed(record.played) },
+	};
+	if ( (record.crashes or 0) > 0 ) then
+		tinsert(details, { L["Forgiven crashes"], record.crashes });
+	end
+	return details;
+end
+
+local function FallenDetailHeight(record)
+	return FALLEN_DETAIL_TOP + ceil(getn(FallenDetails(record)) / 2) * FALLEN_DETAIL_LINE + FALLEN_DETAIL_PAD;
+end
+
+local function FallenRowHeight(fallen, index)
+	if ( index == Bonk.fallenOpen ) then
+		return FALLEN_ROW_HEIGHT + FallenDetailHeight(fallen[index]);
+	end
+	return FALLEN_ROW_HEIGHT;
+end
+
+local function FallenHeightBetween(fallen, first, last)
+	local height = 0;
+	for index = first, last do
+		height = height + FallenRowHeight(fallen, index);
+	end
+	return height;
+end
+
+local function FallenMaxOffset(fallen)
+	local skipped = getn(fallen);
+	local height = 0;
+	while ( skipped > 0 ) do
+		local rowHeight = FallenRowHeight(fallen, skipped);
+		if ( height + rowHeight > FALLEN_LIST_HEIGHT or getn(fallen) - skipped + 1 > NUM_FALLEN_ROWS ) then
+			return skipped;
+		end
+		height = height + rowHeight;
+		skipped = skipped - 1;
+	end
+	return 0;
+end
+
+local function DrawFallenRow(row, record, open)
+	local name = row:GetName();
+	BonkHero_StyleRow(row, ROW_LOOKS.hero);
+	local arrow = getglobal(name.."Arrow");
+	if ( open ) then
+		arrow:SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0);
+		getglobal(name.."Selected"):Show();
+	else
+		arrow:SetTexCoord(0, 1, 0, 1);
+		getglobal(name.."Selected"):Hide();
+	end
+	local class = FallenClass(record);
+	local icon = getglobal(name.."Icon");
+	local text = getglobal(name.."Name");
+	text:SetText(record.name or "");
+	if ( class ) then
+		SetTexCoords(icon, CLASS_ICON_TCOORDS[class.token]);
+		icon:Show();
+		SetClassColor(text, class.token);
+		getglobal(name.."Sub"):SetText(L("Level {1} {2}", record.level or 0, class.display));
+	else
+		icon:Hide();
+		text:SetTextColor(1.0, 0.82, 0);
+		getglobal(name.."Sub"):SetText(L("Level {1}", record.level or 0));
+	end
+	getglobal(name.."Sub"):SetTextColor(0.8, 0.8, 0.8);
+	ShowBadges(getglobal(name.."Badge1"), getglobal(name.."Badge2"), true, record.ironman);
+	getglobal(name.."Level"):SetText(BonkLevelName(record.bestLevel));
+	getglobal(name.."Date"):SetText(FallenDate(record.diedAt));
+	getglobal(name.."Date"):SetTextColor(0.7, 0.7, 0.7);
+end
+
+local function ShowFallenDetail(record, top)
+	local killer = format("|cffff5040%s|r", ServerName(record.killer));
+	if ( record.killer == "" and record.rested ) then
+		BonkFallenDetailSlain:SetText(L("Fled the fight in {1}. Laid to rest.", ServerName(record.map)));
+	elseif ( record.killer == "" ) then
+		BonkFallenDetailSlain:SetText(L("Fled the fight in {1}.", ServerName(record.map)));
+	elseif ( record.rested ) then
+		BonkFallenDetailSlain:SetText(L("Slain by {1} in {2}. Laid to rest.", killer, ServerName(record.map)));
+	else
+		BonkFallenDetailSlain:SetText(L("Slain by {1} in {2}.", killer, ServerName(record.map)));
+	end
+	local details = FallenDetails(record);
+	for index = 1, NUM_FALLEN_DETAILS do
+		local label = getglobal("BonkFallenDetailLabel"..index);
+		local value = getglobal("BonkFallenDetailValue"..index);
+		local detail = details[index];
+		if ( detail ) then
+			local x = FALLEN_DETAIL_LEFT + mod(index - 1, 2) * FALLEN_DETAIL_COLUMN;
+			local y = -FALLEN_DETAIL_TOP - floor((index - 1) / 2) * FALLEN_DETAIL_LINE;
+			label:ClearAllPoints();
+			label:SetPoint("TOPLEFT", BonkFallenDetail, "TOPLEFT", x, y);
+			label:SetText(detail[1]);
+			label:Show();
+			value:ClearAllPoints();
+			value:SetPoint("TOPRIGHT", BonkFallenDetail, "TOPLEFT", x + FALLEN_DETAIL_VALUE_RIGHT, y);
+			value:SetText(detail[2]);
+			value:Show();
+		else
+			label:Hide();
+			value:Hide();
+		end
+	end
+	BonkFallenDetail:SetHeight(FallenDetailHeight(record));
+	BonkFallenDetail:ClearAllPoints();
+	BonkFallenDetail:SetPoint("TOPLEFT", BonkFallenList, "TOPLEFT", 0, -top);
+	BonkFallenDetail:Show();
+end
+
+function BonkHero_UpdateFallenList()
+	local fallen = FallenRecords();
+	local count = getn(fallen);
+	if ( Bonk.fallenOpen and not fallen[Bonk.fallenOpen] ) then
+		Bonk.fallenOpen = nil;
+	end
+	local maxOffset = FallenMaxOffset(fallen);
+	Bonk.fallenOffset = Clamp(Bonk.fallenOffset, 0, maxOffset);
+	BonkFallenDetail:Hide();
+	local top = 0;
+	local slot = 0;
+	local index = Bonk.fallenOffset + 1;
+	while ( slot < NUM_FALLEN_ROWS and fallen[index] and top + FallenRowHeight(fallen, index) <= FALLEN_LIST_HEIGHT ) do
+		slot = slot + 1;
+		local row = getglobal("BonkFallenRow"..slot);
+		local open = index == Bonk.fallenOpen;
+		row.record = index;
+		DrawFallenRow(row, fallen[index], open);
+		row:ClearAllPoints();
+		row:SetPoint("TOPLEFT", BonkFallenList, "TOPLEFT", 0, -top);
+		row:Show();
+		top = top + FALLEN_ROW_HEIGHT;
+		if ( open ) then
+			ShowFallenDetail(fallen[index], top);
+			top = top + FallenDetailHeight(fallen[index]);
+		end
+		index = index + 1;
+	end
+	for hidden = slot + 1, NUM_FALLEN_ROWS do
+		local row = getglobal("BonkFallenRow"..hidden);
+		row.record = nil;
+		row:Hide();
+	end
+	UpdateScrollBar(BonkFallenScroll, Bonk.fallenOffset, maxOffset, slot, count);
+end
+
+function BonkHero_ScrollFallen(delta)
+	Bonk.fallenOffset = Bonk.fallenOffset - delta;
+	BonkHero_UpdateFallenList();
+end
+
+function BonkHero_ToggleFallenRow(slot)
+	local index = getglobal("BonkFallenRow"..slot).record;
+	if ( not index ) then
+		return;
+	end
+	if ( Bonk.fallenOpen == index ) then
+		PlaySound("igMainMenuOptionCheckBoxOff");
+		Bonk.fallenOpen = nil;
+	else
+		PlaySound("igMainMenuOptionCheckBoxOn");
+		Bonk.fallenOpen = index;
+		local fallen = FallenRecords();
+		while ( Bonk.fallenOffset < index - 1 and FallenHeightBetween(fallen, Bonk.fallenOffset + 1, index) > FALLEN_LIST_HEIGHT ) do
+			Bonk.fallenOffset = Bonk.fallenOffset + 1;
+		end
+	end
+	BonkHero_UpdateFallenList();
+end
+
+local function PrepareFallenPanel()
+	if ( Bonk.fallenReady ) then
+		return;
+	end
+	Bonk.fallenReady = true;
+	BonkFallenScroll.scroll = BonkHero_ScrollFallen;
+	BonkHero_SetupLegend(BonkFallenLegend);
+	BonkFallenPanelTitle:SetText(L["Graveyard"]);
+	BonkFallenCloseButton:SetText(L["Close"]);
+	BonkFallenEmpty:SetText(L["No character has fallen in Hardcore yet."]);
+	BonkFallenHint:SetText(L["Click a name to see its record."]);
+	BonkFallenHint:SetTextColor(0.75, 0.75, 0.75);
+end
+
+function BonkHero_UpdateFallen()
+	if ( not BonkFallenPanel ) then
+		return;
+	end
+	PrepareFallenPanel();
+	local count = getn(FallenRecords());
+	if ( count > 0 ) then
+		BonkHeroFallenButton:SetText(L("Graveyard ({1})", count));
+		BonkHeroFallenButton:Show();
+		BonkFallenEmpty:Hide();
+		BonkFallenHint:Show();
+	else
+		BonkHeroFallenButton:Hide();
+		BonkFallenPanel:Hide();
+		BonkFallenEmpty:Show();
+		BonkFallenHint:Hide();
+	end
+	BonkHero_UpdateFallenList();
+end
+
+function BonkHero_ToggleFallen()
+	if ( BonkFallenPanel:IsShown() ) then
+		BonkFallenPanel:Hide();
+		return;
+	end
+	BonkHero_UpdateFallen();
+	BonkFallenPanel:Show();
 end
 
 function BonkHero_Retire()
@@ -1245,6 +1964,11 @@ function BonkHero_FinishWipe()
 	Bonk.classIndex = 1;
 	Bonk.raceIndex = 1;
 	Bonk.specIndex = 1;
+	Bonk.heroName = nil;
+	Bonk.openClass = BONK_CLASSES[1].token;
+	Bonk.listOffset = 0;
+	Bonk.fallenOffset = 0;
+	Bonk.fallenOpen = nil;
 	BonkHeroNameEdit:SetText("");
 	BonkHero_Refresh();
 	BonkHero_SetStatus(L["|cff20ff20Account wiped.|r Every character and all progress are gone."]);
@@ -1299,18 +2023,43 @@ function BonkHero_Quit()
 end
 
 function BonkHero_StepClass(direction)
-	if ( Bonk.customizing ) then
+	if ( Busy() ) then
 		return;
 	end
 	local count = getn(BONK_CLASSES);
-	local index = Bonk.classIndex;
-	for step = 1, count do
-		index = mod(index - 1 + direction + count, count) + 1;
-		if ( IsSelectable(BONK_CLASSES[index]) ) then
-			BonkHero_SelectClass(index);
-			return;
+	local index = mod(Bonk.classIndex - 1 + direction + count, count) + 1;
+	PlaySound("gsCharacterCreationClass");
+	BonkHero_Choose(index, FirstHeroName(BONK_CLASSES[index].token));
+end
+
+local function RowStops()
+	local stops = {};
+	for classIndex = 1, getn(BONK_CLASSES) do
+		local heroes = HeroesOfClass(BONK_CLASSES[classIndex].token);
+		for index = 1, getn(heroes) do
+			tinsert(stops, { classIndex = classIndex, hero = heroes[index] });
+		end
+		tinsert(stops, { classIndex = classIndex });
+	end
+	return stops;
+end
+
+function BonkHero_StepRow(direction)
+	if ( Busy() ) then
+		return;
+	end
+	local stops = RowStops();
+	local count = getn(stops);
+	local current = CurrentHero();
+	local position = 1;
+	for index = 1, count do
+		if ( stops[index].classIndex == Bonk.classIndex and stops[index].hero == current ) then
+			position = index;
 		end
 	end
+	local stop = stops[mod(position - 1 + direction + count, count) + 1];
+	PlaySound("gsCharacterCreationClass");
+	BonkHero_Choose(stop.classIndex, stop.hero and stop.hero.name);
 end
 
 function BonkHero_StepRace(direction)
@@ -1331,13 +2080,17 @@ function BonkHero_OnKeyDown()
 	elseif ( arg1 == "ENTER" ) then
 		BonkHero_Play();
 	elseif ( arg1 == "UP" ) then
-		BonkHero_StepClass(-1);
+		BonkHero_StepRow(-1);
 	elseif ( arg1 == "DOWN" ) then
-		BonkHero_StepClass(1);
-	elseif ( arg1 == "LEFT" ) then
+		BonkHero_StepRow(1);
+	elseif ( arg1 == "LEFT" and Bonk.customizing ) then
 		BonkHero_StepRace(-1);
-	elseif ( arg1 == "RIGHT" ) then
+	elseif ( arg1 == "RIGHT" and Bonk.customizing ) then
 		BonkHero_StepRace(1);
+	elseif ( arg1 == "LEFT" ) then
+		BonkHero_StepClass(-1);
+	elseif ( arg1 == "RIGHT" ) then
+		BonkHero_StepClass(1);
 	elseif ( arg1 == "PRINTSCREEN" ) then
 		Screenshot();
 	end

@@ -12,16 +12,19 @@ namespace HordesOfAzeroth.Launcher
         const string DatabaseFile = "characters and accounts.sql";
         const string SavedFolder = "saved";
         const string BindingsFolder = "bindings";
+        const string InstallIdFile = "install id.txt";
 
         readonly GameFolder m_folder;
         readonly LocalServer m_server;
         readonly Installer m_installer;
+        readonly LauncherSettings m_settings;
 
-        public SaveBackups(GameFolder folder, LocalServer server, Installer installer)
+        public SaveBackups(GameFolder folder, LocalServer server, Installer installer, LauncherSettings settings)
         {
             m_folder = folder;
             m_server = server;
             m_installer = installer;
+            m_settings = settings;
         }
 
         public string Folder => Path.Combine(m_folder.LauncherData, "save backups");
@@ -41,6 +44,7 @@ namespace HordesOfAzeroth.Launcher
                 CopyIfPresent(Path.Combine(m_folder.LauncherData, Accounts.FileName), Path.Combine(work, Accounts.FileName));
                 CopyFolderIfPresent(m_folder.ClientSaved, Path.Combine(work, SavedFolder));
                 CopyFolderIfPresent(m_folder.ClientBindings, Path.Combine(work, BindingsFolder));
+                File.WriteAllText(Path.Combine(work, InstallIdFile), m_settings.InstallId);
                 Directory.CreateDirectory(Folder);
                 string zip = Path.Combine(Folder, $"Hordes of Azeroth save {DateTime.Now:yyyy-MM-dd HHmmss}{label}.zip");
                 ZipFile.CreateFromDirectory(work, zip);
@@ -68,11 +72,24 @@ namespace HordesOfAzeroth.Launcher
                 CopyIfPresent(Path.Combine(work, Accounts.FileName), Path.Combine(m_folder.LauncherData, Accounts.FileName));
                 ReplaceFolderIfPresent(Path.Combine(work, SavedFolder), m_folder.ClientSaved);
                 ReplaceFolderIfPresent(Path.Combine(work, BindingsFolder), m_folder.ClientBindings);
+                AdoptInstallId(Path.Combine(work, InstallIdFile));
             }
             finally
             {
                 Folders.TryDelete(work);
             }
+        }
+
+        void AdoptInstallId(string file)
+        {
+            if (!File.Exists(file))
+                return;
+            string id = File.ReadAllText(file).Trim();
+            if (id.Length != 32 || !id.All(Uri.IsHexDigit) || id == m_settings.InstallId)
+                return;
+            m_settings.InstallId = id;
+            m_settings.Save();
+            LauncherLog.Write(m_folder, "Restored a save from another install; runs now count toward its leaderboard climb.");
         }
 
         string NewWorkFolder()

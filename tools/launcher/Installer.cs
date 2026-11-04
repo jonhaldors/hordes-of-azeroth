@@ -454,35 +454,93 @@ namespace HordesOfAzeroth.Launcher
         public async Task<string> FetchAsync(string url, string sha256, Action<long> report, CancellationToken cancel)
         {
             Directory.CreateDirectory(Downloads);
+            DeleteOldPartials();
             string name = Path.GetFileName(new Uri(url).AbsolutePath);
             string target = Path.Combine(Downloads, name);
-            if (File.Exists(target) && Sha256(target) == sha256)
-                return target;
+            if (File.Exists(target))
+            {
+                if (Sha256(target) == sha256)
+                    return target;
+                File.Delete(target);
+            }
 
             string local = UpdateCheck.LocalSource == null ? null : Path.Combine(UpdateCheck.LocalSource, name);
             if (local != null && File.Exists(local))
             {
                 File.Copy(local, target, true);
+                return CheckedDownload(target, name, sha256);
             }
-            else
+
+            string partial = PartialPath(name, sha256);
+            DeleteOtherPartials(name, partial);
+            bool resuming = File.Exists(partial);
+            await DownloadToTargetAsync(url, name, partial, target, report, cancel);
+            if (resuming && Sha256(target) != sha256)
             {
-                try
-                {
-                    await Mirror.TryEachAsync(url, cancel, source => Web.DownloadAsync(source, target, report, cancel));
-                }
-                catch (Exception e) when (Web.IsProblem(e) && !cancel.IsCancellationRequested)
-                {
-                    if (File.Exists(target))
-                        File.Delete(target);
-                    throw new InvalidOperationException(Loc.T("Couldn't download {0} ({1}). Check your connection and try again.", name, e.Message.TrimEnd('.')));
-                }
+                File.Delete(target);
+                await DownloadToTargetAsync(url, name, partial, target, report, cancel);
             }
+            return CheckedDownload(target, name, sha256);
+        }
+
+        async Task DownloadToTargetAsync(string url, string name, string partial, string target, Action<long> report, CancellationToken cancel)
+        {
+            try
+            {
+                await Mirror.TryEachAsync(url, cancel, source => Web.DownloadAsync(source, partial, report, cancel));
+            }
+            catch (Exception e) when (Web.IsProblem(e) && !cancel.IsCancellationRequested)
+            {
+                throw new InvalidOperationException(Loc.T("Couldn't download {0} ({1}). Check your connection and try again.", name, e.Message.TrimEnd('.')));
+            }
+            try
+            {
+                File.Move(partial, target, true);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                throw new InvalidOperationException(Loc.T("Couldn't write {0} ({1}).", name, e.Message.TrimEnd('.')), e);
+            }
+        }
+
+        static string CheckedDownload(string target, string name, string sha256)
+        {
             if (Sha256(target) != sha256)
             {
                 File.Delete(target);
                 throw new InvalidDataException(Loc.T("{0} didn't download correctly. Try again.", name));
             }
             return target;
+        }
+
+        string PartialPath(string name, string sha256) =>
+            Path.Combine(Downloads, name + "." + sha256.Substring(0, Math.Min(16, sha256.Length)) + ".part");
+
+        void DeleteOtherPartials(string name, string keep)
+        {
+            foreach (string stale in Directory.GetFiles(Downloads, name + ".*.part"))
+                if (!string.Equals(stale, keep, StringComparison.OrdinalIgnoreCase))
+                    TryDelete(stale);
+        }
+
+        static readonly TimeSpan PartialKeepTime = TimeSpan.FromDays(14);
+
+        void DeleteOldPartials()
+        {
+            foreach (string partial in Directory.GetFiles(Downloads, "*.part"))
+                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(partial) > PartialKeepTime)
+                    TryDelete(partial);
+        }
+
+        static void TryDelete(string path)
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+            }
         }
 
         static string Sha256(string path)

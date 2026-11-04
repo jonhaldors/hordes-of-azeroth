@@ -121,6 +121,24 @@ local function Check(setting, column, advance)
     return check
 end
 
+local function SaveSlider(slider)
+    if not slider.changed then
+        return
+    end
+    slider.changed = nil
+    local value = math.floor(slider:GetValue() + 0.5)
+    if value ~= UI.SettingValue(slider.setting) then
+        PlaySound("igMainMenuOptionCheckBoxOn")
+        UI.ChangeSetting(slider.setting, value)
+    end
+end
+
+local function SaveSliders()
+    for _, slider in ipairs(window.sliders) do
+        SaveSlider(slider)
+    end
+end
+
 local function SettingSlider(setting)
     local slider = CreateFrame("Slider", "VanillaBonkInnkeeperSlider" .. setting.key, window, "OptionsSliderTemplate")
     slider:SetWidth(CONTENT_WIDTH - 70)
@@ -135,13 +153,12 @@ local function SettingSlider(setting)
     slider:SetScript("OnValueChanged", function()
         local describe = this.setting.valueText or UI.OtherEffectsText
         this.value:SetText(describe(this:GetValue()))
+        if not window.refreshing then
+            this.changed = true
+        end
     end)
     slider:SetScript("OnMouseUp", function()
-        local value = math.floor(this:GetValue() + 0.5)
-        if value ~= UI.SettingValue(this.setting) then
-            PlaySound("igMainMenuOptionCheckBoxOn")
-            UI.ChangeSetting(this.setting, value)
-        end
+        SaveSlider(this)
     end)
     slider:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
@@ -289,9 +306,13 @@ local function Refresh()
     for _, check in ipairs(window.checks) do
         check:SetChecked(UI.SettingValue(check.setting))
     end
+    window.refreshing = true
     for _, slider in ipairs(window.sliders) do
-        slider:SetValue(UI.SettingValue(slider.setting))
+        if not slider.changed then
+            slider:SetValue(UI.SettingValue(slider.setting))
+        end
     end
+    window.refreshing = nil
     local mode = UI.HealthBarMode()
     for _, radio in ipairs(window.radios) do
         radio:SetChecked(radio.mode == mode)
@@ -313,6 +334,7 @@ window:SetScript("OnShow", function()
 end)
 
 window:SetScript("OnHide", function()
+    SaveSliders()
     PlaySound("igCharacterInfoClose")
     StopPadListen()
     if this.fromGossip then

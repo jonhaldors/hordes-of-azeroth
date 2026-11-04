@@ -77,7 +77,7 @@ namespace HordesOfAzeroth.Launcher
             m_nav = new NavBuilder(m_folder);
             m_accounts = Accounts.Load(m_folder);
             m_accountSync = new AccountSync(m_server, m_folder);
-            m_saves = new SaveBackups(m_folder, m_server, m_installer);
+            m_saves = new SaveBackups(m_folder, m_server, m_installer, m_settings);
             StartCoopAgent();
             WatchMenuClosing(AccountMenu, LanguageMenu, OptionsMenu);
             Opened += OnOpened;
@@ -1180,12 +1180,15 @@ namespace HordesOfAzeroth.Launcher
             SetState(LauncherState.Playing, Loc.T("Playing"), Loc.T("the game's server stops when you close the game"));
             if (m_settings.KeepInTray)
                 TuckAway();
+            bool hungBeforeWindow;
             using (CancellationTokenSource playing = new CancellationTokenSource())
             {
                 Task boardRefresh = RefreshBoardWhilePlayingAsync(playing.Token);
+                Task<bool> windowWatch = SwitchToDirectX12WhenNoWindowAsync();
                 await m_game.WaitForAllToCloseAsync(CancellationToken.None);
                 playing.Cancel();
                 await boardRefresh;
+                hungBeforeWindow = await windowWatch;
             }
             ShowFromTray();
             SetState(LauncherState.Stopping, Loc.T("Closing"), Loc.T("saving and stopping the game's server"));
@@ -1203,6 +1206,11 @@ namespace HordesOfAzeroth.Launcher
             {
                 m_state = LauncherState.Ready;
                 RefreshState();
+            }
+            if (hungBeforeWindow)
+            {
+                await PlayAsync();
+                return;
             }
             await SwitchToDirectX12AfterDriverCrashAsync();
             await ShareRunsAsync();
@@ -1234,6 +1242,22 @@ namespace HordesOfAzeroth.Launcher
                     LauncherLog.Write(m_folder, "Run data: " + e.Message);
                 }
             }
+        }
+
+        static readonly TimeSpan NoWindowLimit = TimeSpan.FromSeconds(60);
+
+        async Task<bool> SwitchToDirectX12WhenNoWindowAsync()
+        {
+            if (m_settings.UseDirectX12 || !Platform.IsWindows)
+                return false;
+            if (await m_game.OpensWindowOrClosesWithinAsync(NoWindowLimit))
+                return false;
+            m_game.StopStartedGame();
+            m_settings.UseDirectX12 = true;
+            m_settings.Save();
+            m_game.UseDirectX12 = true;
+            LauncherLog.Write(m_folder, "The game opened no window within a minute on Vulkan; stopped it and started it again on DirectX 12.");
+            return true;
         }
 
         async Task SwitchToDirectX12AfterDriverCrashAsync()

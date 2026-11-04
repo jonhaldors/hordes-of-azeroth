@@ -273,8 +273,17 @@ local function ChoiceArmed(window)
     return window == Controller.window and GetTime() - (Controller.windowAt or 0) >= CHOICE_ARM_DELAY
 end
 
+local GLYPH_CARD_ACTIONS = { reroll = true }
+
+local function WindowCardAction(window, name)
+    local action = CardActionFor(name)
+    if window == VanillaBonkOffer or (window == VanillaBonkGlyphs and GLYPH_CARD_ACTIONS[action]) then
+        return action
+    end
+end
+
 local function ChoiceButton(window, name)
-    local cardAction = window == VanillaBonkOffer and CardActionFor(name)
+    local cardAction = WindowCardAction(window, name)
     if NEXT[name] then
         MoveFocus(window, NEXT[name])
     elseif name ~= "a" and not cardAction then
@@ -650,6 +659,8 @@ local function ChoicePrompts(window)
         ButtonPrompt(prompts, Controller.CardButtonFor("reroll"), window.reroll)
         ButtonPrompt(prompts, Controller.CardButtonFor("banish"), window.banish)
         ButtonPrompt(prompts, Controller.CardButtonFor("skip"), window.skip)
+    elseif window == VanillaBonkGlyphs then
+        ButtonPrompt(prompts, Controller.CardButtonFor("reroll"), window.reroll)
     end
     if AnyCardDetails(window) then
         local card = window.cards[Controller.focus]
@@ -660,7 +671,7 @@ local function ChoicePrompts(window)
 end
 
 local MOUSE_BUTTONS = {
-    { "VanillaBonkOffer", "reroll" }, { "VanillaBonkOffer", "banish" }, { "VanillaBonkOffer", "skip" },
+    { "VanillaBonkOffer", "reroll" }, { "VanillaBonkOffer", "banish" }, { "VanillaBonkOffer", "skip" }, { "VanillaBonkGlyphs", "reroll" },
     { "VanillaBonkGear", "equip" }, { "VanillaBonkGear", "equipOther" }, { "VanillaBonkGear", "loot" }, { "VanillaBonkGear", "salvage" },
 }
 
@@ -693,6 +704,7 @@ end
 HookFadingParent(VanillaBonkOffer)
 HookFadingParent(VanillaBonkOffer and VanillaBonkOffer.chrome)
 HookFadingParent(VanillaBonkGear)
+HookFadingParent(VanillaBonkGlyphs)
 
 local function HideMouseButtons(hidden)
     for _, entry in ipairs(MOUSE_BUTTONS) do
@@ -1361,6 +1373,11 @@ local function NavButton(name, windows)
         return true
     end
     if name == "lb" or name == "rb" then
+        local paged = target and WindowOf(target, windows)
+        if paged and paged.PadPage then
+            paged.PadPage(name == "rb" and 1 or -1)
+            return true
+        end
         local window = TabWindow(windows, target)
         if window and SwitchTab(window, name == "rb" and 1 or -1) then
             Controller.refocus = window
@@ -1490,6 +1507,11 @@ local function WindowPrompts(windows)
         end
     end
     table.insert(prompts, { "b", L["Close"] })
+    local paged = target and WindowOf(target, windows)
+    if paged and paged.padPages and paged.padPages > 1 then
+        table.insert(prompts, { "lb", L["Previous page"] })
+        table.insert(prompts, { "rb", L["Next page"] })
+    end
     if table.getn(windows) > 1 then
         table.insert(prompts, { "rt", L["Next window"] })
     end

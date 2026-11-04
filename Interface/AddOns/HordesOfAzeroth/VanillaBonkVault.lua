@@ -7,6 +7,10 @@ local CARD_GAP = 10
 local PER_ROW = 8
 local PER_PAGE = PER_ROW * 2
 local SLOT_SIZE = 52
+local VAULT_SLOT_SPACING = 104
+local VAULT_BOX_MARGIN = 92
+local VAULT_BOX_MIN_WIDTH = 220
+local WIDE_CAPTION, NARROW_CAPTION = 130, 100
 local WORN_SLOTS = 19
 local TOOLTIP_GAP = 4
 local COMPARE_DROP = -10
@@ -727,7 +731,7 @@ function Refresh()
             tinsert(inVault, byGuid[guid])
         end
     end
-    frame.box:SetWidth(slots == 1 and 220 or 300)
+    frame.box:SetWidth(max(VAULT_BOX_MIN_WIDTH, slots * VAULT_SLOT_SPACING + VAULT_BOX_MARGIN))
     for index = 1, max(slots, getn(frame.box.slots)) do
         local slot = VaultSlot(index)
         if index > slots then
@@ -736,7 +740,8 @@ function Refresh()
         else
             local find = inVault[index]
             slot:ClearAllPoints()
-            slot:SetPoint("TOP", frame.box, "TOP", (index - (slots + 1) / 2) * 104, -36)
+            slot:SetPoint("TOP", frame.box, "TOP", (index - (slots + 1) / 2) * VAULT_SLOT_SPACING, -36)
+            slot.caption:SetWidth(slots > 2 and NARROW_CAPTION or WIDE_CAPTION)
             slot.find = find
             if find then
                 local name, _, _, _, _, _, _, _, texture = GetItemInfo(find.entry)

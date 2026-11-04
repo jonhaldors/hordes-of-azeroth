@@ -19,6 +19,7 @@ local INFO_RETRY_SECONDS, INFO_RETRIES = 0.5, 10
 
 local GEAR_FIRST, GEAR_KINDS, GEAR_QUALITIES, GEAR_TIERS = 930000, 44, 4, 10
 local LEGENDARY_FIRST, LEGENDARY_KINDS = 932000, 8
+local DUNGEON_LOOK_FIRST, DUNGEON_LOOK_BANDS, DUNGEON_LOOKS = 933000, 2, 3
 local UPGRADE_ARROW = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up"
 local COIN_ICONS = "Interface\\MoneyFrame\\UI-MoneyIcons"
 local NO_STAT = 255
@@ -32,6 +33,7 @@ local ACCESSORY_GROUPS = {
     { key = "neck", name = L["Necks"] },
     { key = "ring", name = L["Rings"] },
     { key = "trinket", name = L["Trinkets"] },
+    { key = "tabard", name = L["Tabards"] },
 }
 local ARMOR_GROUPS = {
     { key = "head", name = L["Head"] },
@@ -57,6 +59,7 @@ local EQUIP_PLACES = {
     INVTYPE_WAIST = { "armor", "waist" }, INVTYPE_LEGS = { "armor", "legs" }, INVTYPE_FEET = { "armor", "feet" },
     INVTYPE_CLOAK = { "accessories", "cloak" }, INVTYPE_NECK = { "accessories", "neck" },
     INVTYPE_FINGER = { "accessories", "ring" }, INVTYPE_TRINKET = { "accessories", "trinket" },
+    INVTYPE_TABARD = { "accessories", "tabard" },
     INVTYPE_WEAPON = { "weapons" }, INVTYPE_2HWEAPON = { "weapons" }, INVTYPE_WEAPONMAINHAND = { "weapons" },
     INVTYPE_WEAPONOFFHAND = { "weapons" }, INVTYPE_SHIELD = { "weapons" }, INVTYPE_HOLDABLE = { "weapons" },
     INVTYPE_RANGED = { "weapons" }, INVTYPE_RANGEDRIGHT = { "weapons" }, INVTYPE_THROWN = { "weapons" },
@@ -81,6 +84,9 @@ function UI.GearTier(id)
     end
     if id >= LEGENDARY_FIRST and id < LEGENDARY_FIRST + LEGENDARY_KINDS * GEAR_TIERS then
         return mod(id - LEGENDARY_FIRST, GEAR_TIERS) + 1
+    end
+    if id >= DUNGEON_LOOK_FIRST and id < DUNGEON_LOOK_FIRST + DUNGEON_LOOK_BANDS * GEAR_KINDS * DUNGEON_LOOKS then
+        return 1
     end
     return 0
 end
