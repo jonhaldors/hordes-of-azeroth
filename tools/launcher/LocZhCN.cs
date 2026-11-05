@@ -102,7 +102,7 @@ namespace HordesOfAzeroth.Launcher
             ["Can't find World of Warcraft"] = "找不到魔兽世界",
             ["Put the launcher in your World of Warcraft 1.12.1 folder, next to WoW.exe."] = "请把启动器放进你的魔兽世界 1.12.1 文件夹，与 WoW.exe 放在一起。",
             ["This client can't be used"] = "无法使用这个客户端",
-            ["Hordes of Azeroth needs the English World of Warcraft 1.12.1 (build 5875) WoW.exe."] = "艾泽拉斯之潮需要英文版魔兽世界 1.12.1（build 5875）的 WoW.exe。",
+            ["Hordes of Azeroth needs World of Warcraft 1.12.1 (build 5875) WoW.exe."] = "艾泽拉斯之潮需要魔兽世界 1.12.1（build 5875）的 WoW.exe。",
             ["Some game files are missing"] = "部分游戏文件缺失",
             ["press Repair to put them back"] = "点击“修复”把它们补回来",
             ["The install isn't finished"] = "安装尚未完成",

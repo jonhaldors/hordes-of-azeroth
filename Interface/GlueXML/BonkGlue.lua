@@ -1,5 +1,17 @@
 local L = BonkGlueL;
 
+if ( not GetBillingPlan ) then
+	function GetBillingPlan()
+		return 0, 0, 0;
+	end
+	function GetBillingTimeRemaining()
+		return 0;
+	end
+	function GetBillingTimeRested()
+		return 0;
+	end
+end
+
 BONK_CLASSES = {
 	{ token = "WARRIOR", id = 1, name = "Warrior", display = L["Warrior"], races = { "HUMAN", "DWARF", "NIGHTELF", "GNOME", "ORC", "SCOURGE", "TAUREN", "TROLL" } },
 	{ token = "PALADIN", id = 2, name = "Paladin", display = L["Paladin"], races = { "HUMAN", "DWARF" } },
@@ -32,7 +44,7 @@ BONK_CLIENT_CLASS_NAMES = {
 	WARRIOR = { "战士", "戰士" },
 	PALADIN = { "圣骑士", "聖騎士" },
 	HUNTER = { "猎人", "獵人" },
-	ROGUE = { "潜行者", "盜賊" },
+	ROGUE = { "潜行者", "盗贼", "盜賊" },
 	PRIEST = { "牧师", "牧師" },
 	SHAMAN = { "萨满祭司", "薩滿" },
 	MAGE = { "法师", "法師" },
@@ -48,6 +60,10 @@ for _, class in BONK_CLASSES do
 	BONK_CLASS_TOKENS[class.token] = class.token;
 	for _, clientName in BONK_CLIENT_CLASS_NAMES[class.token] do
 		BONK_CLASS_TOKENS[clientName] = class.token;
+	end
+	local localized = getglobal("CLASS_" .. class.token);
+	if ( localized ) then
+		BONK_CLASS_TOKENS[localized] = class.token;
 	end
 end
 
