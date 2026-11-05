@@ -113,6 +113,8 @@ The output is `client\target\release\HordesOfAzeroth.exe`. It reads the game dat
 
 The launcher is an Avalonia app for .NET 10 in `tools/launcher`, built for Windows and Linux: `dotnet publish tools\launcher\HordesOfAzerothLauncher.csproj -c Release -r win-x64` (or `linux-x64`). `HoALauncher.exe --source <folder>` installs and updates from a local folder of release assets instead of GitHub.
 
+The Windows release build in `tools/release.ps1` adds an ICU bundle for MariaDB when Wine lacks Windows ICU. It builds the DLL forwarders from `tools/launcher/icuuc.def` and `tools/launcher/icuin.def` and embeds them alongside the pinned ICU4C runtime. Pass the resulting archive as `-p:WineIcuArchive=<path>` to include it in a separate Windows launcher build.
+
 <br>
 
 ---

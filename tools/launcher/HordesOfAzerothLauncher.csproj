@@ -64,4 +64,8 @@
     <AvaloniaResource Include="art\icon.png" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' and '$(WineIcuArchive)' != ''">
+    <EmbeddedResource Include="$(WineIcuArchive)" LogicalName="WineIcu.zip" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,5 @@
+EXPORTS
+    u_austrncpy=icuuc78.u_austrncpy_78
+    u_uastrncpy=icuuc78.u_uastrncpy_78
+    uenum_close=icuuc78.uenum_close_78
+    uenum_next=icuuc78.uenum_next_78
