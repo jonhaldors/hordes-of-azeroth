@@ -144,6 +144,17 @@
     { "en": "Reward Card Scale", "zh": "奖励卡牌缩放", "anyCase": true },
     { "en": "Party Spell Effects", "zh": "队伍法术特效", "anyCase": true },
     { "en": "Rewritten Fate", "zh": "改写命运" },
-    { "en": "placement range", "zh": "放置距离", "anyCase": true }
+    { "en": "placement range", "zh": "放置距离", "anyCase": true },
+    { "en": "Hardcore", "zh": "硬核" },
+    { "en": "Graveyard", "zh": "墓地" },
+    { "en": "Transmogrifier", "zh": "幻化师" },
+    { "en": "Transmog", "zh": "幻化", "check": false },
+    { "en": "appearance", "zh": "外观", "anyCase": true, "check": false },
+    { "en": "Outfit", "zh": "外观方案", "check": false },
+    { "en": "Tabard", "zh": "战袍", "check": false, "note": "UI label; official 1.12.1 item names use 徽章/军旗/军服" },
+    { "en": "Fell", "zh": "阵亡", "check": false },
+    { "en": "Revived", "zh": "已复活", "check": false },
+    { "en": "Unverified", "zh": "未验证" },
+    { "en": "Regular", "zh": "普通", "check": false, "note": "the non-hardcore leaderboard tab" }
   ]
 }
