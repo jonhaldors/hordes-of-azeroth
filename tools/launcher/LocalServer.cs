@@ -259,6 +259,7 @@ namespace HordesOfAzeroth.Launcher
 
         public async Task CreateDatabaseFilesAsync()
         {
+            WineIcu.EnsureAvailable(m_folder.MariaDb);
             if (Directory.Exists(m_folder.MariaDbData))
                 Directory.Delete(m_folder.MariaDbData, true);
             Directory.CreateDirectory(m_folder.MariaDbData);
@@ -361,6 +362,7 @@ namespace HordesOfAzeroth.Launcher
 
         async Task LaunchDatabaseAsync(CancellationToken cancel)
         {
+            WineIcu.EnsureAvailable(m_folder.MariaDb);
             await RemoveLeftoverTempTablespaceAsync(cancel);
             m_database = StartDatabase();
             try

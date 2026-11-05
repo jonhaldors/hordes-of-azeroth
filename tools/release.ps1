@@ -322,7 +322,10 @@ function Invoke-PackageBuild([string]$Name) {
         'version' { [System.IO.File]::WriteAllText((Join-Path $buildDir 'VERSION'), "$version`n") }
         'launcher' {
             $project = Join-Path (Get-CommittedTree) 'tools\launcher\HordesOfAzerothLauncher.csproj'
-            Invoke-Native 'Launcher build' 'dotnet' @('publish', $project, '-c', 'Release', '-r', 'win-x64', '-nologo', "-p:Repository=$repository", "-p:StatsUrl=$statsUrl", "-p:LobbyUrl=$lobbyUrl", "-p:MirrorUrl=$mirrorUrl", '-o', (Join-Path $buildDir 'launcher'))
+            $launcherSource = Split-Path $project
+            . (Join-Path $launcherSource 'build-wine-icu.ps1')
+            $wineIcu = Build-WineIcu $launcherSource
+            Invoke-Native 'Launcher build' 'dotnet' @('publish', $project, '-c', 'Release', '-r', 'win-x64', '-nologo', "-p:Repository=$repository", "-p:StatsUrl=$statsUrl", "-p:LobbyUrl=$lobbyUrl", "-p:MirrorUrl=$mirrorUrl", "-p:WineIcuArchive=$wineIcu", '-o', (Join-Path $buildDir 'launcher'))
         }
         'linux-launcher' {
             $project = Join-Path (Get-CommittedTree) 'tools\launcher\HordesOfAzerothLauncher.csproj'
@@ -428,8 +431,8 @@ function Resolve-PackageFiles($Package) {
     $files
 }
 
-function New-PackageZip([string]$Name, $Files) {
-    $zipPath = Join-Path $assetsDir "$Name.zip"
+function New-PackageZip([string]$Name, $Files, [string]$Directory = $assetsDir) {
+    $zipPath = Join-Path $Directory "$Name.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
     try {

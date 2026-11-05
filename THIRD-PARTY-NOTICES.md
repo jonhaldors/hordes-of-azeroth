@@ -11,6 +11,7 @@ Hordes of Azeroth is not affiliated with or endorsed by Blizzard Entertainment. 
 | VMaNGOS | The game server (our fork: `server/core`) | GPL-2.0 | https://github.com/vmangos/core |
 | VMaNGOS world database | The base of the shipped world database (`world-db`), with our changes applied | GPL-2.0 | https://github.com/vmangos/core/releases |
 | MariaDB Server | The local database | GPL-2.0 | https://mariadb.org |
+| ICU4C | App-local Unicode and time zone libraries for MariaDB on Wine without Windows ICU. The licence ships in the Windows launcher bundle and alongside the extracted DLLs. | Unicode-3.0 | https://github.com/unicode-org/icu |
 | Barlow Bold | Health numbers font in the addon (`Interface/AddOns/HordesOfAzeroth/Fonts`, licence in `Barlow-OFL.txt` beside it) | SIL Open Font License 1.1 | https://github.com/jpt/barlow |
 | Microsoft Visual C++ Redistributable | Runtime DLLs next to the server and map tools | Microsoft Software License Terms (redistributable files) | https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist |
 

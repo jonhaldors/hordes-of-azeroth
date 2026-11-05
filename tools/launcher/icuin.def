@@ -1,0 +1,10 @@
+EXPORTS
+    ucal_close=icuin78.ucal_close_78
+    ucal_get=icuin78.ucal_get_78
+    ucal_getDSTSavings=icuin78.ucal_getDSTSavings_78
+    ucal_getDefaultTimeZone=icuin78.ucal_getDefaultTimeZone_78
+    ucal_getTimeZoneDisplayName=icuin78.ucal_getTimeZoneDisplayName_78
+    ucal_open=icuin78.ucal_open_78
+    ucal_openTimeZoneIDEnumeration=icuin78.ucal_openTimeZoneIDEnumeration_78
+    ucal_setDefaultTimeZone=icuin78.ucal_setDefaultTimeZone_78
+    ucal_setMillis=icuin78.ucal_setMillis_78
