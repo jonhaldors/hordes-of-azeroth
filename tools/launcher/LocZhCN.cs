@@ -308,6 +308,10 @@ namespace HordesOfAzeroth.Launcher
             ["The game's database didn't answer. Is the game running?"] = "游戏的数据库没有响应。游戏是否正在运行？",
             ["Too many wrong passwords for that game. Try again in a few minutes."] = "该游戏的密码错误次数过多。请几分钟后再试。",
             ["Can't reach the co-op service. Players in your game keep playing, but new players can't find or join it until it's back."] = "无法连接联机服务。你游戏中的玩家可以继续游戏，但在服务恢复之前，新玩家无法找到或加入你的游戏。",
+            ["Couldn't write {0} ({1})."] = "无法写入 {0}（{1}）。",
+            ["No data arrived for {0:0} seconds"] = "{0:0} 秒内没有收到数据",
+            ["The partly downloaded file didn't match and was started over"] = "下载了一部分的文件校验不匹配，已重新开始下载",
+            ["Windows didn't let the launcher restart itself. Close the launcher and open it again to finish the update."] = "Windows 不允许启动器自行重启。请关闭启动器并重新打开，以完成更新。",
         };
     }
 }
