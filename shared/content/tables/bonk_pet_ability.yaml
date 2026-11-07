@@ -1,0 +1,283 @@
+# Imported by tools/content/dump_tables.py from bonk_pet_ability. Edit this file, then run tools/content/compile.py.
+table: bonk_pet_ability
+columns:
+- family
+- spell_id
+- kind
+- cooldown_ms
+- damage
+- stacks
+- value
+- kit
+- comment
+rows:
+- - 1
+  - 779
+  - 4
+  - 3000
+  - 2.0
+  - 1
+  - 8.0
+  - 0
+  - 'Cat: Swipe, every enemy in an arc in front of it within 8 yd, 2 bites worth, 1 Bleed'
+- - 1
+  - 16827
+  - 0
+  - 4000
+  - 3.0
+  - 4
+  - 0.0
+  - 0
+  - 'Cat: Claw, 3 bites worth, 4 Bleed'
+- - 1
+  - 16827
+  - 2
+  - 8000
+  - 3.0
+  - 2
+  - 8.0
+  - 0
+  - 'Cat: Prowl, pounces on a new prey 8 yd or more off; Claw for 3 bites worth and 2 Bleed'
+- - 1
+  - 17253
+  - 0
+  - 2500
+  - 1.5
+  - 0
+  - 0.0
+  - 0
+  - 'Cat: Bite, 1.5 bites worth'
+- - 1
+  - 23099
+  - 1
+  - 8000
+  - 0.0
+  - 0
+  - 3000.0
+  - 0
+  - 'Cat: Dash, +40% speed for 3 sec while its prey is over 12 yd off'
+- - 2
+  - 122
+  - 3
+  - 5000
+  - 1.0
+  - 2
+  - 6.0
+  - 160
+  - 'Water Elemental: small Frost Nova, 6 yd, 1 bite worth, 2 Chill, no root'
+- - 2
+  - 205
+  - 0
+  - 3000
+  - 2.0
+  - 1
+  - 20.0
+  - 0
+  - 'Water Elemental: Frostbolt from 20 yd, 2 bites worth, 1 Chill'
+- - 3
+  - 9487
+  - 0
+  - 3000
+  - 2.0
+  - 2
+  - 20.0
+  - 0
+  - 'Fire Elemental: Fireball from 20 yd, 2 bites worth, 2 Burning'
+- - 3
+  - 20153
+  - 3
+  - 2000
+  - 0.5
+  - 1
+  - 5.0
+  - 6310
+  - 'Fire Elemental: burning aura, 5 yd, half a bite worth, 1 Burning'
+- - 4
+  - 1449
+  - 3
+  - 3000
+  - 1.5
+  - 0
+  - 6.0
+  - 1004
+  - 'Arcane Elemental: small Arcane Explosion, 6 yd, 1.5 bites worth'
+- - 4
+  - 13901
+  - 0
+  - 2500
+  - 3.0
+  - 0
+  - 20.0
+  - 0
+  - 'Arcane Elemental: Arcane Bolt from 20 yd, 3 bites worth'
+- - 5
+  - 205
+  - 0
+  - 2000
+  - 1.0
+  - 1
+  - 30.0
+  - 0
+  - 'Hydra frost head: Frostbolt from 30 yd, 1 Chill'
+- - 5
+  - 9487
+  - 0
+  - 2000
+  - 1.0
+  - 2
+  - 30.0
+  - 0
+  - 'Hydra fire head: Fireball from 30 yd, 2 Burning'
+- - 5
+  - 13901
+  - 0
+  - 2000
+  - 1.0
+  - 0
+  - 30.0
+  - 0
+  - 'Hydra arcane head: Arcane Bolt from 30 yd'
+- - 6
+  - 17253
+  - 0
+  - 1500
+  - 4.0
+  - 1
+  - 0.0
+  - 0
+  - 'Spirit Wolf: Bite, 4 bites worth, 1 Static; melee swings land too rarely to carry the damage'
+- - 6
+  - 17253
+  - 4
+  - 3000
+  - 2.0
+  - 1
+  - 6.0
+  - 0
+  - 'Spirit Wolf: Cleave, every enemy in an arc in front within 6 yd, 2 bites worth, 1 Static'
+- - 7
+  - 3606
+  - 0
+  - 1500
+  - 1.0
+  - 1
+  - 20.0
+  - 0
+  - 'Searing Totem: fire bolt from 20 yd, 1 bite worth, 1 Burning'
+- - 8
+  - 8187
+  - 3
+  - 2000
+  - 1.0
+  - 1
+  - 8.0
+  - 6310
+  - 'Magma Totem: fire pulse, 8 yd, 1 bite worth, 1 Burning'
+- - 10
+  - 17253
+  - 0
+  - 1500
+  - 4.0
+  - 1
+  - 0.0
+  - 0
+  - 'Elemental Spirit: Bite, 4 bites worth, 1 stack of its element'
+- - 10
+  - 17253
+  - 4
+  - 3000
+  - 2.0
+  - 1
+  - 6.0
+  - 0
+  - 'Elemental Spirit: Cleave, every enemy in an arc in front within 6 yd, 2 bites worth'
+- - 11
+  - 17253
+  - 0
+  - 1500
+  - 4.0
+  - 1
+  - 0.0
+  - 0
+  - 'Shadowfiend: Shadow Strike, 4 bites worth, 1 Decay'
+- - 11
+  - 17253
+  - 4
+  - 3000
+  - 2.0
+  - 1
+  - 6.0
+  - 0
+  - 'Shadowfiend: Shadow Cleave, every enemy in an arc in front within 6 yd, 2 bites worth, 1 Decay'
+- - 12
+  - 11763
+  - 0
+  - 2000
+  - 4.5
+  - 1
+  - 30.0
+  - 0
+  - 'Imp: volley of 2 fel Firebolts at different enemies from 30 yd, 3 bites worth each, 1 Burning each'
+- - 14
+  - 7814
+  - 4
+  - 3000
+  - 2.0
+  - 1
+  - 10.0
+  - 0
+  - 'Succubus: Lash of Pain, every enemy in a wide arc in front of her within 10 yd, 2 bites worth, 1 Shadow Vulnerability'
+- - 15
+  - 17253
+  - 0
+  - 2500
+  - 4.0
+  - 0
+  - 0.0
+  - 0
+  - 'Felhunter: Shadow Bite, 4 bites worth, 10% more for each of your afflictions on the target; it also interrupts a casting prey'
+- - 15
+  - 17253
+  - 4
+  - 2500
+  - 2.0
+  - 0
+  - 6.0
+  - 0
+  - 'Felhunter: Shadow Cleave, every enemy in an arc in front of it within 6 yd, 2 bites worth'
+- - 16
+  - 11976
+  - 0
+  - 6000
+  - 2.0
+  - 1
+  - 0.0
+  - 0
+  - 'Treant: Entangling Strike, 2 bites worth, 1 Moonfire; roots the prey and normal enemies within 5 yd for 2 sec'
+- - 16
+  - 17253
+  - 0
+  - 1500
+  - 4.0
+  - 1
+  - 0.0
+  - 0
+  - 'Treant: Strike, 4 bites worth, 1 Moonfire'
+- - 16
+  - 17253
+  - 4
+  - 3000
+  - 2.0
+  - 1
+  - 6.0
+  - 0
+  - 'Treant: Sweep, every enemy in an arc in front within 6 yd, 2 bites worth, 1 Moonfire'
+- - 17
+  - 20549
+  - 3
+  - 3000
+  - 0.6
+  - 1
+  - 8.0
+  - 5089
+  - 'Ancient of War: War Stomp, 8 yd, 0.6 bites worth, 1 Moonfire'

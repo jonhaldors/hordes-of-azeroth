@@ -1,0 +1,119 @@
+//! `"target"`'s portrait under a selection whose object the object manager does not hold.
+
+use bevy::prelude::*;
+
+use super::{pet_guid, pet_subject, player_temporary_portrait, target_subject, Subject, Unseen};
+use crate::names::NameCache;
+use crate::target::Selection;
+use crate::ui_party::GroupState;
+
+const MEMBER: u64 = 0x51;
+const CREATURE: u64 = 0xF130_0000_0000_0031;
+/// A player whose name record the cache does not hold.
+const STRANGER: u64 = 0x52;
+
+/// A selection with no object, a party member out of range, draws as any unit the object manager
+/// does not hold (`0x519fe6`): the bake cached under its guid, else the stand-in of the race and
+/// sex its name record holds (`0x51a08e` → `0x525ba0`); a player with no name record draws nothing
+/// (`0x51a095`), nor a guid that is no player and has no pet record (`0x51a0ce`). A held selection
+/// bakes its object.
+#[test]
+fn a_selection_with_no_object_draws_its_stand_in() {
+    let roster = GroupState::default();
+    let mut names = NameCache::default();
+    // Night elf, warrior, female.
+    names.insert_player(MEMBER, "Brisca".into(), Some((4, 1, 1)));
+    let unheld = |guid: u64| Selection {
+        guid: Some(guid),
+        ..Default::default()
+    };
+    assert_eq!(
+        target_subject(&unheld(MEMBER), &roster, &names),
+        Subject {
+            entity: None,
+            occupant: Some(MEMBER),
+            unseen: Some(Unseen::player(player_temporary_portrait(Some(4), Some(1)))),
+        }
+    );
+    assert_eq!(
+        target_subject(&unheld(STRANGER), &roster, &names),
+        Subject {
+            entity: None,
+            occupant: Some(STRANGER),
+            unseen: None,
+        }
+    );
+    assert_eq!(
+        target_subject(&unheld(CREATURE), &roster, &names),
+        Subject {
+            entity: None,
+            occupant: Some(CREATURE),
+            unseen: None,
+        }
+    );
+    let object = World::new().spawn_empty().id();
+    let held = Selection {
+        target: Some(object),
+        guid: Some(MEMBER),
+        ..Default::default()
+    };
+    assert_eq!(
+        target_subject(&held, &roster, &names),
+        Subject {
+            entity: Some(object),
+            ..Default::default()
+        }
+    );
+}
+
+/// Our own pet with no object: `SetPortraitTexture` empties the texture first (`0x519fc1`-
+/// `0x519fd3`), and a guid that is no player's looks only in the group's pet records
+/// (`0x51a0c4` → `0x496420`), which never hold our own pet, so the portrait stays empty
+/// (`0x51a0ce`). No stand-in: the client has no `TemporaryPortrait-Monster`.
+#[test]
+fn our_pet_with_no_object_draws_nothing() {
+    let roster = GroupState::default();
+    let names = NameCache::default();
+    const PET: u64 = 0xF140_0000_0700_002A;
+    assert_eq!(
+        pet_subject(PET, |_| None, &roster, &names),
+        Subject::default(),
+        "no object, no bake, no stand-in"
+    );
+    let object = World::new().spawn_empty().id();
+    assert_eq!(
+        pet_subject(PET, |_| Some(object), &roster, &names),
+        Subject {
+            entity: Some(object),
+            ..Default::default()
+        }
+    );
+    assert_eq!(
+        pet_subject(0, |_| Some(object), &roster, &names),
+        Subject::default()
+    );
+}
+
+/// `"pet"`'s portrait is the unit the token names: our `UNIT_FIELD_CHARM`, else our
+/// `UNIT_FIELD_SUMMON` (`0x515a5e`-`0x515a6e`); with no descriptor, or neither field, nobody.
+#[test]
+fn the_pet_portrait_follows_our_charm_else_our_summon() {
+    use benilla_protocol::ObjectFields;
+    const PET: u64 = 0xF140_0000_0700_002A;
+    const THRALL: u64 = 0xF130_0000_0000_0055;
+    let me = |pairs: &[(u16, u64)]| {
+        let fields: Vec<(u16, u32)> = pairs
+            .iter()
+            .flat_map(|&(f, g)| [(f, g as u32), (f + 1, (g >> 32) as u32)])
+            .collect();
+        crate::net::ObjectStore(ObjectFields::from_pairs(&fields))
+    };
+    assert_eq!(pet_guid(Some(&me(&[(8, PET)]))), PET, "the summon");
+    assert_eq!(
+        pet_guid(Some(&me(&[(8, PET), (6, THRALL)]))),
+        THRALL,
+        "the charm first"
+    );
+    assert_eq!(pet_guid(Some(&me(&[]))), 0);
+    assert_eq!(pet_guid(None), 0);
+}

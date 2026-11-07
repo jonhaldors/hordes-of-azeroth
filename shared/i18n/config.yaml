@@ -1,0 +1,6 @@
+source_language: enUS
+required:
+  - enUS
+  - zhCN
+optional:
+  - zhTW

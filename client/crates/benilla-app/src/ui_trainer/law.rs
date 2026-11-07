@@ -1,0 +1,302 @@
+//! The trainer window's icon, tooltip and group-key laws. They disagree on the same row as the
+//! reference does: the icon falls back to the wire wrapper's art where the tooltip hops to the
+//! taught spell, so about 806 shipped services show one spell's icon over another's tooltip. Do
+//! not unify them.
+
+use benilla_formats::{
+    substitute, SkillLineCatalog, SpellCatalog, TokenContext, SPELL_ATTR_IS_TRADESKILL,
+    SPELL_EFFECT_CREATE_ITEM, SPELL_EFFECT_LEARN_PET_SPELL, SPELL_EFFECT_LEARN_SPELL,
+    SPELL_EFFECT_SKILL_STEP,
+};
+use benilla_protocol::messages::{trainer_spell_state, TrainerSpell};
+use benilla_ui::script::{
+    ProductWait, TrainerServiceCategory, TrainerTooltip, TRAINER_GROUP_KNOWN,
+};
+
+use crate::entities::ItemDisplays;
+use crate::items::Items;
+use crate::ui_items::item_icon;
+
+use super::{TRAINER_TYPE_MOUNT, TRAINER_TYPE_TRADESKILL};
+use crate::query_cache::Ask;
+
+/// `GetTrainerServiceIcon 0x4d8f50`: at a tradeskill trainer (`[0xb73a08]`), the item the wire
+/// spell's first learn effect (`0x4d8ff5`/`0x4d8ffa`) teaches to create (`0x4d906a`); otherwise
+/// the wire spell's own icon (`0x4d9008`), never the taught spell's (`0x4d8fd7`). An uncached
+/// template reads `None`, and the getter's call keeps a callback on it ([`service_icon_waiting`]).
+#[cfg(test)]
+pub(super) fn service_icon(
+    wire_spell: u32,
+    trainer_type: u32,
+    spells: &SpellCatalog,
+    icons: Option<&ItemDisplays>,
+    items: &Items,
+    ask: Ask<'_>,
+) -> Option<String> {
+    service_icon_waiting(
+        wire_spell,
+        trainer_type,
+        spells,
+        icons,
+        items,
+        ask,
+        &mut None,
+    )
+}
+
+/// [`service_icon`], with `wait` set to the product whose record the lookup (`0x4d9096`) missed,
+/// beside the taught spell its owner is built from:
+/// the callback `0x4d9140` each getter call keeps on it (`0x4d907e`) runs `0x4d7d40` when it lands.
+pub(super) fn service_icon_waiting(
+    wire_spell: u32,
+    trainer_type: u32,
+    spells: &SpellCatalog,
+    icons: Option<&ItemDisplays>,
+    items: &Items,
+    ask: Ask<'_>,
+    wait: &mut Option<ProductWait>,
+) -> Option<String> {
+    let wire = spells.get(wire_spell)?;
+    if trainer_type == TRAINER_TYPE_TRADESKILL {
+        // The first learn slot wins; a zero trigger falls to the wire icon, not the next slot.
+        let taught = wire
+            .effects
+            .iter()
+            .position(|&e| e == SPELL_EFFECT_LEARN_SPELL || e == SPELL_EFFECT_LEARN_PET_SPELL)
+            .map(|i| wire.effect_trigger_spell[i])
+            .filter(|&t| t != 0);
+        // The taught spell's product item, slot 0 only.
+        if let Some((taught, product)) = taught
+            .and_then(|t| spells.get(t).map(|d| (t, d.effect_item_type[0])))
+            .filter(|&(_, e)| e != 0)
+        {
+            let Some(template) = items.template(product, 0, ask) else {
+                *wait = Some(ProductWait {
+                    item: product,
+                    taught,
+                });
+                return None;
+            };
+            return item_icon(icons, template.display_info_id);
+        }
+    }
+    wire.icon.clone()
+}
+
+/// `SetTrainerService 0x5338b0` picks the subject a shared tooltip builder describes. An
+/// unresolvable trigger moves to the next slot (`0x5339f0`), unlike the icon's first match;
+/// `Attributes & 0x20` alone decides item or spell, as the spell builder `0x52e610` redirects on
+/// the same bit (`0x52e6d2`), and `Effect[0] == 24` only picks the item's slot.
+pub(super) fn service_tooltip(wire_spell: u32, spells: &SpellCatalog) -> TrainerTooltip {
+    let wire_only = TrainerTooltip::Spell {
+        spell_id: wire_spell,
+        alt_caster: false,
+    };
+    let Some(wire) = spells.get(wire_spell) else {
+        return wire_only;
+    };
+    for i in 0..3 {
+        let effect = wire.effects[i];
+        if effect != SPELL_EFFECT_LEARN_SPELL && effect != SPELL_EFFECT_LEARN_PET_SPELL {
+            continue;
+        }
+        let trigger = wire.effect_trigger_spell[i];
+        // An unresolvable trigger moves to the next slot, not the fallback.
+        let Some(taught) = spells.get(trigger) else {
+            continue;
+        };
+        if taught.attributes & SPELL_ATTR_IS_TRADESKILL != 0 {
+            let slot = if taught.effects[0] == SPELL_EFFECT_CREATE_ITEM {
+                i
+            } else {
+                0
+            };
+            return TrainerTooltip::Item(taught.effect_item_type[slot]);
+        }
+        return TrainerTooltip::Spell {
+            spell_id: trigger,
+            alt_caster: effect == SPELL_EFFECT_LEARN_PET_SPELL,
+        };
+    }
+    wire_only
+}
+
+/// The `$`-token contexts a service description expands over, picked per row by the caster the
+/// expander's level terms read (`0x6e3130`'s selector): the active player's, or the pet's, which
+/// a `LEARN_PET_SPELL` wrapper selects.
+pub(super) struct ServiceText<'a> {
+    pub(super) player: &'a TokenContext<'a>,
+    pub(super) pet: &'a TokenContext<'a>,
+}
+
+/// `GetTrainerServiceDescription 0x4d9b40`: the text the stock window shows under the service's
+/// cost — `Spell.dbc`'s Description column with its `$`-tokens expanded (`0x5075f0` at
+/// `0x4d9d6f`). Which record is expanded depends on the row: the wire spell's own text when it
+/// has one (`0x4d9c32`), else the spell the first learn effect teaches — `EffectTriggerSpell` of
+/// the first `LEARN_SPELL`/`LEARN_PET_SPELL` slot, whether or not its trigger resolves
+/// (`0x4d9bdd`-`0x4d9c18`) — with that spell's own text, else, for a tradeskill recipe, the
+/// description of the item the taught spell creates (`0x4d9cd0`-`0x4d9d22`, returned verbatim,
+/// never expanded). A used row at a mount trainer skips its own text (`0x4d9c29`), and every
+/// failure falls back to the wire text again (`0x4d9d3b`, probing slot 0 alone for the caster).
+/// The expansion itself is the spell tooltip's description call (`0x52f717`): level override 0,
+/// the Description column, and the modifiers applied. `None` is the nil the binding pushes
+/// (`0x4d9d90`): the wire spell has no record (`0x4d9bd7`), or no arm found text and the wire
+/// spell's own is null or empty (`0x4d9d44`, `0x4d9d49`).
+#[cfg(test)]
+pub(super) fn service_description(
+    wire: &TrainerSpell,
+    trainer_type: u32,
+    spells: &SpellCatalog,
+    items: &Items,
+    ask: Ask<'_>,
+    text: &ServiceText,
+) -> Option<String> {
+    service_description_waiting(wire, trainer_type, spells, items, ask, text, &mut None)
+}
+
+/// [`service_description`], with `wait` set to the recipe's product whose record the lookup
+/// (`0x4d9d07`) missed, beside the taught spell its owner is built from: the callback `0x4d9db0` each getter call keeps on it (`0x4d9cef`) runs
+/// `0x4d7d40` when it lands. A product id of 0 is never looked up, so it keeps none.
+pub(super) fn service_description_waiting(
+    wire: &TrainerSpell,
+    trainer_type: u32,
+    spells: &SpellCatalog,
+    items: &Items,
+    ask: Ask<'_>,
+    text: &ServiceText,
+    wait: &mut Option<ProductWait>,
+) -> Option<String> {
+    let d = spells.get(wire.spell)?;
+    let learn = (0..3).find(|&i| {
+        matches!(
+            d.effects[i],
+            SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_LEARN_PET_SPELL
+        )
+    });
+    let caster = |slot: usize| {
+        if d.effects[slot] == SPELL_EFFECT_LEARN_PET_SPELL {
+            text.pet
+        } else {
+            text.player
+        }
+    };
+    let wire_text = d.description.as_deref().filter(|t| !t.is_empty());
+    if !(trainer_type == TRAINER_TYPE_MOUNT && wire.state == trainer_spell_state::GRAY) {
+        if let Some(t) = wire_text {
+            return Some(substitute(t, d, learn.map_or(text.player, caster)));
+        }
+    }
+    if let Some(slot) = learn {
+        let taught_id = d.effect_trigger_spell[slot];
+        if let Some(taught) = spells.get(taught_id) {
+            if let Some(t) = taught.description.as_deref().filter(|t| !t.is_empty()) {
+                return Some(substitute(t, taught, caster(slot)));
+            }
+            // The recipe's product carries the only text a `CREATE_ITEM` spell has.
+            if taught.attributes & SPELL_ATTR_IS_TRADESKILL != 0
+                && taught.effects[0] == SPELL_EFFECT_CREATE_ITEM
+            {
+                let product = taught.effect_item_type[0];
+                match items.template(product, 0, ask) {
+                    Some(item) if !item.description.is_empty() => {
+                        return Some(item.description.clone());
+                    }
+                    Some(_) => {}
+                    None if product != 0 => {
+                        *wait = Some(ProductWait {
+                            item: product,
+                            taught: taught_id,
+                        })
+                    }
+                    None => {}
+                }
+            }
+        }
+    }
+    wire_text.map(|t| substitute(t, d, caster(0)))
+}
+
+/// The list builder `0x4d7560`'s group key (`0x4d7786`). Type 2 resolves no skill line, so no row
+/// drops: 1 when the wire spell steps a skill (`0x4d77b6`), else 2, labelled from the table at
+/// `0x807520`. Type 1 puts a known service in the signed `-1` group (`0x4d77e8`). The rest key on
+/// the taught spell's skill line (`0x4d7c60` → `0x60c920`), and 0 drops the service (`0x4d7807`).
+pub(super) fn service_group(
+    wire_spell: u32,
+    taught: u32,
+    trainer_type: u32,
+    category: TrainerServiceCategory,
+    spells: &SpellCatalog,
+    // With the player's race and class, which index the line.
+    skill_lines: Option<(&SkillLineCatalog, (u8, u8))>,
+    // The VM's own `GlobalStrings.lua`, for the header labels.
+    get: &dyn Fn(&str) -> Option<String>,
+) -> (u32, String) {
+    if trainer_type == TRAINER_TYPE_TRADESKILL {
+        let step = spells
+            .get(wire_spell)
+            .is_some_and(|d| d.effects.contains(&SPELL_EFFECT_SKILL_STEP));
+        return if step {
+            (1, get("TRADESKILL_SERVICE_STEP").unwrap_or_default())
+        } else {
+            (2, get("TRADESKILL_SERVICE_LEARN").unwrap_or_default())
+        };
+    }
+    if trainer_type == TRAINER_TYPE_MOUNT && category == TrainerServiceCategory::Used {
+        return (
+            TRAINER_GROUP_KNOWN,
+            get("KNOWN_TALENTS_HEADER").unwrap_or_default(),
+        );
+    }
+    let line = skill_lines
+        .and_then(|(c, (race, class))| c.spell_to_line(taught, race, class))
+        .unwrap_or(0);
+    if line == 0 {
+        return (0, String::new());
+    }
+    let name = skill_lines
+        .and_then(|(c, _)| c.line(line))
+        .map(|l| l.name.clone())
+        .unwrap_or_else(|| format!("Skill {line}"));
+    (line, name)
+}
+
+/// `IsTrainerServiceTradeSkill` (`0x4d9f70`) and `IsTrainerServiceLearnSpell` (`0x4d9e70`) over
+/// the wire spell's three effect slots; the trainer's type plays no part. The first answers 1 for
+/// any `LEARN_SPELL` slot teaching a spell with `Attributes & 0x20` (`0x4d9fe0`-`0x4d9ffe`). The
+/// second stops at the first slot that decides: a `LEARN_SPELL` teaching a missing or unflagged
+/// spell is `Some(false)` (`0x4d9ed9`-`0x4d9f01`), a `LEARN_PET_SPELL` `Some(true)` (`0x4d9f03`),
+/// and a flagged `LEARN_SPELL` moves on (`0x4d9f08`). No record answers nil for both.
+pub(super) fn service_kind(wire_spell: u32, spells: &SpellCatalog) -> (bool, Option<bool>) {
+    let Some(wire) = spells.get(wire_spell) else {
+        return (false, None);
+    };
+    let flagged = |slot: usize| {
+        spells
+            .get(wire.effect_trigger_spell[slot])
+            .is_some_and(|t| t.attributes & SPELL_ATTR_IS_TRADESKILL != 0)
+    };
+    let trade_skill = (0..3).any(|i| wire.effects[i] == SPELL_EFFECT_LEARN_SPELL && flagged(i));
+    let learn_spell = (0..3).find_map(|i| match wire.effects[i] {
+        SPELL_EFFECT_LEARN_SPELL if !flagged(i) => Some(false),
+        SPELL_EFFECT_LEARN_PET_SPELL => Some(true),
+        _ => None,
+    });
+    (trade_skill, learn_spell)
+}
+
+/// A `state` byte's category. The finalizer shows a row whose `1 << state` is in the filter
+/// (`0x4d84ba`), whose bits past 2 nothing sets (`0x4da390`), so states 3 to 31 are hidden, the
+/// re-evaluator's 3 (`0x4d7e3e`, `0x4d83a4`) among them; vmangos sends 0 to 2
+/// (`NPCHandler.cpp:113`).
+///
+/// Deviation: benilla hides every state from 3 up. The reference shows bytes 32 and up, because
+/// x86 `shl` wraps its count (bits 32-34 alias 0-2) and its group counter `[hdr+4+state*4]`
+/// (`0x4d7854`) runs past the header.
+pub(super) fn category(state: u8) -> TrainerServiceCategory {
+    match state {
+        trainer_spell_state::GREEN => TrainerServiceCategory::Available,
+        trainer_spell_state::RED => TrainerServiceCategory::Unavailable,
+        trainer_spell_state::GRAY => TrainerServiceCategory::Used,
+        _ => TrainerServiceCategory::Hidden,
+    }
+}

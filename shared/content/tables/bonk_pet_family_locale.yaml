@@ -1,0 +1,76 @@
+# Imported by tools/content/dump_tables.py from bonk_pet_family_locale. Edit this file, then run tools/content/compile.py.
+table: bonk_pet_family_locale
+columns:
+- id
+- locale
+- name
+- description
+rows:
+- - 1
+  - zhCN
+  - 猫
+  - ''
+- - 2
+  - zhCN
+  - 水元素
+  - 变为水元素：施放施加冰寒的寒冰箭，并每5秒施放一次小型冰霜新星，对6码内的敌人施加2层冰寒。
+- - 3
+  - zhCN
+  - 火元素
+  - 变为火元素：施放使敌人燃烧的火球术，并每2秒灼烧5码内的敌人，施加1层燃烧。
+- - 4
+  - zhCN
+  - 奥术元素
+  - 变为奥术元素：施放奥术箭，并每3秒施放一次小型魔爆术，命中6码内的敌人。
+- - 5
+  - zhCN
+  - 九头蛇
+  - ''
+- - 6
+  - zhCN
+  - 灵魂之狼
+  - ''
+- - 7
+  - zhCN
+  - 灼热图腾
+  - ''
+- - 8
+  - zhCN
+  - 熔岩图腾
+  - ''
+- - 9
+  - zhCN
+  - 治疗之泉图腾
+  - ''
+- - 10
+  - zhCN
+  - 元素之魂
+  - ''
+- - 11
+  - zhCN
+  - 暗影魔
+  - ''
+- - 12
+  - zhCN
+  - 小鬼
+  - ''
+- - 13
+  - zhCN
+  - 虚空行者
+  - ''
+- - 14
+  - zhCN
+  - 魅魔
+  - ''
+- - 15
+  - zhCN
+  - 恶魔猎犬
+  - ''
+- - 16
+  - zhCN
+  - 树人
+  - ''
+- - 17
+  - zhCN
+  - 战争古树
+  - ''

@@ -1,0 +1,849 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+#ifndef __UNIT_DEFINES_H
+#define __UNIT_DEFINES_H
+
+#include "Common.h"
+
+enum UnitMoveType
+{
+    MOVE_WALK           = 0,
+    MOVE_RUN            = 1,
+    MOVE_RUN_BACK       = 2,
+    MOVE_SWIM           = 3,
+    MOVE_SWIM_BACK      = 4,
+    MOVE_TURN_RATE      = 5,
+};
+
+#define MAX_MOVE_TYPE 6
+
+extern float baseMoveSpeed[MAX_MOVE_TYPE];
+
+#define MOVEMENT_PACKET_TIME_DELAY 0
+
+enum MovementChangeType
+{
+    INVALID,
+
+    ROOT,
+    WATER_WALK,
+    SET_HOVER,
+    FEATHER_FALL,
+
+    SPEED_CHANGE_WALK,
+    SPEED_CHANGE_RUN,
+    SPEED_CHANGE_RUN_BACK,
+    SPEED_CHANGE_SWIM,
+    SPEED_CHANGE_SWIM_BACK,
+    RATE_CHANGE_TURN,
+
+    TELEPORT,
+    KNOCK_BACK
+};
+
+// No orientation check for auto attacks or spells below this distance.
+#define NO_FACING_CHECKS_DISTANCE 1.4f
+
+// Delay time next attack to prevent client attack animation problems
+#define ATTACK_DISPLAY_DELAY 200
+
+// For this time difference is computed regen value
+#define REGEN_TIME_PLAYER_FULL     2000
+#define REGEN_TIME_CREATURE_FULL   5000
+
+#define UNIT_PVP_COMBAT_TIMER 5500
+
+#define BASE_MELEERANGE_OFFSET 1.333333373069763f
+#define BASE_MINDAMAGE 1.0f
+#define BASE_MAXDAMAGE 2.0f
+#define BASE_ATTACK_TIME 2000
+
+enum UnitBytes0Offsets : uint8
+{
+    UNIT_BYTES_0_OFFSET_RACE       = 0,
+    UNIT_BYTES_0_OFFSET_CLASS      = 1,
+    UNIT_BYTES_0_OFFSET_GENDER     = 2,
+    UNIT_BYTES_0_OFFSET_POWER_TYPE = 3,
+};
+
+enum UnitBytes1Offsets : uint8
+{
+    UNIT_BYTES_1_OFFSET_STAND_STATE     = 0,
+    UNIT_BYTES_1_OFFSET_PET_LOYALTY     = 1,
+    UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM = 2,
+    UNIT_BYTES_1_OFFSET_VIS_FLAG        = 3,
+};
+
+enum UnitBytes2Offsets : uint8
+{
+    UNIT_BYTES_2_OFFSET_SHEATH_STATE = 0,
+    UNIT_BYTES_2_OFFSET_MISC_FLAGS   = 1,
+    UNIT_BYTES_2_OFFSET_PET_FLAGS    = 2,
+    UNIT_BYTES_2_OFFSET_UNKNOWN      = 3, // shapeshift form in tbc
+};
+
+// byte value (UNIT_FIELD_BYTES_1,0)
+enum UnitStandStateType
+{
+    UNIT_STAND_STATE_STAND             = 0,
+    UNIT_STAND_STATE_SIT               = 1,
+    UNIT_STAND_STATE_SIT_CHAIR         = 2,
+    UNIT_STAND_STATE_SLEEP             = 3,
+    UNIT_STAND_STATE_SIT_LOW_CHAIR     = 4,
+    UNIT_STAND_STATE_SIT_MEDIUM_CHAIR  = 5,
+    UNIT_STAND_STATE_SIT_HIGH_CHAIR    = 6,
+    UNIT_STAND_STATE_DEAD              = 7,
+    UNIT_STAND_STATE_KNEEL             = 8,
+    UNIT_STAND_STATE_CUSTOM            = 9, // Depends on model animation. Submerge, freeze, hide, hibernate, rest
+};
+
+#define MAX_UNIT_STAND_STATE             10
+
+static char const* UnitStandStateToString(uint32 state)
+{
+    switch (state)
+    {
+        case UNIT_STAND_STATE_STAND:
+            return "Stand";
+        case UNIT_STAND_STATE_SIT:
+            return "Sit";
+        case UNIT_STAND_STATE_SIT_CHAIR:
+            return "Sit Chair";
+        case UNIT_STAND_STATE_SLEEP:
+            return "Sleep";
+        case UNIT_STAND_STATE_SIT_LOW_CHAIR:
+            return "Sit Low Chair";
+        case UNIT_STAND_STATE_SIT_MEDIUM_CHAIR:
+            return "Sit Medium Chair";
+        case UNIT_STAND_STATE_SIT_HIGH_CHAIR:
+            return "Sit High Chair";
+        case UNIT_STAND_STATE_DEAD:
+            return "Dead";
+        case UNIT_STAND_STATE_KNEEL:
+            return "Kneel";
+    }
+    return "UNKNOWN";
+}
+
+// byte flags value (UNIT_FIELD_BYTES_1,3)
+// These flags seem to be related to visibility
+// In wotlk+ they are moved to UNIT_FIELD_BYTES_1,2
+enum UnitVisFlags
+{
+    UNIT_VIS_FLAGS_GHOST       = 0x01, // applied by SPELL_AURA_GHOST
+    UNIT_VIS_FLAGS_CREEP       = 0x02, // applied by SPELL_AURA_MOD_STEALTH
+    UNIT_VIS_FLAGS_UNTRACKABLE = 0x04, // applied by SPELL_AURA_UNTRACKABLE
+    UNIT_VIS_FLAGS_ALL         = 0xFF
+};
+
+static char const* UnitVisFlagToString(uint32 state)
+{
+    switch (state)
+    {
+        case UNIT_VIS_FLAGS_GHOST:
+            return "Ghost";
+        case UNIT_VIS_FLAGS_CREEP:
+            return "Creep";
+        case UNIT_VIS_FLAGS_UNTRACKABLE:
+            return "Untrackable";
+    }
+    return "UNKNOWN";
+}
+
+// byte value (UNIT_FIELD_BYTES_2,0)
+enum SheathState
+{
+    SHEATH_STATE_UNARMED  = 0,                              // non prepared weapon
+    SHEATH_STATE_MELEE    = 1,                              // prepared melee weapon
+    SHEATH_STATE_RANGED   = 2                               // prepared ranged weapon
+};
+
+#define MAX_SHEATH_STATE    3
+
+static char const* SheathStateToString(uint32 state)
+{
+    switch (state)
+    {
+        case SHEATH_STATE_UNARMED:
+            return "Unarmed";
+        case SHEATH_STATE_MELEE:
+            return "Melee";
+        case SHEATH_STATE_RANGED:
+            return "Ranged";
+    }
+    return "UNKNOWN";
+}
+
+// byte flags value (UNIT_FIELD_BYTES_2,1)
+enum UnitBytes2_Flags
+{
+    UNIT_BYTE2_FLAG_PVP         = 0x01,
+    UNIT_BYTE2_FLAG_UNK1        = 0x02,
+    UNIT_BYTE2_FLAG_FFA_PVP     = 0x04,
+    UNIT_BYTE2_FLAG_UNK3        = 0x08,                     // FLAG_SANCTUARY on 3.3.5
+    UNIT_BYTE2_FLAG_AURAS       = 0x10,                     // show possitive auras as positive, and allow its dispel
+    UNIT_BYTE2_FLAG_UNK5        = 0x20,
+    UNIT_BYTE2_FLAG_UNK6        = 0x40,
+    UNIT_BYTE2_FLAG_UNK7        = 0x80
+};
+
+static char const* UnitBytes2FlagsToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case UNIT_BYTE2_FLAG_PVP:
+            return "PvP";
+        case UNIT_BYTE2_FLAG_UNK1:
+            return "Unk1";
+        case UNIT_BYTE2_FLAG_FFA_PVP:
+            return "FFA PvP";
+        case UNIT_BYTE2_FLAG_UNK3:
+            return "Unk3";
+        case UNIT_BYTE2_FLAG_AURAS:
+            return "Auras";
+        case UNIT_BYTE2_FLAG_UNK5:
+            return "Unk5";
+        case UNIT_BYTE2_FLAG_UNK6:
+            return "Unk6";
+        case UNIT_BYTE2_FLAG_UNK7:
+            return "Unk7";
+    }
+    return "UNKNOWN";
+}
+
+#define CREATURE_MAX_SPELLS     4
+
+//i would like to remove this: (it is defined in item.h
+enum InventorySlot
+{
+    NULL_BAG                   = 0,
+    NULL_SLOT                  = 255
+};
+
+enum UnitModifierType
+{
+    BASE_VALUE = 0,
+    BASE_PCT = 1,
+    TOTAL_VALUE = 2,
+    TOTAL_PCT = 3,
+    MODIFIER_TYPE_END = 4
+};
+
+enum WeaponDamageRange
+{
+    MINDAMAGE,
+    MAXDAMAGE
+};
+
+enum DamageTypeToSchool
+{
+    RESISTANCE,
+    DAMAGE_DEALT,
+    DAMAGE_TAKEN
+};
+
+enum AuraRemoveMode
+{
+    AURA_REMOVE_BY_DEFAULT,
+    AURA_REMOVE_BY_STACK,                                   // at replace by similar aura
+    AURA_REMOVE_BY_CANCEL,
+    AURA_REMOVE_BY_DISPEL,
+    AURA_REMOVE_BY_DEATH,
+    AURA_REMOVE_BY_DELETE,                                  // use for speedup and prevent unexpected effects at player logout/pet unsummon (must be used _only_ after save), delete.
+    AURA_REMOVE_BY_SHIELD_BREAK,                            // when absorb shield is removed by damage
+    AURA_REMOVE_BY_EXPIRE,                                  // at duration end
+    AURA_REMOVE_BY_CHANNEL,                                 // when removing an aura due to channel finish or cancel
+    AURA_REMOVE_BY_RANGE,                                   // when removing an area aura due to being out of range
+    AURA_REMOVE_BY_GROUP                                    // when removing an aura due to not being in the same group (includes pet ownership)
+};
+
+enum UnitMods
+{
+    UNIT_MOD_STAT_STRENGTH,                                 // UNIT_MOD_STAT_STRENGTH..UNIT_MOD_STAT_SPIRIT must be in existing order, it's accessed by index values of Stats enum.
+    UNIT_MOD_STAT_AGILITY,
+    UNIT_MOD_STAT_STAMINA,
+    UNIT_MOD_STAT_INTELLECT,
+    UNIT_MOD_STAT_SPIRIT,
+    UNIT_MOD_HEALTH,
+    UNIT_MOD_MANA,                                          // UNIT_MOD_MANA..UNIT_MOD_HAPPINESS must be in existing order, it's accessed by index values of Powers enum.
+    UNIT_MOD_RAGE,
+    UNIT_MOD_FOCUS,
+    UNIT_MOD_ENERGY,
+    UNIT_MOD_HAPPINESS,
+    UNIT_MOD_ARMOR,                                         // UNIT_MOD_ARMOR..UNIT_MOD_RESISTANCE_ARCANE must be in existing order, it's accessed by index values of SpellSchools enum.
+    UNIT_MOD_RESISTANCE_HOLY,
+    UNIT_MOD_RESISTANCE_FIRE,
+    UNIT_MOD_RESISTANCE_NATURE,
+    UNIT_MOD_RESISTANCE_FROST,
+    UNIT_MOD_RESISTANCE_SHADOW,
+    UNIT_MOD_RESISTANCE_ARCANE,
+    UNIT_MOD_DAMAGE_MAINHAND,
+    UNIT_MOD_DAMAGE_OFFHAND,
+    UNIT_MOD_DAMAGE_RANGED,
+    UNIT_MOD_DAMAGE_PHYSICAL,
+    UNIT_MOD_END,
+    // synonyms
+    UNIT_MOD_STAT_START = UNIT_MOD_STAT_STRENGTH,
+    UNIT_MOD_STAT_END = UNIT_MOD_STAT_SPIRIT + 1,
+    UNIT_MOD_RESISTANCE_START = UNIT_MOD_ARMOR,
+    UNIT_MOD_RESISTANCE_END = UNIT_MOD_RESISTANCE_ARCANE + 1,
+    UNIT_MOD_POWER_START = UNIT_MOD_MANA,
+    UNIT_MOD_POWER_END = UNIT_MOD_HAPPINESS + 1
+};
+
+enum BaseModGroup
+{
+    CRIT_PERCENTAGE,
+    RANGED_CRIT_PERCENTAGE,
+    SHIELD_BLOCK_VALUE,
+    BASEMOD_END
+};
+
+enum BaseModType
+{
+    FLAT_MOD,
+    PCT_MOD
+};
+
+#define MOD_END (PCT_MOD+1)
+
+enum DeathState
+{
+    ALIVE          = 0,                                     // show as alive
+    JUST_DIED      = 1,                                     // temporary state at die, for creature auto converted to CORPSE, for player at next update call
+    CORPSE         = 2,                                     // corpse state, for player spirit is still within the corpse
+    DEAD           = 3,                                     // for creature despawned state (corpse despawned), for player spirit has been released (player is ghost)
+    JUST_ALIVED    = 4,                                     // temporary state at resurrection, for creature auto converted to ALIVE, for player at next update call
+    CORPSE_FALLING = 5                                      // corpse state in case when corpse still falling to ground
+};
+
+// internal state flags for some auras and movement generators, other.
+enum UnitState
+{
+    // persistent state (applied by aura/etc until expire)
+    UNIT_STATE_MELEE_ATTACKING = 0x00000001,                     // unit is melee attacking someone Unit::Attack
+    UNIT_STATE_NO_KILL_REWARD  = 0x00000002,                     // Unit should yield no reward (Honor/XP/Rep) on kill
+    UNIT_STATE_FEIGN_DEATH     = 0x00000004,                     // Unit::SetFeignDeath - a successful feign death is currently active
+    UNIT_STATE_STUNNED         = 0x00000008,                     // Aura::HandleAuraModStun
+    UNIT_STATE_ROOT            = 0x00000010,                     // Aura::HandleAuraModRoot
+    UNIT_STATE_ISOLATED        = 0x00000020,                     // area auras do not affect other players, Aura::HandleAuraModSchoolImmunity
+    UNIT_STATE_POSSESSED       = 0x00000040,                     // Aura::HandleAuraModPossess
+
+    // persistent movement generator state (all time while movement generator applied to unit (independent from top state of movegen)
+    UNIT_STATE_TAXI_FLIGHT     = 0x00000080,                     // player is in flight mode (in fact interrupted at far teleport until next map telport landing)
+    UNIT_STATE_DISTRACTED      = 0x00000100,                     // DistractedMovementGenerator active
+
+    // persistent movement generator state with non-persistent mirror states for stop support
+    // (can be removed temporary by stop command or another movement generator apply)
+    // not use _MOVE versions for generic movegen state, it can be removed temporary for unit stop and etc
+    UNIT_STATE_CONFUSED        = 0x00000200,                     // ConfusedMovementGenerator active/onstack
+    //UNIT_STAT_CONFUSED_MOVE   = 0x00000400,                   // No longer in use (Nostalrius)
+    UNIT_STATE_ROAMING         = 0x00000800,                     // RandomMovementGenerator/PointMovementGenerator/WaypointMovementGenerator active (now always set)
+    UNIT_STATE_ROAMING_MOVE    = 0x00001000,
+    UNIT_STATE_CHASE           = 0x00002000,                     // ChaseMovementGenerator active
+    UNIT_STATE_CHASE_MOVE      = 0x00004000,
+    UNIT_STATE_FOLLOW          = 0x00008000,                     // FollowMovementGenerator active
+    UNIT_STATE_FOLLOW_MOVE     = 0x00010000,
+    UNIT_STATE_FLEEING         = 0x00020000,                     // FleeMovementGenerator/TimedFleeingMovementGenerator active/onstack
+    UNIT_STATE_FLEEING_MOVE    = 0x00040000,
+    // MMAPS
+    UNIT_STATE_IGNORE_PATHFINDING    = 0x00080000,               // do not use pathfinding in any MovementGenerator
+
+    UNIT_STATE_PENDING_ROOT          = 0x00100000,               // apply root on finishing charge
+    UNIT_STATE_PENDING_STUNNED       = 0x00200000,               // apply stun on finishing charge
+    UNIT_STATE_ROOT_ON_LANDING       = 0x00400000,               // used to verify modern client behavior on root while falling
+
+    // High-level states
+    UNIT_STATE_RUNNING               = 0x01000000,
+
+    UNIT_STATE_ALLOW_INCOMPLETE_PATH = 0x02000000, // allow movement with incomplete or partial paths
+    UNIT_STATE_PENDING_CHANNEL_RESET = 0x04000000, // pending end of spell channeling animation
+
+    UNIT_STATE_NO_SEARCH_FOR_OTHERS   = 0x08000000, // MoveInLineOfSight will not be called
+    UNIT_STATE_NO_BROADCAST_TO_OTHERS = 0x10000000, // ScheduleAINotify will not be called
+    UNIT_STATE_AI_USES_MOVE_IN_LOS    = 0x20000000, // AI overrides MoveInLineOfSight so always search for others
+
+    // masks (only for check)
+
+    // can't move currently
+    UNIT_STATE_CAN_NOT_MOVE    = UNIT_STATE_ROOT | UNIT_STATE_STUNNED | UNIT_STATE_FEIGN_DEATH,
+
+    // stay by different reasons
+    UNIT_STATE_NOT_MOVE        = UNIT_STATE_ROOT | UNIT_STATE_STUNNED | UNIT_STATE_FEIGN_DEATH |
+                                UNIT_STATE_DISTRACTED,
+
+    // stay or scripted movement for effect( = in player case you can't move by client command)
+    UNIT_STATE_NO_FREE_MOVE    = UNIT_STATE_ROOT | UNIT_STATE_STUNNED |
+                                UNIT_STATE_TAXI_FLIGHT |
+                                UNIT_STATE_CONFUSED | UNIT_STATE_FLEEING,
+
+    // not react at move in sight or other
+    UNIT_STATE_CAN_NOT_REACT   = UNIT_STATE_STUNNED | UNIT_STATE_FEIGN_DEATH |
+                                UNIT_STATE_CONFUSED | UNIT_STATE_FLEEING,
+
+    // AI disabled by some reason
+    UNIT_STATE_LOST_CONTROL    = UNIT_STATE_FLEEING | UNIT_STATE_POSSESSED,
+
+    // above 2 state cases
+    UNIT_STATE_CAN_NOT_REACT_OR_LOST_CONTROL  = UNIT_STATE_CAN_NOT_REACT | UNIT_STATE_LOST_CONTROL,
+
+    // masks (for check or reset)
+
+    // for real move using movegen check and stop (except unstoppable flight)
+    UNIT_STATE_MOVING          = UNIT_STATE_ROAMING_MOVE | UNIT_STATE_CHASE_MOVE | UNIT_STATE_FOLLOW_MOVE | UNIT_STATE_FLEEING_MOVE,
+
+    UNIT_STATE_ALL_STATE       = 0xFFFFFFFF,
+    UNIT_STATE_ALL_DYN_STATES  = UNIT_STATE_ALL_STATE & ~(UNIT_STATE_RUNNING | UNIT_STATE_IGNORE_PATHFINDING | UNIT_STATE_PENDING_CHANNEL_RESET | UNIT_STATE_NO_SEARCH_FOR_OTHERS | UNIT_STATE_NO_BROADCAST_TO_OTHERS | UNIT_STATE_AI_USES_MOVE_IN_LOS),
+};
+
+static char const* UnitStateToString(uint32 state)
+{
+    switch (state)
+    {
+        case UNIT_STATE_MELEE_ATTACKING:
+            return "Melee Attacking";
+        case UNIT_STATE_NO_KILL_REWARD:
+            return "No Kill Reward";
+        case UNIT_STATE_FEIGN_DEATH:
+            return "Feign Death";
+        case UNIT_STATE_STUNNED:
+            return "Stunned";
+        case UNIT_STATE_ROOT:
+            return "Root";
+        case UNIT_STATE_ISOLATED:
+            return "Isolated";
+        case UNIT_STATE_POSSESSED:
+            return "Possessed";
+        case UNIT_STATE_TAXI_FLIGHT:
+            return "Taxi Flight";
+        case UNIT_STATE_DISTRACTED:
+            return "Distracted";
+        case UNIT_STATE_CONFUSED:
+            return "Confused";
+        case UNIT_STATE_ROAMING:
+            return "Roaming";
+        case UNIT_STATE_ROAMING_MOVE:
+            return "Roaming Move";
+        case UNIT_STATE_CHASE:
+            return "Chase";
+        case UNIT_STATE_CHASE_MOVE:
+            return "Chase Move";
+        case UNIT_STATE_FOLLOW:
+            return "Follow";
+        case UNIT_STATE_FOLLOW_MOVE:
+            return "Follow Move";
+        case UNIT_STATE_FLEEING:
+            return "Fleeing";
+        case UNIT_STATE_FLEEING_MOVE:
+            return "Fleeing Move";
+        case UNIT_STATE_IGNORE_PATHFINDING:
+            return "Ignore Pathfinding";
+        case UNIT_STATE_PENDING_ROOT:
+            return "Pending Root";
+        case UNIT_STATE_PENDING_STUNNED:
+            return "Pending Stunned";
+        case UNIT_STATE_ROOT_ON_LANDING:
+            return "Root on Landing";
+        case UNIT_STATE_RUNNING:
+            return "Running";
+        case UNIT_STATE_ALLOW_INCOMPLETE_PATH:
+            return "Allow Incomplete Path";
+        case UNIT_STATE_PENDING_CHANNEL_RESET:
+            return "Pending Channel Reset";
+        case UNIT_STATE_NO_SEARCH_FOR_OTHERS:
+            return "No Search for Others";
+        case UNIT_STATE_NO_BROADCAST_TO_OTHERS:
+            return "No Broadcast to Others";
+        case UNIT_STATE_AI_USES_MOVE_IN_LOS:
+            return "AI Uses Move in LoS";
+    }
+    return "UNKNOWN";
+}
+
+enum UnitVisibility
+{
+    VISIBILITY_OFF                = 0,                      // absolute, not detectable, GM-like, can see all other
+    VISIBILITY_ON                 = 1,
+    VISIBILITY_GROUP_STEALTH      = 2,                      // detect chance, seen and can see group members
+    VISIBILITY_GROUP_INVISIBILITY = 3,                      // invisibility, can see and can be seen only another invisible unit or invisible detection unit, set only if not stealthed, and in checks not used (mask used instead)
+    VISIBILITY_GROUP_NO_DETECT    = 4,                      // state just at stealth apply for update Grid state. Don't remove, otherwise stealth spells will break
+    VISIBILITY_RESPAWN            = 5                       // special totally not detectable visibility for force delete object at respawn command
+};
+
+// Value masks for UNIT_FIELD_FLAGS
+enum UnitFlags
+{
+    UNIT_FLAG_NONE                  = 0x00000000,
+    UNIT_FLAG_SERVER_CONTROLLED     = 0x00000001,           // Set only when unit movement is moved by server together with UNIT_FLAG_STUNNED. Only set to units controlled by client. Client function CGUnit_C::IsClientControlled returns false when set for owner.
+    UNIT_FLAG_SPAWNING              = 0x00000002,           // Not attackable, set when creature starts to cast spells with SPELL_EFFECT_SPAWN and cast time, removed when spell hits caster.
+    UNIT_FLAG_REMOVE_CLIENT_CONTROL = 0x00000004,           // This is a legacy flag used to disable player movement while controlling other units, SMSG_CLIENT_CONTROL replaces this functionality clientside now. Always paired with UNIT_FLAG_TAXI_FLIGHT.
+    UNIT_FLAG_PLAYER_CONTROLLED     = 0x00000008,           // Added to players, pets, totems, guardians, companions, charms, any units associated with players.
+    UNIT_FLAG_PET_RENAME            = 0x00000010,           // Pet can be renamed by owner. Moved to UNIT_FIELD_BYTES_2,2 in TBC+.
+    UNIT_FLAG_PET_ABANDON           = 0x00000020,           // Pet can be abandoned by owner. Moved to UNIT_FIELD_BYTES_2,2 in TBC+.
+    UNIT_FLAG_PLUS_MOB              = 0x00000040,           // Creature rank > 0, confirmed in 1.8 sniffs, client uses it in Script::UnitIsPlusMob.
+    UNIT_FLAG_NOT_ATTACKABLE_1      = 0x00000080,           // Most likely used by Beastmaster cheat.
+    UNIT_FLAG_IMMUNE_TO_PLAYER      = 0x00000100,           // Cannot be attacked by players. It also prevents the unit from attacking other players.
+    UNIT_FLAG_IMMUNE_TO_NPC         = 0x00000200,           // Cannot be attacked by creatures. It also prevents the unit from attacking other creatures.
+    UNIT_FLAG_LOOTING               = 0x00000400,           // Displays loot animation.
+    UNIT_FLAG_PET_IN_COMBAT         = 0x00000800,           // Something to do with combat but it's not clear what.
+    UNIT_FLAG_PVP                   = 0x00001000,           // Makes player attackable by enemy faction players. Creatures can be assisted by friendly players and will flag attackers for PvP as well.
+    UNIT_FLAG_SILENCED              = 0x00002000,           // Prevents casting spells that have SPELL_PREVENTION_TYPE_SILENCE. Added by SPELL_AURA_MOD_SILENCE.
+    UNIT_FLAG_UNK_14                = 0x00004000,           // Never seen in sniffs.
+    UNIT_FLAG_USE_SWIM_ANIMATION    = 0x00008000,           // Without it units walk on the sea floor instead of swimming.
+    UNIT_FLAG_NON_ATTACKABLE_2      = 0x00010000,           // Removes attackable icon, if on yourself, cannot assist self but can cast TARGET_UNIT_CASTER spells. Added by SPELL_AURA_MOD_UNATTACKABLE.
+    UNIT_FLAG_PACIFIED              = 0x00020000,           // Prevents melee attacks and casting spells that have SPELL_PREVENTION_TYPE_PACIFY. Added by SPELL_AURA_MOD_PACIFY.
+    UNIT_FLAG_STUNNED               = 0x00040000,           // Turn and strafe movement disabled. Added by SPELL_AURA_MOD_STUN.
+    UNIT_FLAG_IN_COMBAT             = 0x00080000,           // Unit is engaged in combat.
+    UNIT_FLAG_TAXI_FLIGHT           = 0x00100000,           // Unit is on taxi, paired with a duplicate loss of client control packet (likely a legacy serverside hack). Disables any spell casts not allowed in taxi flight client-side.
+    UNIT_FLAG_DISARMED              = 0x00200000,           // Prevents using abilities that require a weapon. Added by SPELL_AURA_MOD_DISARM.
+    UNIT_FLAG_CONFUSED              = 0x00400000,           // Unit is a subject to confused movement, movement checks disabled, paired with loss of client control packet.
+    UNIT_FLAG_FLEEING               = 0x00800000,           // Unit is a subject to fleeing movement, movement checks disabled, paired with loss of client control packet.
+    UNIT_FLAG_POSSESSED             = 0x01000000,           // Unit is under remote control by another unit, movement checks disabled, paired with loss of client control packet. New master is allowed to use melee attack and can't select this unit via mouse in the world (as if it was own character).
+    UNIT_FLAG_NOT_SELECTABLE        = 0x02000000,           // Unit cannot be selected, targeted with negative spells, attacked or interacted with. Can still be targeted with positive spells.
+    UNIT_FLAG_SKINNABLE             = 0x04000000,           // Unit can be skinned and then looted. Can be applied to players too inside battlegrounds.
+    UNIT_FLAG_AURAS_VISIBLE         = 0x08000000,           // Detect Magic. Added by SPELL_AURA_AURAS_VISIBLE.
+    UNIT_FLAG_UNK_28                = 0x10000000,           // Never seen in sniffs.
+    UNIT_FLAG_PREVENT_ANIM          = 0x20000000,           // Prevent automatically playing emotes from parsing chat text, for example "lol" in /say, ending message with ? or !, or using /yell.
+    UNIT_FLAG_SHEATHE               = 0x40000000,           // Never seen in sniffs.
+    UNIT_FLAG_IMMUNE                = 0x80000000,           // Immune to damage. It prevents interacting with some GameObjects like the WSG flag.
+};
+
+static char const* UnitFlagToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case UNIT_FLAG_NONE:
+            return "None";
+        case UNIT_FLAG_SERVER_CONTROLLED:
+            return "Server Controlled";
+        case UNIT_FLAG_SPAWNING:
+            return "Spawning";
+        case UNIT_FLAG_REMOVE_CLIENT_CONTROL:
+            return "Remove Client Control";
+        case UNIT_FLAG_PLAYER_CONTROLLED:
+            return "Player Controlled";
+        case UNIT_FLAG_PET_RENAME:
+            return "Pet Rename";
+        case UNIT_FLAG_PET_ABANDON:
+            return "Pet Abandon";
+        case UNIT_FLAG_PLUS_MOB:
+            return "Plus Mob";
+        case UNIT_FLAG_NOT_ATTACKABLE_1:
+            return "Not Attackable 1";
+        case UNIT_FLAG_IMMUNE_TO_PLAYER:
+            return "Immune To Player";
+        case UNIT_FLAG_IMMUNE_TO_NPC:
+            return "Immune To NPC";
+        case UNIT_FLAG_LOOTING:
+            return "Looting";
+        case UNIT_FLAG_PET_IN_COMBAT:
+            return "Pet In Combat";
+        case UNIT_FLAG_PVP:
+            return "PvP";
+        case UNIT_FLAG_SILENCED:
+            return "Silenced";
+        case UNIT_FLAG_UNK_14:
+            return "Unk14";
+        case UNIT_FLAG_USE_SWIM_ANIMATION:
+            return "Use Swim Animation";
+        case UNIT_FLAG_NON_ATTACKABLE_2:
+            return "Non Attackable 2";
+        case UNIT_FLAG_PACIFIED:
+            return "Pacified";
+        case UNIT_FLAG_STUNNED:
+            return "Stunned";
+        case UNIT_FLAG_IN_COMBAT:
+            return "In Combat";
+        case UNIT_FLAG_TAXI_FLIGHT:
+            return "Taxi Flight";
+        case UNIT_FLAG_DISARMED:
+            return "Disarmed";
+        case UNIT_FLAG_CONFUSED:
+            return "Confused";
+        case UNIT_FLAG_FLEEING:
+            return "Fleeing";
+        case UNIT_FLAG_POSSESSED:
+            return "Possessed";
+        case UNIT_FLAG_NOT_SELECTABLE:
+            return "Not Selectable";
+        case UNIT_FLAG_SKINNABLE:
+            return "Skinnable";
+        case UNIT_FLAG_AURAS_VISIBLE:
+            return "Auras Visible";
+        case UNIT_FLAG_UNK_28:
+            return "Unk28";
+        case UNIT_FLAG_PREVENT_ANIM:
+            return "Prevent Anim";
+        case UNIT_FLAG_SHEATHE:
+            return "Sheathe";
+        case UNIT_FLAG_IMMUNE:
+            return "Immune";
+    }
+    return "UNKNOWN";
+}
+
+// Non Player Character flags
+enum NPCFlags
+{
+    UNIT_NPC_FLAG_NONE                  = 0x00000000,
+    UNIT_NPC_FLAG_GOSSIP                = 0x00000001,       // 100%
+    UNIT_NPC_FLAG_QUESTGIVER            = 0x00000002,       // 100%
+    UNIT_NPC_FLAG_VENDOR                = 0x00000004,       // 100%
+    UNIT_NPC_FLAG_FLIGHTMASTER          = 0x00000008,       // 100%
+    UNIT_NPC_FLAG_TRAINER               = 0x00000010,       // 100%
+    UNIT_NPC_FLAG_SPIRITHEALER          = 0x00000020,       // guessed
+    UNIT_NPC_FLAG_SPIRITGUIDE           = 0x00000040,       // guessed
+    UNIT_NPC_FLAG_INNKEEPER             = 0x00000080,       // 100%
+    UNIT_NPC_FLAG_BANKER                = 0x00000100,       // 100%
+    UNIT_NPC_FLAG_PETITIONER            = 0x00000200,       // 100% 0xC0000 = guild petitions
+    UNIT_NPC_FLAG_TABARDDESIGNER        = 0x00000400,       // 100%
+    UNIT_NPC_FLAG_BATTLEMASTER          = 0x00000800,       // 100%
+    UNIT_NPC_FLAG_AUCTIONEER            = 0x00001000,       // 100%
+    UNIT_NPC_FLAG_STABLEMASTER          = 0x00002000,       // 100%
+    UNIT_NPC_FLAG_REPAIR                = 0x00004000,       // 100%
+};
+
+static char const* NPCFlagToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case UNIT_NPC_FLAG_NONE:
+            return "None";
+        case UNIT_NPC_FLAG_GOSSIP:
+            return "Gossip";
+        case UNIT_NPC_FLAG_QUESTGIVER:
+            return "Quest Giver";
+        case UNIT_NPC_FLAG_VENDOR:
+            return "Vendor";
+        case UNIT_NPC_FLAG_FLIGHTMASTER:
+            return "Flight Master";
+        case UNIT_NPC_FLAG_TRAINER:
+            return "Trainer";
+        case UNIT_NPC_FLAG_SPIRITHEALER:
+            return "Spirit Healer";
+        case UNIT_NPC_FLAG_SPIRITGUIDE:
+            return "Spirit Guide";
+        case UNIT_NPC_FLAG_INNKEEPER:
+            return "Innkeeper";
+        case UNIT_NPC_FLAG_BANKER:
+            return "Banker";
+        case UNIT_NPC_FLAG_PETITIONER:
+            return "Petitioner";
+        case UNIT_NPC_FLAG_TABARDDESIGNER:
+            return "Tabard Designer";
+        case UNIT_NPC_FLAG_BATTLEMASTER:
+            return "Battlemaster";
+        case UNIT_NPC_FLAG_AUCTIONEER:
+            return "Auctioneer";
+        case UNIT_NPC_FLAG_STABLEMASTER:
+            return "Stable Master";
+        case UNIT_NPC_FLAG_REPAIR:
+            return "Repair";
+    }
+    return "UNKNOWN";
+}
+
+enum AutoAttackCheckResult
+{
+    ATTACK_RESULT_OK = 0,
+    ATTACK_RESULT_NOT_IN_RANGE = 1,
+    ATTACK_RESULT_BAD_FACING = 2,
+    ATTACK_RESULT_CANT_ATTACK = 3,
+    ATTACK_RESULT_DEAD = 4,
+    ATTACK_RESULT_FRIENDLY_TARGET = 5,
+};
+
+enum ActiveStates
+{
+    ACT_PASSIVE  = 0x01,                                    // 0x01 - passive
+    ACT_DISABLED = 0x81,                                    // 0x80 - castable
+    ACT_ENABLED  = 0xC1,                                    // 0x40 | 0x80 - auto cast + castable
+    ACT_COMMAND  = 0x07,                                    // 0x01 | 0x02 | 0x04
+    ACT_REACTION = 0x06,                                    // 0x02 | 0x04
+    ACT_DECIDE   = 0x00                                     // custom
+};
+
+enum ReactStates
+{
+    REACT_PASSIVE    = 0,
+    REACT_DEFENSIVE  = 1,
+    REACT_AGGRESSIVE = 2
+};
+
+static char const* ReactStateToString(uint32 reactState)
+{
+    switch (reactState)
+    {
+        case REACT_PASSIVE:
+            return "Passive";
+        case REACT_DEFENSIVE:
+            return "Defensive";
+        case REACT_AGGRESSIVE:
+            return "Aggressive";
+    }
+    return "UNKNOWN";
+}
+
+enum CommandStates
+{
+    COMMAND_STAY    = 0,
+    COMMAND_FOLLOW  = 1,
+    COMMAND_ATTACK  = 2,
+    COMMAND_DISMISS = 3
+};
+
+static char const* CommandStateToString(uint32 commandState)
+{
+    switch (commandState)
+    {
+        case COMMAND_STAY:
+            return "Stay";
+        case COMMAND_FOLLOW:
+            return "Follow";
+        case COMMAND_ATTACK:
+            return "Attack";
+        case COMMAND_DISMISS:
+            return "Dismiss";
+    }
+    return "UNKNOWN";
+}
+
+enum ActionBarIndex
+{
+    ACTION_BAR_INDEX_START = 0,
+    ACTION_BAR_INDEX_PET_SPELL_START = 3,
+    ACTION_BAR_INDEX_PET_SPELL_END = 7,
+    ACTION_BAR_INDEX_END = 10,
+};
+
+#define MAX_UNIT_ACTION_BAR_INDEX (ACTION_BAR_INDEX_END-ACTION_BAR_INDEX_START)
+
+// used in CallForAllControlledUnits/CheckAllControlledUnits
+enum ControlledUnitMask
+{
+    CONTROLLED_PET = 0x01,
+    CONTROLLED_MINIPET = 0x02,
+    CONTROLLED_GUARDIANS = 0x04,                            // including PROTECTOR_PET
+    CONTROLLED_CHARM = 0x08,
+    CONTROLLED_TOTEMS = 0x10,
+};
+
+// for clearing special attacks
+#define REACTIVE_TIMER_START 4000
+
+enum ReactiveType
+{
+    REACTIVE_DEFENSE = 1,
+    REACTIVE_HUNTER_PARRY = 2,
+    REACTIVE_CRIT = 3,
+    //REACTIVE_HUNTER_CRIT  = 4,
+    REACTIVE_OVERPOWER = 5
+};
+
+#define MAX_REACTIVE 6
+
+// for Unit::AddAura
+enum AddAuraFlags
+{
+    ADD_AURA_NO_OPTION = 0x00,
+    ADD_AURA_POSITIVE = 0x01,
+    ADD_AURA_NEGATIVE = 0x02,
+    ADD_AURA_PASSIVE = 0x04,
+    ADD_AURA_PERMANENT = 0x08,
+};
+
+enum TeleportToOptions
+{
+    TELE_TO_GM_MODE             = 0x01,
+    TELE_TO_NOT_LEAVE_TRANSPORT = 0x02,
+    TELE_TO_NOT_LEAVE_COMBAT    = 0x04,
+    TELE_TO_NOT_UNSUMMON_PET    = 0x08,
+    TELE_TO_SPELL               = 0x10,
+    TELE_TO_FORCE_MAP_CHANGE    = 0x20,
+};
+
+#define UNIT_DEFAULT_MELEE_Z_LIMIT 36                                    // vertical range diff limit for melee attacks (no meleeing units that fly too high overhead)
+
+enum MovementModType
+{
+    MOV_MOD_FLEE_FOR_ASSISTANCE = 0,
+    MOV_MOD_FLEE_IN_FEAR        = 1,
+    MOV_MOD_CONFUSED            = 2
+};
+
+enum UnitMountResult
+{
+    MOUNTRESULT_INVALIDMOUNTEE  = 0,    // You can't mount that unit!
+    MOUNTRESULT_TOOFARAWAY      = 1,    // That mount is too far away!
+    MOUNTRESULT_ALREADYMOUNTED  = 2,    // You're already mounted!
+    MOUNTRESULT_NOTMOUNTABLE    = 3,    // That unit can't be mounted!
+    MOUNTRESULT_NOTYOURPET      = 4,    // That mount isn't your pet!
+    MOUNTRESULT_OTHER           = 5,    // internal
+    MOUNTRESULT_LOOTING         = 6,    // You can't mount while looting!
+    MOUNTRESULT_RACECANTMOUNT   = 7,    // You can't mount because of your race!
+    MOUNTRESULT_SHAPESHIFTED    = 8,    // You can't mount while shapeshifted!
+    MOUNTRESULT_FORCEDDISMOUNT  = 9,    // You dismount before continuing.
+    MOUNTRESULT_OK              = 10    // no error
+};
+
+enum UnitDismountResult
+{
+    DISMOUNTRESULT_NOPET        = 0,    // internal
+    DISMOUNTRESULT_NOTMOUNTED   = 1,    // You're not mounted!
+    DISMOUNTRESULT_NOTYOURPET   = 2,    // internal
+    DISMOUNTRESULT_OK           = 3     // no error
+};
+
+// First entry in CreatureDisplayInfo.dbc
+#define UNIT_DISPLAY_ID_BOX 4
+
+enum ModelIds
+{
+    MODEL_HUMAN_MALE    = 49,
+    MODEL_HUMAN_FEMALE  = 50,
+    MODEL_ORC_MALE      = 51,
+    MODEL_ORC_FEMALE    = 52,
+    MODEL_DWARF_MALE    = 53,
+    MODEL_DWARF_FEMALE  = 54,
+    MODEL_NELF_MALE     = 55,
+    MODEL_NELF_FEMALE   = 56,
+    MODEL_UNDEAD_MALE   = 57,
+    MODEL_UNDEAD_FEMALE = 58,
+    MODEL_TAUREN_MALE   = 59,
+    MODEL_TAUREN_FEMALE = 60,
+    MODEL_GNOME_MALE    = 182,
+    MODEL_GNOME_FEMALE  = 183,
+    MODEL_TROLL_MALE    = 185,
+    MODEL_TROLL_FEMALE  = 186,
+};
+
+enum SpellProcEventTriggerCheck
+{
+    SPELL_PROC_TRIGGER_FAILED       = 0,
+    SPELL_PROC_TRIGGER_ROLL_FAILED  = 1,
+    SPELL_PROC_TRIGGER_OK           = 2,
+};
+
+enum SpellAuraProcResult
+{
+    SPELL_AURA_PROC_OK              = 0,                    // proc was processed, will remove charges
+    SPELL_AURA_PROC_FAILED          = 1,                    // proc failed - if at least one aura failed the proc, charges won't be taken
+    SPELL_AURA_PROC_CANT_TRIGGER    = 2                     // aura can't trigger - skip charges taking, move to next aura if exists
+};
+
+
+#endif

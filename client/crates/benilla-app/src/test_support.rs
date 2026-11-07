@@ -1,0 +1,187 @@
+//! What the crate's structural tests share: source readers over its own code, and a check of
+//! the order its `Update` schedule builds.
+
+/// Every `.rs` file under `root`, recursively.
+pub(crate) fn rust_files(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    out
+}
+
+/// This crate's `src/` directory.
+pub(crate) fn src_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
+}
+
+/// A file's path under `src/`, with forward slashes: the key every `EXEMPT` table uses.
+pub(crate) fn rel_path(file: &std::path::Path) -> String {
+    let src = src_dir();
+    file.strip_prefix(&src)
+        .unwrap_or(file)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+/// One `fn` item: name, parameter list and body, each found by bracket matching.
+pub(crate) struct FnItem<'a> {
+    pub name: &'a str,
+    pub params: &'a str,
+    pub body: &'a str,
+}
+
+/// Every `fn` in `text`; a bodiless signature comes back with an empty body.
+pub(crate) fn fn_items(text: &str) -> Vec<FnItem<'_>> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    for (i, _) in text.match_indices("fn ") {
+        // `fn` must start a word: `…_fn (` and `Fn(` are not declarations.
+        if i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_') {
+            continue;
+        }
+        let Some(open) = text[i..].find('(').map(|o| i + o) else {
+            continue;
+        };
+        let name = text[i + 3..open].trim();
+        let name = name.split('<').next().unwrap_or(name).trim();
+        let Some(close) = matching(text, open, b'(', b')') else {
+            continue;
+        };
+        let params = &text[open + 1..close];
+        // The body: the first `{` after the parameters, unless a `;` comes first.
+        let tail = &text[close + 1..];
+        let body = match (tail.find('{'), tail.find(';')) {
+            (Some(b), Some(s)) if s < b => "",
+            (Some(b), _) => {
+                let bopen = close + 1 + b;
+                match matching(text, bopen, b'{', b'}') {
+                    Some(bclose) => &text[bopen + 1..bclose],
+                    None => "",
+                }
+            }
+            (None, _) => "",
+        };
+        out.push(FnItem { name, params, body });
+    }
+    out
+}
+
+/// The parameter list of every `fn` in `text`.
+pub(crate) fn fn_parameter_lists(text: &str) -> Vec<&str> {
+    fn_items(text).into_iter().map(|f| f.params).collect()
+}
+
+/// The index of the bracket closing the one at `open`, or `None` if it never closes.
+fn matching(text: &str, open: usize, lhs: u8, rhs: u8) -> Option<usize> {
+    let mut depth = 0usize;
+    for (j, &c) in text.as_bytes()[open..].iter().enumerate() {
+        if c == lhs {
+            depth += 1;
+        } else if c == rhs {
+            depth -= 1;
+            if depth == 0 {
+                return Some(open + j);
+            }
+        }
+    }
+    None
+}
+
+/// `a` runs before `b` in `app`'s built `Update`, by system identity: a `.after()` on a system
+/// missing from the schedule is silently nothing, and debug names may be off. The dependency graph
+/// is walked with the set hierarchy unfolded, so a set `a` sits in precedes what that set
+/// precedes, and a successor set brings its members.
+pub(crate) fn runs_before<MA, MB>(
+    app: &mut bevy::app::App,
+    a: impl bevy::ecs::system::IntoSystem<(), (), MA>,
+    b: impl bevy::ecs::system::IntoSystem<(), (), MB>,
+) -> bool {
+    runs_before_in(app, bevy::app::Update, a, b)
+}
+
+/// [`runs_before`] in the built `label` schedule.
+pub(crate) fn runs_before_in<MA, MB>(
+    app: &mut bevy::app::App,
+    label: impl bevy::ecs::schedule::ScheduleLabel,
+    a: impl bevy::ecs::system::IntoSystem<(), (), MA>,
+    b: impl bevy::ecs::system::IntoSystem<(), (), MB>,
+) -> bool {
+    use bevy::ecs::schedule::graph::Direction::{Incoming, Outgoing};
+    use bevy::ecs::schedule::NodeId;
+    use bevy::ecs::system::{IntoSystem, System};
+    use std::any::TypeId;
+    use std::collections::HashSet;
+
+    let a = System::type_id(&IntoSystem::into_system(a));
+    let b = System::type_id(&IntoSystem::into_system(b));
+    // `schedule_scope`, not `resource_scope::<Schedules>`: initializing the schedule inserts
+    // `Schedules`, which a resource scope refuses.
+    app.world_mut().schedule_scope(label, |world, schedule| {
+        schedule.initialize(world).expect("the schedule builds");
+        let key = |id: TypeId| -> NodeId {
+            schedule
+                .systems()
+                .expect("initialized")
+                .find(|&(_, s)| System::type_id(&**s) == id)
+                .map(|(k, _)| NodeId::System(k))
+                .expect("the system is in the schedule")
+        };
+        let (a, b) = (key(a), key(b));
+        let dep = schedule.graph().dependency().graph();
+        let hier = schedule.graph().hierarchy().graph();
+        let (mut after, mut containers) = (HashSet::new(), HashSet::new());
+        let mut work = vec![(a, false)];
+        while let Some((n, is_after)) = work.pop() {
+            let fresh = if is_after {
+                after.insert(n)
+            } else {
+                containers.insert(n)
+            };
+            if !fresh {
+                continue;
+            }
+            work.extend(dep.neighbors_directed(n, Outgoing).map(|m| (m, true)));
+            work.extend(hier.neighbors_directed(n, Incoming).map(|p| (p, false)));
+            if is_after {
+                work.extend(hier.neighbors_directed(n, Outgoing).map(|c| (c, true)));
+            }
+        }
+        after.contains(&b)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fn_comes_back_with_its_name_its_params_and_its_body() {
+        let text = "fn a(x: u32) -> u32 { x + 1 }\nfn b();\nfn c<T>(t: T) { if t { { } } }";
+        let items = fn_items(text);
+        assert_eq!(items.len(), 3);
+        assert_eq!(
+            (items[0].name, items[0].params, items[0].body),
+            ("a", "x: u32", " x + 1 ")
+        );
+        assert_eq!(
+            (items[1].name, items[1].params, items[1].body),
+            ("b", "", "")
+        );
+        assert_eq!(
+            (items[2].name, items[2].params, items[2].body),
+            ("c", "t: T", " if t { { } } ")
+        );
+    }
+}

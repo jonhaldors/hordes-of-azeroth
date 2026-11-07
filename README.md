@@ -1,227 +1,71 @@
-<p align="center">
-  <img src=".github/images/banner.jpg" alt="Hordes of Azeroth" width="100%">
-</p>
+# Hordes of Azeroth Core
 
-<h1 align="center">Hordes of Azeroth</h1>
+A monorepo refactor of Hordes of Azeroth: server, client, addon, launcher and shared content in one repository.
 
-<p align="center">
-  <b>A survivors-style game mode for World of Warcraft 1.12.1.</b><br>
-  An endless horde, spells that fire on their own and a choice at every level up.<br>
-  Play alone or with up to 3 friends in co-op, on a server that runs on your own PC.
-</p>
+- Upstream projects: [jonhaldors/hordes-of-azeroth](https://github.com/jonhaldors/hordes-of-azeroth) (GPL-3.0),
+  [hordes-of-azeroth-server](https://github.com/jonhaldors/hordes-of-azeroth-server) (VMaNGOS, GPL-2.0-or-later),
+  [hordes-of-azeroth-client](https://github.com/jonhaldors/hordes-of-azeroth-client) (benilla, MIT / Apache-2.0).
+- This repository is a **hard fork**. It evolves on its own architecture and no longer tracks upstream; upstream code is only a starting point and content source.
+- Version line starts at **0.1.0**.
+- Languages: **enUS + zhCN + zhTW**.
+- Co-op supports only **LAN** and direct `ip/domain:port` connections. There is no public lobby or registration server.
+- Status: **phase 1 complete, phase 2 in progress**. 0.1.0 starts from the 0.6.3 code snapshots and will be refactored according to `docs/`.
 
-<p align="center">
-  <a href="https://github.com/jonhaldors/hordes-of-azeroth/releases/latest/download/HoALauncher.exe"><img src="https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTEuNHYxMS40SDB6TTEyLjYgMEgyNHYxMS40SDEyLjZ6TTAgMTIuNmgxMS40VjI0SDB6TTEyLjYgMTIuNkgyNFYyNEgxMi42eiIvPjwvc3ZnPg==" alt="Download for Windows"></a>
-  <a href="https://github.com/jonhaldors/hordes-of-azeroth/releases/latest/download/HoALauncher-linux.tar.gz"><img src="https://img.shields.io/badge/Download-Linux_%2F_Steam_Deck-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux and Steam Deck"></a>
-  <a href="https://github.com/jonhaldors/hordes-of-azeroth/releases/latest"><img src="https://img.shields.io/github/v/release/jonhaldors/hordes-of-azeroth?label=latest&color=3a8a4a&style=for-the-badge" alt="Latest version"></a>
-  <a href="https://discord.gg/zpYfsqh6Dn"><img src="https://img.shields.io/badge/Discord-Join_us-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-4a3a36?style=for-the-badge" alt="Licence: GPL-3.0"></a>
-</p>
+## Goals
 
-> [!WARNING]
-> **Official downloads come only from this GitHub repository's [Releases](https://github.com/jonhaldors/hordes-of-azeroth/releases) page.**
-> The website hordes-of-azeroth.com is not run by me, and I have no connection to it, even though it links here and to the Discord.
-> Hordes of Azeroth does not provide, host or link the World of Warcraft client. You need your own copy of the 1.12.1 client.
-> If any site offers you the client or a launcher download from somewhere other than this page, don't use it.
+1. **Language is an account setting, not a property of the client install.** Any 1.12.1 client data language can run; the server and language packs decide the displayed text.
+2. **Every HoA effect is a real server aura.** The native buff frame, `UnitBuff`, the addon and combat logs see the same state; the addon no longer keeps its own buff timers.
+3. **Content has a single source.** Items, spells, auras, talents, cards, maps and text are defined in `shared/content`; tools generate server SQL, client data and addon Lua.
+4. **Keep the kernels that work; refactor the layers that do not.** Keep the VMaNGOS server and benilla client cores (network, movement, combat, rendering) and rewrite the HoA game layer, i18n, auras and data model. Handle proven performance hot spots separately.
 
-<p align="center">
-  <a href="#getting-started">Getting started</a> ·
-  <a href="#features">Features</a> ·
-  <a href="#questions">Questions</a> ·
-  <a href="https://discord.gg/zpYfsqh6Dn">Discord</a> ·
-  <a href="#for-developers">For developers</a> ·
-  <a href="https://github.com/jonhaldors/hordes-of-azeroth/issues">Report a bug</a>
-</p>
+## Layout
 
-<br>
+```
+hoa-core/
+  VERSION             0.1.3
+  docs/               Architecture and design (every document exists as README.md / README_zh.md)
+  server/             VMaNGOS C++ server (GPL-3.0 distribution; source GPL-2.0-or-later)
+  client/             benilla Rust client (MIT / Apache-2.0)
+  addon/              Lua addon (GPL-3.0)
+  glue/               Login/character-select GlueXML (GPL-3.0)
+  launcher/           Avalonia C# launcher; LAN/direct co-op (GPL-3.0)
+  config/             Server and launcher default configuration (GPL-3.0)
+  localization/       Existing translation data and tooling (transitional reference, GPL-3.0)
+  shared/
+    content/          Content source: items, spells, auras, maps, text, ...
+    i18n/             Message catalogue and language packs
+    protocol/         Server/client message schema and code generation
+  tools/              Content compiler, protocol generator, translation and test tools
+  scripts/            Development and build scripts
+  .github/workflows/  CI
+```
 
-<p align="center"><i>Gameplay from version 0.1. The game has changed a lot since.</i></p>
+## Documentation
 
-https://github.com/user-attachments/assets/3a82f020-7192-48dc-b6be-f6316bda0225
+- [Build instructions](BUILDING.md)
+- [Documentation index and decisions](docs/README.md)
+- [Imported code and provenance](docs/imported-code/README.md)
+- [Architecture](docs/architecture/README.md)
+- [i18n](docs/i18n/README.md)
+- [Auras and effects](docs/auras/README.md)
+- [Client-native capabilities](docs/native-capabilities/README.md)
+- [Content and data](docs/content-data/README.md)
+- [Protocol](docs/protocol/README.md)
+- [Migration plan](docs/migration-plan/README.md)
 
-<br>
+## License
 
-## Getting started
+The repository aggregates code from several projects; the repository's own code and the server distribution are GPL-3.0, and imported parts keep their compatible licenses:
 
-### What you need
+| Path | License | Source |
+| --- | --- | --- |
+| `server/` | GPL-3.0; source headers are GPL-2.0-or-later; Windows deps are MariaDB Connector/C (LGPL-2.1-or-later) and OpenSSL 3 (Apache-2.0) | VMaNGOS / hordes-of-azeroth-server |
+| `client/` | MIT or Apache-2.0 | benilla / hordes-of-azeroth-client |
+| `addon/`, `glue/`, `launcher/`, `config/`, `localization/` | GPL-3.0 | hordes-of-azeroth |
+| `shared/`, `scripts/`, `docs/`, `tools/` | GPL-3.0 | this repository |
 
-- Your own copy of **World of Warcraft 1.12.1, build 5875, English (enUS)**. Hordes of Azeroth doesn't include the game.
-- A copy of that client used only for Hordes of Azeroth. The launcher adds its own files to the folder, so don't use your folder for other servers.
-- Windows 10 or 11 (64-bit), or Linux and Steam Deck (beta). About 3 GB of free space next to the game, and up-to-date graphics drivers.
+The repository stays a monorepo: per-directory `LICENSE` and `UPSTREAM.md` files plus
+`LICENSE-NOTICE.md` are authoritative, and a release tag is the corresponding source. Submodules
+are not required by the licenses and are not used.
 
-### Install
-
-1. Download **[HoALauncher.exe](https://github.com/jonhaldors/hordes-of-azeroth/releases/latest/download/HoALauncher.exe)** for Windows, or **[HoALauncher-linux.tar.gz](https://github.com/jonhaldors/hordes-of-azeroth/releases/latest/download/HoALauncher-linux.tar.gz)** for Linux and Steam Deck.
-2. Put it in your World of Warcraft folder, next to `WoW.exe`. On Linux, unpack it there.
-3. Start it and press **Install**. The first install takes a few minutes.
-4. Press **Play**.
-
-From then on, always start the game with the launcher. It starts the server, then the game, and stops the server when you close the game. On Steam Deck, add `HoALauncher` to Steam as a non-Steam game.
-
-<p align="center">
-  <img src=".github/images/launcher.jpg" width="720" alt="The launcher during the first install">
-</p>
-
-### Updates
-
-Updates come through the launcher. When a new version is out, **Play** turns into **Update**, and the patch notes show what changed. Your characters are backed up first, and everything you've unlocked stays. You don't have to download the launcher again.
-
-> [!NOTE]
-> Windows may show "Windows protected your PC" the first time, because the launcher is new and not signed yet. Click **More info**, then **Run anyway**. The full source is in this repository if you'd rather check it or build it yourself.
-
-<br>
-
----
-
-## Features
-
-- **Runs across Azeroth's zones** on Normal, Heroic and Mythic, with more zones on the way.
-- **Mythic levels** with no cap: each level is harder than the last, with personal bests for every level.
-- **An endless finale**: after the last stage, keep fighting with the clock running for as long as you last.
-- **Challenge mode** inside raids, or **Invasions** that bring their enemies into the open world.
-- **Co-op** for up to 4 players, hosted on a player's own PC.
-- **Seasonal leaderboards** for solo and 2, 3 and 4 player runs.
-- **All nine classes**, each with their own spells and evolutions.
-- **Bosses you can outplay**: see their attacks coming and dodge them.
-- **Dash** out of danger: making you untouchable for a moment. Rebind it in Key Bindings, and upgrade its range and cooldown at the Inn.
-- **Find gear, Darkmoon Cards and Glyphs**. Gear grows with the run's level and comes in collectible looks, with epics styled after the classic raids.
-- **Durgan** sells and upgrades gear that keeps pace with your best clear.
-- **An Inn** with account-wide gold, upgrades, fortunes and class talent trees.
-- **Controller support** for Xbox, PlayStation and Steam Deck, switching to and from mouse and keyboard automatically.
-- **And a lot more to come.**
-
-<br>
-
----
-
-## Questions
-
-<details>
-<summary><b>What are the monster paths the launcher sets up?</b></summary>
-<br>
-In World of Warcraft, the server decides where monsters walk, not the game on your PC. Your client only has the shape of the world, so the launcher turns that into walking maps (navigation meshes) for every zone the game uses. That's the slow part.
-<br><br>
-The game mode uses those maps for two things. The mobs chase you around trees, up ramps and through doorways instead of walking through walls. And every monster spawns on a spot it can actually reach you from: never inside a rock or a tree, on a rooftop, or across a river or cliff.
-<br><br>
-The launcher downloads them ready-made with the game. If the download doesn’t work, it builds them from your own game files instead. That keeps your processor busy for a while, and it asks first whether to use all of your cores or half. The Inn and the Normal zones come first, so you can play while the rest finishes in the background.
-</details>
-
-<details>
-<summary><b>Does it change my World of Warcraft?</b></summary>
-<br>
-<code>WoW.exe</code> stays as it is. Hordes of Azeroth runs on its own game client, which reads the models, maps and sounds from your 1.12.1 game files. The launcher adds its own files next to them: the client, the server, an addon and a spell effects patch. That's why it wants a copy of the game of its own.
-</details>
-
-<details>
-<summary><b>Can I play with friends?</b></summary>
-<br>
-Yes. In co-op, up to 4 players play a run together. One player hosts from the character screen, and the others find the game in the browser or join with its code. Your own character, gold, gear and progress come along, and what you earn comes home with you.
-<br><br>
-Co-op is self-hosted: the host's PC runs the game and everyone else connects straight to it. There is no central game server. The lobby only lists games and passes on join requests, and none of your game traffic goes through it.
-<br><br>
-If other players can't reach you when you host, the launchers try to connect through your routers on their own. If that doesn't work either, players on your own network can still join, or you can forward TCP port 3725 on your router to your PC, or use ZeroTier or Tailscale and enter that address as the Public Address when you host.
-<br><br>
-Solo play needs no internet once the game is installed; the launcher just can't check for updates until you're back online.
-</details>
-
-<details>
-<summary><b>The game is too easy/hard</b></summary>
-<br>
-The game is currently in early development, balancing will happen over time. Some classes will be stronger or weaker than others, but updates happen regularly. If you'd like to see something changed, make a suggestion on <a href="https://discord.gg/zpYfsqh6Dn">Discord</a>.
-</details>
-
-<details>
-<summary><b>Where are my characters, and what if an update goes wrong?</b></summary>
-<br>
-They're in the local database inside the game folder. Before every update the launcher saves a backup in <code>HordesOfAzeroth\backups</code> and keeps the three newest.
-</details>
-
-<details>
-<summary><b>My antivirus flags the launcher.</b></summary>
-<br>
-New, unsigned programs that download files and start other programs sometimes get flagged by mistake. Every release lists the launcher's SHA-256 checksum, so you can check that yours is the real one (in PowerShell: <code>Get-FileHash HoALauncher.exe</code>). If it happens, please <a href="https://github.com/jonhaldors/hordes-of-azeroth/issues">open an issue</a>.
-</details>
-
-<details>
-<summary><b>Windows Firewall asks whether to allow access.</b></summary>
-<br>
-Hordes of Azeroth runs its own small game server on your PC (a database, a login server and a world server), and the game connects to it. The server itself only accepts connections from your own computer.
-<br><br>
-When you host a co-op game, the launcher opens one port (TCP 3725) so other players can join, and only players you accepted get through it. Allow access if you want to host co-op. For solo play and joining other games you can choose either answer.
-<br><br>
-The launcher goes online to check GitHub for updates and download them, the same as opening a web page.
-</details>
-
-<details>
-<summary><b>What does the launcher send?</b></summary>
-<br>
-Only what you agree to. The launcher asks once whether to send your finished runs (class, spells, gear, damage, how far you got, and your game version and operating system) to help balance the classes. You can turn it off in the launcher's menu at any time. When you report a bug, it can also upload your logs and give you a reference to post with your report.
-</details>
-
-<details>
-<summary><b>How do I uninstall it?</b></summary>
-<br>
-Close the launcher (also from the tray) and delete the game folder. Hordes of Azeroth keeps nothing anywhere else except a small font cache in <code>%LOCALAPPDATA%\HordesOfAzeroth</code>.
-</details>
-
-<details>
-<summary><b>Can I play with a controller?</b></summary>
-<br>
-Yes. Plug in an Xbox or PlayStation controller and play. Button prompts switch to your controller or your keyboard keys, depending on which one you last used. Settings are under Key Bindings.
-</details>
-
-<details>
-<summary><b>Can I use my own addons?</b></summary>
-<br>
-Yes. Addons go in <code>benilla-config\AddOns</code> inside the game folder, not in <code>Interface\AddOns</code>. In the launcher, click the <b>···</b> button next to Play, then <b>Open AddOns folder</b>. Put each addon there in its own folder. The client is new, so not every 1.12 addon works yet, and addons that change the unit frames or action bars may clash with the game's own interface.
-</details>
-
-<details>
-<summary><b>Can I use HD model or texture packs?</b></summary>
-<br>
-Packs that come as <code>patch-?.MPQ</code> files go in the game's <code>Data</code> folder, the same as for 1.12.1. Name them <code>patch-4.MPQ</code> to <code>patch-9.MPQ</code> or <code>patch-A.MPQ</code> to <code>patch-Y.MPQ</code>. <code>patch-z.MPQ</code> is the game's own. The launcher rebuilds the game's spell effects on top of your packs the next time you press Play. They are untested, and packs made for modified clients may not show.
-</details>
-
-<details>
-<summary><b>Does it run on Mac or Linux?</b></summary>
-<br>
-Linux and Steam Deck are supported in beta, see <a href="#install">Install</a>. Mac isn't supported.
-</details>
-
-<br>
-
----
-
-## Community, bugs and ideas
-
-Come hang out on the **[Discord](https://discord.gg/zpYfsqh6Dn)**: get help with installing, report bugs, share your best runs, and tell us what you’d like to see added.
-
-Found a bug? Post it in the Discord's `#bug-reports`, or open an issue on the [issue tracker](https://github.com/jonhaldors/hordes-of-azeroth/issues). The launcher's **Report a bug** link saves a zip of your logs on the desktop and opens the tracker; attach the zip to your report or post. The ⋯ menu has **Save logs to the desktop** on its own, for Discord.
-
-<br>
-
----
-
-## For developers
-
-Hordes of Azeroth is open source. Everything you need to build it, run your own development copy and make changes is in the developer guide.
-
-<p>
-  <a href="BUILDING.md"><img src="https://img.shields.io/badge/Developer_guide-BUILDING.md-b3261e?style=for-the-badge" alt="Developer guide"></a>
-  <a href="https://github.com/jonhaldors/hordes-of-azeroth-server"><img src="https://img.shields.io/badge/Server_code-hordes--of--azeroth--server-4a3a36?style=for-the-badge" alt="Server code"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-CHANGELOG.md-4a3a36?style=for-the-badge" alt="Changelog"></a>
-</p>
-
-<br>
-
----
-
-## About
-
-Hordes of Azeroth is an unofficial fan project. Blizzard Entertainment didn't make it, doesn't endorse it, and has no part in it.
-
-Nothing in this repository or in the releases comes from the game: no models, textures, sounds, maps, interface files or game data. The game runs on a modified version of [benilla](https://github.com/samwhosung/benilla), which reads the models, maps and sounds from a 1.12.1 client you own. The launcher builds the rest from those files on your PC: the server's map data and the spell effects patch. The one thing added is the monster paths: custom navigation meshes, which say only where monsters can walk, with no models, textures or terrain in them. Everything under `Interface/` in this repository is written for this project.
-
-World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc.
-
-Our code is licensed under the [GNU General Public License v3.0](LICENSE). The game client is a modified version of [benilla](https://github.com/samwhosung/benilla), under MIT or Apache-2.0. The server is a fork of [VMaNGOS](https://github.com/vmangos/core), published as [hordes-of-azeroth-server](https://github.com/jonhaldors/hordes-of-azeroth-server) under GPL-2.0. The other projects we build on or download, and their licences, are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+See [LICENSE-NOTICE.md](LICENSE-NOTICE.md) and the license audit plus monorepo/submodule plan in [docs/licensing](docs/licensing/README.md). World of Warcraft is a trademark of Blizzard Entertainment, Inc.; this project does not ship any game assets.

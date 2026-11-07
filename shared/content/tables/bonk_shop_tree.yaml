@@ -1,0 +1,40 @@
+# Imported by tools/content/dump_tables.py from bonk_shop_tree. Edit this file, then run tools/content/compile.py.
+table: bonk_shop_tree
+columns:
+- id
+- shop
+- name
+- background
+rows:
+- - 1
+  - 1
+  - Mobility
+  - RogueCombat
+- - 2
+  - 1
+  - Prosperity
+  - PaladinHoly
+- - 3
+  - 1
+  - Expedition
+  - HunterSurvival
+- - 4
+  - 2
+  - Fortune
+  - MageArcane
+- - 5
+  - 2
+  - Dark Fortune
+  - WarlockDestruction
+- - 6
+  - 1
+  - Provisions
+  - DruidRestoration
+- - 7
+  - 1
+  - Training
+  - WarriorArms
+- - 8
+  - 2
+  - Darkmoon Favors
+  - PriestHoly

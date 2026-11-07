@@ -1,0 +1,825 @@
+//! The realmd (login) wire protocol, version 3 in 1.12.1: logon challenge, logon proof and realm
+//! list, the three exchanges [`crate::logon`] performs. Login packets are not header-encrypted and
+//! each is self-delimiting, so they are read in request/response order.
+
+use std::io::{Read, Write};
+use std::net::Ipv4Addr;
+
+use anyhow::{bail, Result};
+use sha1::{Digest, Sha1};
+
+use crate::wire::{read_array, read_cstring, read_f32_le, read_u16_le, read_u32_le, read_u8};
+use crate::RealmInfo;
+
+pub mod pin;
+
+const CMD_AUTH_LOGON_CHALLENGE: u8 = 0x00;
+const CMD_AUTH_LOGON_PROOF: u8 = 0x01;
+const CMD_REALM_LIST: u8 = 0x10;
+
+const PROTOCOL_VERSION_THREE: u8 = 3;
+const GAME_NAME_WOW: u32 = 0x0057_6f57; // "WoW\0" little-endian
+const PLATFORM_X86: u32 = 0x0078_3836; // "x86\0"
+                                       // Tags are little-endian u32s, so they reach the
+                                       // wire reversed (`0x0057696e` is `n i W \0`) and
+                                       // realmd reverses them back. vmangos fails a session
+                                       // on anything but "Win" or "OSX".
+const OS_WINDOWS: u32 = 0x0057_696e; // "Win\0"
+const OS_MACOS: u32 = 0x004F_5358; // "OSX\0"
+
+/// The host's OS tag: `OSX` on macOS, else `Win`, as there was no 1.12 Linux client. Servers act
+/// on it: vmangos picks `WardenWin` or `WardenMac`, and realmd checks the build (`FindBuildInfo`).
+const fn client_os() -> u32 {
+    if cfg!(target_os = "macos") {
+        OS_MACOS
+    } else {
+        OS_WINDOWS
+    }
+}
+
+/// `OsGetTimeZoneBias` (`0x4297c0`): `GetTimeZoneInformation`'s bias negated, so the zone's
+/// standard offset in minutes east of UTC, daylight saving left out; 0 when the query fails.
+/// Off Windows the zone's standard offset is read off the year's January and July, whichever is
+/// not daylight time.
+fn os_time_zone_bias() -> i32 {
+    zone::standard_offset_east().map_or(0, |secs| (secs / 60) as i32)
+}
+
+#[cfg(unix)]
+mod zone {
+    extern "C" {
+        fn tzset();
+    }
+
+    pub(super) fn standard_offset_east() -> Option<i64> {
+        // SAFETY: `tzset` takes nothing and only rereads the zone.
+        unsafe { tzset() };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64);
+        // The year's 1 January and 1 July, by days from the epoch (civil-from-days inverted).
+        let days = |y: i64, m: i64| {
+            let y = if m <= 2 { y - 1 } else { y };
+            let era = y.div_euclid(400);
+            let yoe = y.rem_euclid(400);
+            let mp = if m > 2 { m - 3 } else { m + 9 };
+            let doy = (153 * mp + 2) / 5;
+            era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468
+        };
+        let year = 1970 + now.div_euclid(86_400 * 3652425 / 10000);
+        let samples: Vec<(i64, bool)> = [1, 7]
+            .into_iter()
+            .filter_map(|m| {
+                let time = (days(year, m) * 86_400) as libc::time_t;
+                // SAFETY: zeroed is valid for `tm`'s integers and its nullable zone pointer;
+                // `localtime_r` writes it whole and reads only `time`.
+                let mut tm = unsafe { std::mem::zeroed::<libc::tm>() };
+                let got = unsafe { libc::localtime_r(&time, &mut tm) };
+                #[allow(clippy::useless_conversion)]
+                let off = i64::from(tm.tm_gmtoff);
+                (!got.is_null()).then_some((off, tm.tm_isdst > 0))
+            })
+            .collect();
+        samples
+            .iter()
+            .find(|s| !s.1)
+            .or_else(|| samples.iter().min_by_key(|s| s.0))
+            .map(|s| s.0)
+    }
+}
+
+#[cfg(windows)]
+mod zone {
+    /// The runtime's `_timezone`, `GetTimeZoneInformation`'s standard bias in seconds west.
+    pub(super) fn standard_offset_east() -> Option<i64> {
+        let mut west: libc::c_long = 0;
+        // SAFETY: `_tzset` only rereads the zone; `_get_timezone` writes the one long it is
+        // handed.
+        let err = unsafe {
+            libc::tzset();
+            libc::get_timezone(&mut west)
+        };
+        (err == 0).then_some(-i64::from(west))
+    }
+}
+
+/// The enUS locale tag, for the tools that log in with no install of their own to read one from;
+/// the client sends its install's ([`write_logon_challenge`]).
+pub const LOCALE_TAG_EN_US: u32 = u32::from_be_bytes(*b"enUS");
+
+/// A non-success auth result byte, typed so the app can map it to its `AUTH_*` glue string; it
+/// survives [`crate::logon`]'s `anyhow` contexts via `downcast_ref`. vmangos answers an unknown
+/// account and a wrong password alike with 0x04 (`WOW_FAIL_UNKNOWN_ACCOUNT`, `AuthCodes.h`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthReject {
+    /// The grunt result byte (`WOW_FAIL_*`).
+    pub code: u8,
+    /// Which reply carried it: the reference handles a byte by its reply, swallowing a proof's
+    /// `0x0A` (`0x5bada2`) where a challenge's reaches the patch state.
+    ///
+    /// Deviation: the patch state downloads no patch and starts no updater, because benilla runs
+    /// no code a server sends. There the reference takes the server's transfer into
+    /// `wow-patch.mpq` (`0x474610`), runs the archive's `prepatch.lst`, whose `execute` lines start
+    /// its programs (`0x474820`), and quits (`0x46b870`). The rule covers the system survey
+    /// ([`read_proof_reply`]) and Warden ([`crate::WorldSession::recv`]) too: each is native code
+    /// the server picks for the original client, which benilla cannot run on its three platforms
+    /// and would not run if it could. A fork that wants any of them builds it on top of the
+    /// decoded wire.
+    pub reply: LogonReply,
+}
+
+/// The two realmd replies a logon reads a result byte from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogonReply {
+    /// `CMD_AUTH_LOGON_CHALLENGE` (`Grunt::OnLogonChallenge`, `0x5baa20`).
+    Challenge,
+    /// `CMD_AUTH_LOGON_PROOF` (`Grunt::OnLogonProof`, `0x5bacb0`).
+    Proof,
+}
+
+/// `WOW_SUCCESS_SURVEY`: a success. Both reply handlers take it down their failure branch
+/// (`0x5baa77`, `0x5bace5` test the byte for zero), reading nothing after it, and
+/// `Logon::OnAuthResult` sends it down 0x00's success arm (`0x5b2cd4` `cmp eax,0xe; je 0x5b2e16`).
+pub const SUCCESS_SURVEY: u8 = 0x0e;
+
+impl std::fmt::Display for AuthReject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "server rejected logon: result {:#04x}", self.code)
+    }
+}
+
+impl std::error::Error for AuthReject {}
+
+/// The SRP6 inputs from a successful `CMD_AUTH_LOGON_CHALLENGE_Server`.
+pub struct ChallengeReply {
+    pub server_public_key: [u8; 32],
+    pub generator: u8,
+    pub large_safe_prime: [u8; 32],
+    pub salt: [u8; 32],
+    /// The version challenge answered by `crc_hash` ([`version_proof`]); not an SRP6 input.
+    pub crc_salt: [u8; 16],
+    /// The PIN the account asks for, when the security byte is non-zero.
+    pub pin: Option<PinChallenge>,
+}
+
+/// A challenge's PIN fields, which the reference keeps on the logon object (`0x5b1ed0`): the
+/// security byte (`+0x1ac`), the seed of the keypad's grid ([`pin::grid`], `+0x1ae`) and the
+/// server's salt (`+0x1b8`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PinChallenge {
+    pub flags: u8,
+    pub grid_seed: u32,
+    pub salt: [u8; 16],
+}
+
+/// What a logon proof carries for a PIN ([`PinProof::new`]): the challenge's security byte, the
+/// client's salt (`+0x1c8`) and the hash of the positions pressed (`+0x1d8`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PinProof {
+    pub flags: u8,
+    pub salt: [u8; 16],
+    pub hash: [u8; 20],
+}
+
+/// Send `CMD_AUTH_LOGON_CHALLENGE_Client`. `account_name` must be uppercased, as the SRP6 hashes
+/// use it; `build` is 5875. `locale` is the client's locale tag, `[0xc2a2a4]` (`0x5b2115`): the
+/// configured string packed big-endian, written like the other tags as a little-endian dword, so
+/// "enGB" reaches the wire as `B G n e`.
+pub fn write_logon_challenge(
+    w: &mut impl Write,
+    account_name: &str,
+    build: u16,
+    locale: u32,
+) -> std::io::Result<()> {
+    // Everything after the 2-byte size field, assembled first so we can prefix its length.
+    let mut body = Vec::with_capacity(34 + account_name.len());
+    body.extend_from_slice(&GAME_NAME_WOW.to_le_bytes());
+    body.push(1); // version major
+    body.push(12); // version minor
+    body.push(1); // version patch
+    body.extend_from_slice(&build.to_le_bytes());
+    body.extend_from_slice(&PLATFORM_X86.to_le_bytes());
+    body.extend_from_slice(&client_os().to_le_bytes());
+    body.extend_from_slice(&locale.to_le_bytes());
+    body.extend_from_slice(&os_time_zone_bias().to_le_bytes()); // utc_timezone_offset
+    body.extend_from_slice(&Ipv4Addr::LOCALHOST.octets()); // client_ip_address (network order)
+    body.push(account_name.len() as u8);
+    body.extend_from_slice(account_name.as_bytes());
+
+    let mut packet = Vec::with_capacity(4 + body.len());
+    packet.push(CMD_AUTH_LOGON_CHALLENGE);
+    packet.push(PROTOCOL_VERSION_THREE);
+    packet.extend_from_slice(&(body.len() as u16).to_le_bytes());
+    packet.extend_from_slice(&body);
+    w.write_all(&packet)
+}
+
+/// Read the challenge reply: the SRP6 inputs, `None` for [`SUCCESS_SURVEY`] (a success that
+/// carries none), or an [`AuthReject`].
+pub fn read_challenge_reply(r: &mut impl Read) -> Result<Option<ChallengeReply>> {
+    let opcode = read_u8(r)?;
+    if opcode != CMD_AUTH_LOGON_CHALLENGE {
+        bail!("expected CMD_AUTH_LOGON_CHALLENGE (0x00), got {opcode:#x}");
+    }
+    let _protocol_version = read_u8(r)?;
+    let result = read_u8(r)?;
+    if result == SUCCESS_SURVEY {
+        return Ok(None);
+    }
+    if result != 0 {
+        return Err(AuthReject {
+            code: result,
+            reply: LogonReply::Challenge,
+        }
+        .into());
+    }
+    let server_public_key = read_array::<32>(r)?;
+    let generator_len = read_u8(r)?;
+    let mut generator = vec![0u8; generator_len as usize];
+    r.read_exact(&mut generator)?;
+    let generator = match generator.first() {
+        Some(&g) => g,
+        None => bail!("server sent an empty generator"),
+    };
+    let prime_len = read_u8(r)? as usize;
+    let mut prime = vec![0u8; prime_len];
+    r.read_exact(&mut prime)?;
+    let large_safe_prime: [u8; 32] = prime
+        .as_slice()
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("large safe prime was {prime_len} bytes, expected 32"))?;
+    let salt = read_array::<32>(r)?;
+    let crc_salt = read_array::<16>(r)?;
+    // Any non-zero security byte carries the PIN's seed and salt (`0x5bab5a` `test al,al`), as
+    // vmangos sends for an account with a PIN lock (`AuthSocket.cpp:517`).
+    let flags = read_u8(r)?;
+    let pin = if flags != 0 {
+        Some(PinChallenge {
+            flags,
+            grid_seed: read_u32_le(r)?,
+            salt: read_array::<16>(r)?,
+        })
+    } else {
+        None
+    };
+    Ok(Some(ChallengeReply {
+        server_public_key,
+        generator,
+        large_safe_prime,
+        salt,
+        crc_salt,
+        pin,
+    }))
+}
+
+// --- the version (client-integrity) proof --------------------------------------------------------
+//
+// The proof's `crc_hash` answers the challenge's `crc_salt`: the 1.12 client hashes its own
+// binaries under that salt into a 20-byte digest `H` and sends `SHA1(A ‖ H)`. realmd recomputes it
+// from a stored `H` (`AuthSocket::VerifyVersion`) and, under `StrictVersionCheck = 1` (the shipped
+// `realmd.conf.example` value), refuses a mismatch with `WOW_FAIL_VERSION_INVALID` (0x09).
+
+/// The `crc_salt` every mangos-family realmd sends: a constant, not a nonce (vmangos
+/// `AuthSocket.cpp:65`, cmangos `AuthSocket.cpp:187`), so the answer is a per-build constant.
+const MANGOS_VERSION_CHALLENGE: [u8; 16] = [
+    0xba, 0xa3, 0x1e, 0x99, 0xa0, 0x0b, 0x21, 0x57, 0xfc, 0x37, 0x3f, 0xb3, 0x69, 0xcd, 0xd2, 0xf1,
+];
+
+/// `H` for the build 5875 Windows client under [`MANGOS_VERSION_CHALLENGE`]: vmangos's
+/// `allowed_clients` row (`20221117065844_logon.sql`), identical to cmangos's `RealmList.cpp`.
+const INTEGRITY_HASH_5875_WINDOWS: [u8; 20] = [
+    0x95, 0xed, 0xb2, 0x7c, 0x78, 0x23, 0xb3, 0x63, 0xcb, 0xdd, 0xab, 0x56, 0xa3, 0x92, 0xe7, 0xcb,
+    0x73, 0xfc, 0xca, 0x20,
+];
+
+/// The same for the Mac client, sent on macOS because servers pick `H` by the OS tag.
+const INTEGRITY_HASH_5875_MACOS: [u8; 20] = [
+    0x8d, 0x17, 0x3c, 0xc3, 0x81, 0x96, 0x1e, 0xeb, 0xab, 0xf3, 0x36, 0xf5, 0xe6, 0x67, 0x5b, 0x10,
+    0x1b, 0xb5, 0x13, 0xe5,
+];
+
+/// The integrity digest `H` for `crc_salt`, known only for [`MANGOS_VERSION_CHALLENGE`].
+/// Deviation: a stored per-OS constant, not the reference's HMAC over its own executables
+/// (`0x5b1170`), because every mangos-family realmd issues this one salt.
+fn integrity_hash(crc_salt: &[u8; 16]) -> Option<[u8; 20]> {
+    if *crc_salt != MANGOS_VERSION_CHALLENGE {
+        return None;
+    }
+    Some(if client_os() == OS_MACOS {
+        INTEGRITY_HASH_5875_MACOS
+    } else {
+        INTEGRITY_HASH_5875_WINDOWS
+    })
+}
+
+/// The proof's `crc_hash`: `SHA1(A ‖ H)` over `A`'s wire bytes (realmd hashes `lp->A` as
+/// received), or twenty zeros for an unknown salt, which only a strict server refuses.
+pub fn version_proof(crc_salt: &[u8; 16], client_public_key: &[u8; 32]) -> [u8; 20] {
+    match integrity_hash(crc_salt) {
+        Some(h) => {
+            let mut sha = Sha1::new();
+            sha.update(client_public_key);
+            sha.update(h);
+            sha.finalize().into()
+        }
+        None => [0u8; 20],
+    }
+}
+
+/// Send `CMD_AUTH_LOGON_PROOF_Client`, computing `crc_hash` from the challenge's `crc_salt`. The
+/// security byte is the challenge's, 0 with no PIN, and a PIN's salt and hash follow it
+/// (`0x5bbc80`-`0x5bbcad`).
+pub fn write_logon_proof(
+    w: &mut impl Write,
+    client_public_key: &[u8; 32],
+    client_proof: &[u8; 20],
+    crc_salt: &[u8; 16],
+    pin: Option<&PinProof>,
+) -> std::io::Result<()> {
+    let mut packet = Vec::with_capacity(1 + 32 + 20 + 20 + 1 + 1 + 16 + 20);
+    packet.push(CMD_AUTH_LOGON_PROOF);
+    packet.extend_from_slice(client_public_key);
+    packet.extend_from_slice(client_proof);
+    packet.extend_from_slice(&version_proof(crc_salt, client_public_key));
+    packet.push(0); // number_of_telemetry_keys
+    match pin {
+        Some(pin) => {
+            packet.push(pin.flags);
+            packet.extend_from_slice(&pin.salt);
+            packet.extend_from_slice(&pin.hash);
+        }
+        None => packet.push(0),
+    }
+    w.write_all(&packet)
+}
+
+/// Read the proof reply: the server's `M2`, `None` for [`SUCCESS_SURVEY`] (a success with no `M2`
+/// read), or an [`AuthReject`].
+pub fn read_proof_reply(r: &mut impl Read) -> Result<Option<[u8; 20]>> {
+    let opcode = read_u8(r)?;
+    if opcode != CMD_AUTH_LOGON_PROOF {
+        bail!("expected CMD_AUTH_LOGON_PROOF (0x01), got {opcode:#x}");
+    }
+    let result = read_u8(r)?;
+    if result == SUCCESS_SURVEY {
+        return Ok(None);
+    }
+    if result != 0 {
+        // A wrong password fails here, where `M1` does not verify: vmangos answers 0x04.
+        return Err(AuthReject {
+            code: result,
+            reply: LogonReply::Proof,
+        }
+        .into());
+    }
+    let server_proof = read_array::<20>(r)?;
+    // Deviation: the survey id is read and dropped, and no survey runs, where the reference keeps
+    // it on the link (`0x5bad53`) for the `Survey.dll` it downloads and calls (`GetSurveyId
+    // 0x5ab620`, passed at `0x47404f`). benilla runs no code a server sends
+    // ([`AuthReject::reply`] gives the rule).
+    let _hardware_survey_id = read_u32_le(r)?;
+    Ok(Some(server_proof))
+}
+
+/// Send `CMD_REALM_LIST_Client` (opcode + a `u32` padding of 0).
+pub fn write_realm_list_request(w: &mut impl Write) -> std::io::Result<()> {
+    let mut packet = [0u8; 5];
+    packet[0] = CMD_REALM_LIST;
+    w.write_all(&packet)
+}
+
+/// The magic populations the 1.12 realm-list parser (`0x5b2230`) rewrites, as `(population sent,
+/// population rewritten, flag OR'd)`: Recommended, New and Full travel as these exact float bit
+/// patterns, not as wire flags.
+pub(crate) const MAGIC_POPULATIONS: [(u32, u32, u8); 3] = [
+    (0x4416_0000, 0x0000_0000, 0x20), // 600.0 → 0.0,   Recommended
+    (0x4348_0000, 0x3a83_126f, 0x40), // 200.0 → 0.001, New
+    (0x43c8_0000, 0x4100_0000, 0x80), // 400.0 → 8.0,   Full
+];
+
+/// The characters the realm record fill (`0x5b2230`) turns into spaces in a realm name: those
+/// `0x5b2450` maps to the case that stores a space (`0x5b2391`).
+const NAME_FORBIDDEN: &str = "\"*/:<>?\\|";
+
+/// A realm name as the record fill leaves it: each of [`NAME_FORBIDDEN`] becomes a space
+/// (`0x5b2376`-`0x5b2391`), then the trailing spaces and dots are cut (`0x5b23a6`-`0x5b23c5`,
+/// through `0x5b24b0` with its trailing flag set).
+fn clean_realm_name(name: &str) -> String {
+    let spaced: String = name
+        .chars()
+        .map(|c| if NAME_FORBIDDEN.contains(c) { ' ' } else { c })
+        .collect();
+    spaced.trim_end_matches([' ', '.']).to_string()
+}
+
+/// Read `CMD_REALM_LIST_Server` into the advertised realms, rewriting [`MAGIC_POPULATIONS`] here
+/// as the reference parser does: the realm-list screen averages every realm's population, and an
+/// unswapped Recommended `600.0` would skew that mean for every row. Each name is cleaned
+/// ([`clean_realm_name`]) before anything shows it.
+pub fn read_realm_list(r: &mut impl Read) -> Result<Vec<RealmInfo>> {
+    let opcode = read_u8(r)?;
+    if opcode != CMD_REALM_LIST {
+        bail!("expected CMD_REALM_LIST (0x10), got {opcode:#x}");
+    }
+    let _size = read_u16_le(r)?;
+    let _header_padding = read_u32_le(r)?;
+    let number_of_realms = read_u8(r)?;
+    let mut realms = Vec::with_capacity(number_of_realms as usize);
+    for _ in 0..number_of_realms {
+        let realm_type = read_u32_le(r)?;
+        let mut flags = read_u8(r)?;
+        let name = read_cstring(r)?;
+        let address = read_cstring(r)?;
+        let mut population = read_f32_le(r)?;
+        let characters = read_u8(r)?;
+        let category = read_u8(r)?;
+        let id = read_u8(r)?;
+        // The sentinel swap, before anyone can average this number.
+        if let Some(&(_, rewritten, bit)) = MAGIC_POPULATIONS
+            .iter()
+            .find(|(magic, _, _)| *magic == population.to_bits())
+        {
+            population = f32::from_bits(rewritten);
+            flags |= bit;
+        }
+        realms.push(RealmInfo {
+            name: clean_realm_name(&name),
+            address,
+            population,
+            characters,
+            realm_type,
+            flags,
+            category,
+            id,
+        });
+    }
+    let _footer_padding = read_u16_le(r)?; // consume so the stream stays aligned
+    Ok(realms)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn os_tags_reverse_to_the_names_servers_match_on() {
+        let spelled = |tag: u32| {
+            let mut b = tag.to_le_bytes();
+            b.reverse();
+            String::from_utf8(b.iter().copied().filter(|&c| c != 0).collect()).unwrap()
+        };
+        assert_eq!(spelled(OS_WINDOWS), "Win");
+        assert_eq!(spelled(OS_MACOS), "OSX");
+        assert_eq!(spelled(PLATFORM_X86), "x86");
+    }
+
+    /// Holds `TZ` for a test: the lock keeps two zone tests apart, the drop restores it.
+    struct Zone {
+        old: Option<std::ffi::OsString>,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl Zone {
+        fn set(tz: &str) -> Self {
+            static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+            let lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let old = std::env::var_os("TZ");
+            std::env::set_var("TZ", tz);
+            Self { old, _lock: lock }
+        }
+    }
+
+    impl Drop for Zone {
+        fn drop(&mut self) {
+            match self.old.take() {
+                Some(v) => std::env::set_var("TZ", v),
+                None => std::env::remove_var("TZ"),
+            }
+        }
+    }
+
+    /// The Windows CRT ignores POSIX zone names, so the named-zone assertions run only where
+    /// `tzset` honours them; Windows still checks that the challenge carries the host's bias.
+    #[test]
+    #[cfg(unix)]
+    fn the_challenge_carries_the_time_zone_bias() {
+        let bias = |tz: &str| {
+            let _zone = Zone::set(tz);
+            let mut out = Vec::new();
+            write_logon_challenge(&mut out, "AB", 5875, LOCALE_TAG_EN_US).unwrap();
+            i32::from_le_bytes(out[25..29].try_into().unwrap())
+        };
+        assert_eq!(bias("NPT-05:45"), 345);
+        assert_eq!(bias("EST5EDT,M3.2.0,M11.1.0"), -300);
+        assert_eq!(bias("UTC0"), 0);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn the_challenge_carries_the_host_time_zone_bias() {
+        let mut out = Vec::new();
+        write_logon_challenge(&mut out, "AB", 5875, LOCALE_TAG_EN_US).unwrap();
+        assert_eq!(
+            i32::from_le_bytes(out[25..29].try_into().unwrap()),
+            os_time_zone_bias()
+        );
+    }
+
+    /// The whole challenge for account `AB` on an enGB install: the locale tag as `0x5b2115` loads
+    /// it, `0x656e4742`, goes out little-endian like `'WoW'` and `'x86'` (benilla-re
+    /// `net/login#logon-challenge`).
+    #[test]
+    fn the_challenge_carries_the_locale_tag() {
+        let _zone = Zone::set("UTC0");
+        let mut out = Vec::new();
+        write_logon_challenge(&mut out, "AB", 5875, u32::from_be_bytes(*b"enGB")).unwrap();
+        let mut want = vec![
+            0x00, 0x03, 0x20, 0x00, // command, protocol 3, 32 bytes follow
+            b'W', b'o', b'W', 0x00, // game
+            1, 12, 1, // version
+            0xf3, 0x16, // build 5875
+            b'6', b'8', b'x', 0x00, // platform
+        ];
+        want.extend_from_slice(&client_os().to_le_bytes());
+        want.extend_from_slice(&[
+            b'B', b'G', b'n', b'e', // locale "enGB"
+        ]);
+        // Windows ignores the POSIX zone name, so the expected field follows the host there.
+        want.extend_from_slice(&os_time_zone_bias().to_le_bytes());
+        want.extend_from_slice(&[
+            127, 0, 0, 1, // address
+            2, b'A', b'B', // account
+        ]);
+        assert_eq!(out, want);
+    }
+
+    #[test]
+    fn client_os_follows_the_host() {
+        if cfg!(target_os = "macos") {
+            assert_eq!(client_os(), OS_MACOS);
+        } else {
+            assert_eq!(client_os(), OS_WINDOWS);
+        }
+    }
+
+    /// An arbitrary but fixed `A` for the version-proof vectors below.
+    fn test_public_key() -> [u8; 32] {
+        std::array::from_fn(|i| (i as u8).wrapping_mul(7).wrapping_add(9))
+    }
+
+    /// Expected digests computed outside this crate (Python `hashlib`) as `SHA1(A ‖ H)`.
+    #[test]
+    fn version_proof_matches_the_realmd_expression() {
+        let expected = if cfg!(target_os = "macos") {
+            "dccd0e67946fae221451513b1a59724090ff6096"
+        } else {
+            "9b95cd41edd719fddf237294b8aca17010e71703"
+        };
+        let got = version_proof(&MANGOS_VERSION_CHALLENGE, &test_public_key());
+        assert_eq!(
+            got.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            expected
+        );
+    }
+
+    #[test]
+    fn an_unknown_version_challenge_is_answered_with_zeros() {
+        let mut salt = MANGOS_VERSION_CHALLENGE;
+        salt[0] ^= 0xff;
+        assert_eq!(version_proof(&salt, &test_public_key()), [0u8; 20]);
+    }
+
+    /// `opcode · A[32] · M1[20] · crc_hash[20] · num_keys · security_flag`, 75 bytes.
+    #[test]
+    fn the_proof_packet_carries_the_version_proof() {
+        let a = test_public_key();
+        let m1: [u8; 20] = std::array::from_fn(|i| (i as u8).wrapping_mul(13).wrapping_add(4));
+        let mut packet = Vec::new();
+        write_logon_proof(&mut packet, &a, &m1, &MANGOS_VERSION_CHALLENGE, None).unwrap();
+
+        assert_eq!(packet.len(), 1 + 32 + 20 + 20 + 1 + 1);
+        assert_eq!(packet[0], CMD_AUTH_LOGON_PROOF);
+        assert_eq!(&packet[1..33], &a);
+        assert_eq!(&packet[33..53], &m1);
+        assert_eq!(
+            &packet[53..73],
+            &version_proof(&MANGOS_VERSION_CHALLENGE, &a)
+        );
+        assert_eq!(&packet[73..], &[0, 0]);
+    }
+
+    #[test]
+    fn the_realm_list_keeps_every_field_the_wire_carries() {
+        let mut body = Vec::new();
+        body.extend_from_slice(&8u32.to_le_bytes()); // realm_type: RPPVP
+        body.push(0x42); // flags: 0x02 offline | 0x40 sentinel
+        body.extend_from_slice(b"Onyxia\0");
+        body.extend_from_slice(b"127.0.0.1:8085\0");
+        body.extend_from_slice(&1.75f32.to_le_bytes()); // population
+        body.push(3); // characters
+        body.push(2); // category
+        body.push(9); // realm id
+
+        let mut packet = vec![CMD_REALM_LIST];
+        packet.extend_from_slice(&(body.len() as u16 + 3).to_le_bytes()); // size
+        packet.extend_from_slice(&0u32.to_le_bytes()); // header padding
+        packet.push(1); // number_of_realms
+        packet.extend_from_slice(&body);
+        packet.extend_from_slice(&0u16.to_le_bytes()); // footer padding
+
+        let realms = read_realm_list(&mut packet.as_slice()).unwrap();
+        assert_eq!(realms.len(), 1);
+        let r = &realms[0];
+        assert_eq!(r.name, "Onyxia");
+        assert_eq!(r.address, "127.0.0.1:8085");
+        assert_eq!(r.realm_type, 8);
+        assert_eq!(r.flags, 0x42);
+        assert_eq!(r.population, 1.75);
+        assert_eq!(r.characters, 3);
+        assert_eq!(r.category, 2);
+        assert_eq!(r.id, 9);
+    }
+
+    /// The rewritten values are the reference parser's own, bit for bit.
+    #[test]
+    fn the_three_magic_populations_become_flags_and_are_rewritten() {
+        let one = |pop: f32| {
+            let mut body = Vec::new();
+            body.extend_from_slice(&0u32.to_le_bytes());
+            body.push(0x02); // a real wire flag, which must survive the OR
+            body.extend_from_slice(b"R\0");
+            body.extend_from_slice(b"h:1\0");
+            body.extend_from_slice(&pop.to_le_bytes());
+            body.extend_from_slice(&[0, 1, 0]);
+            let mut packet = vec![CMD_REALM_LIST];
+            packet.extend_from_slice(&(body.len() as u16 + 3).to_le_bytes());
+            packet.extend_from_slice(&0u32.to_le_bytes());
+            packet.push(1);
+            packet.extend_from_slice(&body);
+            packet.extend_from_slice(&0u16.to_le_bytes());
+            read_realm_list(&mut packet.as_slice()).unwrap().remove(0)
+        };
+
+        let recommended = one(600.0);
+        assert_eq!(recommended.flags, 0x02 | 0x20, "the wire flag survives");
+        assert_eq!(recommended.population, 0.0);
+
+        let new = one(200.0);
+        assert_eq!(new.flags, 0x02 | 0x40);
+        assert_eq!(new.population.to_bits(), 0x3a83_126f, "0.001f exactly");
+
+        let full = one(400.0);
+        assert_eq!(full.flags, 0x02 | 0x80);
+        assert_eq!(full.population, 8.0);
+
+        // An ordinary population is left alone, flags and all.
+        let plain = one(1.5);
+        assert_eq!(plain.flags, 0x02);
+        assert_eq!(plain.population, 1.5);
+    }
+
+    /// A one-realm `CMD_REALM_LIST_Server` named `name`, whose address is `127.0.0.1:8085`.
+    fn realm_named(name: &[u8]) -> RealmInfo {
+        let mut body = Vec::new();
+        body.extend_from_slice(&0u32.to_le_bytes());
+        body.push(0);
+        body.extend_from_slice(name);
+        body.push(0);
+        body.extend_from_slice(b"127.0.0.1:8085\0");
+        body.extend_from_slice(&1.5f32.to_le_bytes());
+        body.extend_from_slice(&[0, 1, 0]);
+        let mut packet = vec![CMD_REALM_LIST];
+        packet.extend_from_slice(&(body.len() as u16 + 3).to_le_bytes());
+        packet.extend_from_slice(&0u32.to_le_bytes());
+        packet.push(1);
+        packet.extend_from_slice(&body);
+        packet.extend_from_slice(&0u16.to_le_bytes());
+        read_realm_list(&mut packet.as_slice()).unwrap().remove(0)
+    }
+
+    /// The realm record fill (`0x5b2230`) turns each of `"*/:<>?\|` in a name into a space
+    /// (`0x5b2376`-`0x5b2391`, the table `0x5b2450`) and leaves every other character: the other
+    /// punctuation, the dot and the space inside a name, and bytes past `0x7c`.
+    #[test]
+    fn a_realm_name_loses_the_nine_characters_a_file_name_cannot_hold() {
+        for c in "\"*/:<>?\\|".chars() {
+            assert_eq!(
+                realm_named(format!("A{c}B").as_bytes()).name,
+                "A B",
+                "{c:?}"
+            );
+        }
+        let kept = "A!#$%&'()+,-;=@[]^_`{}~B C.D";
+        assert_eq!(realm_named(kept.as_bytes()).name, kept);
+        assert_eq!(realm_named("Königreich Å".as_bytes()).name, "Königreich Å");
+    }
+
+    /// Trailing spaces and dots are cut (`0x5b23a6`-`0x5b23c5` through `0x5b24b0` with its
+    /// trailing flag set), after the nine characters became spaces: `Test:Realm.` lists as
+    /// `Test Realm`, and a name of nothing but those characters lists empty.
+    #[test]
+    fn a_realm_name_loses_its_trailing_spaces_and_dots() {
+        let cleaned = |name: &str| realm_named(name.as_bytes()).name;
+        assert_eq!(cleaned("Test:Realm."), "Test Realm");
+        assert_eq!(cleaned("Realm. . "), "Realm");
+        assert_eq!(cleaned("Realm:"), "Realm");
+        assert_eq!(cleaned("A:."), "A");
+        assert_eq!(cleaned("Königreich:"), "Königreich");
+        assert_eq!(cleaned("..."), "");
+        assert_eq!(cleaned("*|"), "");
+        assert_eq!(cleaned(" Lead.dot"), " Lead.dot", "only the end is cut");
+    }
+
+    /// Only the name is cleaned: the address keeps its colon, so the dial still has its port.
+    #[test]
+    fn the_address_is_not_cleaned() {
+        assert_eq!(realm_named(b"R").address, "127.0.0.1:8085");
+    }
+
+    /// A successful challenge reply up to its security byte, then `tail`.
+    fn challenge_with(tail: &[u8]) -> Vec<u8> {
+        let mut p = vec![CMD_AUTH_LOGON_CHALLENGE, 0, 0];
+        p.extend_from_slice(&[9u8; 32]); // B
+        p.extend_from_slice(&[1, 7, 32]); // g's length, g, N's length
+        p.extend_from_slice(&[0x11u8; 32]); // N
+        p.extend_from_slice(&[0x22u8; 32]); // salt
+        p.extend_from_slice(&MANGOS_VERSION_CHALLENGE);
+        p.extend_from_slice(tail);
+        p
+    }
+
+    fn pin_salt() -> [u8; 16] {
+        std::array::from_fn(|i| 0xa0 + i as u8)
+    }
+
+    /// A non-zero security byte is followed by the grid seed and the PIN salt (`0x5bab5a`
+    /// `test al,al`, the dword at `0x5bab7f`, 16 bytes at `0x5bab8c`), handed on with the byte
+    /// itself (`0x5bac05` → `0x5b1ed0`).
+    #[test]
+    fn a_pin_challenge_keeps_its_seed_and_salt() {
+        let mut tail = vec![0x01, 0x78, 0x56, 0x34, 0x12];
+        tail.extend_from_slice(&pin_salt());
+        let packet = challenge_with(&tail);
+        let mut r = packet.as_slice();
+        let reply = read_challenge_reply(&mut r).unwrap().unwrap();
+        assert!(r.is_empty(), "{} bytes left", r.len());
+        assert_eq!(
+            reply.pin,
+            Some(PinChallenge {
+                flags: 0x01,
+                grid_seed: 0x1234_5678,
+                salt: pin_salt(),
+            })
+        );
+    }
+
+    /// The test is of the whole byte, not of bit 0: any non-zero byte reads the two fields.
+    #[test]
+    fn any_nonzero_security_byte_carries_the_pin_fields() {
+        let mut tail = vec![0x02, 1, 0, 0, 0];
+        tail.extend_from_slice(&pin_salt());
+        let packet = challenge_with(&tail);
+        let mut r = packet.as_slice();
+        let reply = read_challenge_reply(&mut r).unwrap().unwrap();
+        assert!(r.is_empty());
+        assert_eq!(reply.pin.map(|p| (p.flags, p.grid_seed)), Some((0x02, 1)));
+    }
+
+    #[test]
+    fn a_zero_security_byte_has_no_pin() {
+        let packet = challenge_with(&[0]);
+        let mut r = packet.as_slice();
+        let reply = read_challenge_reply(&mut r).unwrap().unwrap();
+        assert!(r.is_empty());
+        assert_eq!(reply.pin, None);
+    }
+
+    /// With a PIN the proof's security byte is the challenge's, followed by the 16-byte client
+    /// salt and the 20-byte hash (`0x5bbc80`-`0x5bbcad`): 111 bytes in all.
+    #[test]
+    fn the_proof_carries_the_pin_salt_and_hash() {
+        let a = test_public_key();
+        let m1: [u8; 20] = std::array::from_fn(|i| (i as u8).wrapping_mul(13).wrapping_add(4));
+        let pin = PinProof {
+            flags: 0x01,
+            salt: std::array::from_fn(|i| 0x30 + i as u8),
+            hash: std::array::from_fn(|i| 0x80 + i as u8),
+        };
+        let mut packet = Vec::new();
+        write_logon_proof(&mut packet, &a, &m1, &MANGOS_VERSION_CHALLENGE, Some(&pin)).unwrap();
+
+        let mut want = vec![CMD_AUTH_LOGON_PROOF];
+        want.extend_from_slice(&a);
+        want.extend_from_slice(&m1);
+        want.extend_from_slice(&version_proof(&MANGOS_VERSION_CHALLENGE, &a));
+        want.extend_from_slice(&[0x00, 0x01]); // no keys, the security byte
+        want.extend_from_slice(&[
+            0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d,
+            0x3e, 0x3f, // client salt
+            0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d,
+            0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, // hash
+        ]);
+        assert_eq!(packet.len(), 111);
+        assert_eq!(packet, want);
+    }
+}

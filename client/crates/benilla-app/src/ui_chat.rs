@@ -1,0 +1,287 @@
+//! The chat system: [`event`] is the internal `CHAT_MSG_*` currency, [`feed`] turns every source
+//! into events with names resolved once, [`frames`] routes them through the `ChatFrame_OnEvent`
+//! composer to the docked windows, and [`input`] is the outbound side over [`commands`]' table of
+//! every `/command`, built from the reference's own alias strings.
+
+use bevy::prelude::*;
+
+use crate::ui_script::{UiFeed, UiInput};
+
+#[cfg(test)]
+mod ace_gate_tests;
+/// `/afk` and `/dnd`: the optimistic AFK mirror `[0xb6e5cc]` and the implicit clear that every
+/// other chat send and every movement press carries.
+mod away;
+/// The world broadcasts: `SMSG_ZONE_UNDER_ATTACK`/`_DEFENSE_MESSAGE`/`_SERVER_MESSAGE`.
+mod broadcast;
+/// The chat bubbles' hand-off to their `WorldFrame` widgets.
+pub(crate) mod bubbles;
+mod channels;
+/// The combat log's chat lines: classification, chat type and each sentence's GlobalString key.
+pub(crate) mod combat;
+#[cfg(test)]
+mod combat_drain_tests;
+pub(crate) mod commands;
+/// The edit box's send path: the chat-type token passed to `SendChatMessage` and its wire kind.
+/// `pub(crate)` for `ui_script::chat_tests`, which joins the stock file's token to this resolve.
+pub(crate) mod edit;
+mod event;
+mod feed;
+mod frames;
+/// The idle handler: the 5-minute auto-sit and auto-AFK, and the 30-minute camp.
+pub(crate) mod idle;
+mod input;
+/// The language gate: the exemptions and fluency lookup behind the chat garble.
+mod language;
+/// `LoggingChat`/`LoggingCombat`: the two log files `/chatlog` and `/combatlog` toggle.
+pub(crate) mod logging;
+#[cfg(test)]
+mod monster_tests;
+mod net;
+pub use net::{ChatTap, TappedLine};
+#[cfg(test)]
+mod notice_tests;
+/// The `AUTO_JOIN_GUILD_CHANNEL` cascade, the one place the client joins or leaves
+/// `GuildRecruitment - City` on its own.
+mod recruitment;
+/// `/chatlist`'s member list, held on its channel's slot until every name is known.
+mod roster;
+/// The chat windows' saved look: tab tint, alpha and font size, read at login, saved at logout.
+pub(crate) mod settings;
+#[cfg(test)]
+mod slot_tests;
+#[cfg(test)]
+mod tests;
+
+pub(crate) use away::AfkMirror;
+pub(crate) use broadcast::Broadcast;
+/// The zone-channel catalog's seed, called from the world-entry UI load: addons read the catalog
+/// at file scope, before an `Update` push would land.
+pub(crate) use channels::seed_zone_channel_catalog;
+/// The joined-channel roster and the `ChatChannels.dbc` catalog.
+pub(crate) use edit::ChannelState;
+/// Test-only: `ui_script::chat_tests` checks every fired name against the live `ChatTypeInfo`.
+#[cfg(test)]
+pub(crate) use event::event_name;
+pub(crate) use event::{default_color, ChatEvent, ChatEventKind};
+pub(crate) use feed::{Answer, ChatLog};
+/// The chat applier off a bare world, for the tests that send through it.
+#[cfg(test)]
+pub(crate) use input::{chat_world, run_chat};
+/// The host's chat appliers ([`crate::script_calls::ScriptCallHost`]).
+pub(crate) use input::{ChatSender, EmoteDoer};
+
+/// The chat feed once, for a test over the whole client: the `CHAT_MSG_*` fan-out of what the
+/// log holds, with the call host the world lends.
+#[cfg(test)]
+pub(crate) fn feed_chat_once(world: &mut World) {
+    use bevy::ecs::system::RunSystemOnce;
+    world
+        .run_system_once(feed::feed_chat)
+        .expect("the chat feeds");
+}
+/// Every resource the chat drain reads, fresh, for a test world that holds the VM and the
+/// net commands itself.
+#[cfg(test)]
+pub(crate) fn insert_drain_reads(world: &mut World) {
+    world.init_resource::<ChatLog>();
+    world.insert_resource(frames::ChatWindows::default());
+    world.insert_resource(edit::ChannelState::default());
+    world.init_resource::<crate::names::NameCache>();
+    world.insert_resource(crate::chat_bubble::BubbleQueue::default());
+    world.insert_resource(crate::chat_bubble::BubbleConfig::default());
+    world.insert_resource(crate::creature_anim::GestureQueue::default());
+    world.init_resource::<crate::net::SelfGuid>();
+    world.init_resource::<crate::net::GuidIndex>();
+    world.insert_resource(crate::world_state::WorldStates::default());
+    world.insert_resource(language::ChatLanguages::default());
+    world.insert_resource(crate::items::Items::default());
+    world.insert_resource(crate::go_templates::GameObjectTemplates::default());
+    world.insert_resource(crate::text_filter::TextFilter::default());
+    world.insert_resource(crate::text_filter::TextFilterSwitches::default());
+}
+/// The submitted-line drain once, for a test over the whole client: the dev and probe lines the
+/// VM holds, with the call host the world lends.
+#[cfg(test)]
+pub(crate) fn drain_chat_input_once(world: &mut World) {
+    use bevy::ecs::system::RunSystemOnce;
+    world
+        .run_system_once(input::drain_chat_input)
+        .expect("the chat input drains");
+}
+/// Test-only: the quest log's rig tees the lines its timers show.
+#[cfg(test)]
+pub(crate) use frames::{tee_shown_lines, ChatWindows};
+/// The per-character chat cache's restore, called from the world-entry UI load: its two events
+/// must precede the session's first chat line and `PLAYER_LOGIN`.
+pub(crate) use settings::restore_chat_looks;
+
+pub(crate) struct UiChatPlugin;
+
+/// The chat line drain, whose `DoEmote` arm writes the local [`crate::creature_anim::EmoteAnim`]:
+/// the animation chain runs after it, so the same frame's driver sees the play.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct ChatDrain;
+
+impl Plugin for UiChatPlugin {
+    fn build(&self, app: &mut App) {
+        net::register(app);
+        add_chat_lane(app);
+        app.add_observer(combat::on_cvar);
+        app.init_resource::<ChatLog>()
+            .init_resource::<away::AfkMirror>()
+            .init_resource::<away::AfkMirrorMemo>()
+            .init_resource::<idle::LastInput>()
+            .init_resource::<frames::ChatWindows>()
+            .init_resource::<edit::ChannelState>()
+            .init_resource::<channels::ZoneChannelWalk>()
+            .init_resource::<recruitment::GuildRecruitmentCascade>()
+            .init_resource::<language::ChatLanguages>()
+            .init_resource::<combat::CombatLogRanges>()
+            // `combat::on_cvar` writes this and the range set: a missing one panics on the first
+            // write, which only `scripts/smoke.sh` sees (the unit suites build their own worlds).
+            .init_resource::<combat::LogPeriodicSpells>()
+            // These DBC loads must follow `AssetSet::Open`: before it there is no chain, and each
+            // silently loads nothing.
+            .add_systems(
+                Startup,
+                (
+                    channels::load_chat_channels,
+                    feed::load_emote_texts,
+                    broadcast::load_server_messages,
+                )
+                    .after(benilla_assets::AssetSet::Open),
+            )
+            // The slash-command table needs the VM's globals and the emote catalog, both `Startup`.
+            .add_systems(PostStartup, commands::build_slash_commands)
+            // The language gate's feeds, ahead of the chat lane that reads them.
+            .add_systems(
+                Update,
+                (
+                    language::load_language_words,
+                    language::feed_language_skills,
+                    language::feed_default_language,
+                )
+                    .before(crate::lanes::UiLanes),
+            )
+            // Descriptor-diff combat-log lines, ahead of the drain so none lands a frame late.
+            .add_systems(
+                Update,
+                (
+                    combat::watch::death_lines,
+                    combat::watch::aura_lines,
+                    combat::watch::pet_loyalty_lines,
+                )
+                    .before(crate::lanes::UiLanes),
+            )
+            // After the drain, so the log files take the frame's lines in one order.
+            .add_systems(
+                Update,
+                frames::tee_shown_lines
+                    .in_set(crate::lanes::UiLanes)
+                    .after(crate::lanes::fire_in_order),
+            )
+            // Before the drain, so a broadcast lands on the frame it decodes.
+            .add_systems(
+                Update,
+                broadcast::feed_broadcasts.in_set(crate::ui_script::UiFeed),
+            )
+            // The last-input stamp `[0xcf0bc8]`, ungated and ahead of the UI pass: the reference
+            // stamps raw input before dispatch, so a key the chat box swallows still counts.
+            .add_systems(Update, idle::stamp_input.before(UiInput))
+            // A fresh VM's joined-channel mirror, before the drain so its first line is numbered.
+            .add_systems(
+                Update,
+                channels::seed_channels.in_set(crate::ui_script::UiFeed),
+            )
+            // `SMSG_PLAYED_TIME` -> `TIME_PLAYED_MSG`.
+            .add_systems(Update, feed::played_time_bridge.in_set(UiFeed))
+            .add_systems(
+                Update,
+                (
+                    // First, so a `/afk` typed this frame reads the descriptor's settled state.
+                    away::reconcile_afk_mirror,
+                    away::movement_clears_afk,
+                    // After the clears, so a press that stamps the clock and drops the flag is
+                    // settled before the idle timer reads it.
+                    idle::idle_handler.run_if(|| idle::IDLE_SITS_AND_MARKS_AWAY),
+                    input::drain_chat_input.in_set(ChatDrain),
+                )
+                    .chain()
+                    .in_set(crate::ui_script::UiDrain)
+                    // Before the zone-channel walk renumbers or renames a slot, so a `/N` resolves
+                    // against the roster the script's `GetChannelName` read this frame.
+                    .before(channels::end_session_channels_on_disconnect)
+                    .in_set(crate::client_state::InWorldGated),
+            )
+            // The zone-channel auto-join, which vmangos leaves to the client. The disconnect clear
+            // runs first, so a same-frame drop cannot leave the walk diffing stale membership.
+            // After `AreaAuthoritySet`, since a stale area joins and leaves the wrong channels, and
+            // after the settle state's release, which the walk's gate reads. The guild-recruitment
+            // cascade follows the walk: it is the tail of `ZoneChannelRefresh`.
+            .add_systems(
+                Update,
+                (
+                    channels::end_session_channels_on_disconnect,
+                    channels::auto_join_zone_channels.in_set(crate::client_state::InWorldGated),
+                    recruitment::guild_recruitment_cascade
+                        .in_set(crate::client_state::InWorldGated),
+                )
+                    .chain()
+                    .after(benilla_world::terrain_stream::AreaAuthoritySet)
+                    .after(crate::player::WorldFocusSet),
+            )
+            // After the shutdown's `PLAYER_LOGOUT`, whose handlers read the windows and the
+            // channels as they stood, and before the glue VM goes in.
+            .add_systems(
+                OnExit(crate::client_state::ClientState::InWorld),
+                (channels::end_session_channels, end_session_chat)
+                    .in_set(crate::ui_script::SessionEnd::Clears),
+            );
+        settings::plugin(app);
+        logging::plugin(app);
+    }
+}
+
+/// The chat lane ([`crate::lanes`]): the lines and the combat edges the packets queue, fired
+/// against the in-game VM only, since a VM with no ChatFrame would destroy them, and after every
+/// feed, as in the reference: login-burst chat is queued (`0x49cae0`) behind the `[0x8435fc]`
+/// latch and drains at `0x490974`, after `PLAYER_LOGIN` (`0x490959`) and `PLAYER_ENTERING_WORLD`
+/// (`0x49096a`), while `GUILD_MOTD` fires on arrival (`0x5e7288`), so the guild line precedes the
+/// welcome. Ahead of each drain the held lines' age pass is queued ([`ChatLog::begin_frame`]).
+pub(crate) fn add_chat_lane(app: &mut App) {
+    use crate::lanes::LaneApp;
+    app.init_resource::<combat::watch::DeathLineAt>();
+    app.init_resource::<ChatLog>().add_lane(
+        "chat",
+        |world| world.get_resource::<ChatLog>()?.peek(),
+        feed::fire_chat,
+        Some(|world| {
+            if let Some(log) = world.get_resource::<ChatLog>() {
+                log.begin_frame();
+            }
+        }),
+    );
+}
+
+/// The chat session end: the undrained feed, which outlives the Lua state, and both windows'
+/// lines. The Lua state is itself replaced at the session end, as the reference destroys its own
+/// at logout.
+///
+/// Deviation: not run on benilla's same-character reconnect, which the reference lacks (it
+/// returns to the login screen), so the window keeps its scrollback there.
+fn end_session_chat(mut hosted_vm: crate::script_calls::HostedVm, log: Res<ChatLog>) {
+    hosted_vm.run(|script| {
+        end_chat_session(script, &log);
+    })
+}
+
+/// [`end_session_chat`]'s body, callable without a `World`.
+pub(crate) fn end_chat_session(script: Option<&mut benilla_ui::script::UiScript>, log: &ChatLog) {
+    log.reset();
+    if let Some(script) = script {
+        for frame in ["ChatFrame1", "ChatFrame2"] {
+            crate::ui_script::run_or_warn(script, &format!("{frame}:Clear()"));
+        }
+    }
+}

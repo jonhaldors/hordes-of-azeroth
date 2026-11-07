@@ -1,0 +1,276 @@
+# Imported by tools/content/dump_tables.py from bonk_mob. Edit this file, then run tools/content/compile.py.
+table: bonk_mob
+columns:
+- entry
+- role
+- range
+- comment
+rows:
+- - 203
+  - 1
+  - 20.0
+  - Skeletal Mage
+- - 430
+  - 1
+  - 20.0
+  - Redridge Mystic
+- - 436
+  - 1
+  - 20.0
+  - Blackrock Shadowcaster
+- - 517
+  - 1
+  - 18.0
+  - Murloc Oracle
+- - 533
+  - 1
+  - 20.0
+  - Nightbane Shadow Weaver
+- - 588
+  - 1
+  - 22.0
+  - Bloodscalp Scout
+- - 589
+  - 1
+  - 20.0
+  - 'Defias Pillager: keeps its distance and casts'
+- - 596
+  - 1
+  - 18.0
+  - Brainwashed Noble
+- - 669
+  - 1
+  - 22.0
+  - Skullsplitter Hunter
+- - 759
+  - 1
+  - 22.0
+  - Lost One Hunter
+- - 1013
+  - 1
+  - 20.0
+  - Mosshide Mystic
+- - 1038
+  - 1
+  - 20.0
+  - Dragonmaw Shadowwarder
+- - 1124
+  - 1
+  - 20.0
+  - Frostmane Shadowcaster
+- - 1165
+  - 1
+  - 20.0
+  - Stonesplinter Geomancer
+- - 1174
+  - 1
+  - 20.0
+  - Tunnel Rat Geomancer
+- - 1397
+  - 1
+  - 20.0
+  - Frostmane Seer
+- - 1782
+  - 1
+  - 20.0
+  - Moonrage Darksoul
+- - 1784
+  - 1
+  - 22.0
+  - Skeletal Sorcerer
+- - 1826
+  - 1
+  - 22.0
+  - Scarlet Mage
+- - 1867
+  - 1
+  - 20.0
+  - Dalaran Apprentice
+- - 2180
+  - 1
+  - 20.0
+  - Stormscale Siren
+- - 2324
+  - 1
+  - 20.0
+  - Blackwood Windtalker
+- - 2373
+  - 1
+  - 20.0
+  - Mudsnout Shaman
+- - 2376
+  - 1
+  - 20.0
+  - Torn Fin Oracle
+- - 2553
+  - 1
+  - 20.0
+  - Witherbark Shadowcaster
+- - 2591
+  - 1
+  - 20.0
+  - Syndicate Magus
+- - 2740
+  - 1
+  - 20.0
+  - Shadowforge Darkweaver
+- - 2892
+  - 1
+  - 20.0
+  - Stonevault Seer
+- - 3239
+  - 1
+  - 18.0
+  - Thunderhead
+- - 3258
+  - 1
+  - 22.0
+  - Bristleback Hunter
+- - 3269
+  - 1
+  - 20.0
+  - Razormane Geomancer
+- - 3273
+  - 1
+  - 20.0
+  - Kolkar Stormer
+- - 4096
+  - 1
+  - 20.0
+  - Galak Windchaser
+- - 4363
+  - 1
+  - 20.0
+  - Mirefin Oracle
+- - 4414
+  - 1
+  - 20.0
+  - Darkfang Venomspitter
+- - 4635
+  - 1
+  - 20.0
+  - Kolkar Windchaser
+- - 4684
+  - 1
+  - 20.0
+  - Nether Sorceress
+- - 5254
+  - 1
+  - 20.0
+  - Woodpaw Mystic
+- - 5269
+  - 1
+  - 20.0
+  - Atal'ai Priest
+- - 5617
+  - 1
+  - 20.0
+  - Wastewander Shadow Mage
+- - 5858
+  - 1
+  - 20.0
+  - Greater Lava Spider
+- - 5975
+  - 1
+  - 20.0
+  - Dreadmaul Ogre Mage
+- - 6008
+  - 1
+  - 20.0
+  - Shadowsworn Warlock
+- - 6188
+  - 1
+  - 20.0
+  - Timbermaw Shaman
+- - 6195
+  - 1
+  - 20.0
+  - Spitelash Siren
+- - 6512
+  - 1
+  - 20.0
+  - Bloodpetal Trapper
+- - 6520
+  - 1
+  - 20.0
+  - Scorching Elemental
+- - 7026
+  - 1
+  - 22.0
+  - Blackrock Sorcerer
+- - 7028
+  - 1
+  - 22.0
+  - Blackrock Warlock
+- - 7109
+  - 1
+  - 20.0
+  - Jadefire Felsworn
+- - 7158
+  - 1
+  - 20.0
+  - Deadwood Shaman
+- - 7439
+  - 1
+  - 20.0
+  - Winterfall Shaman
+- - 7523
+  - 1
+  - 20.0
+  - Suffering Highborne
+- - 7856
+  - 1
+  - 22.0
+  - Southsea Freebooter
+- - 8526
+  - 1
+  - 22.0
+  - Dark Caster
+- - 8551
+  - 1
+  - 22.0
+  - Dark Summoner
+- - 8900
+  - 1
+  - 20.0
+  - Doomforge Arcanasmith
+- - 10760
+  - 1
+  - 20.0
+  - Grimtotem Geomancer
+- - 11339
+  - 1
+  - 22.0
+  - Hakkari Shadow Hunter
+- - 11350
+  - 1
+  - 22.0
+  - Gurubashi Axe Thrower
+- - 11466
+  - 1
+  - 20.0
+  - Highborne Summoner
+- - 11744
+  - 1
+  - 20.0
+  - Dust Stormer
+- - 11830
+  - 1
+  - 20.0
+  - Hakkari Priest
+- - 11882
+  - 1
+  - 20.0
+  - Twilight Stonecaller
+- - 12265
+  - 1
+  - 20.0
+  - Lava Spawn
+- - 15111
+  - 1
+  - 20.0
+  - Mad Servant
+- - 15462
+  - 1
+  - 8.0
+  - 'Spitting Scarab: spits from close by'

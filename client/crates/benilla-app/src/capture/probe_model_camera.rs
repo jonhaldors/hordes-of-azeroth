@@ -1,0 +1,324 @@
+//! `WOW_PROBE_MODEL_CAMERA=1`: the live probe for the `<Model>` widget's perspective leg. It builds
+//! a plain `CreateFrame("Model")` on a camera-bearing file and reads the camera and root the
+//! renderer actually built, which the unit tests in `crate::ui_models` cannot reach.
+//!
+//! Each leg projects three model-space points through that camera and root and compares the NDC
+//! with the baseline's:
+//!
+//! - `scale`: `SetModelScale(3)` moves nothing, as the authored eye rides the model's root.
+//! - `position`: `SetPosition(0.4, -0.3, 0.9)` moves nothing, for the same reason.
+//! - `facing`: `SetFacing(1.0)` moves nothing: the up vector `0x7ac640` builds is model-space `+Z`
+//!   at `roll = 0`, the facing's own axis. Only `<PlayerModel>`'s frozen camera (`0x7acf10`)
+//!   shows a facing.
+//! - `ortho`, the control: `SetCamera(9)` is past the file's camera count, so the widget installs
+//!   the NULL camera and falls to the orthographic leg, and the perspective camera goes inactive.
+//!
+//! Three whole-window screenshots go to the local-state folder as existence evidence; they are not
+//! compared. `WOW_TILE_TRACE=1` prints the leg, record, eye and matrix per pane per frame. The
+//! switches are `docs/CONTRIBUTING.md`, "Running it unattended".
+
+use bevy::camera::visibility::RenderLayers;
+use bevy::prelude::*;
+use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+
+use super::probes::ProbeClock;
+use crate::net::SelfPlayer;
+use crate::ui_models::{TilePerspectiveCamera, TileRoot, UiModelTiles};
+
+/// The file framed. `Creature\Wolf\Wolf.m2` carries two cameras (`benilla-extract m2cam`: index
+/// 0 type 0, eye `(1.6927, 0.7238, 0.8837)`, fov `0.95002`; index 1 type 1, eye
+/// `(5.5556, 0, 1.8056)`, fov `0.67620`), so index 9 is past the count.
+const FILE: &str = r"Creature\\Wolf\\Wolf.mdx";
+/// The pane's size in FrameXML units: the pet pane's `318x224`, a worked example of the
+/// projection `0x5c3cc0` (`theta = 0.287938 * fov`).
+const PANE_W: f32 = 318.0;
+const PANE_H: f32 = 224.0;
+/// Frames to let a change settle: the extract republishes it, then the renderer aims the camera.
+const SETTLE_FRAMES: u32 = 8;
+/// NDC agreement the cancelling legs must hold; a failed cancel misses by tens of percent.
+const NDC_EPS: f32 = 1.0e-3;
+
+/// The Lua that builds the pane, named so the legs can reach it.
+const BUILD: &str = r#"
+ProbeModelCam = CreateFrame("Model", "ProbeModelCam", UIParent)
+ProbeModelCam:SetWidth(318)
+ProbeModelCam:SetHeight(224)
+ProbeModelCam:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+ProbeModelCam:SetModel("Creature\\Wolf\\Wolf.mdx")
+ProbeModelCam:SetCamera(0)
+ProbeModelCam:SetLight(1, 0, 0, -0.707, -0.707, 0.7, 1.0, 1.0, 1.0, 0.8, 1.0, 1.0, 0.8)
+ProbeModelCam:Show()
+"#;
+
+pub(crate) struct ProbeModelCameraPlugin;
+
+impl Plugin for ProbeModelCameraPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ModelCameraProbe>()
+            .add_systems(Update, model_camera_probe);
+    }
+}
+
+/// One leg's reading: the NDC of the three probe points.
+#[derive(Clone, Copy, Default)]
+struct Reading([Vec2; 3]);
+
+#[derive(Resource, Default)]
+struct ModelCameraProbe {
+    phase: Phase,
+    baseline: Option<Reading>,
+    passes: u32,
+    fails: u32,
+    skips: u32,
+    exited: bool,
+}
+
+#[derive(Default, Clone, Copy, PartialEq)]
+enum Phase {
+    #[default]
+    Start,
+    /// Waiting for the pane's tile to be packed and its camera aimed.
+    Await {
+        since: f64,
+    },
+    /// A change is in flight; read after [`SETTLE_FRAMES`].
+    Settle {
+        frames: u32,
+        leg: Leg,
+    },
+    Done,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Leg {
+    Baseline,
+    Scale,
+    Position,
+    Facing,
+    Ortho,
+}
+
+impl Leg {
+    /// The Lua that puts the pane into this leg, run before its reading.
+    fn setup(self) -> &'static str {
+        match self {
+            Leg::Baseline => "",
+            Leg::Scale => "ProbeModelCam:SetModelScale(3)",
+            Leg::Position => {
+                "ProbeModelCam:SetModelScale(1) ProbeModelCam:SetPosition(0.4, -0.3, 0.9)"
+            }
+            Leg::Facing => "ProbeModelCam:SetPosition(0, 0, 0) ProbeModelCam:SetFacing(1.0)",
+            // Past Wolf's two cameras: the NULL camera, the orthographic leg.
+            Leg::Ortho => "ProbeModelCam:SetCamera(9)",
+        }
+    }
+
+    fn next(self) -> Option<Leg> {
+        match self {
+            Leg::Baseline => Some(Leg::Scale),
+            Leg::Scale => Some(Leg::Position),
+            Leg::Position => Some(Leg::Facing),
+            Leg::Facing => Some(Leg::Ortho),
+            Leg::Ortho => None,
+        }
+    }
+}
+
+/// The three model-space points the legs compare, a wolf-sized spread in Bevy space.
+fn probe_points() -> [Vec3; 3] {
+    [
+        benilla_assets::coords::wow_to_bevy([0.0, 0.0, 0.8]),
+        benilla_assets::coords::wow_to_bevy([0.6, -0.3, 0.4]),
+        benilla_assets::coords::wow_to_bevy([-0.4, 0.5, 1.1]),
+    ]
+}
+
+/// Projects the points through the active perspective camera and the tile root on its layer;
+/// `None` with no perspective camera aimed, the orthographic leg.
+fn read_leg(
+    cams: &Query<
+        (&Camera, &GlobalTransform, &Projection, &RenderLayers),
+        With<TilePerspectiveCamera>,
+    >,
+    roots: &Query<(&GlobalTransform, &RenderLayers), With<TileRoot>>,
+) -> Option<Reading> {
+    let (_, cam_tf, proj, layers) = cams.iter().find(|(c, _, _, _)| c.is_active)?;
+    // The root on the camera's own layer: other tiles (the minimap ping, the map arrow) are up.
+    let (root, _) = roots.iter().find(|(_, l)| *l == layers)?;
+    let clip = proj.get_clip_from_view() * cam_tf.to_matrix().inverse() * root.to_matrix();
+    let mut out = [Vec2::ZERO; 3];
+    for (o, p) in out.iter_mut().zip(probe_points()) {
+        let c = clip * p.extend(1.0);
+        *o = Vec2::new(c.x / c.w, c.y / c.w);
+    }
+    Some(Reading(out))
+}
+
+fn shoot(commands: &mut Commands, name: &str) {
+    // Written under `local_state`, never into the install.
+    let Some(path) = crate::local_state::home().map(|d| d.join(format!("{name}.png"))) else {
+        warn!("PROBE_MODEL_CAMERA: no local-state folder — skipping the {name} shot");
+        return;
+    };
+    info!("PROBE_MODEL_CAMERA: shot -> {}", path.display());
+    commands
+        .spawn(Screenshot::primary_window())
+        .observe(save_to_disk(path));
+}
+
+fn model_camera_probe(
+    mut commands: Commands,
+    time: ProbeClock,
+    mut probe: ResMut<ModelCameraProbe>,
+    mut hosted_vm: crate::script_calls::HostedVm,
+    tiles: Res<UiModelTiles>,
+    self_player: Query<(), With<SelfPlayer>>,
+    cams: Query<
+        (&Camera, &GlobalTransform, &Projection, &RenderLayers),
+        With<TilePerspectiveCamera>,
+    >,
+    roots: Query<(&GlobalTransform, &RenderLayers), With<TileRoot>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    hosted_vm.run(|script| {
+        if self_player.is_empty() {
+            return; // not in-world yet
+        }
+        let Some(script) = script else { return };
+        let now = time.elapsed_secs_f64();
+
+        match probe.phase {
+            Phase::Start => {
+                info!(
+                    "PROBE_MODEL_CAMERA: building a {PANE_W}x{PANE_H} <Model> on {FILE}, camera 0"
+                );
+                if let Err(e) = script.run(BUILD) {
+                    error!("PROBE_MODEL_CAMERA: FAIL building the pane: {e}");
+                    probe.fails += 1;
+                    probe.phase = Phase::Done;
+                    return;
+                }
+                probe.phase = Phase::Await { since: now };
+            }
+            Phase::Await { since } => {
+                if !tiles.cells.is_empty() && read_leg(&cams, &roots).is_some() {
+                    let cell = tiles.cells.values().next().copied();
+                    info!(
+                        "PROBE_MODEL_CAMERA: tile up, cell {cell:?} — the perspective leg is live"
+                    );
+                    probe.passes += 1;
+                    probe.phase = Phase::Settle {
+                        frames: 0,
+                        leg: Leg::Baseline,
+                    };
+                } else if now - since > 30.0 {
+                    // The asset never landed or the pane never painted: a SKIP, not a wrong answer.
+                    error!(
+                        "PROBE_MODEL_CAMERA: SKIP — no tile after 30 s (cells={}, camera aimed={})",
+                        tiles.cells.len(),
+                        read_leg(&cams, &roots).is_some()
+                    );
+                    probe.skips += 1;
+                    probe.phase = Phase::Done;
+                }
+            }
+            Phase::Settle { frames, leg } => {
+                if frames < SETTLE_FRAMES {
+                    probe.phase = Phase::Settle {
+                        frames: frames + 1,
+                        leg,
+                    };
+                    return;
+                }
+                let reading = read_leg(&cams, &roots);
+                match (leg, reading) {
+                    (Leg::Baseline, Some(r)) => {
+                        info!("PROBE_MODEL_CAMERA: baseline ndc {:?}", r.0);
+                        probe.baseline = Some(r);
+                        shoot(&mut commands, "probe-model-camera-a-baseline");
+                    }
+                    (Leg::Ortho, None) => {
+                        info!(
+                            "PROBE_MODEL_CAMERA: ortho PASS — SetCamera(9) is past the file's two \
+                         cameras, so the NULL camera installed and the perspective camera parked"
+                        );
+                        probe.passes += 1;
+                    }
+                    (Leg::Ortho, Some(_)) => {
+                        error!(
+                            "PROBE_MODEL_CAMERA: ortho FAIL — an out-of-range SetCamera left the \
+                         perspective leg live; the bounds check is not being applied"
+                        );
+                        probe.fails += 1;
+                    }
+                    (_, None) => {
+                        error!(
+                            "PROBE_MODEL_CAMERA: {leg:?} FAIL — the perspective camera went away"
+                        );
+                        probe.fails += 1;
+                    }
+                    (_, Some(r)) => {
+                        let base = probe.baseline.unwrap_or_default();
+                        let worst = base
+                            .0
+                            .iter()
+                            .zip(r.0)
+                            .map(|(a, b)| (a.x - b.x).abs().max((a.y - b.y).abs()))
+                            .fold(0.0f32, f32::max);
+                        if worst <= NDC_EPS {
+                            info!(
+                            "PROBE_MODEL_CAMERA: {leg:?} PASS — cancels, worst NDC delta {worst:.6}"
+                        );
+                            probe.passes += 1;
+                        } else {
+                            error!(
+                                "PROBE_MODEL_CAMERA: {leg:?} FAIL — worst NDC delta {worst:.6} > \
+                             {NDC_EPS}; base {:?} got {:?}",
+                                base.0, r.0
+                            );
+                            probe.fails += 1;
+                        }
+                        if leg == Leg::Scale {
+                            shoot(&mut commands, "probe-model-camera-b-scale-and-position");
+                        }
+                        if leg == Leg::Facing {
+                            shoot(&mut commands, "probe-model-camera-c-facing");
+                        }
+                    }
+                }
+                match leg.next() {
+                    Some(next) => {
+                        if let Err(e) = script.run(next.setup()) {
+                            error!("PROBE_MODEL_CAMERA: FAIL setting up {next:?}: {e}");
+                            probe.fails += 1;
+                            probe.phase = Phase::Done;
+                            return;
+                        }
+                        probe.phase = Phase::Settle {
+                            frames: 0,
+                            leg: next,
+                        };
+                    }
+                    None => probe.phase = Phase::Done,
+                }
+            }
+            Phase::Done => {
+                if probe.exited {
+                    return;
+                }
+                probe.exited = true;
+                info!(
+                    "PROBE_MODEL_CAMERA: DONE pass={} fail={} skip={}",
+                    probe.passes, probe.fails, probe.skips
+                );
+                exit.write(AppExit::Success);
+                // A hard backstop, so a teardown hang cannot keep the account held.
+                std::thread::spawn(|| {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    warn!("PROBE_MODEL_CAMERA: still alive 5s after AppExit — hard exit");
+                    std::process::exit(0);
+                });
+            }
+        }
+    })
+}

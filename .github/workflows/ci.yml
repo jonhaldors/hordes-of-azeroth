@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  i18n-check:
+    name: i18n-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml
+      - name: Validate the message catalogue
+        run: python tools/i18n/check.py
+      - name: Check generated catalogue
+        run: python tools/i18n/build.py --check
+      - name: Check generated server strings
+        run: python tools/i18n/gen_server_strings.py --check
+      - name: Check generated addon locale
+        run: python tools/i18n/gen_addon_locale.py --check
+      - name: Check generated client language packs
+        run: python tools/i18n/gen_client_pack.py --check
+      - name: Check generated launcher strings
+        run: python tools/i18n/gen_launcher_strings.py --check
+      - name: Check client UI keys
+        run: python tools/i18n/check_ui_xml.py
+      - name: Check addon/Glue call sites
+        run: python tools/i18n/check_code_text.py
+      - name: Test the language catalogue
+        run: python -m unittest discover -s tools/i18n -p "test_*.py"
+
+  content-check:
+    name: content-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml
+      - name: Check generated content and protocol
+        run: |
+          python tools/content/compile.py --check
+          python tools/protocol/gen.py --check
+      - name: Test aura source bindings
+        run: python -m unittest discover -s tools/content -p "test_*.py"
+
+  addon-lua:
+    name: addon-lua
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit
+      - name: Parse addon and GlueXML Lua
+        run: bash scripts/build.sh addon
+
+  launcher-build:
+    name: launcher-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build launcher
+        run: dotnet build launcher/HordesOfAzerothLauncher.csproj -c Release
+
+  client-check:
+    name: client-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      # A private-repo runner has 7 GB of RAM; GNU ld peaks over it on the test binaries and the
+      # runner is shut down mid-link. lld links the same binaries in a fraction of the memory.
+      RUSTFLAGS: -C link-arg=-fuse-ld=lld
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libasound2-dev libudev-dev lld
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: client
+      - name: Check the client workspace
+        run: cargo check --manifest-path client/Cargo.toml -p hoa
+      - name: Test the client workspace
+        run: cargo test --manifest-path client/Cargo.toml -p hoa -p benilla-app --lib
+
+  server-build:
+    name: server-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            build-essential \
+            cmake \
+            libcurl4-openssl-dev \
+            libmysqlclient-dev \
+            libssl-dev \
+            zlib1g-dev
+      - name: Configure
+        run: |
+          cmake -S server -B server/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSUPPORTED_CLIENT_BUILD=CLIENT_BUILD_1_12_1 \
+            -DBUILD_EXTRACTORS=OFF \
+            -DENABLE_MAILSENDER=OFF
+      - name: Build mangosd
+        run: cmake --build server/build -j"$(nproc)" --target mangosd

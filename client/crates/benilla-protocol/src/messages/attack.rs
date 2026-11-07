@@ -1,0 +1,223 @@
+//! Melee auto-attack messages: the attack start and stop edges, the per-swing report, and the
+//! creature-aggro notice, which vmangos sends from `Unit::Attack`.
+
+use std::io::{self, Read};
+
+use crate::wire::{read_f32_le, read_packed_guid, read_u32_le, read_u64_le, read_u8};
+
+/// `SMSG_ATTACKSTART` (vmangos `AttackStart::AppendBodyTo`): two full `u64` guids.
+pub(super) fn read_attack_start(r: &mut impl Read) -> io::Result<(u64, u64)> {
+    Ok((read_u64_le(r)?, read_u64_le(r)?))
+}
+
+/// `SMSG_ATTACKERSTATEUPDATE`: one melee swing (`Unit.cpp:4572-4605`), sent once per weapon-timer
+/// cycle per hand; the reference plays one swing animation per packet. `hit_info` bit `0x4` marks
+/// an offhand swing, bit `0x10000` suppresses the swing animation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttackerState {
+    pub attacker: u64,
+    pub victim: u64,
+    pub hit_info: u32,
+    /// `TotalDamage`: the whole swing, before the sub-damage split.
+    pub damage: u32,
+    /// `TargetState` (vmangos `VictimState`): 1 hit, 2 dodge, 3 parry, 4 interrupt, 5 blocks, …
+    pub victim_state: u32,
+    /// The sub-damage blocks' `absorb`, summed (vmangos writes one block).
+    pub absorb: u32,
+    /// The sub-damage blocks' `resist`, summed: the partial-resist amount.
+    pub resist: i32,
+    /// `BlockedAmount`, the trailing blocked-damage word.
+    pub blocked: u32,
+    /// `meleeSpellId` (`rec+0xac`), nonzero for an on-next-swing ability such as Heroic Strike; the
+    /// reference only ever compares it to zero (`0x625e40`, `0x6246ca`).
+    pub melee_spell_id: u32,
+    /// The first sub-damage block's school dword (`rec+0x18`, `0x625cb1`; vmangos 0 physical to 6
+    /// arcane), 0 with no blocks; a non-physical swing takes the combat log's `…SCHOOL` wording.
+    pub school: u32,
+}
+
+impl AttackerState {
+    /// `0x625e40`: whether the swing gets a combat-log line (`0x629b10`), and a floating number
+    /// and `UNIT_COMBAT` (`0x6243e0`). A dodged or parried Heroic Strike gets none, yet still
+    /// animates and sounds.
+    #[must_use]
+    pub fn displayed(&self) -> bool {
+        self.melee_spell_id == 0 || self.victim_state == 1
+    }
+
+    /// `0x625e20`, run as the record is read (`0x625e0e`), before every consumer: a swing with no
+    /// damage and a blocked amount, on a victim the client holds as a unit, reads as state 5,
+    /// BLOCK. A partial block stays state 1.
+    pub fn mark_full_block(&mut self, victim_held: bool) {
+        if victim_held && self.damage == 0 && self.blocked != 0 {
+            self.victim_state = 5;
+        }
+    }
+}
+
+/// `SMSG_ATTACKERSTATEUPDATE`: `HitInfo`, attacker then victim packed guid, `TotalDamage`, a `u8`
+/// count of `{school u32, damage f32, damage u32, absorb u32, resist i32}`, `TargetState`,
+/// `attackerState`, `meleeSpellId`, `BlockedAmount`.
+pub(super) fn read_attacker_state(r: &mut impl Read) -> io::Result<AttackerState> {
+    let hit_info = read_u32_le(r)?;
+    let attacker = read_packed_guid(r)?;
+    let victim = read_packed_guid(r)?;
+    let damage = read_u32_le(r)?;
+    let subs = read_u8(r)?;
+    let mut absorb = 0u32;
+    let mut resist = 0i32;
+    let mut school = 0u32;
+    for i in 0..subs {
+        // The school comes from the first block; later blocks split off other schools.
+        let block_school = read_u32_le(r)?;
+        if i == 0 {
+            school = block_school;
+        }
+        let _damage_f = read_f32_le(r)?;
+        let _damage = read_u32_le(r)?;
+        absorb += read_u32_le(r)?;
+        resist += read_u32_le(r)? as i32;
+    }
+    let victim_state = read_u32_le(r)?;
+    // The tail from `TargetState` (`Unit.cpp:4601`) lands at `rec+0xa4`..`+0xb0`
+    // (`0x625c60`); the reference never reads `attackerState`.
+    let _attacker_state = read_u32_le(r)?;
+    let melee_spell_id = read_u32_le(r)?;
+    // `TargetState` as sent: the full-block rewrite needs the victim's object
+    // ([`AttackerState::mark_full_block`]).
+    let blocked = read_u32_le(r)?;
+    Ok(AttackerState {
+        melee_spell_id,
+        attacker,
+        victim,
+        hit_info,
+        damage,
+        victim_state,
+        absorb,
+        resist,
+        blocked,
+        school,
+    })
+}
+
+/// The server's refusal of `CMSG_ATTACKSWING`; every body is empty. Four opcodes, three variants:
+/// the reference (`0x6255b0`) handles `0x148` and `0x149` in one shared arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttackSwingError {
+    /// `SMSG_ATTACKSWING_NOTINRANGE` (`0x145`): the reference latches code 1 (`0x625a8a`).
+    NotInRange,
+    /// `SMSG_ATTACKSWING_BADFACING` (`0x146`): the reference latches code 2 (`0x625aa1`).
+    BadFacing,
+    /// `SMSG_ATTACKSWING_DEADTARGET` (`0x148`) or `SMSG_ATTACKSWING_CANT_ATTACK` (`0x149`): no
+    /// message, the reference only stops the attack (`0x625ab8`).
+    DeadOrUnattackable,
+}
+
+/// `SMSG_ATTACKSTOP` (`AttackStop::AppendBodyTo`): two packed guids and a `u32` victim-is-dead
+/// word, dropped because death arrives through the descriptor.
+pub(super) fn read_attack_stop(r: &mut impl Read) -> io::Result<(u64, u64)> {
+    let attacker = read_packed_guid(r)?;
+    let victim = read_packed_guid(r)?;
+    let _is_dead = read_u32_le(r)?;
+    Ok((attacker, victim))
+}
+
+/// `SMSG_AI_REACTION` (`Server/Packets/Misc.cpp:445-449`): a raw `u64` guid and a `u32` reaction,
+/// 2 (hostile) when a creature starts a melee attack, 0 (alert) on stealth detection; 1 and 4 are
+/// never sent.
+pub(super) fn read_ai_reaction(r: &mut impl Read) -> io::Result<(u64, u32)> {
+    let unit = read_u64_le(r)?;
+    let reaction = read_u32_le(r)?;
+    Ok((unit, reaction))
+}
+
+/// `CMSG_ATTACKSWING`: the full `u64` victim guid, answered by `SMSG_ATTACKSTART` or an
+/// [`AttackSwingError`]. `CMSG_ATTACKSTOP` has an empty body.
+pub fn attack_swing(guid: u64) -> Vec<u8> {
+    guid.to_le_bytes().to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_attacker_state;
+
+    /// One swing on the wire, as `SMSG_ATTACKERSTATEUPDATE` lays it out.
+    fn packet(damage: u32, victim_state: u32, blocked: u32) -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&0u32.to_le_bytes()); // HitInfo
+        b.extend_from_slice(&[0x01, 0x11]); // attacker PackGUID
+        b.extend_from_slice(&[0x01, 0x22]); // victim PackGUID
+        b.extend_from_slice(&damage.to_le_bytes()); // TotalDamage
+        b.push(1); // one sub-damage block
+        b.extend_from_slice(&0u32.to_le_bytes()); // school
+        b.extend_from_slice(&(damage as f32).to_le_bytes());
+        b.extend_from_slice(&damage.to_le_bytes());
+        b.extend_from_slice(&0u32.to_le_bytes()); // absorb
+        b.extend_from_slice(&0u32.to_le_bytes()); // resist
+        b.extend_from_slice(&victim_state.to_le_bytes()); // TargetState
+        b.extend_from_slice(&0u32.to_le_bytes()); // attackerState
+        b.extend_from_slice(&0u32.to_le_bytes()); // meleeSpellId
+        b.extend_from_slice(&blocked.to_le_bytes()); // BlockedAmount
+        b
+    }
+
+    /// `0x625c60` stores sub-damage block 0's school dword at `rec+0x18` (`0x625cb1`), which the
+    /// swing's `UNIT_COMBAT` pushes whole (`0x4946fc`).
+    #[test]
+    fn a_swing_keeps_its_first_blocks_school_dword() {
+        let mut b = packet(30, 1, 0);
+        let at = 4 + 2 + 2 + 4 + 1; // the first block's school
+        b[at..at + 4].copy_from_slice(&0x0001_0004u32.to_le_bytes());
+        let s = read_attacker_state(&mut b.as_slice()).expect("parse");
+        assert_eq!(s.school, 0x0001_0004);
+    }
+
+    #[test]
+    fn a_swing_from_a_spell_that_did_not_land_is_not_displayed() {
+        let with_id = |state: u32| {
+            let mut b = packet(0, state, 0);
+            let at = b.len() - 8; // the meleeSpellId slot, before BlockedAmount
+            b[at..at + 4].copy_from_slice(&78u32.to_le_bytes()); // Heroic Strike
+            read_attacker_state(&mut b.as_slice()).expect("parse")
+        };
+        // Every state but a hit (1) is suppressed.
+        for state in [0, 2, 3, 4] {
+            assert!(
+                !with_id(state).displayed(),
+                "spell swing, victimState {state}"
+            );
+        }
+        assert!(
+            with_id(1).displayed(),
+            "a landing Heroic Strike still shows"
+        );
+        for state in [0, 1, 2, 3, 4] {
+            let s = read_attacker_state(&mut packet(0, state, 0).as_slice()).expect("parse");
+            assert!(s.displayed(), "plain swing, victimState {state}");
+        }
+    }
+
+    /// The parser keeps `TargetState` as sent; `0x625e20` marks a full block only for a victim held
+    /// as a unit, which the parser cannot see.
+    #[test]
+    fn a_fully_blocked_swing_is_marked_only_for_a_held_victim() {
+        let s = read_attacker_state(&mut packet(0, 1, 90).as_slice()).expect("parse");
+        assert_eq!(s.victim_state, 1, "as sent");
+        let mut held = s;
+        held.mark_full_block(true);
+        assert_eq!(held.victim_state, 5, "no damage through, something blocked");
+        let mut unheld = s;
+        unheld.mark_full_block(false);
+        assert_eq!(unheld.victim_state, 1, "no unit to mark");
+
+        // A partial block lands damage, so the wire's own state stands.
+        let mut s = read_attacker_state(&mut packet(50, 1, 40).as_slice()).expect("parse");
+        s.mark_full_block(true);
+        assert_eq!(s.victim_state, 1);
+
+        // A dodge blocks nothing and keeps its state, damage or not.
+        let mut s = read_attacker_state(&mut packet(0, 2, 0).as_slice()).expect("parse");
+        s.mark_full_block(true);
+        assert_eq!(s.victim_state, 2);
+    }
+}

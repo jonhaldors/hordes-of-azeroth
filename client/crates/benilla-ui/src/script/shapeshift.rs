@@ -1,0 +1,292 @@
+//! The stance bar's four bindings, which `BonusActionBarFrame.lua`'s `ShapeshiftBar_*` calls, over
+//! a form list the app resolves and pushes; flags answer 1/nil and the cooldown is the reference's
+//! `(start, duration, enable)`.
+
+use mlua::{Lua, MultiValue, Value};
+
+use super::binding_abi;
+use super::Model;
+
+/// One stance-bar button, resolved by the app.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ShapeshiftFormView {
+    /// The form spell a click queues.
+    pub spell_id: u32,
+    /// The icon texture path; `None` shows the slot's fallback.
+    pub texture: Option<String>,
+    /// The spell name, `GetShapeshiftFormInfo`'s second return.
+    pub name: String,
+    /// The player's current form (the checked ring).
+    pub active: bool,
+    /// Castable now; the reference greys the icon to 0.4 when not.
+    pub castable: bool,
+    /// `(start_ms on the GetTime clock, duration_ms, enabled)`, as an action's cooldown.
+    pub cooldown: Option<(i64, u32, bool)>,
+}
+
+/// A pushed form with its cooldown in `GetTime` seconds.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct StoredShapeshiftForm {
+    pub(crate) view: ShapeshiftFormView,
+    /// `(start_s, duration_s, enabled)`.
+    pub(crate) cooldown: Option<(f64, f64, bool)>,
+}
+
+impl super::UiScript {
+    /// Replace the form list, in bar order; the app fires `UPDATE_SHAPESHIFT_FORMS` itself.
+    pub fn set_shapeshift_forms(&mut self, forms: Vec<ShapeshiftFormView>) {
+        let mut model = self.model_mut();
+        model.shapeshift_forms = forms
+            .into_iter()
+            .map(|view| {
+                let cooldown = view.cooldown.map(|(start_ms, duration_ms, enabled)| {
+                    (
+                        start_ms as f64 / 1000.0,
+                        f64::from(duration_ms) / 1000.0,
+                        enabled,
+                    )
+                });
+                StoredShapeshiftForm { view, cooldown }
+            })
+            .collect();
+    }
+
+    /// Take the `CastShapeshiftForm` calls out of the call stream, as form spells; the app casts
+    /// each, or cancels it when it is the active form.
+    pub fn take_shapeshift_casts(&mut self) -> Vec<u32> {
+        self.take_calls_where(|c| match c {
+            super::ScriptCall::CastShapeshiftForm { spell_id, .. } => Some(*spell_id),
+            _ => None,
+        })
+    }
+}
+
+/// A 1-based button index, as the reference indexes.
+fn form_at(model: &Model, i: u32) -> Option<&StoredShapeshiftForm> {
+    usize::try_from(i.checked_sub(1)?)
+        .ok()
+        .and_then(|n| model.shapeshift_forms.get(n))
+}
+
+/// The index of the two form getters: `lua_tonumber` (`0x6f3620`) compared with 0.0 (`0x4b45d8`,
+/// `0x4b49b4`), so a zero, an absent or a non-number raises the binding's usage error (`0x846a6c`,
+/// `0x846ab4`) before the table is read; the truncated value is then compared unsigned.
+fn form_index(lua: &Lua, index: Option<Value>, usage: &'static str) -> mlua::Result<u32> {
+    let n = crate::script::binding_abi::coerced_number(lua, index);
+    if n == 0.0 {
+        return Err(mlua::Error::RuntimeError(usage.into()));
+    }
+    Ok(crate::script::binding_abi::ftol(n) as u32)
+}
+
+pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
+    let g = lua.globals();
+
+    g.set(
+        "GetNumShapeshiftForms",
+        lua.create_function(|lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(model.shapeshift_forms.len() as i64)
+        })?,
+    )?;
+
+    g.set(
+        "GetShapeshiftFormInfo",
+        lua.create_function(|lua, index: Option<Value>| {
+            let i = form_index(lua, index, "Usage: GetShapeshiftFormInfo(index)")?;
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let Some(form) = form_at(&model, i) else {
+                // `0x4b47d9`: four nils.
+                return Ok(super::binding_abi::tuple(&[None; 4]));
+            };
+            let texture = match &form.view.texture {
+                Some(t) => Value::String(lua.create_string(t)?),
+                None => Value::Nil,
+            };
+            let flag = |b: bool| if b { Value::Integer(1) } else { Value::Nil };
+            Ok(MultiValue::from_vec(vec![
+                texture,
+                Value::String(lua.create_string(&form.view.name)?),
+                flag(form.view.active),
+                flag(form.view.castable),
+            ]))
+        })?,
+    )?;
+
+    // As `GetActionCooldown`: an elapsed or absent cooldown answers `(0, 0, 1)`, so a re-feed never
+    // replays the sweep.
+    g.set(
+        "GetShapeshiftFormCooldown",
+        lua.create_function(|lua, index: Option<Value>| {
+            let i = form_index(lua, index, "Usage: GetShapeshiftFormCooldown(index)")?;
+            let now = crate::script::clock::now(lua);
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(match form_at(&model, i).and_then(|f| f.cooldown) {
+                Some((start, duration, enabled)) if start + duration > now || !enabled => (
+                    crate::script::clock::held_start(start, enabled, now),
+                    duration,
+                    i32::from(enabled),
+                ),
+                _ => (0.0, 0.0, 1),
+            })
+        })?,
+    )?;
+
+    g.set(
+        "CastShapeshiftForm",
+        lua.create_function(|lua, i: Value| {
+            // A bare `tonumber` compared with 0.0 (`0x4b4820`, `0x802970`): a zero, and so any
+            // non-number, raises `Usage: CastShapeshiftForm(index)` (`0x846a90`, `0x4b4832`);
+            // the slot is then `_ftol`'s (`0x4b4855`).
+            let n = lua.coerce_number(i)?.unwrap_or(0.0);
+            if n == 0.0 {
+                return Err(mlua::Error::runtime("Usage: CastShapeshiftForm(index)"));
+            }
+            let i = binding_abi::ftol(n) as u32;
+            // The form's cast is `TryCastSpell` (`0x4b4992` → `0x6e5a90`), behind the gate's tag 2;
+            // the cancels of an active form (`0x4b496b`, `0x4b497c`) run ahead of it, so the call
+            // is queued whatever the gate said and carries the answer to the cast alone.
+            let may_cast = super::protected::gate(lua, super::protected::Tag::CAST);
+            let spell_id = form_at(&lua.app_data_ref::<Model>().expect("model app_data"), i)
+                .map(|f| f.view.spell_id);
+            if let Some(spell_id) = spell_id {
+                super::calls::submit(
+                    lua,
+                    super::ScriptCall::CastShapeshiftForm { spell_id, may_cast },
+                )?;
+            }
+            Ok(())
+        })?,
+    )?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ShapeshiftFormView;
+    use crate::script::UiScript;
+
+    fn forms() -> Vec<ShapeshiftFormView> {
+        vec![
+            ShapeshiftFormView {
+                spell_id: 2457,
+                texture: Some("Interface\\Icons\\Ability_Warrior_OffensiveStance".into()),
+                name: "Battle Stance".into(),
+                active: true,
+                castable: true,
+                cooldown: None,
+            },
+            ShapeshiftFormView {
+                spell_id: 71,
+                texture: Some("Interface\\Icons\\Ability_Warrior_DefensiveStance".into()),
+                name: "Defensive Stance".into(),
+                active: false,
+                castable: true,
+                cooldown: Some((9400, 1500, true)),
+            },
+        ]
+    }
+
+    #[test]
+    fn form_info_reads_and_out_of_range_nil() {
+        let mut s = UiScript::new().unwrap();
+        assert_eq!(s.eval::<i64>("return GetNumShapeshiftForms()").unwrap(), 0);
+        assert!(s
+            .eval::<bool>("return GetShapeshiftFormInfo(1) == nil")
+            .unwrap());
+
+        s.set_shapeshift_forms(forms());
+        assert_eq!(s.eval::<i64>("return GetNumShapeshiftForms()").unwrap(), 2);
+
+        let (texture, name, active, castable) = s
+            .eval::<(String, String, Option<i64>, Option<i64>)>("return GetShapeshiftFormInfo(1)")
+            .unwrap();
+        assert_eq!(
+            (texture.as_str(), name.as_str(), active, castable),
+            (
+                "Interface\\Icons\\Ability_Warrior_OffensiveStance",
+                "Battle Stance",
+                Some(1),
+                Some(1)
+            )
+        );
+        assert!(s
+            .eval::<bool>("local _, _, a, c = GetShapeshiftFormInfo(2) return a == nil and c == 1")
+            .unwrap());
+        assert!(s
+            .eval::<bool>("return GetShapeshiftFormInfo(3) == nil")
+            .unwrap());
+    }
+
+    #[test]
+    fn cooldown_triple_stamps_to_the_vm_clock_and_goes_cold() {
+        let mut s = UiScript::new().unwrap();
+        s.tick(10.0); // GetTime == 10
+        s.set_shapeshift_forms(forms());
+
+        assert_eq!(
+            s.eval::<(f64, f64, i32)>("return GetShapeshiftFormCooldown(1)")
+                .unwrap(),
+            (0.0, 0.0, 1)
+        );
+        let (start, duration, enable) = s
+            .eval::<(f64, f64, i32)>("return GetShapeshiftFormCooldown(2)")
+            .unwrap();
+        assert!((start - 9.4).abs() < 1e-9, "start {start}");
+        assert!((duration - 1.5).abs() < 1e-9);
+        assert_eq!(enable, 1);
+
+        s.tick(2.0); // now == 12 > 9.4 + 1.5
+        assert_eq!(
+            s.eval::<(f64, f64, i32)>("return GetShapeshiftFormCooldown(2)")
+                .unwrap(),
+            (0.0, 0.0, 1)
+        );
+    }
+
+    #[test]
+    fn cast_queues_the_form_spell_and_ignores_out_of_range() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_shapeshift_forms(forms());
+
+        s.run("CastShapeshiftForm(2)").unwrap();
+        s.run("CastShapeshiftForm(9)").unwrap(); // out of range: no-op
+        assert_eq!(s.take_shapeshift_casts(), vec![71]);
+        assert!(s.take_shapeshift_casts().is_empty(), "drain empties");
+    }
+
+    /// A held form answers the call's own now, whatever was pushed (`0x6e1517`).
+    #[test]
+    fn a_held_form_answers_the_polls_now() {
+        let mut s = UiScript::new().unwrap();
+        s.tick(10.0);
+        let mut f = forms();
+        f[1].cooldown = Some((0, 1, false));
+        s.set_shapeshift_forms(f);
+        let poll = |s: &UiScript| {
+            s.eval::<(f64, f64, i32)>("return GetShapeshiftFormCooldown(2)")
+                .unwrap()
+        };
+        assert_eq!(poll(&s), (10.0, 0.001, 0));
+        s.tick(0.02);
+        let (start, _, _) = poll(&s);
+        assert_eq!(start, s.eval::<f64>("return GetTime()").unwrap());
+        assert!((start - 10.02).abs() < 1e-9);
+    }
+
+    /// `CastShapeshiftForm` casts through `TryCastSpell` inside the call (`0x4b4992` → `0x6e5a90`).
+    #[test]
+    fn a_form_cast_applies_in_the_call_with_a_host_lent() {
+        let mut s = UiScript::new().unwrap();
+        s.set_shapeshift_forms(forms());
+        assert_eq!(
+            crate::script::host::test_support::applied_in_call(&mut s, "CastShapeshiftForm(2)"),
+            vec![crate::script::ScriptCall::CastShapeshiftForm {
+                spell_id: 71,
+                may_cast: true
+            }]
+        );
+    }
+}

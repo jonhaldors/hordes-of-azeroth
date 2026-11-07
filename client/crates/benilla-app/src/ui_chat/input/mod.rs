@@ -1,0 +1,1257 @@
+//! The submitted-line side of the chat: [`drain_chat_input`] executes what [`parse`] resolved and
+//! the `ConsoleExec` lines the VM queues; [`send`] applies `SendChatMessage`, `RandomRoll`,
+//! `RequestTimePlayed`, `UninviteByName`, `SendAddonMessage` and the channel verbs inside their
+//! calls, and [`emote`] `DoEmote` (`0x5ef560`): the eligibility gate, the asleep gate, the stow,
+//! the posture, then `CMSG_TEXT_EMOTE`. Own sends are never echoed locally; the server echoes
+//! them.
+
+use crate::query_cache::Ask;
+use benilla_ui::script::SessionRequest;
+use bevy::prelude::*;
+
+/// The channel verbs' slot writes and packets.
+mod channel;
+/// The drunk transform a drunk player's line goes through.
+mod drunk;
+/// `DoEmote`, applied inside its call.
+mod emote;
+mod parse;
+/// `SendChatMessage` and `RandomRoll`, applied inside their calls.
+mod send;
+
+#[cfg(test)]
+pub(super) use channel::apply as apply_channel_command;
+pub(crate) use emote::EmoteDoer;
+#[cfg(test)]
+pub(super) use parse::lua_quoted_string;
+pub(super) use parse::{parse_line, ParsedChat};
+pub(crate) use send::ChatSender;
+#[cfg(test)]
+pub(crate) use send::{chat_world, run_chat};
+
+use crate::creature_anim::MovementState;
+use crate::net::{ClientCommand, NetCommands, SelfPlayer};
+use crate::target::Selection;
+
+/// The target half of `GetSlashCmdTarget` (`ChatFrame.lua:650-658`): a bare command falls back
+/// to the selection only when it is a player. A streamed player's name is always cached.
+fn target_player_name(
+    selection: &Selection,
+    names: &crate::names::NameCache,
+    commands: &NetCommands,
+) -> Option<String> {
+    let guid = selection.guid?;
+    if !benilla_protocol::guid::is_player(guid) {
+        return None;
+    }
+    // The command's lookup, as `UnitName`'s (`0x609210`) passes a callback.
+    names
+        .resolve_player(guid, Ask::Event(commands))
+        .map(str::to_string)
+}
+
+/// The target guid a `CMSG_TEXT_EMOTE` carries (`DoEmote`'s caller, `0x49fdb1`): the selection,
+/// unless the argument is a non-empty word not starting with `%` (`0x49fdd4`), which names a
+/// player through `named` (the `0x493aa0` player search, roster passes included) and sends guid 0
+/// on a miss. Either way an emote at yourself goes out untargeted (`0x5ef611`), so 1.12 has no
+/// self-emote sentence.
+pub(super) fn emote_target(
+    arg: Option<&str>,
+    selection: &Selection,
+    named: impl FnOnce(&str) -> Option<u64>,
+    me: Option<u64>,
+) -> u64 {
+    let guid = match arg.filter(|a| !a.is_empty() && !a.starts_with('%')) {
+        Some(name) => named(name),
+        None => selection.guid,
+    };
+    match guid {
+        Some(guid) if me != Some(guid) => guid,
+        _ => 0,
+    }
+}
+
+/// The inputs of `/shot`, `/liquid` and `/reaction`, bundled because [`drain_chat_input`] is at
+/// Bevy's 16-parameter ceiling.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(super) struct ChatProbes<'w, 's> {
+    camera: Query<
+        'w,
+        's,
+        &'static GlobalTransform,
+        (With<benilla_world::view::WorldCamera>, Without<SelfPlayer>),
+    >,
+    clock: Option<Res<'w, benilla_world::lighting::GameClock>>,
+    world: benilla_world::world_point::WorldPoint<'w, 's>,
+    stores: Query<'w, 's, &'static crate::net::ObjectStore>,
+    self_store: Query<'w, 's, &'static crate::net::ObjectStore, With<SelfPlayer>>,
+    factions: Option<Res<'w, crate::target::Factions>>,
+    reputations: Res<'w, crate::net::Reputations>,
+    /// `/reaction <name>`'s resolve, for a player a scripted probe cannot click.
+    guids: Res<'w, crate::net::GuidIndex>,
+    kinds: Query<'w, 's, &'static crate::net::NetEntity>,
+    /// `/partytest raid` seats us as the leader, and the wire names a leader by guid.
+    self_guid: Res<'w, crate::net::SelfGuid>,
+}
+
+/// What the drain hands to another subsystem's setter, bundled for the same ceiling. Chat never
+/// writes [`Selection`]: [`crate::target`]'s resolver commits through the click's path.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(super) struct ChatOut<'w> {
+    target: MessageWriter<'w, crate::target::TargetByNameRequest>,
+    assist: MessageWriter<'w, crate::target::AssistRequest>,
+    follow: MessageWriter<'w, crate::player::FollowRequest>,
+    /// `/partytest ping` seats a group member's ping through the wire arm's `seat`.
+    ping: ResMut<'w, crate::minimap::MinimapPing>,
+    /// The red error line by GlobalStrings key. The system's only `UiErrorKeys` access: a second
+    /// one panics on the first frame.
+    ui_errors: Res<'w, crate::ui_action::UiErrorKeys>,
+}
+
+#[allow(clippy::type_complexity)] // a Bevy system's full input set
+pub(super) fn drain_chat_input(
+    mut vm: crate::script_calls::VmWith<(
+        Res<'static, Selection>,
+        ResMut<'static, crate::ui_party::GroupState>,
+        ResMut<'static, crate::names::NameCache>,
+        MessageWriter<'static, crate::creature_anim::CastEvent>,
+        ResMut<'static, crate::creature_anim::PlaySeq>,
+        ChatOut<'static>,
+        // The dev probes read the relation inputs a call can write.
+        ChatProbes<'static, 'static>,
+    )>,
+    chat_log: Res<super::feed::ChatLog>,
+    commands: Res<NetCommands>,
+    // The entity is `/castvis`'s fallback.
+    self_player: Query<(Entity, &MovementState, &GlobalTransform), With<SelfPlayer>>,
+    mut go_targets: MessageWriter<crate::creature_anim::SpellGoTargets>,
+    table: Res<super::commands::SlashCommands>,
+) {
+    // The lines are taken in turns, and a line's Lua runs between them with the host lent, so a
+    // call it makes applies inside its verb, before the next line is taken.
+    let mut lines: Option<std::vec::IntoIter<(String, ParsedChat)>> = None;
+    while let Some(work) = vm.turn(|script, parts| {
+        let (selection, mut group, mut names, mut cast_events, mut play_seq, mut chat_out, probes) =
+            parts;
+        let ChatProbes {
+            camera: world_camera,
+            clock,
+            world,
+            stores,
+            self_store,
+            factions,
+            reputations,
+            guids,
+            kinds,
+            self_guid,
+        } = &probes;
+        let script = script?;
+        let lines = lines.get_or_insert_with(|| {
+            let mut queue = Vec::new();
+            // The dev instruments, from their host `SlashCmdList` rows once the stock
+            // `ChatEdit_ParseText` has found no built-in (dev builds), and probe lines.
+            for raw in script.take_chat_input() {
+                let msg = raw.trim();
+                if msg.is_empty() {
+                    continue;
+                }
+                // A probe's line with no slash is a SAY, which is also how a `.gm`-style server
+                // command travels; a typed one goes out through the stock `ChatEdit_SendText`
+                // instead.
+                if !msg.starts_with('/') {
+                    let cmd = ClientCommand::Chat {
+                        kind: super::edit::SendType::Say.wire(),
+                        target: None,
+                        text: msg.to_string(),
+                        language: None,
+                    };
+                    if commands.0.send(cmd).is_err() {
+                        warn!("chat: not connected; line dropped");
+                    }
+                    continue;
+                }
+                queue.push((msg.to_string(), parse_line(&table, msg)));
+            }
+            queue.into_iter()
+        });
+        for (msg, parsed) in lines.by_ref() {
+            let msg = msg.as_str();
+            match parsed {
+                // `/r` is the stock `ChatEdit_ParseText`'s REPLY arm; a typed one never gets here.
+                ParsedChat::Reply { .. } => {}
+                // Stock built-ins (`ChatFrame.lua:778`, `:803`), so only a probe's line gets here,
+                // and it runs the same handler: sent verbatim, `/join General` would create a
+                // custom channel of that name. The handlers' verbs apply inside their calls.
+                ParsedChat::Join { name, password } => {
+                    let body = format!(
+                        "SlashCmdList['JOIN']({:?})",
+                        format!("{name} {password}").trim_end()
+                    );
+                    return Some(LineWork::Lua(LineLua::Handler(body)));
+                }
+                ParsedChat::Leave { name } => {
+                    return Some(LineWork::Lua(LineLua::Handler(format!(
+                        "SlashCmdList['LEAVE']({name:?})"
+                    ))));
+                }
+                ParsedChat::ChatList { name } => {
+                    let _ = commands.0.send(ClientCommand::ChannelList { name });
+                }
+                ParsedChat::Random { min, max } => {
+                    let _ = commands.0.send(ClientCommand::RandomRoll { min, max });
+                }
+                ParsedChat::Played => {
+                    let _ = commands.0.send(ClientCommand::PlayedTime);
+                }
+                ParsedChat::Shot => {
+                    // The camera pose in a capture `Scenario`'s raw WoW coords, to chat and a file.
+                    let Ok(cam) = world_camera.single() else {
+                        continue;
+                    };
+                    let (_, rot, eye_bevy) = cam.to_scale_rotation_translation();
+                    let eye = benilla_assets::coords::bevy_to_wow(eye_bevy);
+                    let look =
+                        benilla_assets::coords::bevy_to_wow(eye_bevy + rot * Vec3::NEG_Z * 50.0);
+                    let minute = clock.as_deref().map(|c| c.minute).unwrap_or(720);
+                    let snippet = format!(
+                        "eye: [{:.1}, {:.1}, {:.1}], look: [{:.1}, {:.1}, {:.1}], minute: {minute}",
+                        eye[0], eye[1], eye[2], look[0], look[1], look[2]
+                    );
+                    chat_log.push_event(super::event::ChatEvent::text_only(
+                        super::event::ChatEventKind::System,
+                        format!("shot: {snippet}"),
+                    ));
+                    if let Some(path) = crate::local_state::shots_path() {
+                        if let Some(dir) = path.parent() {
+                            let _ = std::fs::create_dir_all(dir);
+                        }
+                        let line = format!("{snippet}\n");
+                        let appended = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(&path)
+                            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+                        if appended.is_ok() {
+                            chat_log.push_event(super::event::ChatEvent::text_only(
+                                super::event::ChatEventKind::System,
+                                format!("shot: appended to {}", path.display()),
+                            ));
+                        }
+                    }
+                }
+                ParsedChat::Liquid => {
+                    // Every candidate footprint, so a wrong surface shows beside the right one.
+                    let Ok((_, feet)) = self_player.single().map(|(_, _, t)| ((), t.translation()))
+                    else {
+                        chat_log.push_event(super::event::ChatEvent::text_only(
+                            super::event::ChatEventKind::System,
+                            "liquid: no player yet".into(),
+                        ));
+                        continue;
+                    };
+                    let wow = benilla_assets::coords::bevy_to_wow(feet);
+                    let claim = world.claim(benilla_world::world_point::Subject::Player);
+                    let eye = world.claim(benilla_world::world_point::Subject::Eye);
+                    let verdict = world.liquid_at(benilla_world::world_point::Subject::Player, wow);
+                    let mut lines = vec![
+                        format!(
+                            "liquid: feet [{:.2}, {:.2}, {:.2}] · claim {claim:?} ({})",
+                            wow[0],
+                            wow[1],
+                            wow[2],
+                            match world.interior() {
+                                Some(k) => format!(
+                                    "wmo {} nameSet {} group {}",
+                                    k.wmo_id, k.name_set, k.group_area_id
+                                ),
+                                None => "no WMO interior claim".into(),
+                            }
+                        ),
+                        // The camera eye has its own claim (`[0xc7b748]`), and it decides the
+                        // underwater filter.
+                        format!("liquid: EYE claim {eye:?}"),
+                        match verdict {
+                            Some(h) => format!(
+                                "liquid: VERDICT {:?} surface z {:.2} ({:+.2} over feet)",
+                                h.kind,
+                                h.surface_z,
+                                h.surface_z - wow[2]
+                            ),
+                            None => "liquid: VERDICT none — not in liquid".into(),
+                        },
+                    ];
+                    let candidates =
+                        world.describe_liquid_at(benilla_world::world_point::Subject::Player, wow);
+                    if candidates.is_empty() {
+                        lines.push("liquid: no footprint covers this XY at all".into());
+                    }
+                    lines.extend(candidates.into_iter().map(|c| format!("liquid:   {c}")));
+                    for line in lines {
+                        chat_log.push_event(super::event::ChatEvent::text_only(
+                            super::event::ChatEventKind::System,
+                            line,
+                        ));
+                    }
+                }
+                ParsedChat::Reaction { name } => {
+                    // In the model's order: the controlling players' rungs, the faction work, then
+                    // the predicates the cursor, the plate and the Lua verbs ask.
+                    let subject_guid = match &name {
+                        Some(n) => crate::ui_duel::streamed_player_named(n, guids, &names),
+                        None => selection.guid,
+                    };
+                    let subject_entity = subject_guid.and_then(|g| guids.0.get(&g).copied());
+                    let target_store = subject_entity.and_then(|e| stores.get(e).ok());
+                    let own_store = self_store.iter().next();
+                    let is_player = subject_entity
+                        .and_then(|e| kinds.get(e).ok())
+                        .is_some_and(|n| n.kind == benilla_protocol::EntityKind::Player);
+                    let units = crate::target::relations::StoreLookup::new(|g| {
+                        stores.get(*guids.0.get(&g)?).ok()
+                    });
+                    let roster = crate::spell::group_relation::GroupRoster::party_of(&group);
+                    let rel = crate::target::Relations {
+                        factions: factions.as_deref(),
+                        reputations,
+                        me: self_guid.0,
+                        roster: Some(&roster),
+                        units: &units,
+                    };
+                    let subject = subject_guid
+                        .zip(target_store)
+                        .map(|(g, s)| crate::target::RelUnit::of(g, s));
+                    let me = self_guid
+                        .0
+                        .zip(own_store)
+                        .map(|(g, s)| crate::target::RelUnit::of(g, s));
+                    let pair = subject.zip(me);
+                    let mut lines = Vec::new();
+                    let describe = |label: &str, s: Option<&crate::net::ObjectStore>| match s {
+                        Some(s) => format!(
+                            "reaction: {label} flags 0x{:08x} (player-controlled {}) faction_tpl \
+                             {:?} duel_team {} duel_arbiter 0x{:016x} player_flags 0x{:x}",
+                            s.0.unit_flags(),
+                            s.0.unit_flags() & (1 << 3) != 0,
+                            s.0.unit_faction_template(),
+                            s.0.player_duel_team(),
+                            s.0.player_duel_arbiter(),
+                            s.0.player_flags(),
+                        ),
+                        None => format!("reaction: {label} — no ObjectStore"),
+                    };
+                    lines.push(format!(
+                        "reaction: subject {} guid {} · self store present {}",
+                        name.as_deref().unwrap_or("<current target>"),
+                        subject_guid.map_or("none".to_string(), |g| format!("0x{g:016x}")),
+                        own_store.is_some(),
+                    ));
+                    lines.push(describe("target", target_store));
+                    lines.push(describe("self  ", own_store));
+                    match pair {
+                        Some((t, o)) => {
+                            let (ct, co) = (rel.controller(&t), rel.controller(&o));
+                            lines.push(format!(
+                                "reaction: controlling players target {:?} self {:?}",
+                                ct.map(|c| format!("0x{:016x}", c.guid)),
+                                co.map(|c| format!("0x{:016x}", c.guid)),
+                            ));
+                            lines.push(match (ct, co) {
+                                (Some(ct), Some(co))
+                                    if t.player_controlled() && o.player_controlled() =>
+                                {
+                                    format!(
+                                        "reaction: duel rung {:?}",
+                                        crate::target::relations::duel_rung(&ct, &co)
+                                    )
+                                }
+                                _ => {
+                                    "reaction: duel rung not run (a side is not player-controlled \
+                                      or has no controlling player)"
+                                        .into()
+                                }
+                            });
+                            lines.push(format!(
+                                "reaction: RANK {} unit→player · {} player→unit → can_attack {}",
+                                rel.reaction(&t, &o),
+                                rel.reaction(&o, &t),
+                                rel.can_attack(&o, &t),
+                            ));
+                        }
+                        None => lines.push("reaction: not evaluated (a store is missing)".into()),
+                    }
+                    // The forced-reaction table (`SMSG_SET_FORCED_REACTIONS`): when it names the
+                    // unit's faction it answers both directions ahead of every faction rule, so a
+                    // green ogre under *King of the Gordok* is explained by this line and no other.
+                    // The leading rungs (identity, the controlling players') still run first.
+                    if let Some(line) = (|| {
+                        let catalog = factions.as_deref()?.catalog();
+                        let tpl = catalog.template(target_store?.0.unit_faction_template()?)?;
+                        let rank = crate::target::relations::forced_rank(reputations, tpl.faction)?;
+                        Some(format!(
+                            "reaction: faction {} is FORCED to rank {rank} by the server's table \
+                             ({} entries); the faction rules below are not reached",
+                            tpl.faction,
+                            reputations.forced.len(),
+                        ))
+                    })() {
+                        lines.push(line);
+                    }
+                    // The at-war bit: the whole of the player-to-unit reaction's reputation leg for
+                    // a faction with a reputation slot, which the cursor, the plate and
+                    // `UnitCanAttack` turn on.
+                    let war = (|| {
+                        let catalog = factions.as_deref()?.catalog();
+                        let tpl = catalog.template(target_store?.0.unit_faction_template()?)?;
+                        let at_war = crate::target::relations::at_war_with(
+                            catalog,
+                            reputations,
+                            tpl.faction,
+                        );
+                        Some(match at_war {
+                            Some(at_war) => format!(
+                                "faction {} {:?} owns reputation slot {} → the player's leg \
+                                 answers with AT WAR = {at_war} (reaction {}); the standing is \
+                                 never read",
+                                tpl.faction,
+                                catalog.faction_name(tpl.faction).unwrap_or("<unnamed>"),
+                                catalog
+                                    .reputation_faction(tpl.faction)
+                                    .map_or(-1, |i| i.rep_index),
+                                if at_war { "hostile" } else { "friendly" },
+                            ),
+                            None => format!(
+                                "faction {} {:?} has NO reputation slot → the template comparator \
+                                 answers; at-war does not apply",
+                                tpl.faction,
+                                catalog.faction_name(tpl.faction).unwrap_or("<unnamed>"),
+                            ),
+                        })
+                    })()
+                    .unwrap_or_else(|| {
+                        "at-war not evaluated (no catalog, store or \
+                                        template)"
+                            .into()
+                    });
+                    lines.push(format!("reaction: {war}"));
+                    // The world cursor's two predicates in `0x482200`'s order: `CanInteract` picks
+                    // the service ladder, then `CanAttack` the sword. Neither is a reaction
+                    // threshold.
+                    let interactable = pair.is_some_and(|(t, o)| rel.can_interact(&o, &t));
+                    let attackable = pair.is_some_and(|(t, o)| rel.can_attack(&o, &t));
+                    lines.push(format!(
+                        "reaction: CURSOR npc_flags 0x{:04x} · can_interact {interactable} · \
+                         can_attack {attackable} → {}",
+                        target_store.map_or(0, |s| s.0.unit_npc_flags()),
+                        if interactable {
+                            "the NPC service ladder (a bit it consults → its cursor; none → Point)"
+                        } else if attackable {
+                            "the ATTACK sword (grayed past 10.45 yd)"
+                        } else {
+                            "nothing matched → Point"
+                        },
+                    ));
+                    // The V-plate category is its own predicate (`CanAttack` player-to-unit, plus
+                    // `CanCooperate` for a player), printed with the faction-group masks it
+                    // compares. A GM-mode character is mask 0 on vmangos (`.gm on` sets faction
+                    // template 35), so a friendly player can plate as an enemy.
+                    let mask = |u: Option<crate::target::RelUnit>| {
+                        u.and_then(|u| {
+                            crate::target::relations::faction_group_mask(factions.as_deref(), &u)
+                        })
+                        .map_or("none".to_string(), |m| m.to_string())
+                    };
+                    let friendly = pair.map_or(!is_player, |(t, o)| {
+                        crate::target::ring::plate_is_friendly(&rel, &t, &o, is_player)
+                    });
+                    lines.push(format!(
+                        "reaction: plate is_player {is_player} (OBJECT_FIELD_TYPE says {:?}; the \
+                         two must agree — the predicates read the field) · faction-group mask self \
+                         {} target {} · can_cooperate {} · can_attack(player→unit) {attackable} · \
+                         can_assist(player→unit) {}",
+                        target_store.and_then(|s| s.0.object_type()),
+                        mask(me),
+                        mask(subject),
+                        pair.is_some_and(|(t, o)| rel.can_cooperate(&o, &t)),
+                        pair.is_some_and(|(t, o)| rel.can_assist(&o, &t)),
+                    ));
+                    lines.push(format!(
+                        "reaction: PLATE CATEGORY {} — this unit plates under {}",
+                        if friendly { "FRIENDLY" } else { "ENEMY" },
+                        if friendly { "SHIFT-V" } else { "V" },
+                    ));
+                    for line in lines {
+                        // Also to the log: a scripted two-client run reads stdout, not the feed.
+                        info!("{line}");
+                        chat_log.push_event(super::event::ChatEvent::text_only(
+                            super::event::ChatEventKind::System,
+                            line,
+                        ));
+                    }
+                }
+                ParsedChat::PartyTest { arg } => match arg.as_str() {
+                    "off" => group.clear_session(),
+                    // 25 synthetic raid rows, us leading.
+                    "raid" => {
+                        // The wire arm's by-key queue, so the lines resolve from GlobalStrings with
+                        // each row's surface and sound.
+                        chat_out.ui_errors.extend(crate::ui_party::synthetic_raid(
+                            &mut group,
+                            &mut names,
+                            self_guid.0,
+                        ));
+                    }
+                    "invite" => group.apply_invited("Partner"),
+                    // A group member's ping 35 yd north-east: off both axes, so a mirrored sign
+                    // shows, and inside every outdoor view radius (the tightest is 66.7 yd).
+                    "ping" => {
+                        let line = if let Ok((_, _, tf)) = self_player.single() {
+                            let w = benilla_assets::coords::bevy_to_wow(tf.translation());
+                            // +x is north, -y is east.
+                            let at = (w[0] + 24.75, w[1] - 24.75);
+                            chat_out.ping.seat(at, 0xF001);
+                            format!(
+                                "partytest: Alice pinged ({:.0}, {:.0}) — 35 yd NE, party1, 5 s",
+                                at.0, at.1
+                            )
+                        } else {
+                            "partytest: no player position — cannot place a ping".to_string()
+                        };
+                        chat_log.push_event(super::event::ChatEvent::text_only(
+                            super::event::ChatEventKind::System,
+                            line,
+                        ));
+                    }
+                    // Skull the target on the local board; a real mark waits for the server's echo.
+                    "mark" => {
+                        if let Some(guid) = selection.guid {
+                            group.apply_raid_target(7, guid);
+                        }
+                    }
+                    arg => {
+                        let player_xy = self_player.single().ok().map(|(_, _, tf)| {
+                            let w = benilla_assets::coords::bevy_to_wow(tf.translation());
+                            (w[0], w[1])
+                        });
+                        chat_out
+                            .ui_errors
+                            .extend(crate::ui_party::synthetic_roster(&mut group, player_xy));
+                        if let (true, Some(me)) = (arg == "lead", self_guid.0) {
+                            // The leader cell holds our guid, which shows the leader-only popup
+                            // rows.
+                            group.leader = me;
+                        }
+                    }
+                },
+                ParsedChat::Invite { name } => {
+                    if let Some(name) =
+                        name.or_else(|| target_player_name(&selection, &names, &commands))
+                    {
+                        let _ = commands.0.send(ClientCommand::GroupInvite { name });
+                    }
+                }
+                ParsedChat::Uninvite { name } => {
+                    if let Some(name) =
+                        name.or_else(|| target_player_name(&selection, &names, &commands))
+                    {
+                        let _ = commands.0.send(ClientCommand::GroupUninvite { name });
+                    }
+                }
+                ParsedChat::Promote { name } => {
+                    if let Some(name) =
+                        name.or_else(|| target_player_name(&selection, &names, &commands))
+                    {
+                        // The binding's own resolve and call (`PromoteByName 0x48a86a`); a miss is
+                        // silent there.
+                        script.promote_by_name(&name);
+                    }
+                }
+                // The duel verbs make the calls `StartDuel` and `CancelDuel` make: the stock
+                // handlers are one-line calls to them.
+                ParsedChat::Duel { name } => {
+                    if let Some(name) =
+                        name.or_else(|| target_player_name(&selection, &names, &commands))
+                    {
+                        script.start_duel_by_name(&name);
+                    }
+                }
+                ParsedChat::Forfeit => {
+                    script.duel_call(benilla_ui::script::DuelRequest::Cancel);
+                }
+                // `crate::target`'s resolver (the reference's `0x493aa0`) commits through the one
+                // SetSelection path. A bare `/target` takes `GetSlashCmdTarget`'s fallback: a no-op
+                // re-select of a player target, nothing for a creature.
+                ParsedChat::Target { name } => {
+                    if let Some(name) =
+                        name.or_else(|| target_player_name(&selection, &names, &commands))
+                    {
+                        chat_out
+                            .target
+                            .write(crate::target::TargetByNameRequest { name });
+                    }
+                }
+                // Deviation: a probe's bare `/assist` assists the live selection, where the stock
+                // handler (`ChatFrame.lua:740`) resolves a selected player's name through
+                // `AssistByName`, because a name resolve can land on a different player.
+                ParsedChat::Assist { name } => {
+                    chat_out.assist.write(crate::target::AssistRequest { name });
+                }
+                // Bare is `FollowUnit("target")`, where the stock handler (`ChatFrame.lua:754`)
+                // first tries a selected player's name; named is `FollowByName(name)` with no exact
+                // flag, so prefix matching.
+                ParsedChat::Follow { name } => {
+                    chat_out.follow.write(match name {
+                        Some(name) => crate::player::FollowRequest::Name { name, exact: false },
+                        None => crate::player::FollowRequest::Unit("target".into()),
+                    });
+                }
+                // `SlashCmdList["PVP"]` is `TogglePVP()`, the same call.
+                ParsedChat::Pvp => script.toggle_pvp(),
+                ParsedChat::Help => {
+                    // benilla's own summary, for a line that skipped the edit box; a typed `/help`
+                    // runs the stock `ChatFrame_DisplayHelpText`.
+                    for line in [
+                        "Chat: /s /y /p /g /o /raid /rw /bg, /w <name>, /r, /e",
+                        "Channels: /join <name> [pw], /leave <name>, /chatlist <name>",
+                        "Party: /invite /uninvite /promote [name — bare uses your target]",
+                        "Loot: /ffa /roundrobin /master <name>",
+                        "Duel: /duel [name — bare uses your target], /forfeit (/concede /yield)",
+                        "Social: /who [filter], /friends, /ignore, /trade, /inspect",
+                        "Emotes: /sit /stand /sleep /kneel and every /wave-style emote",
+                        "Spells: /cast <name> [(Rank N)]",
+                        "Macros: /macro (/m) opens the window, /macrohelp explains them",
+                        "Misc: /afk, /dnd, /random [min] [max], /played, /logout, /quit",
+                        "Instruments: /shot, /liquid, /reaction, /castvis, /chattest, /partytest",
+                    ] {
+                        chat_log.push_event(super::event::ChatEvent::text_only(
+                            super::event::ChatEventKind::System,
+                            line.to_string(),
+                        ));
+                    }
+                }
+                // `ChatFrame_DisplayMacroHelpText` (`ChatFrame.lua:1695`), off the VM's
+                // GlobalStrings.
+                ParsedChat::MacroHelp => {
+                    for i in 1..=5 {
+                        let key = format!("MACRO_HELP_TEXT_LINE{i}");
+                        let Ok(line) = script.lua().globals().get::<String>(key.as_str()) else {
+                            continue;
+                        };
+                        if !line.is_empty() {
+                            chat_log.push_event(super::event::ChatEvent::text_only(
+                                super::event::ChatEventKind::System,
+                                line,
+                            ));
+                        }
+                    }
+                }
+                // A probe's emote line runs `DoEmote`'s engine half (`0x5ef560`) through the host.
+                ParsedChat::TextEmote { text_id, arg } => {
+                    return Some(LineWork::Emote { text_id, arg });
+                }
+                ParsedChat::CastVis {
+                    spell_id,
+                    kind,
+                    ground,
+                } => {
+                    // The net bridge's own message, on the selection or else self.
+                    let me = self_player.single().ok().map(|(e, _, _)| e);
+                    let subject = selection.target.or(me);
+                    match subject {
+                        Some(entity) => {
+                            info!("castvis: spell {spell_id} {kind:?} ground={ground} on {entity}");
+                            cast_events.write(crate::creature_anim::CastEvent {
+                                entity,
+                                spell_id,
+                                kind,
+                                cast_flags: 0,
+                                item_cast: false,
+                                seq: play_seq.next(),
+                            });
+                            // A selected caster's GO hits us, so a missile flies end to end; a
+                            // self-cast has no target. `ground` sends the pure dest shape instead,
+                            // a point 15 yd ahead at the player's height.
+                            if kind == crate::creature_anim::CastEventKind::Go {
+                                let dest = ground.then(|| {
+                                    self_player.single().ok().map(|(_, _, tf)| {
+                                        tf.translation() + tf.forward().as_vec3() * 15.0
+                                    })
+                                });
+                                if let Some(dest) = dest {
+                                    go_targets.write(crate::creature_anim::SpellGoTargets {
+                                        caster: Some(entity),
+                                        spell_id,
+                                        hits: Vec::new(),
+                                        misses: Vec::new(),
+                                        source: None,
+                                        dest,
+                                        target_mask: 0x40,
+                                        ammo_display_id: None,
+                                        seq: play_seq.next(),
+                                    });
+                                } else if let Some(me) = me.filter(|&m| m != entity) {
+                                    go_targets.write(crate::creature_anim::SpellGoTargets {
+                                        caster: Some(entity),
+                                        spell_id,
+                                        hits: vec![me],
+                                        misses: Vec::new(),
+                                        source: None,
+                                        dest: None,
+                                        target_mask: 0x2,
+                                        // A real GO carries the caster's ammo; this flies the
+                                        // Rough Arrow, display id 5996.
+                                        ammo_display_id: Some(5996),
+                                        seq: play_seq.next(),
+                                    });
+                                }
+                            }
+                        }
+                        None => warn!("castvis: no selection and no self avatar — dropped"),
+                    }
+                }
+                ParsedChat::ChatTest => chattest_battery(&chat_log, &|key: &str| {
+                    script
+                        .lua()
+                        .globals()
+                        .get::<String>(key)
+                        .ok()
+                        .filter(|t| !t.is_empty())
+                }),
+                // `SlashCmdList["LOGOUT"]` is `Logout()` and `SlashCmdList["QUIT"]` is `Quit()`,
+                // the game menu's routes: the call sends the request as the turn ends, and
+                // `crate::ui_logout` narrates the answer with the CAMP or QUIT countdown.
+                ParsedChat::Logout => session(script, SessionRequest::Logout),
+                ParsedChat::Quit => session(script, SessionRequest::Quit),
+                // The reference's handler body, run in the VM.
+                ParsedChat::Lua { body } => return Some(LineWork::Lua(LineLua::Body(body))),
+                ParsedChat::Unknown => {
+                    // `SlashCmdList` gets the line before the help reply: an addon's command, or a
+                    // stock one with no arm here.
+                    let rest = msg.strip_prefix('/').unwrap_or(msg).trim();
+                    let (cmd, args) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+                    return Some(LineWork::Lua(LineLua::Slash {
+                        slashed: msg.starts_with('/'),
+                        cmd: cmd.to_string(),
+                        args: args.trim().to_string(),
+                    }));
+                }
+            }
+        }
+        None
+    }) {
+        match work {
+            LineWork::Lua(lua) => vm.run(|script| {
+                if let Some(script) = script {
+                    lua.run(script, &chat_log);
+                }
+            }),
+            LineWork::Emote { text_id, arg } => {
+                if let (Some(script), set) = vm.parts() {
+                    if let Some(host) = set.p1().as_mut() {
+                        // The engine half runs as a turn, what it signals held, then its
+                        // listeners run with the host lent, as inside `DoEmote`'s call.
+                        script.host_out(|script| host.emote(script, text_id, arg));
+                        script.hosted(host, |_| ());
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A dev or probe line's Lua, which [`drain_chat_input`] runs between the turns that take the
+/// lines, with the host lent.
+enum LineLua {
+    /// A built-in's `SlashCmdList` handler, by its row.
+    Handler(String),
+    /// `/script`'s body.
+    Body(String),
+    /// A command no arm took: `SlashCmdList` first, else the help reply.
+    Slash {
+        slashed: bool,
+        cmd: String,
+        args: String,
+    },
+}
+
+/// What a turn of [`drain_chat_input`] leaves to run before the next: a line's Lua, or a probe
+/// line's text emote and its target argument, which the host runs.
+enum LineWork {
+    Lua(LineLua),
+    Emote { text_id: u32, arg: Option<String> },
+}
+
+impl LineLua {
+    fn run(self, script: &mut benilla_ui::script::UiScript, chat_log: &super::feed::ChatLog) {
+        match self {
+            LineLua::Handler(body) => {
+                if let Err(e) = script.run(&body) {
+                    warn!("ui_chat: {body}: {e}");
+                }
+            }
+            LineLua::Body(body) => {
+                if let Err(e) = script.run(&body) {
+                    // Logged and printed: the player sees a `/script` typo, the log a failing
+                    // built-in.
+                    warn!("ui_chat: {body:?}: {e}");
+                    chat_log.push_event(super::event::ChatEvent::text_only(
+                        super::event::ChatEventKind::System,
+                        format!("{e}"),
+                    ));
+                }
+            }
+            LineLua::Slash { slashed, cmd, args } => {
+                if slashed && script.run_slash_command(&cmd, &args) {
+                    return;
+                }
+                // `HELP_TEXT_SIMPLE`, the reference's unknown-command reply
+                // (`ChatFrame.lua:2205`), a plain chat line with no message-catalog surface or
+                // sound.
+                if let Some(text) = script
+                    .lua()
+                    .globals()
+                    .get::<String>("HELP_TEXT_SIMPLE")
+                    .ok()
+                    .filter(|t| !t.is_empty())
+                {
+                    chat_log.push_event(super::event::ChatEvent::text_only(
+                        super::event::ChatEventKind::System,
+                        text,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// `/chattest`: one synthetic line of every renderable form (kinds, flags, the language header,
+/// channel prefixes, notices, item and player links) through the real event pipeline.
+/// A slash command's session verb, as its `SlashCmdList` handler calls it.
+fn session(script: &mut benilla_ui::script::UiScript, request: SessionRequest) {
+    if let Err(e) = script.session_call(request) {
+        warn!("chat: {request:?} was refused: {e}");
+    }
+}
+
+fn chattest_battery(log: &super::feed::ChatLog, get: &dyn Fn(&str) -> Option<String>) {
+    use super::event::{ChatEvent, ChatEventKind as K};
+    let player = |kind: K, text: &str, sender: &str| {
+        let mut e = ChatEvent::text_only(kind, text.into());
+        e.sender = sender.into();
+        e
+    };
+    let mut battery: Vec<ChatEvent> = vec![
+        player(K::Say, "the quick brown fox — say white.", "Testa"),
+        player(K::Yell, "yell red!", "Testa"),
+        player(
+            K::Whisper,
+            "whisper pink (chime + flash if Combat Log is selected).",
+            "Testa",
+        ),
+        player(K::WhisperInform, "the To-echo.", "Testa"),
+        player(K::Emote, "dances — bare name, orange.", "Testa"),
+        player(K::Party, "party blue.", "Testa"),
+        player(K::Guild, "guild green.", "Testa"),
+        player(K::Officer, "officer deep green.", "Testa"),
+        player(K::RaidWarning, "raid warning salmon.", "Testa"),
+        player(K::MonsterSay, "monster say pale yellow.", "Grunt"),
+        player(K::MonsterYell, "monster yell red.", "Grunt"),
+        player(K::MonsterWhisper, "monster whisper gray.", "Grunt"),
+        player(K::MonsterEmote, "%s looks around — emote orange.", "Grunt"),
+        ChatEvent::text_only(K::System, "system yellow.".into()),
+        ChatEvent::text_only(
+            K::Skill,
+            "Your skill in Testing has increased to 300.".into(),
+        ),
+        ChatEvent::text_only(
+            K::Loot,
+            "You receive loot: |cff1eff00|Hitem:2000:0:0:0|h[Test Blade]|h|r — click me.".into(),
+        ),
+        ChatEvent::text_only(K::Money, "You loot 1 Gold, 23 Silver, 45 Copper.".into()),
+    ];
+    // A GM-flagged line, an Orcish header, a numbered channel line, and the join/kick notices.
+    let mut gm = player(K::Say, "a GM-tagged line.", "Testa");
+    gm.flag = "GM".into();
+    battery.push(gm);
+    let mut orc = player(K::Say, "an Orcish-headered line.", "Grunk");
+    orc.language = "Orcish".into();
+    battery.push(orc);
+    let mut chan = player(K::Channel, "channel pink.", "Testa");
+    chan.channel = "1. General - Elwynn Forest".into();
+    battery.push(chan);
+    let mut join = player(K::ChannelJoin, "", "Testa");
+    join.channel = "1. General - Elwynn Forest".into();
+    battery.push(join);
+    let mut notice = ChatEvent::text_only(K::ChannelNotice, String::new());
+    notice.channel = "General - Elwynn Forest".into();
+    notice.notice = "2".into(); // YOU_JOINED
+    battery.push(notice);
+    for e in battery {
+        log.push_event(e);
+    }
+    combat_log_battery(log, get);
+    info!("chattest: battery queued");
+}
+
+/// The combat-log half of `/chattest`: one line of every family through the real
+/// [`super::combat`] composer and drain. Guid 0 on both ends and literal names in the fills make
+/// the name resolve a no-op; everything after it is the production path.
+fn combat_log_battery(log: &super::feed::ChatLog, get: &dyn Fn(&str) -> Option<String>) {
+    use super::combat::{self, Family, Fills, PendingCombat, Variant};
+    use super::event::ChatEventKind as K;
+
+    let fills = |amount: i64, school: Option<u8>, power: Option<u32>| Fills {
+        attacker: "Gnoll Brute".into(),
+        victim: "Target Dummy".into(),
+        spell: "Fireball".into(),
+        school,
+        power,
+        amount,
+        amount2: amount / 3,
+        power2: power,
+        named: "Copper Bar".into(),
+        trailers: None,
+    };
+    let line = |kind: K, family: Family, variant: Variant, f: Fills| PendingCombat {
+        kind,
+        family,
+        variant,
+        subject: 0,
+        object: 0,
+        named: super::combat::Named::Ready,
+        fills: f,
+        tries: 0,
+        word: None,
+    };
+    let battery = [
+        // Your own melee, plain and crit, and the school form.
+        line(
+            K::CombatSelfHits,
+            combat::COMBATHIT,
+            Variant::SelfOther,
+            fills(120, None, None),
+        ),
+        line(
+            K::CombatSelfHits,
+            combat::COMBATHITCRIT,
+            Variant::SelfOther,
+            fills(240, None, None),
+        ),
+        line(
+            K::CombatSelfHits,
+            combat::COMBATHITSCHOOL,
+            Variant::SelfOther,
+            fills(35, Some(2), None),
+        ),
+        line(
+            K::CombatSelfMisses,
+            combat::MISSED,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        // A creature hitting you: the red rows.
+        line(
+            K::CombatCreatureVsSelfHits,
+            combat::COMBATHIT,
+            Variant::OtherSelf,
+            fills(87, None, None),
+        ),
+        line(
+            K::CombatCreatureVsSelfMisses,
+            combat::VSDODGE,
+            Variant::OtherSelf,
+            fills(0, None, None),
+        ),
+        line(
+            K::CombatCreatureVsSelfMisses,
+            combat::VSBLOCK,
+            Variant::OtherSelf,
+            fills(0, None, None),
+        ),
+        line(
+            K::CombatCreatureVsSelfMisses,
+            combat::VSPARRY,
+            Variant::OtherSelf,
+            fills(0, None, None),
+        ),
+        // Your own spells, and the outcomes that are not damage.
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLLOGSCHOOL,
+            Variant::SelfOther,
+            fills(412, Some(2), None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLLOGCRITSCHOOL,
+            Variant::SelfOther,
+            fills(830, Some(2), None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLMISS,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLRESIST,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellSelfBuff,
+            combat::HEALED,
+            Variant::SelfOther,
+            fills(560, None, None),
+        ),
+        line(
+            K::SpellSelfBuff,
+            combat::POWERGAIN,
+            Variant::SelfSelf,
+            fills(90, None, Some(0)),
+        ),
+        // Your pet, a hostile player, and the periodic + shield rows.
+        line(
+            K::CombatPetHits,
+            combat::COMBATHIT,
+            Variant::OtherOther,
+            fills(64, None, None),
+        ),
+        line(
+            K::SpellHostilePlayerDamage,
+            combat::SPELLLOGSCHOOL,
+            Variant::OtherSelf,
+            fills(305, Some(5), None),
+        ),
+        line(
+            K::SpellPeriodicSelfDamage,
+            combat::PERIODICAURADAMAGE,
+            Variant::SelfOther,
+            fills(48, Some(5), None),
+        ),
+        line(
+            K::SpellPeriodicSelfBuffs,
+            combat::PERIODICAURAHEAL,
+            Variant::SelfSelf,
+            fills(75, None, None),
+        ),
+        line(
+            K::SpellDamageShieldsOnSelf,
+            combat::DAMAGESHIELD,
+            Variant::SelfOther,
+            fills(22, Some(1), None),
+        ),
+        line(
+            K::SpellSelfBuff,
+            combat::SPELLPOWERLEECH,
+            Variant::SelfOther,
+            fills(150, None, Some(0)),
+        ),
+        // ── The remaining families, in the order a player meets them ─────────────────────
+        line(
+            K::CombatHostileDeath,
+            combat::UNITDIES,
+            Variant::OtherOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::CombatHostileDeath,
+            combat::SELFKILLOTHER,
+            Variant::OtherOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::CombatFriendlyDeath,
+            combat::UNITDESTROYEDOTHER,
+            Variant::OtherOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellPeriodicSelfDamage,
+            combat::AURAADDED_HARMFUL,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellPeriodicSelfBuffs,
+            combat::AURAADDED_HELPFUL,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellPeriodicSelfDamage,
+            combat::AURAAPPLICATIONADDED_HARMFUL,
+            Variant::SelfOther,
+            fills(3, None, None),
+        ),
+        line(
+            K::SpellAuraGoneSelf,
+            combat::AURAREMOVED,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellBreakAura,
+            combat::AURADISPEL,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellItemEnchantments,
+            combat::ITEMENCHANTMENTADD,
+            Variant::SelfSelf,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellTradeskills,
+            combat::TRADESKILL_LOG,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLINTERRUPT,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLEXTRAATTACKS_SINGULAR,
+            Variant::SelfOther,
+            fills(1, None, None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::SPELLSPLITDAMAGE,
+            Variant::SelfOther,
+            fills(66, None, None),
+        ),
+        line(
+            K::SpellSelfDamage,
+            combat::PROCRESIST,
+            Variant::SelfOther,
+            fills(0, None, None),
+        ),
+        line(
+            K::CombatCreatureVsSelfHits,
+            combat::VSENV_FALLING,
+            Variant::SelfOther,
+            fills(94, None, None),
+        ),
+        line(
+            K::CombatMiscInfo,
+            combat::DURABILITYDAMAGE_DEATH,
+            Variant::OtherOther,
+            fills(0, None, None),
+        ),
+        // The two families whose `Named` slot is not an item: a faction and a failure reason.
+        line(
+            K::CombatFactionChange,
+            combat::FACTION_STANDING_INCREASED,
+            Variant::OtherOther,
+            Fills {
+                named: "Stormwind".into(),
+                ..fills(250, None, None)
+            },
+        ),
+        // A resolved GlobalString, as production fills this slot: `ERR_OUT_OF_MANA`, the key
+        // the NO_POWER pick table names (`0x8118dc`).
+        line(
+            K::SpellFailedLocalPlayer,
+            combat::SPELLFAILCAST,
+            Variant::SelfOther,
+            Fills {
+                named: get("ERR_OUT_OF_MANA").unwrap_or_default(),
+                ..fills(0, None, None)
+            },
+        ),
+        // The trailers, on the one family that can show all six.
+        line(
+            K::CombatSelfHits,
+            combat::COMBATHIT,
+            Variant::SelfOther,
+            Fills {
+                trailers: Some(combat::Trailers {
+                    absorbed: 12,
+                    resisted: 7,
+                    blocked: 30,
+                    hit_info: 0x4000,
+                }),
+                ..fills(210, None, None)
+            },
+        ),
+    ];
+    for l in battery {
+        log.push_combat(l);
+    }
+}
+
+/// What `CheckEmoteEligible` (`0x47db40`) decides about one emote.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum EmoteGate {
+    /// Send it: packet, posture, animation.
+    Send,
+    /// Dropped silently: no packet, no animation, no line. A seated `/bow` is this.
+    Suppressed,
+    /// The `0x4000` "requires standing still" arm tripped. `DoEmote` (`0x5ef5d0`) raises
+    /// `ERR_NOEMOTEWHILERUNNING` and aborts only when `IsSelfControlled` (`0x5fa550`), false while
+    /// `UNIT_FIELD_FLAGS & 0xc00004`, so a feared player emotes; that test is the caller's.
+    Moving,
+}
+
+/// `CheckEmoteEligible` (`0x47db40`), the only reader of `Emotes.dbc` `EmoteFlags`, in the
+/// client's order; `DoEmote` (`0x5ef560`) calls it before building `CMSG_TEXT_EMOTE`. The `0x4000`
+/// arm tests movement, not `SWIMMING`, so it is no water gate.
+pub(super) fn emote_send_eligible(
+    emote_flags: u32,
+    stand_state: u8,
+    swimming: bool,
+    move_flags: u32,
+) -> EmoteGate {
+    // `0x0400`: unconditional suppress (client `0x47db58`).
+    if emote_flags & 0x0400 != 0 {
+        return EmoteGate::Suppressed;
+    }
+    // `0x0001` + non-zero stand-state: "requires STAND" (client `0x47db65`..`0x47db74`).
+    if emote_flags & 0x0001 != 0 && stand_state != 0 {
+        return EmoteGate::Suppressed;
+    }
+    // `0x0080` while swimming (client `0x47db76`..`0x47db7d`).
+    if emote_flags & 0x0080 != 0 && swimming {
+        return EmoteGate::Suppressed;
+    }
+    // `0x0200` ABSENT at SLEEP(3)/DEAD(7): the bit means "allowed while asleep/dead" (client
+    // `0x47db8e`..`0x47db9f`).
+    if emote_flags & 0x0200 == 0 && matches!(stand_state, 3 | 7) {
+        return EmoteGate::Suppressed;
+    }
+    // `0x4000` "requires standing still" (client `0x47dbab`), against the live movement word's
+    // `0x20ff` at `0x47dbb3` (direction, turn and pitch bits and FALLING), which is
+    // [`crate::creature_anim::move_flags::INTEGRATED`]. It only reports; `DoEmote` decides.
+    if emote_flags & 0x4000 != 0 && move_flags & crate::creature_anim::move_flags::INTEGRATED != 0 {
+        return EmoteGate::Moving;
+    }
+    EmoteGate::Send
+}
+
+/// `UNIT_FLAG_POSSESSED`, `UNIT_FIELD_FLAGS` bit 24: `DoEmote` returns silently for a unit that
+/// has it (`0x5ef57e`, `descriptor+0xa3 & 1`).
+const UNIT_FLAG_POSSESSED: u32 = 0x0100_0000;
+
+/// `DoEmote`'s entry gates (`0x5ef560`) in the client's order: the unit's own `UNIT_FIELD_FLAGS`
+/// (`0x5ef57e`), the `Emotes.dbc` row by `EmoteID` (`0x5ef59c`-`0x5ef5b3`; `None` is a missing
+/// row, which returns), then `CheckEmoteEligible` over the row's flags.
+pub(super) fn emote_gate(
+    row_flags: Option<u32>,
+    unit_flags: u32,
+    stand_state: u8,
+    swimming: bool,
+    move_flags: u32,
+) -> EmoteGate {
+    match row_flags {
+        Some(flags) if unit_flags & UNIT_FLAG_POSSESSED == 0 => {
+            emote_send_eligible(flags, stand_state, swimming, move_flags)
+        }
+        _ => EmoteGate::Suppressed,
+    }
+}

@@ -1,0 +1,130 @@
+# Imported by tools/content/dump_tables.py from bonk_title. Edit this file, then run tools/content/compile.py.
+table: bonk_title
+columns:
+- id
+- name
+- pattern
+- class
+- stat
+- value
+rows:
+- - 1
+  - the Swift
+  - '%s the Swift'
+  - 0
+  - 0
+  - 0.0
+- - 2
+  - the Relentless
+  - '%s the Relentless'
+  - 1
+  - 15
+  - 2.0
+- - 3
+  - Champion of Azeroth
+  - '%s, Champion of Azeroth'
+  - 1
+  - 15
+  - 3.0
+- - 4
+  - the Lightsworn
+  - '%s the Lightsworn'
+  - 2
+  - 4
+  - 2.0
+- - 5
+  - the Ashbringer
+  - '%s the Ashbringer'
+  - 2
+  - 4
+  - 3.0
+- - 6
+  - Stalker of the Wilds
+  - '%s, Stalker of the Wilds'
+  - 3
+  - 1
+  - 2.0
+- - 7
+  - Master of the Hunt
+  - '%s, Master of the Hunt'
+  - 3
+  - 1
+  - 3.0
+- - 8
+  - the Unseen
+  - '%s the Unseen'
+  - 4
+  - 16
+  - 2.0
+- - 9
+  - Kingslayer
+  - '%s the Kingslayer'
+  - 4
+  - 16
+  - 3.0
+- - 10
+  - the Faithful
+  - '%s the Faithful'
+  - 5
+  - 11
+  - 2.0
+- - 11
+  - Light of Azeroth
+  - '%s, Light of Azeroth'
+  - 5
+  - 11
+  - 3.0
+- - 12
+  - Voice of the Elements
+  - '%s, Voice of the Elements'
+  - 7
+  - 1
+  - 2.0
+- - 13
+  - Thunderlord
+  - Thunderlord %s
+  - 7
+  - 1
+  - 3.0
+- - 14
+  - Archmage
+  - Archmage %s
+  - 8
+  - 15
+  - 2.0
+- - 15
+  - Guardian of Tirisfal
+  - '%s, Guardian of Tirisfal'
+  - 8
+  - 15
+  - 3.0
+- - 16
+  - the Netherbound
+  - '%s the Netherbound'
+  - 9
+  - 11
+  - 2.0
+- - 17
+  - Master of Shadows
+  - '%s, Master of Shadows'
+  - 9
+  - 11
+  - 3.0
+- - 18
+  - Keeper of the Grove
+  - '%s, Keeper of the Grove'
+  - 11
+  - 0
+  - 2.0
+- - 19
+  - Archdruid
+  - Archdruid %s
+  - 11
+  - 0
+  - 3.0
+- - 20
+  - the Veteran
+  - '%s the Veteran'
+  - 0
+  - 0
+  - 0.0

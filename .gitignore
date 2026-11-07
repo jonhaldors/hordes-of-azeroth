@@ -1,62 +1,61 @@
-# Whitelist repo: everything is ignored unless explicitly un-ignored below.
-# Base game files (WoW.exe, Data/*.MPQ, WTF/, WDB/, Logs/, ...) never get tracked.
-/*
+# 构建产物（按目录限定，避免误伤名为 bin/target 的源码目录）
+/server/build/
+/server/bin/
+/client/target/
+/launcher/bin/
+/launcher/obj/
+/launcher/publish/
+out/
+dist/
 
-# Repo metadata
-!/.gitignore
-!/README.md
-!/BUILDING.md
-!/LICENSE
-!/THIRD-PARTY-NOTICES.md
-!/.github/
-!/VERSION
-!/CHANGELOG.md
+# 编译中间文件
+*.o
+*.obj
+*.pdb
+*.ilk
+*.user
+*.suo
 
-# Addons: ours live here. The client writes Blizzard_*/ key files into the
-# same folder on launch; those are game files.
-!/Interface/
-/Interface/*
-!/Interface/AddOns/
-/Interface/AddOns/Blizzard_*/
-# Disabled test addons (renamed to .off) stay local.
-/Interface/AddOns/*.off/
-# Built from the player's own client art by TelegraphKit (tools/build-telegraphs.ps1).
-/Interface/AddOns/HordesOfAzeroth/Textures/ClassCrests.tga
-/Interface/AddOns/HordesOfAzeroth/Textures/PlayerFrameNoPower.tga
+# 服务端运行数据（绝不提交）
+*.sqlite
+*.db
+*.err
+*.pid
+logs/
+log/
+server/mariadb-data/
+server/mariadb/
+server/run*/
+server/run/
 
-# Our login and hero screens. BonkAccount.lua holds the local login;
-# mangosd writes BonkStats.lua.
-!/Interface/GlueXML/
-/Interface/GlueXML/BonkAccount.lua
-/Interface/GlueXML/BonkStats.lua
+# 客户端/启动器运行数据
+benilla-config/
+WTF/
+Cache/
+Screenshots/
+*.wdb
 
-# Local server tooling and settings.
-!/tools/
-/tools/telegraphs/bin/
-/tools/launcher/bin/
-/tools/launcher/obj/
-!/config/
-!/play.bat
+# 本地配置
+.env
+*.local
+launcher.ini
+accounts.ini
 
-!/stop.bat
+# 编辑器/系统
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
-# Translations of the server's text, edited with tools/translate.ps1.
-!/localization/
+# 临时文件
+tmp/
+*.log
 
-# Under /server only the VMaNGOS fork (a submodule) is tracked. The build,
-# MariaDB and extracted client data are generated or third-party.
-!/.gitmodules
-!/server/
-/server/*
-!/server/core
-
-# The benilla client fork (a submodule).
-!/client
-
-# To track a new top-level project folder, add a line like:
-# !/addon-src/
-
-tools/bench/results.json
-
+# Python
 __pycache__/
-tools/clientfix/build/
+*.pyc
+
+# Claude Code working state stays local; the repo skills are tracked and ship with the tree.
+.claude/*
+!.claude/skills

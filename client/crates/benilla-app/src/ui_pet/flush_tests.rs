@@ -1,0 +1,783 @@
+//! The flush behind every mutation of the pet's cooldown list, whole client headless: each packet
+//! that reaches the list arrives as the session event it is, and the pet's feeds run after it.
+//! `0x4b31b0` fires `ACTIONBAR_UPDATE_COOLDOWN` then `SPELL_UPDATE_COOLDOWN` and `0x4bce90` fires
+//! `PET_BAR_UPDATE_COOLDOWN`; none of the callers fires `PET_BAR_UPDATE`.
+
+use std::time::{Duration, Instant};
+
+use benilla_formats::SpellDisplay;
+use benilla_protocol::messages::{PetSpellCooldown, PetSpells};
+use benilla_protocol::SessionEvent;
+
+use super::press_tests::{claw, growl, listen, listening_vm, rig, Rig, CLAW, GROWL, ME, PET};
+use super::PetBar;
+use crate::net::ObjectStore;
+
+/// The three events, in the reference's order.
+const FLUSH: [&str; 3] = [
+    "ACTIONBAR_UPDATE_COOLDOWN",
+    "SPELL_UPDATE_COOLDOWN",
+    "PET_BAR_UPDATE_COOLDOWN",
+];
+
+/// `UNIT_FIELD_SUMMONEDBY`, low word, the owner test the GO's pet leg reads (`0x6e859a`).
+const SUMMONEDBY: u16 = 12;
+
+/// Our own pet by the field the GO's pet leg reads: `SUMMONEDBY` us.
+fn summoned_pet() -> ObjectStore {
+    ObjectStore(benilla_protocol::ObjectFields::from_pairs(&[
+        (SUMMONEDBY, ME as u32),
+        (SUMMONEDBY + 1, 0),
+    ]))
+}
+
+/// The rig's VM.
+fn ui(rig: &mut Rig) -> bevy::ecs::change_detection::Mut<'_, benilla_ui::script::UiScript> {
+    rig.app
+        .world_mut()
+        .non_send_resource_mut::<benilla_ui::script::UiScript>()
+}
+
+/// Claw as the pet book lists it: named, iconed, and with the ordinary pet GCD.
+fn claw_book_spell() -> SpellDisplay {
+    SpellDisplay {
+        icon: Some("Interface\\Icons\\Ability_Druid_Rake".into()),
+        ..claw()
+    }
+}
+
+/// A rig with Growl (a 5 s recovery of its own) on slot 1 of `PET`'s bar.
+fn growl_rig() -> Rig {
+    rig(vec![(GROWL, growl())], &[GROWL], Some(summoned_pet()))
+}
+
+/// `SMSG_SPELL_GO` of `spell_id` by `caster`, as the session decodes a plain cast.
+fn go(caster: u64, spell_id: u32) -> SessionEvent {
+    SessionEvent::SpellGo {
+        caster,
+        spell_id,
+        cast_flags: 0,
+        hits: vec![],
+        misses: vec![],
+        target: None,
+        go_target: None,
+        target_mask: 0,
+        source: None,
+        dest: None,
+        ammo_display_id: None,
+        item_caster: None,
+        unit_caster: caster,
+    }
+}
+
+impl Rig {
+    /// The packets, handled as the session hands them to the client.
+    fn receive(&mut self, events: Vec<SessionEvent>) {
+        crate::net::handlers::dispatch(self.app.world_mut(), events);
+    }
+
+    fn generation(&self) -> u64 {
+        self.app.world().resource::<PetBar>().cooldowns.generation
+    }
+
+    /// How many records the pet's list holds, elapsed ones included.
+    fn record_count(&self) -> usize {
+        self.app
+            .world()
+            .resource::<PetBar>()
+            .cooldowns
+            .record_count()
+    }
+
+    /// Whether the pet's list still holds a record that has run out by `at`.
+    fn elapsed_pending(&self, at: Instant) -> bool {
+        self.app
+            .world()
+            .resource::<PetBar>()
+            .cooldowns
+            .sweep_pending(at)
+    }
+
+    /// The frame's clock pair stepped to `ahead` past the wall clock, as the UI step re-anchors it
+    /// each frame: every record armed so far is then `ahead` older, however long the run took.
+    fn step_clock(&mut self, ahead: Duration) {
+        let mut clock = self
+            .app
+            .world_mut()
+            .resource_mut::<crate::ui_script::UiClock>();
+        let anchor = Instant::now() + ahead;
+        clock.ui_now += anchor.duration_since(clock.anchor).as_secs_f64();
+        clock.anchor = anchor;
+    }
+}
+
+/// `0x6e85f7` inserts into the pet's list, `0x6e85fc` and `0x6e8601` flush. The bar takes no
+/// `PET_BAR_UPDATE` from it, which the spellbook's pet tab would take as a repaint of its own.
+#[test]
+fn a_pets_spell_go_fires_the_flush_and_no_bar_update() {
+    let mut rig = growl_rig();
+
+    rig.receive(vec![go(PET, GROWL)]);
+
+    assert_eq!(rig.frame(), FLUSH);
+    assert!(rig.frame().is_empty(), "once, not every frame");
+}
+
+/// The GO's owner test (`0x6e859a`) admits our pet and nobody else's: no insert, no flush.
+#[test]
+fn a_strangers_pet_go_flushes_nothing() {
+    let strangers = ObjectStore(benilla_protocol::ObjectFields::from_pairs(&[
+        (SUMMONEDBY, 0x99),
+        (SUMMONEDBY + 1, 0),
+    ]));
+    let mut rig = rig(vec![(GROWL, growl())], &[GROWL], Some(strangers));
+
+    rig.receive(vec![go(PET, GROWL)]);
+
+    assert_eq!(rig.generation(), 0);
+    assert!(rig.frame().is_empty());
+}
+
+/// `0x6e95b0`, `0x6e95b9`: the pet's flush follows `SMSG_SPELL_COOLDOWN` for the pet's guid, and
+/// for it alone; the player's own list signals the pair alone, on the cooldown lane.
+#[test]
+fn a_pet_addressed_spell_cooldown_fires_the_flush() {
+    let mut rig = growl_rig();
+
+    rig.receive(vec![SessionEvent::SpellCooldowns {
+        caster: ME,
+        cooldowns: vec![(GROWL, 3000)],
+    }]);
+    assert_eq!(
+        rig.frame(),
+        FLUSH[..2],
+        "the player's list is not the pet's flush"
+    );
+
+    rig.receive(vec![SessionEvent::SpellCooldowns {
+        caster: PET,
+        cooldowns: vec![(GROWL, 3000)],
+    }]);
+    assert_eq!(rig.frame(), FLUSH);
+}
+
+/// `0x6e3071`-`0x6e3080` (`SMSG_COOLDOWN_EVENT`, `SMSG_CLEAR_COOLDOWN`) and `0x6e9712`-`0x6e971c`
+/// (`SMSG_COOLDOWN_CHEAT`): each flushes for the pet's list as for a spell cast.
+#[test]
+fn the_pets_event_clear_and_cheat_packets_fire_the_flush() {
+    // Attributes bit 25: the record parks until the event.
+    let parked = || SpellDisplay {
+        attributes: 1 << 25,
+        ..growl()
+    };
+    let mut rig = rig(vec![(GROWL, parked())], &[GROWL], Some(summoned_pet()));
+    let park = |rig: &mut Rig| {
+        rig.receive(vec![SessionEvent::SpellCooldowns {
+            caster: PET,
+            cooldowns: vec![(GROWL, 3000)],
+        }]);
+        assert_eq!(rig.frame(), FLUSH, "parked");
+    };
+
+    park(&mut rig);
+    rig.receive(vec![SessionEvent::CooldownEvent {
+        spell_id: GROWL,
+        caster: PET,
+    }]);
+    assert_eq!(rig.frame(), FLUSH, "the parked timers start");
+
+    rig.receive(vec![SessionEvent::ClearCooldown {
+        spell_id: GROWL,
+        caster: PET,
+    }]);
+    assert_eq!(rig.frame(), FLUSH, "the record goes");
+
+    park(&mut rig);
+    rig.receive(vec![SessionEvent::CooldownCheat { caster: PET }]);
+    assert_eq!(rig.frame(), FLUSH, "the GM wipe");
+}
+
+/// `0x6e3050` on the pet's list runs the usable refresh between the pair and the pet's flush
+/// (`0x6e3076`, then `0x4bce90` at `0x6e3080`), with no `BAG_UPDATE_COOLDOWN`, which is the
+/// player's list's alone (`0x6e3089`), and whether or not a record matched. The cheat (`0x6e9700`)
+/// has no usable refresh, and flushes an empty list too.
+#[test]
+fn the_pets_event_and_clear_refresh_the_usable_state_inside_the_flush() {
+    let mut rig = growl_rig();
+    ui(&mut rig)
+        .run(
+            "local f = CreateFrame('Frame') f:RegisterEvent('SPELL_UPDATE_USABLE') \
+             f:RegisterEvent('BAG_UPDATE_COOLDOWN') \
+             f:SetScript('OnEvent', function() table.insert(SEEN, event) end)",
+        )
+        .unwrap();
+    rig.frame();
+    let refreshed = [
+        "ACTIONBAR_UPDATE_COOLDOWN",
+        "SPELL_UPDATE_COOLDOWN",
+        "SPELL_UPDATE_USABLE",
+        "PET_BAR_UPDATE_COOLDOWN",
+    ];
+    rig.receive(vec![SessionEvent::CooldownEvent {
+        spell_id: GROWL,
+        caster: PET,
+    }]);
+    assert_eq!(rig.frame(), refreshed, "an event with nothing parked");
+    rig.receive(vec![SessionEvent::ClearCooldown {
+        spell_id: GROWL,
+        caster: PET,
+    }]);
+    assert_eq!(rig.frame(), refreshed, "a clear with nothing held");
+    rig.receive(vec![SessionEvent::CooldownCheat { caster: PET }]);
+    assert_eq!(rig.frame(), FLUSH, "the cheat on an empty list");
+}
+
+/// The frame's mutations are one flush for the frame, as the player's list has them.
+#[test]
+fn several_mutations_in_a_frame_fire_the_flush_once() {
+    let mut rig = growl_rig();
+
+    rig.receive(vec![
+        go(PET, GROWL),
+        SessionEvent::SpellCooldowns {
+            caster: PET,
+            cooldowns: vec![(GROWL, 3000)],
+        },
+    ]);
+
+    assert_eq!(rig.frame(), FLUSH);
+}
+
+/// `SMSG_PET_SPELLS` seeds the list through `0x6e2c60`, which flushes nothing, and ends in
+/// `SetPet`'s `SignalEvent(0x161)` (`0x4bc90c`) whatever the packet changed: a packet that moves
+/// only the cooldowns is one `PET_BAR_UPDATE`, not the flush.
+#[test]
+fn the_pet_spells_packet_signals_the_bar_and_never_flushes() {
+    let mut rig = growl_rig();
+    let same_bar = PetSpells {
+        cooldowns: vec![PetSpellCooldown {
+            spell_id: GROWL,
+            category: 82,
+            spell_cd_ms: 4000,
+            category_cd_ms: 0,
+        }],
+        ..rig.app.world().resource::<PetBar>().spells.clone()
+    };
+
+    rig.receive(vec![SessionEvent::PetSpells(Box::new(same_bar))]);
+    assert_eq!(
+        rig.frame(),
+        ["PET_BAR_UPDATE"],
+        "the bar is what it was and its cooldown is new: the packet's own signal repaints it"
+    );
+    let (_, duration, enable) = rig.cooldown(1);
+    assert!(
+        (duration - 4.0).abs() < 1e-9 && enable == 1,
+        "and the seeded cooldown reached the bar: {duration}"
+    );
+    assert_eq!(rig.generation(), 0, "a seed is no mutation of the flush");
+
+    // The teardown clears the list and flushes nothing either.
+    rig.receive(vec![SessionEvent::PetSpells(Box::default())]);
+    assert_eq!(rig.frame(), ["PET_BAR_UPDATE"]);
+}
+
+/// A reset moves no counter back: a mutation, the teardown, a new bar, and the next mutation
+/// flushes once. A counter that fell back to 0 would read as a mutation at the teardown.
+#[test]
+fn a_teardown_and_a_new_bar_do_not_hide_the_next_flush() {
+    let mut rig = growl_rig();
+    rig.receive(vec![go(PET, GROWL)]);
+    assert_eq!(rig.frame(), FLUSH);
+    let held = rig.generation();
+
+    rig.receive(vec![SessionEvent::PetSpells(Box::default())]);
+    assert_eq!(rig.frame(), ["PET_BAR_UPDATE"], "the teardown");
+    assert_eq!(rig.generation(), held, "the counter is where it was");
+
+    let mut bar = rig.app.world().resource::<PetBar>().spells.clone();
+    bar.pet_guid = PET;
+    bar.bar[0] = benilla_protocol::messages::PetActionEntry::from(
+        GROWL | (u32::from(benilla_protocol::messages::PET_ACT_ENABLED) << 24),
+    );
+    rig.receive(vec![SessionEvent::PetSpells(Box::new(bar))]);
+    assert_eq!(rig.frame(), ["PET_BAR_UPDATE"], "the new bar");
+
+    rig.receive(vec![go(PET, GROWL)]);
+    assert_eq!(rig.frame(), FLUSH);
+}
+
+/// The stock `Cooldown` frame ends its own sweep, and the reference flushes no event for the end
+/// of a cooldown: an elapsed record moves neither the list nor the events.
+#[test]
+fn a_natural_expiry_fires_nothing() {
+    let brief = || SpellDisplay {
+        name: "Brief".into(),
+        recovery_ms: 30,
+        ..Default::default()
+    };
+    let mut rig = rig(vec![(GROWL, brief())], &[GROWL], Some(summoned_pet()));
+    rig.receive(vec![go(PET, GROWL)]);
+    assert_eq!(rig.frame(), FLUSH);
+    assert!(rig.cooldown(1).1 > 0.0, "running");
+
+    rig.step_clock(Duration::from_millis(80));
+
+    assert!(
+        rig.frame().is_empty(),
+        "its end is the frame's, not an event"
+    );
+    assert_eq!(
+        rig.cooldown(1).1,
+        0.0,
+        "and the sweep is gone from the push"
+    );
+}
+
+/// A new VM meets the list as it stands: the flush is for a mutation, not for a load.
+#[test]
+fn a_new_vm_is_not_flushed_for_a_list_that_already_moved() {
+    let mut rig = growl_rig();
+    rig.receive(vec![go(PET, GROWL)]);
+    assert_eq!(rig.frame(), FLUSH);
+
+    // The interface reloads: a new VM, the bar pushed into it afresh, its `PET_BAR_UPDATE` the
+    // world entry's reset's (`0x4bc6f0`), which this rig has none of.
+    rig.app.world_mut().insert_non_send_resource(listening_vm());
+    assert_eq!(rig.frame(), Vec::<String>::new(), "the bar, and no flush");
+
+    rig.receive(vec![go(PET, GROWL)]);
+    assert_eq!(rig.frame(), FLUSH, "the next mutation is a flush");
+}
+
+/// The flush reads what the feeds pushed: it runs after the bar's feed and the book's, which
+/// push the pet's cooldown triples the handlers ask for, and (declared through the cooldown
+/// events) after the player's own flush. Skips where bevy carries no system names.
+#[test]
+fn the_flush_runs_after_every_feed_that_pushes_a_pet_cooldown() {
+    use crate::game_plugins::schedule_tests::{census, headless_client, SyncPoints};
+    use bevy::prelude::Update;
+    use std::collections::{HashMap, HashSet};
+
+    let mut app = headless_client();
+    let c = census(&mut app, Update, SyncPoints::Declared);
+    let named = |needle: &str| {
+        let hits: Vec<_> = c
+            .systems
+            .iter()
+            .filter(|(_, s)| s.name.ends_with(needle))
+            .map(|(k, _)| *k)
+            .collect();
+        (!hits.is_empty()).then(|| {
+            assert_eq!(hits.len(), 1, "one system named {needle}");
+            hits[0]
+        })
+    };
+    let Some(fire) = named("::fire_pet_cooldown_events") else {
+        eprintln!("skipped: this build carries no system names");
+        return;
+    };
+    let mut after: HashMap<_, Vec<_>> = HashMap::new();
+    for (a, b) in &c.dependencies {
+        after.entry(*a).or_default().push(*b);
+    }
+    let runs_before = |first| {
+        let (mut seen, mut stack) = (HashSet::new(), vec![first]);
+        while let Some(n) = stack.pop() {
+            if n == fire {
+                return true;
+            }
+            if seen.insert(n) {
+                stack.extend(after.get(&n).into_iter().flatten().copied());
+            }
+        }
+        false
+    };
+    for feed in [
+        "::feed_pet_bar",
+        "::feed_pet_book",
+        "::feed_action_state",
+        "::fire_action_events",
+    ] {
+        let key = named(feed).unwrap_or_else(|| panic!("{feed} is scheduled"));
+        assert!(runs_before(key), "{feed} runs before the pet's flush");
+    }
+}
+
+/// The stock spellbook (`SpellBookFrame.lua:209`-`231`): a `SpellButton` redraws on
+/// `SPELL_UPDATE_COOLDOWN`, and on `PET_BAR_UPDATE` while the pet tab is open, and never hears
+/// `PET_BAR_UPDATE_COOLDOWN`. So the GCD a pet-bar press starts sweeps the pet tab's button
+/// through the flush's `SPELL_UPDATE_COOLDOWN` alone.
+#[test]
+fn a_pet_gcd_sweeps_the_spellbooks_pet_tab_button() {
+    benilla_formats::wow_data_or_skip!();
+    use benilla_protocol::messages::{PetActionEntry, PET_ACT_ENABLED};
+
+    let mut rig = rig(
+        vec![(CLAW, claw_book_spell())],
+        &[CLAW],
+        Some(summoned_pet()),
+    );
+    {
+        let world = rig.app.world_mut();
+        // Our class, so the book reads a token (`0x4b4463`); no `ChrClasses` row, so "PET".
+        world.spawn((
+            crate::net::SelfPlayer,
+            ObjectStore(benilla_protocol::ObjectFields::from_pairs(&[(36, 3 << 8)])),
+        ));
+        world.insert_resource(crate::chr_classes::ChrClassTable(Default::default()));
+        world.resource_mut::<PetBar>().spells.spells = vec![PetActionEntry::from(
+            CLAW | (u32::from(PET_ACT_ENABLED) << 24),
+        )];
+    }
+
+    let mut script = benilla_ui::script::UiScript::new().unwrap();
+    script.set_screen_size(1024.0, 768.0);
+    let failures = crate::ui_script::load_default_ui(&script);
+    assert!(failures.is_empty(), "load failures: {failures:?}");
+    listen(&script);
+    rig.app.world_mut().insert_non_send_resource(script);
+
+    // The book arrives, and the window opens on its pet tab.
+    rig.frame();
+    let mut s = ui(&mut rig);
+    s.run("ToggleSpellBook(BOOKTYPE_PET)").unwrap();
+    s.resolve();
+    assert!(
+        s.eval::<bool>("return SpellBookFrame.bookType == BOOKTYPE_PET")
+            .unwrap(),
+        "the pet tab is open"
+    );
+    assert_eq!(
+        s.eval::<String>("return SpellButton1SpellName:GetText()")
+            .unwrap(),
+        "Claw"
+    );
+    assert!(
+        !s.eval::<bool>("return SpellButton1Cooldown:IsShown()")
+            .unwrap(),
+        "no cooldown yet"
+    );
+
+    // A press on the bar's Claw starts the pet's GCD.
+    rig.press(1);
+    rig.frame();
+
+    let mut s = ui(&mut rig);
+    s.resolve();
+    assert!(
+        s.eval::<bool>("return SpellButton1Cooldown:IsShown()")
+            .unwrap(),
+        "the GCD sweeps the spellbook's button"
+    );
+    assert!(
+        (s.eval::<f64>("return SpellButton1Cooldown.duration")
+            .unwrap()
+            - 1.5)
+            .abs()
+            < 1e-9,
+        "and it is the 1.5 s the press started"
+    );
+    let errors = s.errors();
+    assert!(errors.is_empty(), "script errors: {errors:?}");
+}
+
+/// A spell of no catalog record but the test's own, parked until its cooldown event.
+const PARKED: u32 = 9_001;
+
+/// Claw with a short GCD, so a press's record runs out inside a test.
+fn brisk_claw() -> SpellDisplay {
+    SpellDisplay {
+        start_recovery_ms: 40,
+        ..claw()
+    }
+}
+
+/// A parked spell: `Attributes` bit 25, its timers wait for `SMSG_COOLDOWN_EVENT`.
+fn parked() -> SpellDisplay {
+    SpellDisplay {
+        name: "Parked".into(),
+        attributes: 1 << 25,
+        ..Default::default()
+    }
+}
+
+/// Long enough for every `brisk_claw` GCD to have run out.
+fn let_the_gcds_run_out() {
+    std::thread::sleep(Duration::from_millis(120));
+}
+
+/// Every pet GCD and every recovery the GO leg inserts is a record, and the insert is where the
+/// list is bounded: after forty presses whose GCDs have all run out, the next press leaves the
+/// list with its live records and its own, a running recovery and a parked record among them.
+#[test]
+fn an_insert_leaves_the_pets_list_its_live_records_alone() {
+    let mut rig = rig(
+        vec![(CLAW, brisk_claw()), (GROWL, growl()), (PARKED, parked())],
+        &[CLAW, GROWL, PARKED],
+        Some(summoned_pet()),
+    );
+    rig.receive(vec![
+        go(PET, GROWL),
+        // Ten milliseconds, parked until `SMSG_COOLDOWN_EVENT`.
+        SessionEvent::SpellCooldowns {
+            caster: PET,
+            cooldowns: vec![(PARKED, 10)],
+        },
+    ]);
+    assert_eq!(
+        rig.record_count(),
+        2,
+        "Growl's recovery and the parked record"
+    );
+    for _ in 0..40 {
+        rig.press(1);
+    }
+    let_the_gcds_run_out();
+    let pressed = Instant::now();
+    assert!(rig.elapsed_pending(pressed), "the forty GCDs have run out");
+
+    rig.press(1);
+
+    assert!(!rig.elapsed_pending(pressed), "the insert dropped them");
+    assert_eq!(
+        rig.record_count(),
+        3,
+        "Growl's recovery, the parked record and the new GCD"
+    );
+    rig.frame();
+    assert_eq!(rig.cooldown(2).1, 5.0, "Growl still sweeps its 5 s");
+    let parked = rig.cooldown(3);
+    assert!(
+        parked.1 > 0.0 && parked.2 == 0,
+        "the parked record reads disabled: {parked:?}"
+    );
+}
+
+/// The reference flushes no event for a cooldown's end, and the insert's prune is that end: the
+/// insert is the list's one mutation, so the frame fires the flush once, for it, and nothing
+/// else. An insert that arms nothing changes nothing.
+#[test]
+fn an_inserts_prune_fires_only_the_inserts_own_flush() {
+    let mut rig = rig(
+        vec![(CLAW, brisk_claw()), (GROWL, growl())],
+        &[CLAW, GROWL],
+        Some(summoned_pet()),
+    );
+    for _ in 0..5 {
+        rig.press(1);
+    }
+    assert_eq!(rig.frame(), FLUSH, "the presses' own flush");
+    let held = rig.generation();
+    let_the_gcds_run_out();
+    let pressed = Instant::now();
+    assert!(rig.elapsed_pending(pressed));
+
+    // Growl has no GCD pair: nothing is armed, so nothing is dropped or flushed.
+    rig.press(2);
+    assert!(
+        rig.frame().is_empty(),
+        "an insert that arms nothing fires nothing"
+    );
+    assert_eq!(rig.generation(), held);
+
+    rig.press(1);
+    assert!(!rig.elapsed_pending(pressed), "the insert dropped the five");
+    assert_eq!(rig.frame(), FLUSH, "the insert's flush, once");
+    assert_eq!(
+        rig.generation(),
+        held + 1,
+        "the prune is no mutation of its own"
+    );
+    assert!(rig.frame().is_empty(), "and nothing follows");
+}
+
+/// An insert's prune is invisible to `GetPetActionCooldown`: a running recovery and a parked
+/// record whose timers have run down push what they pushed before, the same start included.
+#[test]
+fn an_insert_changes_no_bar_read_of_the_records_that_stay() {
+    let mut rig = rig(
+        vec![(CLAW, brisk_claw()), (GROWL, growl()), (PARKED, parked())],
+        &[CLAW, GROWL, PARKED],
+        Some(summoned_pet()),
+    );
+    rig.receive(vec![
+        go(PET, GROWL),
+        SessionEvent::SpellCooldowns {
+            caster: PET,
+            cooldowns: vec![(PARKED, 10)],
+        },
+    ]);
+    for _ in 0..5 {
+        rig.press(1);
+    }
+    assert_eq!(rig.frame(), FLUSH);
+    let (running, parked_read) = (rig.cooldown(2), rig.cooldown(3));
+    assert_eq!(running.1, 5.0, "Growl sweeps its 5 s");
+    assert!(
+        parked_read.1 > 0.0 && parked_read.2 == 0,
+        "the parked record shows disabled: {parked_read:?}"
+    );
+    let_the_gcds_run_out();
+    let pressed = Instant::now();
+    assert!(rig.elapsed_pending(pressed));
+
+    rig.press(1);
+    assert!(!rig.elapsed_pending(pressed), "the insert pruned");
+    rig.frame();
+
+    assert_eq!(
+        rig.cooldown(2),
+        running,
+        "the running recovery, its start too"
+    );
+    assert_eq!(rig.cooldown(3), parked_read, "the parked record");
+}
+
+/// `SMSG_PET_SPELLS` seeds each cooldown through `StartCooldown 0x6e2c60` with pet=1
+/// (`0x4bdabf`): the timer is the larger of the spell's own time and the remainder, started so it
+/// ends at the remainder (`0x6e2d8b`-`0x6e2d94`), so a sweep the bar shows on arrival keeps its
+/// whole length, partly run. The category dword's bit 31 is the held flag, masked off
+/// (`0x4bda97`, `0x4bdaab`).
+#[test]
+fn the_pet_spells_packet_back_dates_its_cooldowns_and_reads_the_held_bit() {
+    let mut rig = growl_rig();
+    let with = |category_cd_ms: u32, bar: &PetSpells| PetSpells {
+        cooldowns: vec![PetSpellCooldown {
+            spell_id: GROWL,
+            category: 82,
+            spell_cd_ms: 0,
+            category_cd_ms,
+        }],
+        ..bar.clone()
+    };
+    let bar = rig.app.world().resource::<PetBar>().spells.clone();
+
+    // The frame's clock pair taken where the packet lands, as the UI step re-anchors it every
+    // frame; the rig runs no step, so the pair would otherwise date from the rig's build.
+    let now = ui(&mut rig).now();
+    *rig.app
+        .world_mut()
+        .resource_mut::<crate::ui_script::UiClock>() = crate::ui_script::UiClock {
+        anchor: Instant::now(),
+        ui_now: now,
+    };
+    rig.receive(vec![SessionEvent::PetSpells(Box::new(with(2000, &bar)))]);
+    rig.frame();
+    let now = ui(&mut rig).eval::<f64>("return GetTime()").unwrap();
+    let (start, duration, enable) = rig.cooldown(1);
+    assert!(
+        (duration - 5.0).abs() < 1e-9,
+        "Growl's own 5 s, not the 2 s remainder: {duration}"
+    );
+    assert!(
+        (start + duration - now - 2.0).abs() < 0.25,
+        "ending 2 s from now: start {start}, now {now}"
+    );
+    assert_eq!(enable, 1);
+
+    rig.receive(vec![SessionEvent::PetSpells(Box::new(with(
+        0x8000_0000,
+        &bar,
+    )))]);
+    rig.frame();
+    let (_, _, enable) = rig.cooldown(1);
+    assert_eq!(enable, 0, "bit 31 holds the cooldown, and is no time");
+}
+
+/// The category dword loses only bit 31 (`0x4bdaab`): any other bit is time, bit 27 included, so a
+/// remainder of `0x0800_0bb8` runs 134 220.728 s.
+#[test]
+fn the_pet_spells_cooldown_keeps_every_bit_but_the_held_flag() {
+    let mut rig = growl_rig();
+    let bar = rig.app.world().resource::<PetBar>().spells.clone();
+    rig.receive(vec![SessionEvent::PetSpells(Box::new(PetSpells {
+        cooldowns: vec![PetSpellCooldown {
+            spell_id: GROWL,
+            category: 82,
+            spell_cd_ms: 0,
+            category_cd_ms: 0x0800_0bb8,
+        }],
+        ..bar
+    }))]);
+    rig.frame();
+    let (_, duration, enable) = rig.cooldown(1);
+    assert!(
+        (duration - 134_220.728).abs() < 1e-3,
+        "the whole remainder: {duration}"
+    );
+    assert_eq!(enable, 1);
+}
+
+/// The world entry's `SetPetGuid(0, 0)` (`0x4bc6fd`) clears the guid and the expiry alone. The
+/// slots and the mode word stay, unread, as every reader tests the guid first
+/// (`GetPetActionInfo` `0x4bdc9d`); the pet book stays, counted by `HasPetSpells` with no guid
+/// (`0x4b4416`); and so does the pet's cooldown list. The next packet replaces all of it.
+#[test]
+fn the_world_entry_reset_clears_the_guid_and_keeps_the_book() {
+    let mut rig = growl_rig();
+    {
+        let mut bar = rig.app.world_mut().resource_mut::<PetBar>();
+        bar.spells.spells = bar.spells.bar.to_vec();
+        bar.spells.state = 0x0000_0102;
+        bar.expires = Some(Instant::now() + Duration::from_secs(60));
+    }
+    rig.receive(vec![go(PET, GROWL)]);
+    rig.frame();
+    let book = |rig: &mut Rig| -> Option<f64> {
+        rig.app
+            .world_mut()
+            .non_send_resource_mut::<benilla_ui::script::UiScript>()
+            .eval("return (HasPetSpells())")
+            .unwrap()
+    };
+    assert_eq!(book(&mut rig), Some(1.0), "the book before");
+    let before = rig.app.world().resource::<PetBar>().spells.clone();
+
+    let world = rig.app.world_mut();
+    world.resource_scope(|world, mut bar: bevy::prelude::Mut<PetBar>| {
+        world.resource_scope(
+            |world, mut latch: bevy::prelude::Mut<super::PetAttackLatch>| {
+                world.resource_scope(|world, mut feed: bevy::prelude::Mut<super::PetBarFeed>| {
+                    let mut script = world.non_send_resource_mut::<benilla_ui::script::UiScript>();
+                    assert!(super::drop_bar(
+                        &mut script,
+                        &mut bar,
+                        &mut latch,
+                        Some(&mut feed),
+                        None
+                    ));
+                })
+            },
+        )
+    });
+    assert_eq!(rig.frame(), Vec::<String>::new(), "the feed adds no signal");
+
+    {
+        let bar = rig.app.world().resource::<PetBar>();
+        assert_eq!(bar.spells.pet_guid, 0);
+        assert_eq!(bar.expires, None);
+        assert_eq!(
+            (bar.spells.bar, &bar.spells.spells, bar.spells.state),
+            (before.bar, &before.spells, before.state),
+            "the slots, the raw list and the mode word stay"
+        );
+        let growl_cd = bar
+            .cooldowns
+            .info(GROWL, 0, Some(&growl()), Instant::now())
+            .remaining_ms;
+        assert!(growl_cd > 0, "the pet's cooldown list stays");
+    }
+    assert_eq!(book(&mut rig), Some(1.0), "the book stays");
+    let (bar_shown, info): (Option<f64>, Option<String>) = rig
+        .app
+        .world_mut()
+        .non_send_resource_mut::<benilla_ui::script::UiScript>()
+        .eval("return PetHasActionBar(), (GetPetActionInfo(1))")
+        .unwrap();
+    assert_eq!(
+        (bar_shown, info),
+        (None, None),
+        "no bar reads without its guid"
+    );
+}

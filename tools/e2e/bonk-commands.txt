@@ -1,0 +1,28 @@
+# The .bonk command end-to-end suite: one chat line per line, typed into the client in order
+# (tools/e2e/bonk-probe.ps1 -CommandsFile this-file). Lines starting with # are notes.
+#
+# What a run proves: the command reached the server (its answer arrives as HOA_* events or chat),
+# and neither side logged an error doing it. Watch the probe's events/ and the server's Server.log
+# and DBErrors.log for each step.
+#
+# The handshake first: without it every window the server could send is silently skipped.
+.bonk hello enUS
+
+# --- state the UI shows on login ---------------------------------------------------------------
+.bonk stats
+.bonk resync
+.bonk quests
+.bonk codex
+.bonk vault
+.bonk menu 0
+.bonk menu 1
+
+# --- the transmogrifier (the regression this suite was written for) -----------------------------
+.bonk mog open
+
+# --- a full run -------------------------------------------------------------------------------
+.bonk start 1
+.bonk stats
+.bonk endless
+.bonk home
+.bonk stop
