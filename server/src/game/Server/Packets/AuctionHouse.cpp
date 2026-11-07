@@ -1,0 +1,185 @@
+#include "AuctionHouse.h"
+#include "AuctionHouseMgr.h"
+#include "SharedDefines.h"
+
+void WorldPackets::AuctionHouse::AuctionHello::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+}
+
+void WorldPackets::AuctionHouse::AuctionListBidderItem::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+    recv_data >> pagingElementStartIndex;
+
+    uint32 idsToRefresh;
+    recv_data >> idsToRefresh;
+    for (uint32 i = 0; i < idsToRefresh; i++)
+    {
+        uint32 auctionId;
+        recv_data >> auctionId;
+        bidAuctionIdsToRefresh.push_back(auctionId);
+    }
+}
+
+void WorldPackets::AuctionHouse::AuctionListOwnerItems::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+    recv_data >> listfrom;
+}
+
+void WorldPackets::AuctionHouse::AuctionPlaceBid::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+    recv_data >> auctionId;
+    recv_data >> price;
+}
+
+void WorldPackets::AuctionHouse::AuctionRemoveItem::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+    recv_data >> auctionId;
+}
+
+void WorldPackets::AuctionHouse::AuctionSellItem::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+    recv_data >> itemGuid;
+    recv_data >> bid;
+    recv_data >> buyout;
+    recv_data >> etime;
+}
+
+void WorldPackets::AuctionHouse::AuctionListItems::ReadFromWorldPacket(WorldPacket& recv_data)
+{
+    recv_data >> auctioneerGuid;
+    recv_data >> listfrom;
+    recv_data >> searchedname;
+    recv_data >> levelmin;
+    recv_data >> levelmax;
+    recv_data >> auctionSlotID;
+    recv_data >> auctionMainCategory;
+    recv_data >> auctionSubCategory;
+    recv_data >> quality;
+    recv_data >> usable;
+}
+
+size_t WorldPackets::AuctionHouse::AuctionRemovedNotification::EstimateFinalSize() const
+{
+    return sizeof(auctionId) +
+           sizeof(itemTemplate) +
+           sizeof(randomPropertyId);
+}
+
+void WorldPackets::AuctionHouse::AuctionRemovedNotification::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << auctionId;
+    buffer << itemTemplate;
+    buffer << randomPropertyId;
+}
+
+size_t WorldPackets::AuctionHouse::AuctionHelloResponse::EstimateFinalSize() const
+{
+    return sizeof(auctioneerGuid) +
+           sizeof(houseId);
+}
+
+void WorldPackets::AuctionHouse::AuctionHelloResponse::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << auctioneerGuid;
+    buffer << houseId;
+}
+
+size_t WorldPackets::AuctionHouse::AuctionBidderNotification::EstimateFinalSize() const
+{
+    return sizeof(houseId) +
+           sizeof(auctionId) +
+           sizeof(bidderGuid) +
+           sizeof(bidOrZero) +
+           sizeof(outBid) +
+           sizeof(itemTemplate) +
+           sizeof(randomPropertyId);
+}
+
+void WorldPackets::AuctionHouse::AuctionBidderNotification::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << houseId;
+    buffer << auctionId;
+    buffer << bidderGuid;
+    buffer << bidOrZero;
+    buffer << outBid;
+    buffer << itemTemplate;
+    buffer << randomPropertyId;
+}
+
+size_t WorldPackets::AuctionHouse::AuctionOwnerNotification::EstimateFinalSize() const
+{
+    return sizeof(auctionId) +
+           sizeof(bid) +
+           sizeof(outBid) +
+           sizeof(bidderGuid) +
+           sizeof(itemTemplate) +
+           sizeof(randomPropertyId);
+}
+
+void WorldPackets::AuctionHouse::AuctionOwnerNotification::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << auctionId;
+    buffer << bid;
+    buffer << outBid;
+    buffer << bidderGuid;
+    buffer << itemTemplate;
+    buffer << randomPropertyId;
+}
+
+size_t WorldPackets::AuctionHouse::AuctionCommandResult::EstimateFinalSize() const
+{
+    size_t size = sizeof(auctionId) +
+                  sizeof(action) +
+                  sizeof(errorCode);
+
+    switch (errorCode)
+    {
+        case AUCTION_OK:
+            if (action == AUCTION_BID_PLACED)
+                size += sizeof(auctionOutBid);
+            break;
+        case AUCTION_ERR_INVENTORY:
+            size += sizeof(inventoryError);
+            break;
+        case AUCTION_ERR_HIGHER_BID:
+            size += sizeof(newBidderGuid) +
+                    sizeof(newBid) +
+                    sizeof(auctionOutBid);
+            break;
+        default:
+            break;
+    }
+
+    return size;
+}
+
+void WorldPackets::AuctionHouse::AuctionCommandResult::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << auctionId;
+    buffer << action;
+    buffer << errorCode;
+
+    switch (errorCode)
+    {
+        case AUCTION_OK:
+            if (action == AUCTION_BID_PLACED)
+                buffer << auctionOutBid;
+            break;
+        case AUCTION_ERR_INVENTORY:
+            buffer << inventoryError;
+            break;
+        case AUCTION_ERR_HIGHER_BID:
+            buffer << newBidderGuid;
+            buffer << newBid;
+            buffer << auctionOutBid;
+            break;
+        default:
+            break;
+    }
+}

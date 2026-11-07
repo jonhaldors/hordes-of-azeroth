@@ -1,0 +1,33 @@
+[package]
+name = "benilla-formats"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WoW 1.12.1 asset-format adapters (MPQ/BLP/DBC/ADT/WDT) and the benilla-extract CLI"
+
+[lints]
+workspace = true
+
+[features]
+# `dev` gates one thing, the project folder (`install::project_folder`), whose fallback bakes this
+# source tree's path into the binary. Every dependent takes this crate without default features and
+# forwards `dev`, or unification puts the path back into a player build.
+default = ["dev"]
+dev = []
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+benilla-adt = { path = "../benilla-adt" }
+benilla-bytes = { path = "../benilla-bytes" }
+benilla-dbc = { path = "../benilla-dbc" }
+benilla-m2 = { path = "../benilla-m2" }
+benilla-mpq = { path = "../benilla-mpq" }
+benilla-blp = { path = "../benilla-blp" }
+# PNG only: the default `avif` feature would pull in rav1e, a whole AV1 encoder, to write PNGs.
+image = { version = "0.25", default-features = false, features = ["png"] }
+benilla-wdt = { path = "../benilla-wdt" }
+benilla-wmo = { path = "../benilla-wmo" }
+
+[dev-dependencies]
+glam = "0.31"

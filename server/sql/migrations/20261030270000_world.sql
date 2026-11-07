@@ -1,0 +1,46 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261030270000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261030270000');
+
+CREATE TABLE IF NOT EXISTS `bonk_boss_line` (
+  `entry` INT UNSIGNED NOT NULL,
+  `line` TINYINT UNSIGNED NOT NULL,
+  `sound_id` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`entry`, `line`, `sound_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+DELETE FROM `bonk_boss_line`;
+INSERT INTO `bonk_boss_line` (`entry`, `line`, `sound_id`) VALUES
+(639, 0, 5780), (639, 1, 5782), (639, 1, 5783), (639, 1, 5784), (639, 2, 5781),
+(644, 0, 5774),
+(646, 0, 5777), (646, 1, 5778), (646, 1, 5779),
+(2748, 0, 5855), (2748, 1, 5856), (2748, 1, 5857), (2748, 2, 5858),
+(4421, 0, 5813), (4421, 1, 5815), (4421, 1, 5816), (4421, 2, 5814), (4421, 3, 5818),
+(4854, 0, 5853), (4854, 2, 5854),
+(5710, 0, 5862), (5710, 1, 5864), (5710, 1, 5865),
+(6235, 0, 5811),
+(7228, 0, 5851),
+(7267, 0, 5876), (7267, 1, 5878), (7267, 1, 5879), (7267, 2, 5877),
+(7271, 0, 5872), (7271, 2, 5873),
+(7291, 0, 5852),
+(7800, 0, 5807), (7800, 1, 5808), (7800, 1, 5809), (7800, 2, 5810),
+(8580, 0, 5859),
+(11380, 0, 8425),
+(11382, 0, 8413),
+(14507, 1, 8421),
+(14509, 3, 8424),
+(14510, 3, 8423),
+(14834, 0, 8414),
+(15339, 0, 8598), (15339, 2, 8602), (15339, 3, 8594),
+(15341, 2, 8639), (15341, 3, 8640);
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

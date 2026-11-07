@@ -1,0 +1,61 @@
+# Imported by tools/content/dump_tables.py from bonk_wave_locale. Edit this file, then run tools/content/compile.py.
+table: bonk_wave_locale
+columns:
+- start_sec
+- locale
+- name
+rows:
+- - 0
+  - zhCN
+  - 开场
+- - 60
+  - zhCN
+  - 铺垫
+- - 120
+  - zhCN
+  - 铺垫
+- - 150
+  - zhCN
+  - 间歇
+- - 180
+  - zhCN
+  - 小首领
+- - 195
+  - zhCN
+  - 铺垫
+- - 210
+  - zhCN
+  - 铺垫
+- - 240
+  - zhCN
+  - 蛮兵波次
+- - 285
+  - zhCN
+  - 喘息
+- - 315
+  - zhCN
+  - 铺垫
+- - 360
+  - zhCN
+  - 铺垫
+- - 420
+  - zhCN
+  - 蜂群
+- - 465
+  - zhCN
+  - 喘息
+- - 480
+  - zhCN
+  - 小首领
+- - 495
+  - zhCN
+  - 高潮
+- - 525
+  - zhCN
+  - 高潮
+- - 580
+  - zhCN
+  - 间歇
+- - 600
+  - zhCN
+  - 首领

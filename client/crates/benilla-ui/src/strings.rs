@@ -1,0 +1,633 @@
+//! Fills the `%` holes of a `GlobalStrings.lua` or `GlueStrings.lua` template read at runtime, as
+//! the client's `SStrPrintf` does. Storm's ordered formatter `vsnoprintf` (`0x6697d0`), which
+//! `ClientMain` switches on (`0x402141`), binds each hole to an argument before it prints: a plain
+//! hole takes the running index, `%N$` sets that index to N - 1 (`0x669af7`-`0x669b0b`, N = 0 gives
+//! 0), and after any hole that takes an argument the running index is its index plus one
+//! (`0x669892`-`0x669895`). So `%2$s` then `%s` takes arguments 2 and 3 (`DUEL_WINNER_RETREAT`
+//! reorders its two names). An argument no hole names is skipped. `%s`, `%d`, `%c`, `%f` and `%g`
+//! print their argument, `%%` is `%`, and the precision is the template's. [`fill`] copies a hole
+//! with no argument, or one this does not know, through literally so a mis-modelled template
+//! shows; [`fill_exact`] refuses the line instead. Reals are the MSVC CRT's behind `SStrPrintf`
+//! ([`crt_float`]).
+
+use std::fmt::Write as _;
+
+/// The client's string-to-bool `0x6f1b30` for the words it knows, `None` for any other string. A
+/// first byte of `1`-`9`, `T`, `t`, `Y` or `y` is true and `0`, `F`, `f`, `N` or `n` false (the
+/// jump table `0x6f1bc0` over `0x6f1bb4`); every other string, an empty one included, is compared
+/// whole and case-insensitively (`0x64a4c0`): `off` (`0x871460`) and `disabled` (`0x853758`) are
+/// false, `on` (`0x87145c`) and `enabled` (`0x853764`) true.
+pub fn keyword_bool(bytes: &[u8]) -> Option<bool> {
+    match bytes.first() {
+        Some(b'0' | b'F' | b'N' | b'f' | b'n') => Some(false),
+        Some(b'1'..=b'9' | b'T' | b'Y' | b't' | b'y') => Some(true),
+        _ if bytes.eq_ignore_ascii_case(b"off") || bytes.eq_ignore_ascii_case(b"disabled") => {
+            Some(false)
+        }
+        _ if bytes.eq_ignore_ascii_case(b"on") || bytes.eq_ignore_ascii_case(b"enabled") => {
+            Some(true)
+        }
+        _ => None,
+    }
+}
+
+/// `0x6f1b30` whole: anything [`keyword_bool`] does not know is false. The `.toc` reader's
+/// `LoadOnDemand:` and `Secure:` and the XML loaders' bool attributes (`hidden`, `toplevel`,
+/// `movable`, ...) all read through it.
+pub fn string_to_bool(s: &str) -> bool {
+    keyword_bool(s.as_bytes()).unwrap_or(false)
+}
+
+/// The number-separator pass `0x771c50` that `SetText` (`0x771d80`) runs on its text while
+/// `SetEuropeanNumbers` holds `[0xcf4d24]` set (`0x771d9f`-`0x771daa`). A number is a run of ASCII
+/// digits, `.` and `,` that starts at a digit. Its `.` and `,` trade places (`0x771d16`,
+/// `0x771d23`) when it has exactly one `.` (`0x771cc3`), no `,` after that `.` (`0x771ccc`), a byte
+/// after the `.` that is at least `0` and a byte after that which is at most `9` (`0x771cd1`,
+/// `0x771cd7`), both compared as signed bytes, so `1.5g` stays and `1.55g` becomes `1,55g`.
+/// Every other number, and every other character, is copied unchanged. The result stops at the
+/// 4095th byte of the static buffer `0xcf1cc8` (`0x771c70`, `0x771cf5`).
+pub(crate) fn swap_number_separators(text: &str) -> String {
+    /// `0xcf2cc7 - 0xcf1cc8`: the bytes the pass writes before it stops.
+    const CAP: usize = 0xfff;
+    let b = text.as_bytes();
+    // `cmp al,0x30; jl` / `cmp al,0x39; jg` are signed, so a byte of 0x80 or more is below `0`.
+    let digit = |c: u8| c.is_ascii_digit();
+    let number_byte = |c: u8| digit(c) || c == b'.' || c == b',';
+    let signed_at = |k: usize| b.get(k).copied().unwrap_or(0) as i8;
+    let mut out = Vec::with_capacity(b.len().min(CAP));
+    let mut i = 0;
+    while i < b.len() && out.len() < CAP {
+        if !digit(b[i]) {
+            out.push(b[i]);
+            i += 1;
+            continue;
+        }
+        let end = (i..b.len())
+            .find(|&k| !number_byte(b[k]))
+            .unwrap_or(b.len());
+        let run = &b[i..end];
+        let dots = run.iter().filter(|&&c| c == b'.').count();
+        let swap = dots == 1 && {
+            let dot = i + run.iter().position(|&c| c == b'.').unwrap_or(0);
+            let comma_after = run
+                .iter()
+                .rposition(|&c| c == b',')
+                .is_some_and(|k| i + k >= dot);
+            !comma_after && signed_at(dot + 1) >= b'0' as i8 && signed_at(dot + 2) <= b'9' as i8
+        };
+        for &c in run {
+            if out.len() >= CAP {
+                break;
+            }
+            out.push(match c {
+                b'.' if swap => b',',
+                b',' if swap => b'.',
+                c => c,
+            });
+        }
+        i = end;
+    }
+    // The input is valid UTF-8 and only ASCII bytes change, so the cap alone can cut a sequence:
+    // drop the cut character, which the reference's one-byte characters never have, rather than
+    // show U+FFFD.
+    match String::from_utf8(out) {
+        Ok(text) => text,
+        Err(e) => {
+            let valid = e.utf8_error().valid_up_to();
+            let mut bytes = e.into_bytes();
+            bytes.truncate(valid);
+            String::from_utf8(bytes).unwrap_or_default()
+        }
+    }
+}
+
+/// One argument to [`fill`]; any variant renders in any hole, so the template's order decides.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Arg<'a> {
+    /// Text; also what `%c` takes, whose one 1.12 use is the `+`/`-` sign of `ITEM_MOD_*` and
+    /// `ITEM_RESIST_*`.
+    S(&'a str),
+    D(i64),
+    /// A real, for the rate lines (`DPS_TEMPLATE`, the `AMMO_*` damage templates).
+    F(f64),
+}
+
+impl<'a> From<&'a str> for Arg<'a> {
+    fn from(s: &'a str) -> Self {
+        Arg::S(s)
+    }
+}
+
+impl<'a> From<&'a String> for Arg<'a> {
+    fn from(s: &'a String) -> Self {
+        Arg::S(s.as_str())
+    }
+}
+
+macro_rules! arg_from_int {
+    ($($t:ty),*) => {$(
+        impl From<$t> for Arg<'_> {
+            fn from(n: $t) -> Self {
+                Arg::D(i64::from(n))
+            }
+        }
+    )*};
+}
+arg_from_int!(u8, u16, u32, i8, i16, i32);
+
+impl From<f32> for Arg<'_> {
+    fn from(x: f32) -> Self {
+        Arg::F(f64::from(x))
+    }
+}
+
+impl From<f64> for Arg<'_> {
+    fn from(x: f64) -> Self {
+        Arg::F(x)
+    }
+}
+
+impl Arg<'_> {
+    /// Whether this is the kind a `conv` hole prints as itself, for [`fill_exact`].
+    fn fits(&self, conv: char) -> bool {
+        matches!(
+            (conv, self),
+            ('s' | 'c', Arg::S(_)) | ('d', Arg::D(_)) | ('f' | 'g', Arg::F(_))
+        )
+    }
+
+    /// `%s` and `%c`.
+    fn as_s(&self, out: &mut String) {
+        match self {
+            Arg::S(s) => out.push_str(s),
+            Arg::D(n) => {
+                let _ = write!(out, "{n}");
+            }
+            Arg::F(x) => {
+                let _ = write!(out, "{x}");
+            }
+        }
+    }
+
+    fn as_d(&self, out: &mut String) {
+        match self {
+            Arg::D(n) => {
+                let _ = write!(out, "{n}");
+            }
+            // A string in a `%d` hole is a caller bug; showing it beats showing nothing.
+            Arg::S(s) => out.push_str(s),
+            // C truncates toward zero here; so does `as`.
+            Arg::F(x) => {
+                let _ = write!(out, "{}", *x as i64);
+            }
+        }
+    }
+
+    /// `%f`/`%.Nf` by the CRT, the precision defaulting to C's 6.
+    fn as_f(&self, prec: Option<usize>, out: &mut String) {
+        match self {
+            Arg::F(x) => out.push_str(&crt_float(*x, b'f', prec)),
+            Arg::D(n) => out.push_str(&crt_float(*n as f64, b'f', prec)),
+            Arg::S(s) => out.push_str(s),
+        }
+    }
+
+    /// `%g`/`%.Ng` by the CRT, the precision counting significant digits: 1.12's five `%.3g`
+    /// cast and cooldown templates need it, a 100-second cooldown being "1.67 min".
+    fn as_g(&self, prec: Option<usize>, out: &mut String) {
+        let Arg::F(x) = self else {
+            return self.as_s(out);
+        };
+        out.push_str(&crt_float(*x, b'g', prec));
+    }
+}
+
+/// A real as `SStrPrintf` (`0x64a7f0`) writes it: `ISStrVPrintf` (`0x64a820`) hands the
+/// template to the CRT's `_vsnprintf` (`0x73f6ad`), or with Storm's positional option set to
+/// `vsnoprintf` (`0x6697d0`), which passes each hole to the CRT's `_snprintf` (`0x6699fb`);
+/// either way MSVC's `__output` formats it, half up on the digit text, with three exponent
+/// digits and `1.#INF` for an infinity.
+fn crt_float(x: f64, conv: u8, prec: Option<usize>) -> String {
+    mlua::benilla_lua::crt_float(x, conv, prec)
+}
+
+/// One parsed `%…` specifier.
+struct Spec {
+    /// The 1-based `N` of `%N$`.
+    positional: Option<usize>,
+    /// `.N`.
+    precision: Option<usize>,
+    conv: char,
+    /// Index just past the conversion letter.
+    end: usize,
+}
+
+/// Scan `[N$][flags][width][.prec]conv` just after a `%`; `None` for a conversion this does not
+/// know.
+fn parse_spec(chars: &[char], after_percent: usize) -> Option<Spec> {
+    let mut i = after_percent;
+    let digits = |i: &mut usize| {
+        let start = *i;
+        while chars.get(*i).is_some_and(char::is_ascii_digit) {
+            *i += 1;
+        }
+        chars[start..*i].iter().collect::<String>()
+    };
+    // Digits are a position only when a `$` follows; otherwise they are a width.
+    let mut positional = None;
+    let mut probe = i;
+    let n = digits(&mut probe);
+    if !n.is_empty() && chars.get(probe) == Some(&'$') {
+        positional = n.parse::<usize>().ok();
+        i = probe + 1;
+    }
+    while matches!(chars.get(i), Some('-' | '+' | ' ' | '#' | '0')) {
+        i += 1;
+    }
+    let _width = digits(&mut i);
+    let precision = (chars.get(i) == Some(&'.')).then(|| {
+        i += 1;
+        digits(&mut i).parse::<usize>().unwrap_or(0)
+    });
+    let conv = *chars.get(i)?;
+    matches!(conv, 's' | 'd' | 'c' | 'f' | 'g').then_some(Spec {
+        positional,
+        precision,
+        conv,
+        end: i + 1,
+    })
+}
+
+/// A string from the VM's globals, where the install's `GlobalStrings.lua` is loaded at boot;
+/// `None`, and so no line, when absent or empty. `FrameScript_GetText` returns an empty string
+/// (`0x882748`) for a missing key, and callers test both (`GetPVPRankInfo`, `0x51aa1c`/`0x51aa20`).
+pub fn global(lua: &mlua::Lua, key: &str) -> Option<String> {
+    // Bound before the filter so `globals().get::<String>` stays one unbroken substring, which is
+    // what `benilla-app/tests/reference_strings.rs` matches as a key lookup.
+    let value = lua.globals().get::<String>(key).ok();
+    value.filter(|s| !s.is_empty())
+}
+
+/// `FACTION_STANDING_LABEL<rank + 1>` gendered by `0x612bf0`: a female player tries the
+/// `_FEMALE` twin and, when that is absent or empty, the bare key (`0x612c36`). A label absent
+/// altogether is the empty string, as `0x703bf0` never returns NULL. Read by the standing chat
+/// line, the quest log's faction objective and the item and spell tooltips' reputation lines.
+pub fn standing_label(get: &dyn Fn(&str) -> Option<String>, rank: u32, female: bool) -> String {
+    let key = format!("FACTION_STANDING_LABEL{}", rank.wrapping_add(1));
+    let defined = |k: &str| get(k).filter(|v| !v.is_empty());
+    female
+        .then(|| defined(&format!("{key}_FEMALE")))
+        .flatten()
+        .or_else(|| defined(&key))
+        .unwrap_or_default()
+}
+
+/// `GetText(token, nil, ordinal)`'s plural pick: `0x52fa50` formats the key and `0x703bf0`
+/// pcalls the Lua `GetText`, where `GetPluralIndex` (`LocaleProperties.lua:56`) is singular for
+/// `not ordinal or ordinal == 1`. So one or no ordinal takes the bare token, anything else the
+/// `_P1` twin, falling back to the bare token. Zero is plural: the test at `0x703c89` is signed,
+/// only a negative becomes nil, and the number `0` is truthy in Lua.
+pub fn plural(
+    token: &str,
+    ordinal: Option<u32>,
+    get: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
+    if ordinal.is_some_and(|n| n != 1) {
+        if let Some(twin) = get(&format!("{token}_P1")).filter(|s| !s.is_empty()) {
+            return Some(twin);
+        }
+    }
+    get(token).filter(|s| !s.is_empty())
+}
+
+/// Fill a reference template, by the rules in the module doc.
+pub fn fill(template: &str, args: &[Arg<'_>]) -> String {
+    run(template, args, false).unwrap_or_default()
+}
+
+/// [`fill`] for a caller whose arguments are the template's by construction: `None`, for no line,
+/// when a hole has no argument, meets one of another kind (`%s` and `%c` take text, `%d` a
+/// number, `%f` and `%g` a real) or is one this does not know. The reference reads each argument
+/// by its hole's kind up to the highest index a hole names (`0x6698b5`-`0x669919`), with no check
+/// against the arguments it was given, so such a template has no sentence to match: a defect to
+/// show. An argument no hole names is not one.
+pub fn fill_exact(template: &str, args: &[Arg<'_>]) -> Option<String> {
+    run(template, args, true)
+}
+
+/// The walk both fills share; `exact` picks the refusal over the literal copy.
+fn run(template: &str, args: &[Arg<'_>], exact: bool) -> Option<String> {
+    let mut out = String::with_capacity(template.len() + 16);
+    let chars: Vec<char> = template.chars().collect();
+    let mut i = 0;
+    // The running index, `[ebp-0x8]` of `0x6697d0`.
+    let mut next = 0usize;
+    while i < chars.len() {
+        if chars[i] != '%' {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        if chars.get(i + 1) == Some(&'%') {
+            out.push('%');
+            i += 2;
+            continue;
+        }
+        let Some(spec) = parse_spec(&chars, i + 1) else {
+            if exact {
+                return None;
+            }
+            // Unknown: copy the `%` and rescan from the next char, so `50% off` survives.
+            out.push('%');
+            i += 1;
+            continue;
+        };
+        let idx = spec.positional.map_or(next, |n| n.saturating_sub(1));
+        next = idx + 1;
+        match args.get(idx) {
+            Some(a) if exact && !a.fits(spec.conv) => return None,
+            Some(a) => match spec.conv {
+                's' | 'c' => a.as_s(&mut out),
+                'd' => a.as_d(&mut out),
+                'f' => a.as_f(spec.precision, &mut out),
+                _ => a.as_g(spec.precision, &mut out),
+            },
+            None if exact => return None,
+            // Starved: copy the specifier through so a mis-modelled template shows.
+            None => out.extend(&chars[i..spec.end]),
+        }
+        i = spec.end;
+    }
+    Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordered_fills_stop_at_the_arguments_they_have() {
+        assert_eq!(
+            fill("%s: %d/%d", &[Arg::S("MC"), Arg::D(2), Arg::D(5)]),
+            "MC: 2/5"
+        );
+        assert_eq!(fill("%s: %d/%d", &[Arg::S("MC"), Arg::D(2)]), "MC: 2/%d");
+        assert_eq!(fill("100%% sure", &[]), "100% sure");
+        assert_eq!(fill("no fills", &[Arg::D(7)]), "no fills");
+    }
+
+    #[test]
+    fn g_is_significant_digits_and_drops_trailing_zeros() {
+        let g = |t: &str, v: f64| fill(t, &[Arg::F(v)]);
+        assert_eq!(g("%.3g min cooldown", 100.0 / 60.0), "1.67 min cooldown");
+        assert_eq!(g("%.3g sec cast", 1.5), "1.5 sec cast");
+        assert_eq!(g("%.3g sec cast", 2.0), "2 sec cast");
+        // The exponent is read after rounding.
+        assert_eq!(g("%.3g", 9.999), "10");
+        // A bare `%g` is C's default precision of six.
+        assert_eq!(g("%g", 1.0 / 3.0), "0.333333");
+        // Outside `P > X >= -4` the style is `%e`, with MSVC's three exponent digits.
+        assert_eq!(g("%.3g", 0.000_012_345), "1.23e-005");
+        assert_eq!(g("%.3g", 123_456.0), "1.23e+005");
+        assert_eq!(g("%g", f64::INFINITY), "1.#INF");
+    }
+
+    #[test]
+    fn f_takes_the_templates_precision() {
+        assert_eq!(
+            fill("(%.1f damage per second)", &[Arg::F(41.25)]),
+            "(41.3 damage per second)"
+        );
+        assert_eq!(fill("%.2f", &[Arg::F(41.25)]), "41.25");
+    }
+
+    /// The CRT rounds a tie half up on its decimal digits (`_fptostr`'s `>= '5'`), where Rust
+    /// rounds it to even; a value just short of the tie still rounds down.
+    #[test]
+    fn reals_round_ties_up_as_the_crt_does() {
+        let f = |t: &str, v: f64| fill(t, &[Arg::F(v)]);
+        assert_eq!(f("%.1f", 68.25), "68.3");
+        assert_eq!(f("%.1f", 0.25), "0.3");
+        assert_eq!(f("%.1f", 0.05), "0.1", "a carry past the point");
+        assert_eq!(f("%.1f", 99.96), "100.0", "a carry out of the first digit");
+        assert_eq!(f("%.1f", 0.004), "0.0");
+        assert_eq!(
+            f("%.1f", f64::from(0.35f32)),
+            "0.3",
+            "0.3499999940… is not a tie"
+        );
+        assert_eq!(f("%.1f", -2.25), "-2.3");
+        assert_eq!(f("%.2f", 0.125), "0.13");
+        // `%.3g` rounds at its third significant digit the same way: 67.5 s is 1.125 minutes.
+        assert_eq!(f("%.3g min", 1.125), "1.13 min");
+        assert_eq!(f("%.3g", 2.675), "2.67", "2.67499999… is not a tie");
+    }
+
+    #[test]
+    fn plural_takes_the_twin_for_zero_and_the_bare_token_for_none() {
+        let table = |key: &str| -> Option<String> {
+            match key {
+                "T" => Some("<one>".into()),
+                "T_P1" => Some("<many>".into()),
+                "ONLY" => Some("<only>".into()),
+                _ => None,
+            }
+        };
+        assert_eq!(plural("T", Some(1), &table).as_deref(), Some("<one>"));
+        assert_eq!(plural("T", Some(2), &table).as_deref(), Some("<many>"));
+        assert_eq!(
+            plural("T", Some(0), &table).as_deref(),
+            Some("<many>"),
+            "zero is plural — the signed test, not `> 1`"
+        );
+        assert_eq!(
+            plural("T", None, &table).as_deref(),
+            Some("<one>"),
+            "no ordinal at all takes GetText's short arm"
+        );
+        assert_eq!(plural("ONLY", Some(7), &table).as_deref(), Some("<only>"));
+        assert_eq!(plural("ABSENT", Some(2), &table), None);
+    }
+
+    /// The duel pair, `GlobalStrings.lua:958-959`.
+    #[test]
+    fn positional_specifiers_reorder_the_arguments() {
+        let (a, b) = (Arg::S("Alice"), Arg::S("Bob"));
+        assert_eq!(
+            fill("%1$s has defeated %2$s in a duel", &[a, b]),
+            "Alice has defeated Bob in a duel"
+        );
+        assert_eq!(
+            fill("%2$s has fled from %1$s in a duel", &[a, b]),
+            "Bob has fled from Alice in a duel"
+        );
+        assert_eq!(fill("%1$s vs %1$s", &[a]), "Alice vs Alice");
+    }
+
+    /// `vsnoprintf` binds each hole before it prints (`0x6697d0`): after a hole that takes an
+    /// argument the running index is that hole's index plus one (`0x669892`), so a plain hole
+    /// after `%N$` takes argument N + 1, and `%0$` is the first argument (`0x669afa`-`0x669b0b`).
+    #[test]
+    fn a_plain_hole_after_a_positional_takes_the_next_argument() {
+        let (a, b, c) = (Arg::S("A"), Arg::S("B"), Arg::S("C"));
+        assert_eq!(fill("%2$s then %s", &[a, b, c]), "B then C");
+        assert_eq!(fill("%1$s then %s", &[a, b]), "A then B");
+        assert_eq!(fill("%s, %s, %1$s, %s", &[a, b, c]), "A, B, A, B");
+        assert_eq!(fill("%0$s", &[a]), "A");
+        // A hole with no argument still moves the index: the plain hole after it is starved too.
+        assert_eq!(fill("%3$s %s", &[a, b]), "%3$s %s");
+    }
+
+    /// [`fill_exact`] binds as [`fill`] does and skips an argument no hole names
+    /// (`0x6698b5`-`0x669919`), but refuses a hole it cannot fill: none left, of another kind, or
+    /// one it does not know.
+    #[test]
+    fn an_exact_fill_skips_unnamed_arguments_and_refuses_a_hole_it_cannot_fill() {
+        let (name, number) = (Arg::S("Ragnaros"), Arg::D(12));
+        let exact = |template| fill_exact(template, &[name, number]);
+        assert_eq!(
+            exact("You hit %s for %d.").as_deref(),
+            Some("You hit Ragnaros for 12.")
+        );
+        assert_eq!(
+            exact("For %2$d.").as_deref(),
+            Some("For 12."),
+            "the name is unused"
+        );
+        assert_eq!(
+            exact("%2$d, %1$s: 100%%").as_deref(),
+            Some("12, Ragnaros: 100%")
+        );
+        assert_eq!(
+            exact("%1$s hits you for %d.").as_deref(),
+            Some("Ragnaros hits you for 12.")
+        );
+        assert_eq!(exact("%3$s"), None, "no third argument");
+        assert_eq!(exact("%1$d"), None, "text in a number's hole");
+        assert_eq!(exact("%2$s"), None, "a number in a text hole");
+        assert_eq!(exact("50% off"), None, "a hole it does not know");
+        assert_eq!(exact("%s %d %d"), None, "starved after two");
+    }
+
+    #[test]
+    fn each_hole_takes_its_own_argument() {
+        assert_eq!(
+            fill(
+                "%s has promoted %s to %s.",
+                &[Arg::S("A"), Arg::S("B"), Arg::S("Knight")]
+            ),
+            "A has promoted B to Knight."
+        );
+    }
+
+    #[test]
+    fn starved_and_unknown_specifiers_survive_visibly() {
+        assert_eq!(fill("%1$s and %2$s", &[Arg::S("only")]), "only and %2$s");
+        assert_eq!(fill("50% off", &[]), "50% off");
+        assert_eq!(fill("%q", &[Arg::S("x")]), "%q");
+    }
+
+    #[test]
+    fn arguments_render_for_whichever_hole_they_meet() {
+        assert_eq!(fill("%s/%d", &[Arg::D(3), Arg::D(5)]), "3/5");
+        assert_eq!(fill("%d", &[Arg::S("many")]), "many");
+    }
+
+    /// `ITEM_MOD_AGILITY`, `ITEM_RESIST_SINGLE` and `DPS_TEMPLATE`, `GlobalStrings.lua:2416`,
+    /// `:2441` and `:942`.
+    #[test]
+    fn the_sign_and_rate_holes_the_item_builder_uses() {
+        assert_eq!(
+            fill("%c%d Agility", &[Arg::S("+"), Arg::D(9)]),
+            "+9 Agility"
+        );
+        assert_eq!(
+            fill(
+                "%c%d %s Resistance",
+                &[Arg::S("-"), Arg::D(10), Arg::S("Frost")]
+            ),
+            "-10 Frost Resistance"
+        );
+        assert_eq!(
+            fill("(%.1f damage per second)", &[Arg::F(24.428_571)]),
+            "(24.4 damage per second)"
+        );
+        assert_eq!(fill("%.3f", &[Arg::F(1.5)]), "1.500");
+        assert_eq!(fill("%f", &[Arg::F(1.5)]), "1.500000", "C's default is 6");
+        assert_eq!(fill("Adds %g damage", &[Arg::F(7.0)]), "Adds 7 damage");
+        assert_eq!(fill("Adds %g damage", &[Arg::F(7.5)]), "Adds 7.5 damage");
+    }
+
+    #[test]
+    fn widths_and_flags_do_not_derail_the_scan() {
+        assert_eq!(fill("%5d|%-3s", &[Arg::D(7), Arg::S("x")]), "7|x");
+        assert_eq!(fill("%.1f and %.1f", &[Arg::F(1.0)]), "1.0 and %.1f");
+        // `%1 ` never reaches a conversion letter, so the `%` stays literal.
+        assert_eq!(fill("100%1 of it", &[Arg::D(3)]), "100%1 of it");
+    }
+
+    /// `0x771c50`, byte for byte: a number with one `.` and no `,` after it trades them when the
+    /// byte after the `.` is at least `0` and the next is at most `9`, so the quirks below are the
+    /// reference's, not slips.
+    #[test]
+    fn number_separators_swap_as_the_bytes_decide() {
+        let swapped = swap_number_separators;
+        for (text, want) in [
+            ("1.5", "1,5"),
+            ("1,234.56", "1.234,56"),
+            ("12.50 gold", "12,50 gold"),
+            ("1.5 to 2.5", "1,5 to 2,5"),
+            ("10.5%", "10,5%"),
+            // No `.`: unchanged. Two `.`: unchanged. A `,` after the `.`: unchanged.
+            ("1,234,567", "1,234,567"),
+            ("1.2.3", "1.2.3"),
+            ("1.234,5", "1.234,5"),
+            // A number starts at a digit, so a leading `.` is text.
+            (".5", ".5"),
+            ("a.b", "a.b"),
+            // The byte after the `.` must be at least `0`: a space, a newline or the end is below.
+            ("Level 5. Next", "Level 5. Next"),
+            ("5.", "5."),
+            ("5.\n", "5.\n"),
+            // The second byte after the `.` must be at most `9`: a letter there leaves the number
+            // whole (`1.5g`), while a two-digit fraction before a letter swaps (`1.55g`).
+            ("1.5g", "1.5g"),
+            ("0.5s", "0.5s"),
+            ("1.55g", "1,55g"),
+            ("1.5 g", "1,5 g"),
+            // A letter straight after the `.` passes the first test, so `3.x ` swaps.
+            ("3.x ", "3,x "),
+            // Bytes of 0x80 and over are below `0` as signed bytes: after the `.` they refuse the
+            // swap, and in the second place they pass it.
+            ("1.\u{e9}", "1.\u{e9}"),
+            ("1.5\u{e9}", "1,5\u{e9}"),
+            ("", ""),
+        ] {
+            assert_eq!(swapped(text), want, "{text:?}");
+        }
+    }
+
+    /// The pass writes into a 4095-byte static buffer and stops there.
+    #[test]
+    fn number_separators_stop_at_the_static_buffer() {
+        let long = "ab".repeat(3000);
+        assert_eq!(swap_number_separators(&long).len(), 4095);
+        let numbers = "1.5 ".repeat(2000);
+        let out = swap_number_separators(&numbers);
+        assert_eq!(out.len(), 4095);
+        assert!(out.starts_with("1,5 1,5 "));
+    }
+
+    /// The cap cuts at a character boundary: a two-byte character straddling byte 4095 is dropped
+    /// whole, never left as a replacement character.
+    #[test]
+    fn number_separators_cut_at_a_character_boundary() {
+        let out = swap_number_separators(&"\u{e9}".repeat(3000));
+        assert_eq!(out.len(), 4094);
+        assert_eq!(out.chars().count(), 2047);
+        assert!(!out.contains('\u{fffd}'));
+        let out = swap_number_separators(&format!("1.5 {}", "\u{e9}".repeat(3000)));
+        assert!(out.starts_with("1,5 "));
+        assert!(out.len() <= 4095 && !out.contains('\u{fffd}'));
+    }
+}

@@ -1,0 +1,66 @@
+<Ui>
+    <!--
+        benilla's fixes to the stock FrameXML Lua, loaded after every stock file.
+    -->
+    <Script><![CDATA[
+        -- Deviation: the stock FCF_ChatTabFadeFinished (FloatingChatFrame.lua:989-992) nils
+        -- oldAlpha even under a live hover, so leaving and re-entering within
+        -- CHAT_FRAME_FADE_TIME (a flick to the scroll buttons, outside the hover box, does it)
+        -- stops the plate fading in (l.873) for the rest of the session; this keeps oldAlpha while
+        -- hover is set.
+        if FCF_ChatTabFadeFinished then
+            function FCF_ChatTabFadeFinished(chatTab, chatFrame)
+                chatTab:Hide()
+                if not chatFrame.hover then
+                    chatFrame.oldAlpha = nil
+                end
+            end
+        end
+
+        -- Deviation: re-runs UIParent_ManageFramePositions after DurabilityFrame's own OnEvent. The
+        -- pass seats the frame 20 further in while a side glyph shows (UIParent.lua:1759-1768),
+        -- but the stock frame runs it only from OnShow/OnHide, so a glyph appearing while the frame
+        -- is shown leaves the shield's overhang off the screen edge. The stock handler runs first,
+        -- unchanged, on the this/event/arg1 already set for the dispatch.
+        if DurabilityFrame then
+            local refOnEvent = DurabilityFrame:GetScript("OnEvent")
+            DurabilityFrame:SetScript("OnEvent", function()
+                if refOnEvent then refOnEvent() end
+                UIParent_ManageFramePositions()
+            end)
+        end
+
+        -- Deviation: friendly plates the player turned on come back at every world entry. The
+        -- stock UpdateNameplates (UIOptionsFrame.lua:768-780) shows them and hides them again at
+        -- once (l.775-776), and FRIENDNAMEPLATES_ON is never saved, since l.182 registers
+        -- NAMEPLATES_ON a second time.
+        function UpdateNameplates()
+            if ( NAMEPLATES_ON ) then
+                ShowNameplates()
+            else
+                HideNameplates()
+            end
+            if ( FRIENDNAMEPLATES_ON ) then
+                ShowFriendNameplates()
+            else
+                HideFriendNameplates()
+            end
+        end
+        RegisterForSave("FRIENDNAMEPLATES_ON")
+
+        -- Deviation: a button whose key moved away keeps the old key's label while it holds an
+        -- action with no range (a stance, a self buff). The stock ActionButton_UpdateHotkeys
+        -- (ActionButton.lua:129-140) writes no text in that one unbound case; this clears it. The
+        -- stock function runs first, unchanged.
+        local refUpdateHotkeys = ActionButton_UpdateHotkeys
+        function ActionButton_UpdateHotkeys(actionButtonType)
+            refUpdateHotkeys(actionButtonType)
+            local action = (actionButtonType or "ACTIONBUTTON")..this:GetID()
+            local button = ActionButton_GetPagedID(this)
+            if ( GetBindingText(GetBindingKey(action), "KEY_", 1) == ""
+                    and HasAction(button) and not ActionHasRange(button) ) then
+                getglobal(this:GetName().."HotKey"):SetText("")
+            end
+        end
+    ]]></Script>
+</Ui>

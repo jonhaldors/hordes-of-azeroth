@@ -1,0 +1,9 @@
+[package]
+name = "benilla-wdt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WDT map tile-table reader and tile/world coordinates for WoW 1.12.1 (build 5875)"
+
+[lints]
+workspace = true

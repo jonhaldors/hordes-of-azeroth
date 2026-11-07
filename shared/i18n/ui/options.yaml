@@ -1,0 +1,566 @@
+# Client options/UI strings. Entries with `ref` reuse shared/i18n/addon/addon.yaml.
+# Edit this file, then run tools/i18n/gen_client_pack.py.
+- id: hoa.ui.common.cancel
+  ref: hoa.addon.cancel
+- id: hoa.ui.common.okay
+  ref: hoa.addon.okay
+- id: hoa.ui.game_menu.edit_mode
+  enUS: Edit Mode
+  zhCN: 编辑模式
+  zhTW: "編輯模式"
+- id: hoa.ui.game_menu.options
+  ref: hoa.addon.options
+- id: hoa.ui.game_menu.support
+  enUS: Support
+  zhCN: 支持
+  zhTW: "支援"
+- id: hoa.ui.keybindings.key_bound
+  enUS: Key Bound Successfully
+  zhCN: 按键绑定成功
+  zhTW: "按鍵繫結成功"
+- id: hoa.ui.keybindings.mousewheel_error
+  enUS: Can't bind mousewheel to actions with up and down states
+  zhCN: 不能把鼠标滚轮绑定到带上下状态的动作。
+  zhTW: "不能把滑鼠滾輪繫結到帶上下狀態的動作。"
+- id: hoa.ui.keybindings.not_bound
+  enUS: Not Bound
+  zhCN: 未绑定
+  zhTW: "未繫結"
+- id: hoa.ui.keybindings.press_key
+  enUS: Press Key to Bind to Command -> %s
+  zhCN: 按下要绑定到命令的按键 -> %s
+  zhTW: "按下要繫結到命令的按鍵 -> %s"
+- id: hoa.ui.keybindings.switch_to_general
+  enUS: Really switch to general key bindings?  All key bindings specific to this character will be permanantly deleted.
+  zhCN: 确定要切换到通用按键设置吗？所有角色专用按键设置都会被永久删除。
+  zhTW: "確定要切換到通用按鍵設定嗎？所有角色專用按鍵設定都會被永久刪除。"
+- id: hoa.ui.keybindings.unbound_error
+  enUS: '|cffff0000%s Function is Now Unbound!|r'
+  zhCN: '|cffff0000%s 的功能现已解除绑定！|r'
+  zhTW: "|cffff0000%s 的功能現已解除繫結！|r"
+- id: hoa.ui.options.actionbars.always_show_multibars.label
+  ref: hoa.addon.always_show_actionbars
+- id: hoa.ui.options.actionbars.always_show_multibars.tooltip
+  ref: hoa.addon.always_show_action_bars
+- id: hoa.ui.options.actionbars.lock_action_bar.label
+  ref: hoa.addon.lock_actionbars
+- id: hoa.ui.options.actionbars.lock_action_bar.tooltip
+  ref: hoa.addon.lock_the_action_bars_in_place
+- id: hoa.ui.options.actionbars.multi_bar1.label
+  ref: hoa.addon.show_bottom_left_actionbar
+- id: hoa.ui.options.actionbars.multi_bar1.tooltip
+  ref: hoa.addon.show_the_bottom_left_action_bar
+- id: hoa.ui.options.actionbars.multi_bar2.label
+  ref: hoa.addon.show_bottom_right_actionbar
+- id: hoa.ui.options.actionbars.multi_bar2.tooltip
+  ref: hoa.addon.show_the_bottom_right_action_bar
+- id: hoa.ui.options.actionbars.multi_bar3.label
+  ref: hoa.addon.show_right_actionbar
+- id: hoa.ui.options.actionbars.multi_bar3.tooltip
+  ref: hoa.addon.show_the_right_action_bar
+- id: hoa.ui.options.actionbars.multi_bar4.label
+  ref: hoa.addon.show_right_actionbar_2
+- id: hoa.ui.options.actionbars.multi_bar4.tooltip
+  ref: hoa.addon.show_the_second_right_action_bar
+- id: hoa.ui.options.apply
+  ref: hoa.addon.apply
+- id: hoa.ui.options.audio.ambience.label
+  ref: hoa.addon.ambience_volume
+- id: hoa.ui.options.audio.ambience.tooltip
+  ref: hoa.addon.adjusts_the_ambient_sound_volume
+- id: hoa.ui.options.audio.background_sound.label
+  ref: hoa.addon.enable_sound_in_background
+- id: hoa.ui.options.audio.background_sound.tooltip
+  ref: hoa.addon.keeps_the_game_s_sound_playing_while_you_are_working_in_anot
+- id: hoa.ui.options.audio.enable_all.label
+  ref: hoa.addon.enable_all_sound
+- id: hoa.ui.options.audio.enable_all.tooltip
+  ref: hoa.addon.enables_or_disables_all_game_sound
+- id: hoa.ui.options.audio.enable_ambience.label
+  ref: hoa.addon.enable_ambience
+- id: hoa.ui.options.audio.enable_ambience.tooltip
+  ref: hoa.addon.enable_ambient_sounds
+- id: hoa.ui.options.audio.enable_error_speech.label
+  ref: hoa.addon.enable_error_speech
+- id: hoa.ui.options.audio.enable_error_speech.tooltip
+  ref: hoa.addon.enables_speech_from_errors_e_g_target_out_of_range
+- id: hoa.ui.options.audio.enable_music.label
+  ref: hoa.addon.enable_music
+- id: hoa.ui.options.audio.enable_music.tooltip
+  ref: hoa.addon.enable_background_music
+- id: hoa.ui.options.audio.master.label
+  ref: hoa.addon.master_volume
+- id: hoa.ui.options.audio.master.tooltip
+  ref: hoa.addon.adjusts_the_master_sound_volume
+- id: hoa.ui.options.audio.music.label
+  ref: hoa.addon.music_volume
+- id: hoa.ui.options.audio.music.tooltip
+  ref: hoa.addon.adjusts_the_background_music_volume
+- id: hoa.ui.options.audio.sound.label
+  ref: hoa.addon.sound_volume
+- id: hoa.ui.options.audio.sound.tooltip
+  ref: hoa.addon.adjusts_the_sound_effect_volume
+- id: hoa.ui.options.category.action_bars
+  ref: hoa.addon.action_bars
+- id: hoa.ui.options.category.audio
+  ref: hoa.addon.audio
+- id: hoa.ui.options.category.chat
+  ref: hoa.addon.chat
+- id: hoa.ui.options.category.combat
+  ref: hoa.addon.combat
+- id: hoa.ui.options.category.controls
+  ref: hoa.addon.controls
+- id: hoa.ui.options.category.gameplay
+  ref: hoa.addon.gameplay
+- id: hoa.ui.options.category.graphics
+  ref: hoa.addon.graphics
+- id: hoa.ui.options.category.interface
+  ref: hoa.addon.interface
+- id: hoa.ui.options.category.keybindings
+  ref: hoa.addon.keybindings
+- id: hoa.ui.options.category.nameplates
+  ref: hoa.addon.nameplates
+- id: hoa.ui.options.category.system
+  ref: hoa.addon.system
+- id: hoa.ui.options.chat.chat_bubbles.label
+  ref: hoa.addon.show_chat_bubbles
+- id: hoa.ui.options.chat.chat_bubbles.tooltip
+  enUS: Shows /say and /yell text in speech bubbles above characters' heads.
+  zhCN: 在角色头顶的气泡中显示 /说 和 /喊 的内容。
+  zhTW: "在角色頭頂的氣泡中顯示 /說 和 /喊 的內容。"
+- id: hoa.ui.options.chat.guild_member_alert.label
+  ref: hoa.addon.guild_member_alert
+- id: hoa.ui.options.chat.guild_member_alert.tooltip
+  enUS: Show a message when your guild members login and logout.
+  zhCN: 公会成员上线或下线时显示消息。
+  zhTW: "公會成員上線或下線時顯示訊息。"
+- id: hoa.ui.options.chat.loot_spam.label
+  ref: hoa.addon.detailed_loot_information
+- id: hoa.ui.options.chat.loot_spam.tooltip
+  enUS: Uncheck this to hide individual loot roll messages and only show the winner.
+  zhCN: 取消勾选可隐藏单件拾取掷骰消息，只显示获胜者。
+  zhTW: "取消勾選可隱藏單件拾取擲骰訊息，只顯示獲勝者。"
+- id: hoa.ui.options.chat.party_chat_bubbles.label
+  ref: hoa.addon.show_party_chat_bubbles
+- id: hoa.ui.options.chat.party_chat_bubbles.tooltip
+  enUS: Shows party chat text in speech bubbles above party members' heads.
+  zhCN: 在队伍成员头顶的气泡中显示队伍聊天。
+  zhTW: "在隊伍成員頭頂的氣泡中顯示隊伍聊天。"
+- id: hoa.ui.options.chat.remove_chat_delay.label
+  ref: hoa.addon.remove_chat_hover_delay
+- id: hoa.ui.options.chat.remove_chat_delay.tooltip
+  enUS: Check to show chat windows immediately upon mouseover.
+  zhCN: 勾选后，鼠标移入聊天窗口时立即显示。
+  zhTW: "勾選後，滑鼠移入聊天視窗時立即顯示。"
+- id: hoa.ui.options.chat.spam_filter.label
+  ref: hoa.addon.disable_spam_filter
+- id: hoa.ui.options.chat.spam_filter.tooltip
+  enUS: Disables spam filtering on chat text.
+  zhCN: 关闭聊天文本的垃圾信息过滤。
+  zhTW: "關閉聊天文字的垃圾資訊過濾。"
+- id: hoa.ui.options.close
+  ref: hoa.addon.close
+- id: hoa.ui.options.combat.aura_fade.label
+  ref: hoa.addon.show_fading_auras
+- id: hoa.ui.options.combat.aura_fade.tooltip
+  ref: hoa.addon.shows_a_message_when_an_aura_fades_from_the_player
+- id: hoa.ui.options.combat.auras.label
+  ref: hoa.addon.show_auras
+- id: hoa.ui.options.combat.auras.tooltip
+  ref: hoa.addon.shows_a_message_when_the_player_gains_an_aura
+- id: hoa.ui.options.combat.combat_state.label
+  ref: hoa.addon.show_combat_state
+- id: hoa.ui.options.combat.combat_state.tooltip
+  ref: hoa.addon.shows_a_message_when_you_enter_or_leave_combat
+- id: hoa.ui.options.combat.combat_text.label
+  ref: hoa.addon.enable_floating_combat_text
+- id: hoa.ui.options.combat.combat_text.tooltip
+  ref: hoa.addon.checking_this_will_enable_additional_combat_messages_to_appe
+- id: hoa.ui.options.combat.combo_points.label
+  ref: hoa.addon.show_combo_points
+- id: hoa.ui.options.combat.combo_points.tooltip
+  enUS: Shows the number of combo points you have each time you acquire a new one.
+  zhCN: 每次获得连击点时显示当前连击点数。
+  zhTW: "每次獲得連擊點時顯示當前連擊點數。"
+- id: hoa.ui.options.combat.dodge_parry_miss.label
+  ref: hoa.addon.show_dodge_parries_misses
+- id: hoa.ui.options.combat.dodge_parry_miss.tooltip
+  ref: hoa.addon.shows_attacks_against_you_that_dodge_parry_or_miss
+- id: hoa.ui.options.combat.energy_gains.label
+  ref: hoa.addon.show_energy_gains
+- id: hoa.ui.options.combat.energy_gains.tooltip
+  enUS: Shows all instant gains of mana, rage, and energy.
+  zhCN: 显示法力、怒气、能量的所有即时恢复。
+  zhTW: "顯示法力、怒氣、能量的所有即時恢復。"
+- id: hoa.ui.options.combat.float_mode.label
+  ref: hoa.addon.combat_text_float_mode
+- id: hoa.ui.options.combat.float_mode.tooltip
+  ref: hoa.addon.sets_the_direction_that_combat_text_scrolls
+- id: hoa.ui.options.combat.friendly_names.label
+  ref: hoa.addon.show_friendly_healer_names
+- id: hoa.ui.options.combat.friendly_names.tooltip
+  enUS: Shows the name of a friendly caster when they cast a heal spell on you.
+  zhCN: 友方施法者对你施放治疗法术时显示其名字。
+  zhTW: "友方施法者對你施放治療法術時顯示其名字。"
+- id: hoa.ui.options.combat.honor_gained.label
+  ref: hoa.addon.show_honor_gained
+- id: hoa.ui.options.combat.honor_gained.tooltip
+  enUS: Shows the honor you gain from killing other players.
+  zhCN: 显示击杀其他玩家获得的荣誉。
+  zhTW: "顯示擊殺其他玩家獲得的榮譽。"
+- id: hoa.ui.options.combat.low_health_mana.label
+  ref: hoa.addon.show_low_mana_and_health
+- id: hoa.ui.options.combat.low_health_mana.tooltip
+  ref: hoa.addon.shows_a_message_when_you_fall_below_20_mana_or_health
+- id: hoa.ui.options.combat.periodic_damage.label
+  ref: hoa.addon.periodic_damage
+- id: hoa.ui.options.combat.periodic_damage.tooltip
+  ref: hoa.addon.display_damage_caused_by_periodic_effects_such_as_rend_and_s
+- id: hoa.ui.options.combat.pet_damage.label
+  ref: hoa.addon.pet_damage
+- id: hoa.ui.options.combat.pet_damage.tooltip
+  ref: hoa.addon.show_damage_caused_by_your_pet
+- id: hoa.ui.options.combat.reactives.label
+  ref: hoa.addon.show_reactive_spells_and_abilities
+- id: hoa.ui.options.combat.reactives.tooltip
+  enUS: Shows when reactive class specific abilities and spells become available (e.g. Overpower for warriors).
+  zhCN: 显示职业专属反应技能可用时（例如战士的压制）。
+  zhTW: "顯示職業專屬反應技能可用時（例如戰士的壓制）。"
+- id: hoa.ui.options.combat.reputation.label
+  ref: hoa.addon.show_reputation
+- id: hoa.ui.options.combat.reputation.tooltip
+  enUS: Shows a message when the player gains or loses reputation with a faction.
+  zhCN: 玩家声望提高或降低时显示消息。
+  zhTW: "玩家聲望提高或降低時顯示訊息。"
+- id: hoa.ui.options.combat.resistances.label
+  ref: hoa.addon.show_damage_reduction
+- id: hoa.ui.options.combat.resistances.tooltip
+  ref: hoa.addon.shows_when_you_resist_taking_damage_from_attacks_or_spells
+- id: hoa.ui.options.combat.show_damage.label
+  ref: hoa.addon.show_target_damage
+- id: hoa.ui.options.combat.show_damage.tooltip
+  ref: hoa.addon.display_damage_numbers_over_hostile_creatures_when_damaged
+- id: hoa.ui.options.controls.assist_attack.label
+  ref: hoa.addon.attack_on_assist
+- id: hoa.ui.options.controls.assist_attack.tooltip
+  enUS: Automatically attack a target when you acquire it by using "/assist".
+  zhCN: 使用“/assist”获得目标时自动攻击该目标。
+  zhTW: "使用“/assist”獲得目標時自動攻擊該目標。"
+- id: hoa.ui.options.controls.auto_follow_speed.label
+  ref: hoa.addon.auto_follow_speed
+- id: hoa.ui.options.controls.auto_follow_speed.tooltip
+  ref: hoa.addon.adjust_the_camera_movement_speed_in_always_and_smart_followi
+- id: hoa.ui.options.controls.auto_loot.label
+  ref: hoa.addon.auto_loot
+- id: hoa.ui.options.controls.auto_self_cast.label
+  ref: hoa.addon.auto_self_cast
+- id: hoa.ui.options.controls.auto_self_cast.tooltip
+  enUS: When this is enabled, friendly target spells that you cast while you have a non friendly target or no target will automatically be self cast. This function has a hotkey that can be assigned.
+  zhCN: 启用后，当你没有目标或目标为敌对时，对友方目标施放的技能会自动施放给自己。此功能可以设置快捷键。
+  zhTW: "啟用後，當你沒有目標或目標為敵對時，對友方目標施放的技能會自動施放給自己。此功能可以設定快捷鍵。"
+- id: hoa.ui.options.controls.block_trades.label
+  ref: hoa.addon.block_trades
+- id: hoa.ui.options.controls.block_trades.tooltip
+  enUS: Block all incoming trade requests.
+  zhCN: 阻止所有交易请求。
+  zhTW: "阻止所有交易請求。"
+- id: hoa.ui.options.controls.camera_follow_style.label
+  ref: hoa.addon.camera_following_style
+- id: hoa.ui.options.controls.camera_follow_style.tooltip
+  ref: hoa.addon.set_the_camera_to_stay_where_placed_except_when_your_charact
+- id: hoa.ui.options.controls.clear_a_f_k.label
+  ref: hoa.addon.auto_clear_afk
+- id: hoa.ui.options.controls.clear_a_f_k.tooltip
+  enUS: 'Automatically exit AFK mode
+
+    upon moving or talking.'
+  zhCN: 移动或说话时自动退出暂离状态。
+  zhTW: "移動或說話時自動退出暫離狀態。"
+- id: hoa.ui.options.controls.click_to_move.label
+  ref: hoa.addon.click_to_move
+- id: hoa.ui.options.controls.click_to_move.tooltip
+  ref: hoa.addon.use_mouse_clicks_to_move_your_character_to_destinations
+- id: hoa.ui.options.controls.follow_terrain.label
+  ref: hoa.addon.follow_terrain
+- id: hoa.ui.options.controls.follow_terrain.tooltip
+  ref: hoa.addon.automatically_change_the_camera_angle_based_on_the_terrain_i
+- id: hoa.ui.options.controls.head_bob.label
+  ref: hoa.addon.head_bob
+- id: hoa.ui.options.controls.head_bob.tooltip
+  ref: hoa.addon.simulate_head_bobbing_when_in_first_person_perspective
+- id: hoa.ui.options.controls.invert_mouse.label
+  ref: hoa.addon.invert_mouse
+- id: hoa.ui.options.controls.invert_mouse.tooltip
+  ref: hoa.addon.invert_the_way_that_the_mouse_affects_camera_pitch
+- id: hoa.ui.options.controls.max_camera_distance.label
+  ref: hoa.addon.max_camera_distance
+- id: hoa.ui.options.controls.max_camera_distance.tooltip
+  ref: hoa.addon.adjust_the_maximum_distance_the_camera_will_follow_behind_yo
+- id: hoa.ui.options.controls.mouse_look_speed.label
+  ref: hoa.addon.mouse_look_speed
+- id: hoa.ui.options.controls.mouse_look_speed.tooltip
+  ref: hoa.addon.adjust_the_speed_at_which_you_turn_the_camera_when_using_mou
+- id: hoa.ui.options.controls.mouse_speed.label
+  ref: hoa.addon.mouse_sensitivity
+- id: hoa.ui.options.controls.mouse_speed.tooltip
+  ref: hoa.addon.adjust_the_speed_at_which_the_mouse_cursor_moves
+- id: hoa.ui.options.controls.smart_pivot.label
+  ref: hoa.addon.smart_pivot
+- id: hoa.ui.options.controls.smart_pivot.tooltip
+  ref: hoa.addon.lets_you_free_look_when_the_camera_is_on_the_ground
+- id: hoa.ui.options.controls.sticky_target.label
+  ref: hoa.addon.sticky_targeting
+- id: hoa.ui.options.controls.sticky_target.tooltip
+  enUS: Checking this will prevent the deselection of targets by clicking on the gamefield.  Targets can only be cleared by pressing escape or clicking another target.
+  zhCN: 勾选后，点击游戏区域不会取消当前目标。只能按 Escape 或点击另一个目标来清除目标。
+  zhTW: "勾選後，點選遊戲區域不會取消當前目標。只能按 Escape 或點選另一個目標來清除目標。"
+- id: hoa.ui.options.controls.water_collision.label
+  ref: hoa.addon.water_collision
+- id: hoa.ui.options.controls.water_collision.tooltip
+  ref: hoa.addon.set_the_camera_to_be_above_water_when_your_character_is_abov
+- id: hoa.ui.options.defaults
+  ref: hoa.addon.defaults
+- id: hoa.ui.options.graphics.brightness.label
+  ref: hoa.addon.brightness
+- id: hoa.ui.options.graphics.brightness.tooltip
+  ref: hoa.addon.lightens_or_darkens_the_whole_picture_nights_caves_and_inter
+- id: hoa.ui.options.graphics.display_mode.label
+  ref: hoa.addon.display_mode
+- id: hoa.ui.options.graphics.display_mode.tooltip
+  ref: hoa.addon.windowed_fullscreen_fills_the_screen_with_a_borderless_windo
+- id: hoa.ui.options.graphics.farclip.label
+  ref: hoa.addon.terrain_distance
+- id: hoa.ui.options.graphics.farclip.tooltip
+  ref: hoa.addon.adjust_how_far_terrain_is_visible
+- id: hoa.ui.options.graphics.render_scale.label
+  ref: hoa.addon.render_scale
+- id: hoa.ui.options.graphics.render_scale.tooltip
+  ref: hoa.addon.draws_the_3d_world_at_a_fraction_of_the_window_s_resolution_
+- id: hoa.ui.options.graphics.resolution.label
+  ref: hoa.addon.resolution
+- id: hoa.ui.options.graphics.resolution.tooltip
+  ref: hoa.addon.automatic_fills_your_screen_at_its_own_resolution_pick_a_siz
+- id: hoa.ui.options.graphics.spell_detail.label
+  enUS: Spell Detail Level
+  zhCN: 法术细节级别
+  zhTW: "法術細節級別"
+- id: hoa.ui.options.graphics.spell_detail.tooltip
+  ref: hoa.addon.adjust_the_level_of_spell_effect_detail
+- id: hoa.ui.options.graphics.ui_scale.label
+  ref: hoa.addon.ui_scale
+- id: hoa.ui.options.graphics.ui_scale.tooltip
+  ref: hoa.addon.adjust_the_size_of_the_interface_elements
+- id: hoa.ui.options.graphics.vertical_sync.label
+  ref: hoa.addon.vertical_sync
+- id: hoa.ui.options.graphics.vertical_sync.tooltip
+  ref: hoa.addon.synchronize_the_frame_rate_with_the_monitor_s_refresh_rate
+- id: hoa.ui.options.graphics.weather_density.label
+  ref: hoa.addon.weather_intensity
+- id: hoa.ui.options.graphics.weather_density.tooltip
+  ref: hoa.addon.adjust_the_intensity_of_weather_effects
+- id: hoa.ui.options.graphics.world_detail.label
+  ref: hoa.addon.environment_detail
+- id: hoa.ui.options.graphics.world_detail.tooltip
+  ref: hoa.addon.adjust_the_level_of_environmental_detail
+- id: hoa.ui.options.interface.auto_quest_watch.label
+  ref: hoa.addon.automatic_quest_tracking
+- id: hoa.ui.options.interface.auto_quest_watch.tooltip
+  enUS: Quests are automatically watched for 5 minutes when you achieve a quest objective.
+  zhCN: 完成任务目标后，任务会自动追踪5分钟。
+  zhTW: "完成任務目標後，任務會自動追蹤5分鐘。"
+- id: hoa.ui.options.interface.buff_durations.label
+  ref: hoa.addon.buff_durations
+- id: hoa.ui.options.interface.buff_durations.tooltip
+  ref: hoa.addon.toggle_text_counters_for_buff_durations_on_and_off
+- id: hoa.ui.options.interface.enhanced_tooltips.label
+  ref: hoa.addon.enhanced_tooltips
+- id: hoa.ui.options.interface.enhanced_tooltips.tooltip
+  ref: hoa.addon.enable_detailed_tooltips_in_the_lower_right_hand_corner_of_t
+- id: hoa.ui.options.interface.instant_quest_text.label
+  ref: hoa.addon.instant_quest_text
+- id: hoa.ui.options.interface.instant_quest_text.tooltip
+  enUS: Check this to make quest text appear instantly.
+  zhCN: 勾选后，任务文本会立即显示。
+  zhTW: "勾選後，任務文字會立即顯示。"
+- id: hoa.ui.options.interface.newbie_tips.label
+  ref: hoa.addon.show_detailed_tooltips
+- id: hoa.ui.options.interface.newbie_tips.tooltip
+  enUS: Show detailed information about various user interface elements.  Advanced players may want to turn this off.
+  zhCN: 显示各种界面元素的详细信息。熟练玩家可以关闭。
+  zhTW: "顯示各種介面元素的詳細資訊。熟練玩家可以關閉。"
+- id: hoa.ui.options.interface.profanity_filter.label
+  ref: hoa.addon.profanity_filter
+- id: hoa.ui.options.interface.profanity_filter.tooltip
+  enUS: Enable profanity filtering.
+  zhCN: 启用脏话过滤。
+  zhTW: "啟用髒話過濾。"
+- id: hoa.ui.options.interface.show_cloak.label
+  ref: hoa.addon.show_cloak
+- id: hoa.ui.options.interface.show_cloak.tooltip
+  ref: hoa.addon.uncheck_this_box_to_hide_your_character_s_cloak
+- id: hoa.ui.options.interface.show_helm.label
+  ref: hoa.addon.show_helm
+- id: hoa.ui.options.interface.show_helm.tooltip
+  ref: hoa.addon.uncheck_this_box_to_hide_your_character_s_helm
+- id: hoa.ui.options.interface.show_tutorials.label
+  ref: hoa.addon.show_tutorials
+- id: hoa.ui.options.interface.show_tutorials.tooltip
+  enUS: Display tutorials which help introduce you to WoW.
+  zhCN: 显示帮助新手熟悉游戏的教程。
+  zhTW: "顯示幫助新手熟悉遊戲的教程。"
+- id: hoa.ui.options.interface.status_text.label
+  ref: hoa.addon.status_bar_text
+- id: hoa.ui.options.interface.status_text.tooltip
+  enUS: Always display the text on XP, health, mana, rage, energy, or happiness status bars.
+  zhCN: 始终在经验、生命、法力、怒气、能量或快乐值状态条上显示文字。
+  zhTW: "始終在經驗、生命、法力、怒氣、能量或快樂值狀態條上顯示文字。"
+- id: hoa.ui.options.interface.target_of_target.label
+  ref: hoa.addon.show_target_of_target
+- id: hoa.ui.options.interface.target_of_target.tooltip
+  enUS: Toggles the display of the target of your target.
+  zhCN: 切换是否显示“目标的目标”。
+  zhTW: "切換是否顯示“目標的目標”。"
+- id: hoa.ui.options.interface.target_of_target_mode.label
+  ref: hoa.addon.show_when
+- id: hoa.ui.options.interface.target_of_target_mode.tooltip
+  enUS: Sets Target of Target to always display.
+  zhCN: 设置“目标的目标”始终显示。
+  zhTW: "設定“目標的目標”始終顯示。"
+- id: hoa.ui.options.interface.tip_of_the_day.label
+  ref: hoa.addon.show_loading_screen_tips
+- id: hoa.ui.options.interface.tip_of_the_day.tooltip
+  enUS: Uncheck this to hide the tip of the day in the load screens.
+  zhCN: 取消勾选可隐藏加载画面上的每日提示。
+  zhTW: "取消勾選可隱藏載入畫面上的每日提示。"
+- id: hoa.ui.options.keybindings.character_specific
+  enUS: Character Specific Key Bindings
+  zhCN: 角色专用按键设置
+  zhTW: "角色專用按鍵設定"
+- id: hoa.ui.options.keybindings.character_specific.tooltip
+  enUS: Click this to toggle between general key bindings and key bindings specific to this character.
+  zhCN: 点击此项可在通用按键设置和角色专用按键设置之间切换。
+  zhTW: "點選此項可在通用按鍵設定和角色專用按鍵設定之間切換。"
+- id: hoa.ui.options.nameplates.enemy_plates.label
+  ref: hoa.addon.enemy_name_plates
+- id: hoa.ui.options.nameplates.friendly_plates.label
+  ref: hoa.addon.friendly_name_plates
+- id: hoa.ui.options.nameplates.guild_names.label
+  ref: hoa.addon.player_guild_names
+- id: hoa.ui.options.nameplates.guild_names.tooltip
+  ref: hoa.addon.always_display_player_guild_names_in_the_game_world
+- id: hoa.ui.options.nameplates.npc_names.label
+  ref: hoa.addon.npc_names
+- id: hoa.ui.options.nameplates.npc_names.tooltip
+  ref: hoa.addon.always_display_npc_names_in_the_game_world
+- id: hoa.ui.options.nameplates.own_name.label
+  ref: hoa.addon.show_own_name
+- id: hoa.ui.options.nameplates.own_name.tooltip
+  ref: hoa.addon.shows_your_character_s_name
+- id: hoa.ui.options.nameplates.player_names.label
+  ref: hoa.addon.player_names
+- id: hoa.ui.options.nameplates.player_names.tooltip
+  ref: hoa.addon.always_display_player_names_in_the_game_world
+- id: hoa.ui.options.nameplates.player_titles.label
+  ref: hoa.addon.player_titles
+- id: hoa.ui.options.nameplates.player_titles.tooltip
+  ref: hoa.addon.always_display_player_titles_in_the_game_world
+- id: hoa.ui.options.no_results
+  ref: hoa.addon.no_results_found
+- id: hoa.ui.options.search
+  ref: hoa.addon.search
+- id: hoa.ui.options.search_results
+  ref: hoa.addon.search_results
+- id: hoa.ui.options.tab_addons
+  ref: hoa.addon.addons
+- id: hoa.ui.options.tab_game
+  ref: hoa.addon.game
+- id: hoa.ui.options.title
+  ref: hoa.addon.options
+- id: hoa.ui.options.tooltip.camera2
+  ref: hoa.addon.set_the_camera_to_always_prefer_being_behind_your_character
+- id: hoa.ui.options.tooltip.camera3
+  ref: hoa.addon.set_the_camera_to_stay_where_set_and_never_auto_adjust
+- id: hoa.ui.options.tooltip.targetoftarget1
+  enUS: Sets Target of Target to display when you are in a raid.
+  zhCN: 设置“目标的目标”在团队中显示。
+  zhTW: "設定“目標的目標”在團隊中顯示。"
+- id: hoa.ui.options.tooltip.targetoftarget2
+  enUS: Sets Target of Target to display when you are in a party.
+  zhCN: 设置“目标的目标”在小队中显示。
+  zhTW: "設定“目標的目標”在小隊中顯示。"
+- id: hoa.ui.options.tooltip.targetoftarget3
+  enUS: Sets Target of Target to display when solo.
+  zhCN: 设置“目标的目标”在单人时显示。
+  zhTW: "設定“目標的目標”在單人時顯示。"
+- id: hoa.ui.options.tooltip.targetoftarget4
+  enUS: Sets Target of Target to display when you are in a raid or a party.
+  zhCN: 设置“目标的目标”在团队或小队中显示。
+  zhTW: "設定“目標的目標”在團隊或小隊中顯示。"
+- id: hoa.ui.options.unit.yards
+  enUS: yd
+  zhCN: 码
+  zhTW: "碼"
+- id: hoa.ui.options.value.always
+  ref: hoa.addon.always
+- id: hoa.ui.options.value.arc
+  ref: hoa.addon.arc
+- id: hoa.ui.options.value.automatic
+  ref: hoa.addon.automatic
+- id: hoa.ui.options.value.full
+  ref: hoa.addon.full
+- id: hoa.ui.options.value.high
+  ref: hoa.addon.high
+- id: hoa.ui.options.value.low
+  ref: hoa.addon.low
+- id: hoa.ui.options.value.medium
+  ref: hoa.addon.medium
+- id: hoa.ui.options.value.minimal
+  ref: hoa.addon.minimal
+- id: hoa.ui.options.value.never
+  ref: hoa.addon.never
+- id: hoa.ui.options.value.party
+  ref: hoa.addon.party
+- id: hoa.ui.options.value.party_or_raid
+  ref: hoa.addon.party_or_raid
+- id: hoa.ui.options.value.raid
+  ref: hoa.addon.raid
+- id: hoa.ui.options.value.scroll_down
+  ref: hoa.addon.scroll_down
+- id: hoa.ui.options.value.scroll_up
+  ref: hoa.addon.scroll_up
+- id: hoa.ui.options.value.smart
+  ref: hoa.addon.smart
+- id: hoa.ui.options.value.solo
+  ref: hoa.addon.solo
+- id: hoa.ui.options.value.windowed
+  ref: hoa.addon.windowed
+- id: hoa.ui.options.value.windowed_fullscreen
+  ref: hoa.addon.windowed_fullscreen
+- id: hoa.ui.realmlist
+  enUS: Realmlist
+  zhCN: 服务器列表
+  zhTW: "伺服器列表"
+- id: hoa.ui.realmlist.prompt
+  enUS: Address of realm list server
+  zhCN: 服务器列表地址
+  zhTW: "伺服器列表地址"
+- id: hoa.ui.script_log.clear
+  enUS: Clear
+  zhCN: 清除
+  zhTW: "清除"
+- id: hoa.ui.script_log.cleared
+  enUS: Script log cleared.
+  zhCN: 脚本日志已清除。
+  zhTW: "指令碼日誌已清除。"
+- id: hoa.ui.script_log.no_problems
+  enUS: No problems this session.
+  zhCN: 本次会话没有问题。
+  zhTW: "本次會話沒有問題。"
+- id: hoa.ui.script_log.select_row
+  enUS: Select a row above to read it in full.
+  zhCN: 选择上方的一行以查看完整内容。
+  zhTW: "選擇上方的一行以檢視完整內容。"
+- id: hoa.ui.script_log.title
+  enUS: Script Errors
+  zhCN: 脚本错误
+  zhTW: "指令碼錯誤"

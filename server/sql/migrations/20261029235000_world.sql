@@ -1,0 +1,19 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261029235000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261029235000');
+
+ALTER TABLE `bonk_passive`
+    ADD COLUMN `rare` TINYINT UNSIGNED NOT NULL DEFAULT 0;
+
+UPDATE `bonk_passive` SET `rare` = 1 WHERE `id` = 18;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

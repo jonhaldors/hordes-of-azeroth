@@ -1,0 +1,262 @@
+//! The text region's rect, a single-line box's window and a multi-line box's own height:
+//! `0x77b8c0` seats the FontString by the insets, and the flush's relayout `0x77d4d0` windows a
+//! single-line box's text and sizes a multi-line box to its text.
+
+use crate::script::TextMeasure as _;
+use mlua::Lua;
+
+use crate::layout::{Anchor, Anchors, Len, Point, Rect};
+use crate::script::{MeasureRequest, Model};
+use crate::widget::{EditBoxState, FrameHandle, KindState, RegionHandle};
+
+/// `0x77b8c0`, the text FontString's rect. The reference writes nothing while the box's rect is
+/// unresolved (`0x77b8c7`); then it clears the points (`0x77b8da`), sets the width
+/// `boxW − (right + left)` for either kind (`0x77b905`), the height 0 multi-line (`0x77b91e`) or
+/// `boxH − (top + bottom)` single-line (`0x77b940`), and one `TOPLEFT` point at `(left, −top)`
+/// (`0x77b96b`), and raises dirty bits 0-2 (`0x77ba7f or eax,7`): the box's next flush fires
+/// `OnTextChanged` again, with the text unchanged. A single-line region's width holds its window
+/// whole ([`EditBoxState::rewindow`]), so it never wraps.
+///
+/// benilla writes the point before the box has a rect too, keeping the size.
+pub(super) fn seat_text_region(model: &mut Model, h: FrameHandle) {
+    let resolved = model.frame_rects.contains_key(&h);
+    let Some(KindState::EditBox(eb)) = model.arena.frame_mut(h).map(|f| &mut f.kind_state) else {
+        return;
+    };
+    if resolved {
+        eb.dirty |= EditBoxState::DIRTY_TEXT | EditBoxState::DIRTY_CURSOR;
+    }
+    let (Some(rh), insets, multi_line) = (eb.text_region, eb.text_insets, eb.multi_line) else {
+        return;
+    };
+    let insets = insets.map(|l| l.script(model.layout_units()));
+    let owner = model.frame_id(h);
+    let [l, _, t, _] = insets;
+    let anchors = Anchors::from([Anchor::new(Point::TopLeft, owner, Point::TopLeft, l, -t)]);
+    let size = inset_text_size(model, h, insets, multi_line);
+    let data = model.region_data.entry(rh).or_default();
+    let same_anchors = data.anchors.bits_eq(&anchors);
+    // `None` keeps the size: a box with no rect yet.
+    let size = size.map_or(data.size, |(w, h)| Some((Len::Script(w), Len::Script(h))));
+    let size_moved = !crate::script::region::size_bits_eq(data.size, size);
+    if !same_anchors {
+        data.anchors = anchors;
+    }
+    data.size = size;
+    // The seat's points and size, each set with an invalidate (`0x77b905`, `0x77b91e`/`0x77b940`,
+    // `0x77b96b`).
+    model.invalidate_region(rh, !same_anchors || size_moved);
+    if size_moved {
+        // The width is the wrap width, which keys the measure.
+        model.touch_measure(rh);
+    }
+}
+
+/// The EditBox's `OnSizeChanged` override (`0x77a8d0`, vtable `0x81c910` slot `+0x48`): after the
+/// base script fire (`0x77a8e0`), `0x77a8e7` re-seats the text region (`0x77b8c0`) on every resize
+/// of any box. `ApplyRect` (`0x76b580`) calls it when the width or height moved by the resize
+/// epsilon, the first resolve included, against the ctor's zero rect. `true` when a re-seat moved
+/// a layout input, for the caller to resolve it in the same pass, as the reference's drain does.
+pub(in crate::script) fn reseat_resized(model: &mut Model) -> bool {
+    let epoch = model.layout_epoch;
+    let eps = model.size_eps();
+    for i in 0..model.arena.editbox_kinds().len() {
+        let h = model.arena.editbox_kinds()[i];
+        let Some(now) = model.frame_rect(h) else {
+            continue; // no rect, no `ApplyRect`
+        };
+        let Some(KindState::EditBox(eb)) = model.arena.frame_mut(h).map(|f| &mut f.kind_state)
+        else {
+            continue;
+        };
+        let before = eb
+            .notified_rect
+            .replace(now)
+            .unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0));
+        if !crate::layout::size_changed(before, now, eps) {
+            continue;
+        }
+        // The ctor built the text region; its data is seeded here if nothing has touched it.
+        if super::ensure_text_region_in(model, h).is_some() {
+            seat_text_region(model, h);
+        }
+    }
+    model.layout_epoch != epoch
+}
+
+/// The text region's size in the box's own units, from the rect the last resolve gave the box:
+/// `boxW − (right + left)` wide, and `boxH − (top + bottom)` tall single-line or 0 multi-line;
+/// `None` before the box has a rect.
+fn inset_text_size(
+    model: &Model,
+    h: FrameHandle,
+    [l, r, t, b]: [f32; 4],
+    multi_line: bool,
+) -> Option<(f32, f32)> {
+    let rect = model.frame_rect(h)?;
+    let k = crate::script::object::eff_scale(model, h);
+    let width = rect.width() / k - (r + l);
+    let height = if multi_line {
+        0.0
+    } else {
+        rect.height() / k - (t + b)
+    };
+    Some((width, height))
+}
+
+/// The flush's relayout tail (`0x77d4d0` @`0x77d863`–`0x77d8ad`), run on dirty bit 0 by the
+/// box's flush ([`super::flush`]): a multi-line box's own height becomes
+/// `(insetTop + insetBottom) + h`, `h` its text's measured wrapped height (`0x7729b0`), or one
+/// line's (`0x7727b0(fs, 1)`) when that is exactly 0, as for empty text. It reads neither the
+/// authored height nor the rect, so the box grows and shrinks with its text and a `SetHeight`
+/// lasts until the flush after its resize re-seats the text; a single-line box is never sized
+/// (`0x77d86a`), its relayout being its window ([`single_line`]). The text region's width is the
+/// one [`seat_text_region`] last wrote.
+///
+/// `false` when the text's measure is pending, for the flush to retry.
+pub(super) fn relayout(lua: &Lua, h: FrameHandle) -> bool {
+    let multi_line = {
+        let model = lua.app_data_ref::<Model>().expect("model app_data");
+        matches!(
+            model.arena.frame(h).map(|f| &f.kind_state),
+            Some(KindState::EditBox(eb)) if eb.multi_line
+        )
+    };
+    if !multi_line {
+        return single_line(lua, h);
+    }
+    super::with_eb(lua, h, |eb| eb.rewindow(0.0));
+    let Some(rh) = super::ensure_text_region(lua, h) else {
+        return true;
+    };
+    // `0x7729b0` measures in the call; with no engine installed the measure lands a tick later.
+    crate::script::measure::ensure_measured(lua, rh);
+    let Some(text_h) = text_height(lua, h, rh) else {
+        return false;
+    };
+    let mut model = lua.app_data_mut::<Model>().expect("model app_data");
+    let units = model.layout_units();
+    let [_, _, top, bottom] = match model.arena.frame(h).map(|f| &f.kind_state) {
+        Some(KindState::EditBox(eb)) => eb.text_insets.map(|l| l.script(units)),
+        _ => return true,
+    };
+    // `fld top; fadd bottom; fadd st, st(1)`.
+    let height = (top + bottom) + text_h;
+    let input = model.layout_inputs.entry(h).or_default();
+    let moved = input.height.bits() != crate::layout::Len::Script(height).bits();
+    input.height = crate::layout::Len::Script(height);
+    // `SetHeight`, which invalidates (`0x7683f0`).
+    model.invalidate_frame(h, moved);
+    true
+}
+
+/// The single-line relayout (`0x77d705`–`0x77d858`): the window from the box's advance table at
+/// the text region's width ([`EditBoxState::rewindow`]), whose bytes the region then holds
+/// (`0x77d858`). A box with no rect yet windows its whole text. `false` while the table is
+/// pending, with no engine installed.
+fn single_line(lua: &Lua, h: FrameHandle) -> bool {
+    let Some(rh) = super::ensure_text_region(lua, h) else {
+        return true;
+    };
+    if !super::seam::advances_current(lua, h) {
+        return false;
+    }
+    let mut model = lua.app_data_mut::<Model>().expect("model app_data");
+    let k = crate::script::object::eff_scale(&model, h);
+    let Some(KindState::EditBox(eb)) = model.arena.frame(h).map(|f| &f.kind_state) else {
+        return true;
+    };
+    // The advance table is in root units: the box's own times its effective scale.
+    let insets = eb.text_insets.map(|l| l.script(model.layout_units()));
+    let width = inset_text_size(&model, h, insets, false).map(|(w, _)| w * k);
+    let Some(KindState::EditBox(eb)) = model.arena.frame_mut(h).map(|f| &mut f.kind_state) else {
+        return true;
+    };
+    match width {
+        Some(w) => eb.rewindow(w),
+        None => {
+            eb.scroll_start = 0;
+            eb.window_len = eb.display().len();
+        }
+    }
+    let text = eb.window_text(false);
+    super::write_region_text(&mut model, rh, text);
+    true
+}
+
+/// The text's height for the box: its measure under the current key, or one line's when that is
+/// exactly 0.0 (`0x77d877` `fcom 0.0` → `0x77d88e`), as it is for empty text, which is never
+/// measured (`0x7729ff`). `None` while either measure is pending.
+fn text_height(lua: &Lua, h: FrameHandle, rh: RegionHandle) -> Option<f32> {
+    let measured = {
+        let model = lua.app_data_ref::<Model>().expect("model app_data");
+        let d = model.region_data.get(&rh)?;
+        if d.text.as_deref().is_none_or(str::is_empty) {
+            0.0
+        } else {
+            let key = d.measure_key(owner_scale(&model, h), model.layout_units());
+            d.measured.filter(|m| m.key == key)?.h
+        }
+    };
+    if measured == 0.0 {
+        line_height(lua, h, rh)
+    } else {
+        Some(measured)
+    }
+}
+
+/// Any text that lays out as one line: its measured height is one line's.
+const ONE_LINE: &str = "0";
+
+/// `0x7727b0(fs, 1)`, one line's height in the text region's font: the installed engine's measure
+/// of one line, the same measure a line of text takes, cached on the box under its key. `None`
+/// with no engine installed.
+pub(super) fn line_height(lua: &Lua, h: FrameHandle, rh: RegionHandle) -> Option<f32> {
+    let mut model = lua.app_data_mut::<Model>().expect("model app_data");
+    let scale = owner_scale(&model, h);
+    let req = {
+        let d = model.region_data.get(&rh)?;
+        let key = d.measure_key_of(ONE_LINE, scale, model.layout_units());
+        if let Some(KindState::EditBox(eb)) = model.arena.frame(h).map(|f| &f.kind_state) {
+            if let Some((k, lh)) = eb.line_height {
+                if k == key {
+                    return Some(lh);
+                }
+            }
+        }
+        MeasureRequest {
+            id: model.region_to_id.get(&rh).copied().unwrap_or(0),
+            font: d.font_path.clone(),
+            height: d.font_height_script(model.layout_units()),
+            text_height: d.text_height(model.layout_units()),
+            wrap_width: None,
+            outline: d.outline,
+            // One line has no gap: `0x5c2070` charges `(N−1)·gap`.
+            spacing: d.line_gap(),
+            shadow_x: d.shadow_x(model.layout_units()),
+            // One unwrapped line: neither moves its height.
+            non_space_wrap: false,
+            max_lines: 0,
+            scale,
+            text: ONE_LINE.to_string(),
+            key,
+        }
+    };
+    // Taken out and put back, as `ensure_measured` does: the engine cannot re-enter the VM.
+    let mut engine = model.measurer.take()?;
+    let (_, lh, _) = engine.measure(&req);
+    model.measurer = Some(engine);
+    if let Some(KindState::EditBox(eb)) = model.arena.frame_mut(h).map(|f| &mut f.kind_state) {
+        eb.line_height = Some((req.key, lh));
+    }
+    Some(lh)
+}
+
+/// The scale a measure is keyed under, the owner's effective scale, as the measure loop reads it.
+fn owner_scale(model: &Model, h: FrameHandle) -> f32 {
+    model
+        .arena
+        .frame(h)
+        .map(|f| f.effective_scale)
+        .unwrap_or(1.0)
+}

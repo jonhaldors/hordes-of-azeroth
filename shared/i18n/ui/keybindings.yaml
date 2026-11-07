@@ -1,0 +1,1525 @@
+# Keybinding headers, binding names and key names. `global` overrides the stock
+# GlobalStrings values after the core UI loads; the page keeps reading the same globals.
+- id: hoa.ui.keybindings.binding.actionbutton1
+  enUS: Action Button 1
+  zhCN: 快捷键1
+  zhTW: "快捷鍵1"
+  global: BINDING_NAME_ACTIONBUTTON1
+- id: hoa.ui.keybindings.binding.actionbutton10
+  enUS: Action Button 10
+  zhCN: 快捷键10
+  zhTW: "快捷鍵10"
+  global: BINDING_NAME_ACTIONBUTTON10
+- id: hoa.ui.keybindings.binding.actionbutton11
+  enUS: Action Button 11
+  zhCN: 快捷键11
+  zhTW: "快捷鍵11"
+  global: BINDING_NAME_ACTIONBUTTON11
+- id: hoa.ui.keybindings.binding.actionbutton12
+  enUS: Action Button 12
+  zhCN: 快捷键12
+  zhTW: "快捷鍵12"
+  global: BINDING_NAME_ACTIONBUTTON12
+- id: hoa.ui.keybindings.binding.actionbutton2
+  enUS: Action Button 2
+  zhCN: 快捷键2
+  zhTW: "快捷鍵2"
+  global: BINDING_NAME_ACTIONBUTTON2
+- id: hoa.ui.keybindings.binding.actionbutton3
+  enUS: Action Button 3
+  zhCN: 快捷键3
+  zhTW: "快捷鍵3"
+  global: BINDING_NAME_ACTIONBUTTON3
+- id: hoa.ui.keybindings.binding.actionbutton4
+  enUS: Action Button 4
+  zhCN: 快捷键4
+  zhTW: "快捷鍵4"
+  global: BINDING_NAME_ACTIONBUTTON4
+- id: hoa.ui.keybindings.binding.actionbutton5
+  enUS: Action Button 5
+  zhCN: 快捷键5
+  zhTW: "快捷鍵5"
+  global: BINDING_NAME_ACTIONBUTTON5
+- id: hoa.ui.keybindings.binding.actionbutton6
+  enUS: Action Button 6
+  zhCN: 快捷键6
+  zhTW: "快捷鍵6"
+  global: BINDING_NAME_ACTIONBUTTON6
+- id: hoa.ui.keybindings.binding.actionbutton7
+  enUS: Action Button 7
+  zhCN: 快捷键7
+  zhTW: "快捷鍵7"
+  global: BINDING_NAME_ACTIONBUTTON7
+- id: hoa.ui.keybindings.binding.actionbutton8
+  enUS: Action Button 8
+  zhCN: 快捷键8
+  zhTW: "快捷鍵8"
+  global: BINDING_NAME_ACTIONBUTTON8
+- id: hoa.ui.keybindings.binding.actionbutton9
+  enUS: Action Button 9
+  zhCN: 快捷键9
+  zhTW: "快捷鍵9"
+  global: BINDING_NAME_ACTIONBUTTON9
+- id: hoa.ui.keybindings.binding.actionpage1
+  enUS: Action Page 1
+  zhCN: 动作条1
+  zhTW: "動作條1"
+  global: BINDING_NAME_ACTIONPAGE1
+- id: hoa.ui.keybindings.binding.actionpage2
+  enUS: Action Page 2
+  zhCN: 动作条2
+  zhTW: "動作條2"
+  global: BINDING_NAME_ACTIONPAGE2
+- id: hoa.ui.keybindings.binding.actionpage3
+  enUS: Action Page 3
+  zhCN: 动作条3
+  zhTW: "動作條3"
+  global: BINDING_NAME_ACTIONPAGE3
+- id: hoa.ui.keybindings.binding.actionpage4
+  enUS: Action Page 4
+  zhCN: 动作条4
+  zhTW: "動作條4"
+  global: BINDING_NAME_ACTIONPAGE4
+- id: hoa.ui.keybindings.binding.actionpage5
+  enUS: Action Page 5
+  zhCN: 动作条5
+  zhTW: "動作條5"
+  global: BINDING_NAME_ACTIONPAGE5
+- id: hoa.ui.keybindings.binding.actionpage6
+  enUS: Action Page 6
+  zhCN: 动作条6
+  zhTW: "動作條6"
+  global: BINDING_NAME_ACTIONPAGE6
+- id: hoa.ui.keybindings.binding.allnameplates
+  enUS: Show All Name Plates
+  zhCN: 显示所有姓名板
+  zhTW: "顯示所有姓名板"
+  global: BINDING_NAME_ALLNAMEPLATES
+- id: hoa.ui.keybindings.binding.assisttarget
+  enUS: Assist Target
+  zhCN: 协助目标
+  zhTW: "協助目標"
+  global: BINDING_NAME_ASSISTTARGET
+- id: hoa.ui.keybindings.binding.attacktarget
+  enUS: Attack Target
+  zhCN: 攻击目标
+  zhTW: "攻擊目標"
+  global: BINDING_NAME_ATTACKTARGET
+- id: hoa.ui.keybindings.binding.bonusactionbutton1
+  enUS: Secondary Action Button 1
+  zhCN: 宠物快捷键 1
+  zhTW: "寵物快捷鍵 1"
+  global: BINDING_NAME_BONUSACTIONBUTTON1
+- id: hoa.ui.keybindings.binding.bonusactionbutton10
+  enUS: Secondary Action Button 10
+  zhCN: 宠物快捷键 10
+  zhTW: "寵物快捷鍵 10"
+  global: BINDING_NAME_BONUSACTIONBUTTON10
+- id: hoa.ui.keybindings.binding.bonusactionbutton2
+  enUS: Secondary Action Button 2
+  zhCN: 宠物快捷键 2
+  zhTW: "寵物快捷鍵 2"
+  global: BINDING_NAME_BONUSACTIONBUTTON2
+- id: hoa.ui.keybindings.binding.bonusactionbutton3
+  enUS: Secondary Action Button 3
+  zhCN: 宠物快捷键 3
+  zhTW: "寵物快捷鍵 3"
+  global: BINDING_NAME_BONUSACTIONBUTTON3
+- id: hoa.ui.keybindings.binding.bonusactionbutton4
+  enUS: Secondary Action Button 4
+  zhCN: 宠物快捷键 4
+  zhTW: "寵物快捷鍵 4"
+  global: BINDING_NAME_BONUSACTIONBUTTON4
+- id: hoa.ui.keybindings.binding.bonusactionbutton5
+  enUS: Secondary Action Button 5
+  zhCN: 宠物快捷键 5
+  zhTW: "寵物快捷鍵 5"
+  global: BINDING_NAME_BONUSACTIONBUTTON5
+- id: hoa.ui.keybindings.binding.bonusactionbutton6
+  enUS: Secondary Action Button 6
+  zhCN: 宠物快捷键 6
+  zhTW: "寵物快捷鍵 6"
+  global: BINDING_NAME_BONUSACTIONBUTTON6
+- id: hoa.ui.keybindings.binding.bonusactionbutton7
+  enUS: Secondary Action Button 7
+  zhCN: 宠物快捷键 7
+  zhTW: "寵物快捷鍵 7"
+  global: BINDING_NAME_BONUSACTIONBUTTON7
+- id: hoa.ui.keybindings.binding.bonusactionbutton8
+  enUS: Secondary Action Button 8
+  zhCN: 宠物快捷键 8
+  zhTW: "寵物快捷鍵 8"
+  global: BINDING_NAME_BONUSACTIONBUTTON8
+- id: hoa.ui.keybindings.binding.bonusactionbutton9
+  enUS: Secondary Action Button 9
+  zhCN: 宠物快捷键 9
+  zhTW: "寵物快捷鍵 9"
+  global: BINDING_NAME_BONUSACTIONBUTTON9
+- id: hoa.ui.keybindings.binding.cameraorselectormove
+  enUS: Camera or Select/Move
+  zhCN: 镜头或选择/移动
+  zhTW: "鏡頭或選擇/移動"
+  global: BINDING_NAME_CAMERAORSELECTORMOVE
+- id: hoa.ui.keybindings.binding.cameraorselectormovesticky
+  enUS: Camera or Sticky Select/Move
+  zhCN: 镜头或粘滞选择/移动
+  zhTW: "鏡頭或粘滯選擇/移動"
+  global: BINDING_NAME_CAMERAORSELECTORMOVESTICKY
+- id: hoa.ui.keybindings.binding.camerazoomin
+  enUS: Zoom In
+  zhCN: 放大
+  zhTW: "放大"
+  global: BINDING_NAME_CAMERAZOOMIN
+- id: hoa.ui.keybindings.binding.camerazoomout
+  enUS: Zoom Out
+  zhCN: 缩小
+  zhTW: "縮小"
+  global: BINDING_NAME_CAMERAZOOMOUT
+- id: hoa.ui.keybindings.binding.chatbottom
+  enUS: Chat Bottom
+  zhCN: 翻至对话最下端
+  zhTW: "翻至對話最下端"
+  global: BINDING_NAME_CHATBOTTOM
+- id: hoa.ui.keybindings.binding.chatpagedown
+  enUS: Chat Page Down
+  zhCN: 对话向下翻页
+  zhTW: "對話向下翻頁"
+  global: BINDING_NAME_CHATPAGEDOWN
+- id: hoa.ui.keybindings.binding.chatpageup
+  enUS: Chat Page Up
+  zhCN: 对话向上翻页
+  zhTW: "對話向上翻頁"
+  global: BINDING_NAME_CHATPAGEUP
+- id: hoa.ui.keybindings.binding.combatlogbottom
+  enUS: Combat Log Bottom
+  zhCN: 战斗日志翻至最下端
+  zhTW: "戰鬥日誌翻至最下端"
+  global: BINDING_NAME_COMBATLOGBOTTOM
+- id: hoa.ui.keybindings.binding.combatlogpagedown
+  enUS: Combat Log Page Down
+  zhCN: 战斗日志向下翻页
+  zhTW: "戰鬥日誌向下翻頁"
+  global: BINDING_NAME_COMBATLOGPAGEDOWN
+- id: hoa.ui.keybindings.binding.combatlogpageup
+  enUS: Combat Log Page Up
+  zhCN: 战斗日志向上翻页
+  zhTW: "戰鬥日誌向上翻頁"
+  global: BINDING_NAME_COMBATLOGPAGEUP
+- id: hoa.ui.keybindings.binding.flipcamerayaw
+  enUS: Flip Camera
+  zhCN: 水平视角
+  zhTW: "水平視角"
+  global: BINDING_NAME_FLIPCAMERAYAW
+- id: hoa.ui.keybindings.binding.followtarget
+  enUS: Follow Target
+  zhCN: 跟随目标
+  zhTW: "跟隨目標"
+  global: BINDING_NAME_FOLLOWTARGET
+- id: hoa.ui.keybindings.binding.friendnameplates
+  enUS: Show Friendly Name Plates
+  zhCN: 显示友方姓名板
+  zhTW: "顯示友方姓名板"
+  global: BINDING_NAME_FRIENDNAMEPLATES
+- id: hoa.ui.keybindings.binding.itunes_backtrack
+  enUS: iTunes Back Track
+  zhCN: iTunes上一首
+  zhTW: "iTunes上一首"
+  global: BINDING_NAME_ITUNES_BACKTRACK
+- id: hoa.ui.keybindings.binding.itunes_nexttrack
+  enUS: iTunes Next Track
+  zhCN: iTunes下一首
+  zhTW: "iTunes下一首"
+  global: BINDING_NAME_ITUNES_NEXTTRACK
+- id: hoa.ui.keybindings.binding.itunes_playpause
+  enUS: iTunes Play/Pause
+  zhCN: iTunes播放/暂停
+  zhTW: "iTunes播放/暫停"
+  global: BINDING_NAME_ITUNES_PLAYPAUSE
+- id: hoa.ui.keybindings.binding.itunes_volumedown
+  enUS: iTunes Volume Down
+  zhCN: iTunes音量降低
+  zhTW: "iTunes音量降低"
+  global: BINDING_NAME_ITUNES_VOLUMEDOWN
+- id: hoa.ui.keybindings.binding.itunes_volumeup
+  enUS: iTunes Volume Up
+  zhCN: iTunes音量提高
+  zhTW: "iTunes音量提高"
+  global: BINDING_NAME_ITUNES_VOLUMEUP
+- id: hoa.ui.keybindings.binding.jump
+  enUS: Jump
+  zhCN: 跳跃
+  zhTW: "跳躍"
+  global: BINDING_NAME_JUMP
+- id: hoa.ui.keybindings.binding.mastervolumedown
+  enUS: Master Volume Down
+  zhCN: 主音量缩小
+  zhTW: "主音量縮小"
+  global: BINDING_NAME_MASTERVOLUMEDOWN
+- id: hoa.ui.keybindings.binding.mastervolumeup
+  enUS: Master Volume Up
+  zhCN: 主音量放大
+  zhTW: "主音量放大"
+  global: BINDING_NAME_MASTERVOLUMEUP
+- id: hoa.ui.keybindings.binding.minimapzoomin
+  enUS: Minimap Zoom In
+  zhCN: 放大地图
+  zhTW: "放大地圖"
+  global: BINDING_NAME_MINIMAPZOOMIN
+- id: hoa.ui.keybindings.binding.minimapzoomout
+  enUS: Minimap Zoom Out
+  zhCN: 缩小地图
+  zhTW: "縮小地圖"
+  global: BINDING_NAME_MINIMAPZOOMOUT
+- id: hoa.ui.keybindings.binding.moveandsteer
+  enUS: Move and Steer
+  zhCN: 移动控制
+  zhTW: "移動控制"
+  global: BINDING_NAME_MOVEANDSTEER
+- id: hoa.ui.keybindings.binding.movebackward
+  enUS: Move Backward
+  zhCN: 后退
+  zhTW: "後退"
+  global: BINDING_NAME_MOVEBACKWARD
+- id: hoa.ui.keybindings.binding.moveforward
+  enUS: Move Forward
+  zhCN: 前进
+  zhTW: "前進"
+  global: BINDING_NAME_MOVEFORWARD
+- id: hoa.ui.keybindings.binding.moveviewdown
+  enUS: Move View Down
+  zhCN: 视角下移
+  zhTW: "視角下移"
+  global: BINDING_NAME_MOVEVIEWDOWN
+- id: hoa.ui.keybindings.binding.moveviewin
+  enUS: Move View In
+  zhCN: 视角拉近
+  zhTW: "視角拉近"
+  global: BINDING_NAME_MOVEVIEWIN
+- id: hoa.ui.keybindings.binding.moveviewleft
+  enUS: Move View Left
+  zhCN: 视角左移
+  zhTW: "視角左移"
+  global: BINDING_NAME_MOVEVIEWLEFT
+- id: hoa.ui.keybindings.binding.moveviewout
+  enUS: Move View Out
+  zhCN: 视角拉远
+  zhTW: "視角拉遠"
+  global: BINDING_NAME_MOVEVIEWOUT
+- id: hoa.ui.keybindings.binding.moveviewright
+  enUS: Move View Right
+  zhCN: 视角右移
+  zhTW: "視角右移"
+  global: BINDING_NAME_MOVEVIEWRIGHT
+- id: hoa.ui.keybindings.binding.moveviewup
+  enUS: Move View Up
+  zhCN: 视角上移
+  zhTW: "視角上移"
+  global: BINDING_NAME_MOVEVIEWUP
+- id: hoa.ui.keybindings.binding.multiactionbar1button1
+  enUS: BottomLeft Action Button 1
+  zhCN: 左下方快捷键1
+  zhTW: "左下方快捷鍵1"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON1
+- id: hoa.ui.keybindings.binding.multiactionbar1button10
+  enUS: BottomLeft Action Button 10
+  zhCN: 左下方快捷键10
+  zhTW: "左下方快捷鍵10"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON10
+- id: hoa.ui.keybindings.binding.multiactionbar1button11
+  enUS: BottomLeft Action Button 11
+  zhCN: 左下方快捷键11
+  zhTW: "左下方快捷鍵11"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON11
+- id: hoa.ui.keybindings.binding.multiactionbar1button12
+  enUS: BottomLeft Action Button 12
+  zhCN: 左下方快捷键12
+  zhTW: "左下方快捷鍵12"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON12
+- id: hoa.ui.keybindings.binding.multiactionbar1button2
+  enUS: BottomLeft Action Button 2
+  zhCN: 左下方快捷键2
+  zhTW: "左下方快捷鍵2"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON2
+- id: hoa.ui.keybindings.binding.multiactionbar1button3
+  enUS: BottomLeft Action Button 3
+  zhCN: 左下方快捷键3
+  zhTW: "左下方快捷鍵3"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON3
+- id: hoa.ui.keybindings.binding.multiactionbar1button4
+  enUS: BottomLeft Action Button 4
+  zhCN: 左下方快捷键4
+  zhTW: "左下方快捷鍵4"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON4
+- id: hoa.ui.keybindings.binding.multiactionbar1button5
+  enUS: BottomLeft Action Button 5
+  zhCN: 左下方快捷键5
+  zhTW: "左下方快捷鍵5"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON5
+- id: hoa.ui.keybindings.binding.multiactionbar1button6
+  enUS: BottomLeft Action Button 6
+  zhCN: 左下方快捷键6
+  zhTW: "左下方快捷鍵6"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON6
+- id: hoa.ui.keybindings.binding.multiactionbar1button7
+  enUS: BottomLeft Action Button 7
+  zhCN: 左下方快捷键7
+  zhTW: "左下方快捷鍵7"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON7
+- id: hoa.ui.keybindings.binding.multiactionbar1button8
+  enUS: BottomLeft Action Button 8
+  zhCN: 左下方快捷键8
+  zhTW: "左下方快捷鍵8"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON8
+- id: hoa.ui.keybindings.binding.multiactionbar1button9
+  enUS: BottomLeft Action Button 9
+  zhCN: 左下方快捷键9
+  zhTW: "左下方快捷鍵9"
+  global: BINDING_NAME_MULTIACTIONBAR1BUTTON9
+- id: hoa.ui.keybindings.binding.multiactionbar2button1
+  enUS: BottomRight Action Button 1
+  zhCN: 右下方快捷键1
+  zhTW: "右下方快捷鍵1"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON1
+- id: hoa.ui.keybindings.binding.multiactionbar2button10
+  enUS: BottomRight Action Button 10
+  zhCN: 右下方快捷键10
+  zhTW: "右下方快捷鍵10"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON10
+- id: hoa.ui.keybindings.binding.multiactionbar2button11
+  enUS: BottomRight Action Button 11
+  zhCN: 右下方快捷键11
+  zhTW: "右下方快捷鍵11"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON11
+- id: hoa.ui.keybindings.binding.multiactionbar2button12
+  enUS: BottomRight Action Button 12
+  zhCN: 右下方快捷键12
+  zhTW: "右下方快捷鍵12"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON12
+- id: hoa.ui.keybindings.binding.multiactionbar2button2
+  enUS: BottomRight Action Button 2
+  zhCN: 右下方快捷键2
+  zhTW: "右下方快捷鍵2"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON2
+- id: hoa.ui.keybindings.binding.multiactionbar2button3
+  enUS: BottomRight Action Button 3
+  zhCN: 右下方快捷键3
+  zhTW: "右下方快捷鍵3"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON3
+- id: hoa.ui.keybindings.binding.multiactionbar2button4
+  enUS: BottomRight Action Button 4
+  zhCN: 右下方快捷键4
+  zhTW: "右下方快捷鍵4"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON4
+- id: hoa.ui.keybindings.binding.multiactionbar2button5
+  enUS: BottomRight Action Button 5
+  zhCN: 右下方快捷键5
+  zhTW: "右下方快捷鍵5"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON5
+- id: hoa.ui.keybindings.binding.multiactionbar2button6
+  enUS: BottomRight Action Button 6
+  zhCN: 右下方快捷键6
+  zhTW: "右下方快捷鍵6"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON6
+- id: hoa.ui.keybindings.binding.multiactionbar2button7
+  enUS: BottomRight Action Button 7
+  zhCN: 右下方快捷键7
+  zhTW: "右下方快捷鍵7"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON7
+- id: hoa.ui.keybindings.binding.multiactionbar2button8
+  enUS: BottomRight Action Button 8
+  zhCN: 右下方快捷键8
+  zhTW: "右下方快捷鍵8"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON8
+- id: hoa.ui.keybindings.binding.multiactionbar2button9
+  enUS: BottomRight Action Button 9
+  zhCN: 右下方快捷键9
+  zhTW: "右下方快捷鍵9"
+  global: BINDING_NAME_MULTIACTIONBAR2BUTTON9
+- id: hoa.ui.keybindings.binding.multiactionbar3button1
+  enUS: Right Action Button 1
+  zhCN: 右边快捷键1
+  zhTW: "右邊快捷鍵1"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON1
+- id: hoa.ui.keybindings.binding.multiactionbar3button10
+  enUS: Right Action Button 10
+  zhCN: 右边快捷键10
+  zhTW: "右邊快捷鍵10"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON10
+- id: hoa.ui.keybindings.binding.multiactionbar3button11
+  enUS: Right Action Button 11
+  zhCN: 右边快捷键11
+  zhTW: "右邊快捷鍵11"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON11
+- id: hoa.ui.keybindings.binding.multiactionbar3button12
+  enUS: Right Action Button 12
+  zhCN: 右边快捷键12
+  zhTW: "右邊快捷鍵12"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON12
+- id: hoa.ui.keybindings.binding.multiactionbar3button2
+  enUS: Right Action Button 2
+  zhCN: 右边快捷键2
+  zhTW: "右邊快捷鍵2"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON2
+- id: hoa.ui.keybindings.binding.multiactionbar3button3
+  enUS: Right Action Button 3
+  zhCN: 右边快捷键3
+  zhTW: "右邊快捷鍵3"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON3
+- id: hoa.ui.keybindings.binding.multiactionbar3button4
+  enUS: Right Action Button 4
+  zhCN: 右边快捷键4
+  zhTW: "右邊快捷鍵4"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON4
+- id: hoa.ui.keybindings.binding.multiactionbar3button5
+  enUS: Right Action Button 5
+  zhCN: 右边快捷键5
+  zhTW: "右邊快捷鍵5"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON5
+- id: hoa.ui.keybindings.binding.multiactionbar3button6
+  enUS: Right Action Button 6
+  zhCN: 右边快捷键6
+  zhTW: "右邊快捷鍵6"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON6
+- id: hoa.ui.keybindings.binding.multiactionbar3button7
+  enUS: Right Action Button 7
+  zhCN: 右边快捷键7
+  zhTW: "右邊快捷鍵7"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON7
+- id: hoa.ui.keybindings.binding.multiactionbar3button8
+  enUS: Right Action Button 8
+  zhCN: 右边快捷键8
+  zhTW: "右邊快捷鍵8"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON8
+- id: hoa.ui.keybindings.binding.multiactionbar3button9
+  enUS: Right Action Button 9
+  zhCN: 右边快捷键9
+  zhTW: "右邊快捷鍵9"
+  global: BINDING_NAME_MULTIACTIONBAR3BUTTON9
+- id: hoa.ui.keybindings.binding.multiactionbar4button1
+  enUS: Right ActionBar 2 Button 1
+  zhCN: 右边动作条2 快捷键1
+  zhTW: "右邊動作條2 快捷鍵1"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON1
+- id: hoa.ui.keybindings.binding.multiactionbar4button10
+  enUS: Right ActionBar 2 Button 10
+  zhCN: 右边动作条2 快捷键10
+  zhTW: "右邊動作條2 快捷鍵10"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON10
+- id: hoa.ui.keybindings.binding.multiactionbar4button11
+  enUS: Right ActionBar 2 Button 11
+  zhCN: 右边动作条2 快捷键11
+  zhTW: "右邊動作條2 快捷鍵11"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON11
+- id: hoa.ui.keybindings.binding.multiactionbar4button12
+  enUS: Right ActionBar 2 Button 12
+  zhCN: 右边动作条2 快捷键12
+  zhTW: "右邊動作條2 快捷鍵12"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON12
+- id: hoa.ui.keybindings.binding.multiactionbar4button2
+  enUS: Right ActionBar 2 Button 2
+  zhCN: 右边动作条2 快捷键2
+  zhTW: "右邊動作條2 快捷鍵2"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON2
+- id: hoa.ui.keybindings.binding.multiactionbar4button3
+  enUS: Right ActionBar 2 Button 3
+  zhCN: 右边动作条2 快捷键3
+  zhTW: "右邊動作條2 快捷鍵3"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON3
+- id: hoa.ui.keybindings.binding.multiactionbar4button4
+  enUS: Right ActionBar 2 Button 4
+  zhCN: 右边动作条2 快捷键4
+  zhTW: "右邊動作條2 快捷鍵4"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON4
+- id: hoa.ui.keybindings.binding.multiactionbar4button5
+  enUS: Right ActionBar 2 Button 5
+  zhCN: 右边动作条2 快捷键5
+  zhTW: "右邊動作條2 快捷鍵5"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON5
+- id: hoa.ui.keybindings.binding.multiactionbar4button6
+  enUS: Right ActionBar 2 Button 6
+  zhCN: 右边动作条2 快捷键6
+  zhTW: "右邊動作條2 快捷鍵6"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON6
+- id: hoa.ui.keybindings.binding.multiactionbar4button7
+  enUS: Right ActionBar 2 Button 7
+  zhCN: 右边动作条2 快捷键7
+  zhTW: "右邊動作條2 快捷鍵7"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON7
+- id: hoa.ui.keybindings.binding.multiactionbar4button8
+  enUS: Right ActionBar 2 Button 8
+  zhCN: 右边动作条2 快捷键8
+  zhTW: "右邊動作條2 快捷鍵8"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON8
+- id: hoa.ui.keybindings.binding.multiactionbar4button9
+  enUS: Right ActionBar 2 Button 9
+  zhCN: 右边动作条2 快捷键9
+  zhTW: "右邊動作條2 快捷鍵9"
+  global: BINDING_NAME_MULTIACTIONBAR4BUTTON9
+- id: hoa.ui.keybindings.binding.nameplates
+  enUS: Show Name Plates
+  zhCN: 显示敌方姓名板
+  zhTW: "顯示敵方姓名板"
+  global: BINDING_NAME_NAMEPLATES
+- id: hoa.ui.keybindings.binding.nextactionpage
+  enUS: Next Action Bar
+  zhCN: 下一动作条
+  zhTW: "下一動作條"
+  global: BINDING_NAME_NEXTACTIONPAGE
+- id: hoa.ui.keybindings.binding.nextview
+  enUS: Next View
+  zhCN: 下一个视角
+  zhTW: "下一個視角"
+  global: BINDING_NAME_NEXTVIEW
+- id: hoa.ui.keybindings.binding.openallbags
+  enUS: Open All Bags
+  zhCN: 打开/关闭所有的背包
+  zhTW: "開啟/關閉所有的揹包"
+  global: BINDING_NAME_OPENALLBAGS
+- id: hoa.ui.keybindings.binding.openchat
+  enUS: Open Chat
+  zhCN: 打开对话框
+  zhTW: "開啟對話方塊"
+  global: BINDING_NAME_OPENCHAT
+- id: hoa.ui.keybindings.binding.openchatslash
+  enUS: Open Chat Slash
+  zhCN: 打开带“/”的对话框
+  zhTW: "開啟帶“/”的對話方塊"
+  global: BINDING_NAME_OPENCHATSLASH
+- id: hoa.ui.keybindings.binding.petattack
+  enUS: Pet Attack
+  zhCN: 宠物攻击
+  zhTW: "寵物攻擊"
+  global: BINDING_NAME_PETATTACK
+- id: hoa.ui.keybindings.binding.pitchdown
+  enUS: Pitch Down
+  zhCN: 向下倾斜
+  zhTW: "向下傾斜"
+  global: BINDING_NAME_PITCHDOWN
+- id: hoa.ui.keybindings.binding.pitchup
+  enUS: Pitch Up
+  zhCN: 向上倾斜
+  zhTW: "向上傾斜"
+  global: BINDING_NAME_PITCHUP
+- id: hoa.ui.keybindings.binding.previousactionpage
+  enUS: Previous Action Bar
+  zhCN: 前一动作条
+  zhTW: "前一動作條"
+  global: BINDING_NAME_PREVIOUSACTIONPAGE
+- id: hoa.ui.keybindings.binding.prevview
+  enUS: Previous View
+  zhCN: 前一个视角
+  zhTW: "前一個視角"
+  global: BINDING_NAME_PREVVIEW
+- id: hoa.ui.keybindings.binding.raidtarget1
+  enUS: Assign Star to Target
+  zhCN: 为目标指定星形
+  zhTW: "為目標指定星形"
+  global: BINDING_NAME_RAIDTARGET1
+- id: hoa.ui.keybindings.binding.raidtarget2
+  enUS: Assign Circle to Target
+  zhCN: 为目标指定圆形
+  zhTW: "為目標指定圓形"
+  global: BINDING_NAME_RAIDTARGET2
+- id: hoa.ui.keybindings.binding.raidtarget3
+  enUS: Assign Diamond to Target
+  zhCN: 为目标指定菱形
+  zhTW: "為目標指定菱形"
+  global: BINDING_NAME_RAIDTARGET3
+- id: hoa.ui.keybindings.binding.raidtarget4
+  enUS: Assign Triangle to Target
+  zhCN: 为目标指定三角
+  zhTW: "為目標指定三角"
+  global: BINDING_NAME_RAIDTARGET4
+- id: hoa.ui.keybindings.binding.raidtarget5
+  enUS: Assign Moon to Target
+  zhCN: 为目标指定月亮
+  zhTW: "為目標指定月亮"
+  global: BINDING_NAME_RAIDTARGET5
+- id: hoa.ui.keybindings.binding.raidtarget6
+  enUS: Assign Square to Target
+  zhCN: 为目标指定方块
+  zhTW: "為目標指定方塊"
+  global: BINDING_NAME_RAIDTARGET6
+- id: hoa.ui.keybindings.binding.raidtarget7
+  enUS: Assign Cross to Target
+  zhCN: 为目标指定十字
+  zhTW: "為目標指定十字"
+  global: BINDING_NAME_RAIDTARGET7
+- id: hoa.ui.keybindings.binding.raidtarget8
+  enUS: Assign Skull to Target
+  zhCN: 为目标指定骷髅
+  zhTW: "為目標指定骷髏"
+  global: BINDING_NAME_RAIDTARGET8
+- id: hoa.ui.keybindings.binding.raidtargetnone
+  enUS: Clear raid target icon
+  zhCN: 清除队伍标记图标
+  zhTW: "清除隊伍標記圖示"
+  global: BINDING_NAME_RAIDTARGETNONE
+- id: hoa.ui.keybindings.binding.reply
+  enUS: Chat Reply
+  zhCN: 回复对话
+  zhTW: "回覆對話"
+  global: BINDING_NAME_REPLY
+- id: hoa.ui.keybindings.binding.reply2
+  enUS: Re-Whisper
+  zhCN: 再次密语
+  zhTW: "再次密語"
+  global: BINDING_NAME_REPLY2
+- id: hoa.ui.keybindings.binding.resetperformancevalues
+  enUS: Reset Performance Values
+  zhCN: 重置性能数值
+  zhTW: "重置效能數值"
+  global: BINDING_NAME_RESETPERFORMANCEVALUES
+- id: hoa.ui.keybindings.binding.resetview2
+  enUS: Reset View 2
+  zhCN: 重置视角2
+  zhTW: "重置視角2"
+  global: BINDING_NAME_RESETVIEW2
+- id: hoa.ui.keybindings.binding.resetview3
+  enUS: Reset View 3
+  zhCN: 重置视角3
+  zhTW: "重置視角3"
+  global: BINDING_NAME_RESETVIEW3
+- id: hoa.ui.keybindings.binding.resetview4
+  enUS: Reset View 4
+  zhCN: 重置视角4
+  zhTW: "重置視角4"
+  global: BINDING_NAME_RESETVIEW4
+- id: hoa.ui.keybindings.binding.resetview5
+  enUS: Reset View 5
+  zhCN: 重置视角5
+  zhTW: "重置視角5"
+  global: BINDING_NAME_RESETVIEW5
+- id: hoa.ui.keybindings.binding.saveview2
+  enUS: Save View 2
+  zhCN: 保存视角2
+  zhTW: "儲存視角2"
+  global: BINDING_NAME_SAVEVIEW2
+- id: hoa.ui.keybindings.binding.saveview3
+  enUS: Save View 3
+  zhCN: 保存视角3
+  zhTW: "儲存視角3"
+  global: BINDING_NAME_SAVEVIEW3
+- id: hoa.ui.keybindings.binding.saveview4
+  enUS: Save View 4
+  zhCN: 保存视角4
+  zhTW: "儲存視角4"
+  global: BINDING_NAME_SAVEVIEW4
+- id: hoa.ui.keybindings.binding.saveview5
+  enUS: Save View 5
+  zhCN: 保存视角5
+  zhTW: "儲存視角5"
+  global: BINDING_NAME_SAVEVIEW5
+- id: hoa.ui.keybindings.binding.screenshot
+  enUS: Screen Shot
+  zhCN: 截图
+  zhTW: "截圖"
+  global: BINDING_NAME_SCREENSHOT
+- id: hoa.ui.keybindings.binding.selfactionbutton1
+  enUS: Self Cast Action Button 1
+  zhCN: 自我施放快捷键1
+  zhTW: "自我施放快捷鍵1"
+  global: BINDING_NAME_SELFACTIONBUTTON1
+- id: hoa.ui.keybindings.binding.selfactionbutton10
+  enUS: Self Cast Action Button 10
+  zhCN: 自我施放快捷键10
+  zhTW: "自我施放快捷鍵10"
+  global: BINDING_NAME_SELFACTIONBUTTON10
+- id: hoa.ui.keybindings.binding.selfactionbutton11
+  enUS: Self Cast Action Button 11
+  zhCN: 自我施放快捷键11
+  zhTW: "自我施放快捷鍵11"
+  global: BINDING_NAME_SELFACTIONBUTTON11
+- id: hoa.ui.keybindings.binding.selfactionbutton12
+  enUS: Self Cast Action Button 12
+  zhCN: 自我施放快捷键12
+  zhTW: "自我施放快捷鍵12"
+  global: BINDING_NAME_SELFACTIONBUTTON12
+- id: hoa.ui.keybindings.binding.selfactionbutton2
+  enUS: Self Cast Action Button 2
+  zhCN: 自我施放快捷键2
+  zhTW: "自我施放快捷鍵2"
+  global: BINDING_NAME_SELFACTIONBUTTON2
+- id: hoa.ui.keybindings.binding.selfactionbutton3
+  enUS: Self Cast Action Button 3
+  zhCN: 自我施放快捷键3
+  zhTW: "自我施放快捷鍵3"
+  global: BINDING_NAME_SELFACTIONBUTTON3
+- id: hoa.ui.keybindings.binding.selfactionbutton4
+  enUS: Self Cast Action Button 4
+  zhCN: 自我施放快捷键4
+  zhTW: "自我施放快捷鍵4"
+  global: BINDING_NAME_SELFACTIONBUTTON4
+- id: hoa.ui.keybindings.binding.selfactionbutton5
+  enUS: Self Cast Action Button 5
+  zhCN: 自我施放快捷键5
+  zhTW: "自我施放快捷鍵5"
+  global: BINDING_NAME_SELFACTIONBUTTON5
+- id: hoa.ui.keybindings.binding.selfactionbutton6
+  enUS: Self Cast Action Button 6
+  zhCN: 自我施放快捷键6
+  zhTW: "自我施放快捷鍵6"
+  global: BINDING_NAME_SELFACTIONBUTTON6
+- id: hoa.ui.keybindings.binding.selfactionbutton7
+  enUS: Self Cast Action Button 7
+  zhCN: 自我施放快捷键7
+  zhTW: "自我施放快捷鍵7"
+  global: BINDING_NAME_SELFACTIONBUTTON7
+- id: hoa.ui.keybindings.binding.selfactionbutton8
+  enUS: Self Cast Action Button 8
+  zhCN: 自我施放快捷键8
+  zhTW: "自我施放快捷鍵8"
+  global: BINDING_NAME_SELFACTIONBUTTON8
+- id: hoa.ui.keybindings.binding.selfactionbutton9
+  enUS: Self Cast Action Button 9
+  zhCN: 自我施放快捷键9
+  zhTW: "自我施放快捷鍵9"
+  global: BINDING_NAME_SELFACTIONBUTTON9
+- id: hoa.ui.keybindings.binding.setview1
+  enUS: Set View 1
+  zhCN: 设置1号视角
+  zhTW: "設定1號視角"
+  global: BINDING_NAME_SETVIEW1
+- id: hoa.ui.keybindings.binding.setview2
+  enUS: Set View 2
+  zhCN: 设置2号视角
+  zhTW: "設定2號視角"
+  global: BINDING_NAME_SETVIEW2
+- id: hoa.ui.keybindings.binding.setview3
+  enUS: Set View 3
+  zhCN: 设置3号视角
+  zhTW: "設定3號視角"
+  global: BINDING_NAME_SETVIEW3
+- id: hoa.ui.keybindings.binding.setview4
+  enUS: Set View 4
+  zhCN: 设置4号视角
+  zhTW: "設定4號視角"
+  global: BINDING_NAME_SETVIEW4
+- id: hoa.ui.keybindings.binding.setview5
+  enUS: Set View 5
+  zhCN: 设置5号视角
+  zhTW: "設定5號視角"
+  global: BINDING_NAME_SETVIEW5
+- id: hoa.ui.keybindings.binding.shapeshiftbutton1
+  enUS: Special Action Button 1
+  zhCN: 特殊快捷键1
+  zhTW: "特殊快捷鍵1"
+  global: BINDING_NAME_SHAPESHIFTBUTTON1
+- id: hoa.ui.keybindings.binding.shapeshiftbutton10
+  enUS: Special Action Button 10
+  zhCN: 特殊快捷键10
+  zhTW: "特殊快捷鍵10"
+  global: BINDING_NAME_SHAPESHIFTBUTTON10
+- id: hoa.ui.keybindings.binding.shapeshiftbutton2
+  enUS: Special Action Button 2
+  zhCN: 特殊快捷键2
+  zhTW: "特殊快捷鍵2"
+  global: BINDING_NAME_SHAPESHIFTBUTTON2
+- id: hoa.ui.keybindings.binding.shapeshiftbutton3
+  enUS: Special Action Button 3
+  zhCN: 特殊快捷键3
+  zhTW: "特殊快捷鍵3"
+  global: BINDING_NAME_SHAPESHIFTBUTTON3
+- id: hoa.ui.keybindings.binding.shapeshiftbutton4
+  enUS: Special Action Button 4
+  zhCN: 特殊快捷键4
+  zhTW: "特殊快捷鍵4"
+  global: BINDING_NAME_SHAPESHIFTBUTTON4
+- id: hoa.ui.keybindings.binding.shapeshiftbutton5
+  enUS: Special Action Button 5
+  zhCN: 特殊快捷键5
+  zhTW: "特殊快捷鍵5"
+  global: BINDING_NAME_SHAPESHIFTBUTTON5
+- id: hoa.ui.keybindings.binding.shapeshiftbutton6
+  enUS: Special Action Button 6
+  zhCN: 特殊快捷键6
+  zhTW: "特殊快捷鍵6"
+  global: BINDING_NAME_SHAPESHIFTBUTTON6
+- id: hoa.ui.keybindings.binding.shapeshiftbutton7
+  enUS: Special Action Button 7
+  zhCN: 特殊快捷键7
+  zhTW: "特殊快捷鍵7"
+  global: BINDING_NAME_SHAPESHIFTBUTTON7
+- id: hoa.ui.keybindings.binding.shapeshiftbutton8
+  enUS: Special Action Button 8
+  zhCN: 特殊快捷键8
+  zhTW: "特殊快捷鍵8"
+  global: BINDING_NAME_SHAPESHIFTBUTTON8
+- id: hoa.ui.keybindings.binding.shapeshiftbutton9
+  enUS: Special Action Button 9
+  zhCN: 特殊快捷键9
+  zhTW: "特殊快捷鍵9"
+  global: BINDING_NAME_SHAPESHIFTBUTTON9
+- id: hoa.ui.keybindings.binding.sitorstand
+  enUS: Toggle Sit/Stand
+  zhCN: 坐下/下降
+  zhTW: "坐下/下降"
+  global: BINDING_NAME_SITORSTAND
+- id: hoa.ui.keybindings.binding.strafeleft
+  enUS: Strafe Left
+  zhCN: 向左平移
+  zhTW: "向左平移"
+  global: BINDING_NAME_STRAFELEFT
+- id: hoa.ui.keybindings.binding.straferight
+  enUS: Strafe Right
+  zhCN: 向右平移
+  zhTW: "向右平移"
+  global: BINDING_NAME_STRAFERIGHT
+- id: hoa.ui.keybindings.binding.targetlasthostile
+  enUS: Target Last Hostile
+  zhCN: 选中上一个敌对目标
+  zhTW: "選中上一個敵對目標"
+  global: BINDING_NAME_TARGETLASTHOSTILE
+- id: hoa.ui.keybindings.binding.targetnearestenemy
+  enUS: Target Nearest Enemy
+  zhCN: 选中最近的敌人
+  zhTW: "選中最近的敵人"
+  global: BINDING_NAME_TARGETNEARESTENEMY
+- id: hoa.ui.keybindings.binding.targetnearestfriend
+  enUS: Target Nearest Friend
+  zhCN: 选中最近的盟友
+  zhTW: "選中最近的盟友"
+  global: BINDING_NAME_TARGETNEARESTFRIEND
+- id: hoa.ui.keybindings.binding.targetpartymember1
+  enUS: Target Party Member 1
+  zhCN: 选中队友1
+  zhTW: "選中隊友1"
+  global: BINDING_NAME_TARGETPARTYMEMBER1
+- id: hoa.ui.keybindings.binding.targetpartymember2
+  enUS: Target Party Member 2
+  zhCN: 选中队友2
+  zhTW: "選中隊友2"
+  global: BINDING_NAME_TARGETPARTYMEMBER2
+- id: hoa.ui.keybindings.binding.targetpartymember3
+  enUS: Target Party Member 3
+  zhCN: 选中队友3
+  zhTW: "選中隊友3"
+  global: BINDING_NAME_TARGETPARTYMEMBER3
+- id: hoa.ui.keybindings.binding.targetpartymember4
+  enUS: Target Party Member 4
+  zhCN: 选中队友4
+  zhTW: "選中隊友4"
+  global: BINDING_NAME_TARGETPARTYMEMBER4
+- id: hoa.ui.keybindings.binding.targetpartypet1
+  enUS: Target Party Pet 1
+  zhCN: 选中队友宠物1
+  zhTW: "選中隊友寵物1"
+  global: BINDING_NAME_TARGETPARTYPET1
+- id: hoa.ui.keybindings.binding.targetpartypet2
+  enUS: Target Party Pet 2
+  zhCN: 选中队友宠物2
+  zhTW: "選中隊友寵物2"
+  global: BINDING_NAME_TARGETPARTYPET2
+- id: hoa.ui.keybindings.binding.targetpartypet3
+  enUS: Target Party Pet 3
+  zhCN: 选中队友宠物3
+  zhTW: "選中隊友寵物3"
+  global: BINDING_NAME_TARGETPARTYPET3
+- id: hoa.ui.keybindings.binding.targetpartypet4
+  enUS: Target Party Pet 4
+  zhCN: 选中队友宠物4
+  zhTW: "選中隊友寵物4"
+  global: BINDING_NAME_TARGETPARTYPET4
+- id: hoa.ui.keybindings.binding.targetpet
+  enUS: Target Pet
+  zhCN: 选中宠物
+  zhTW: "選中寵物"
+  global: BINDING_NAME_TARGETPET
+- id: hoa.ui.keybindings.binding.targetpreviousenemy
+  enUS: Target Previous Enemy
+  zhCN: 选中前一个敌人
+  zhTW: "選中前一個敵人"
+  global: BINDING_NAME_TARGETPREVIOUSENEMY
+- id: hoa.ui.keybindings.binding.targetpreviousfriend
+  enUS: Target Previous Friend
+  zhCN: 选中前一个盟友
+  zhTW: "選中前一個盟友"
+  global: BINDING_NAME_TARGETPREVIOUSFRIEND
+- id: hoa.ui.keybindings.binding.targetself
+  enUS: Target Self
+  zhCN: 选中自己
+  zhTW: "選中自己"
+  global: BINDING_NAME_TARGETSELF
+- id: hoa.ui.keybindings.binding.toggleactionbarlock
+  enUS: Toggle ActionBar Lock
+  zhCN: 打开/关闭动作条锁定
+  zhTW: "開啟/關閉動作條鎖定"
+  global: BINDING_NAME_TOGGLEACTIONBARLOCK
+- id: hoa.ui.keybindings.binding.toggleautorun
+  enUS: Toggle Autorun
+  zhCN: 打开/关闭自动奔跑
+  zhTW: "開啟/關閉自動奔跑"
+  global: BINDING_NAME_TOGGLEAUTORUN
+- id: hoa.ui.keybindings.binding.toggleautoselfcast
+  enUS: Toggle Auto Self Cast
+  zhCN: 打开/关闭自动自我施法
+  zhTW: "開啟/關閉自動自我施法"
+  global: BINDING_NAME_TOGGLEAUTOSELFCAST
+- id: hoa.ui.keybindings.binding.togglebackpack
+  enUS: Toggle Backpack
+  zhCN: 打开/关闭行囊
+  zhTW: "開啟/關閉行囊"
+  global: BINDING_NAME_TOGGLEBACKPACK
+- id: hoa.ui.keybindings.binding.togglebag1
+  enUS: Toggle Bag 1
+  zhCN: 打开/关闭1号背包
+  zhTW: "開啟/關閉1號揹包"
+  global: BINDING_NAME_TOGGLEBAG1
+- id: hoa.ui.keybindings.binding.togglebag2
+  enUS: Toggle Bag 2
+  zhCN: 打开/关闭2号背包
+  zhTW: "開啟/關閉2號揹包"
+  global: BINDING_NAME_TOGGLEBAG2
+- id: hoa.ui.keybindings.binding.togglebag3
+  enUS: Toggle Bag 3
+  zhCN: 打开/关闭3号背包
+  zhTW: "開啟/關閉3號揹包"
+  global: BINDING_NAME_TOGGLEBAG3
+- id: hoa.ui.keybindings.binding.togglebag4
+  enUS: Toggle Bag 4
+  zhCN: 打开/关闭4号背包
+  zhTW: "開啟/關閉4號揹包"
+  global: BINDING_NAME_TOGGLEBAG4
+- id: hoa.ui.keybindings.binding.togglebattlefieldminimap
+  enUS: Toggle Battle Map
+  zhCN: 打开/关闭区域地图开关
+  zhTW: "開啟/關閉區域地圖開關"
+  global: BINDING_NAME_TOGGLEBATTLEFIELDMINIMAP
+- id: hoa.ui.keybindings.binding.togglecharacter0
+  enUS: Toggle Character Pane
+  zhCN: 打开/关闭角色界面
+  zhTW: "開啟/關閉角色介面"
+  global: BINDING_NAME_TOGGLECHARACTER0
+- id: hoa.ui.keybindings.binding.togglecharacter1
+  enUS: Toggle Skill Pane
+  zhCN: 打开/关闭技能界面
+  zhTW: "開啟/關閉技能介面"
+  global: BINDING_NAME_TOGGLECHARACTER1
+- id: hoa.ui.keybindings.binding.togglecharacter2
+  enUS: Toggle Reputation Pane
+  zhCN: 打开/关闭声望界面
+  zhTW: "開啟/關閉聲望介面"
+  global: BINDING_NAME_TOGGLECHARACTER2
+- id: hoa.ui.keybindings.binding.togglecharacter3
+  enUS: Toggle Pet Pane
+  zhCN: 打开/关闭宠物面板
+  zhTW: "開啟/關閉寵物面板"
+  global: BINDING_NAME_TOGGLECHARACTER3
+- id: hoa.ui.keybindings.binding.togglecharacter4
+  enUS: Toggle Honor Pane
+  zhCN: 打开/关闭PvP面板
+  zhTW: "開啟/關閉PvP面板"
+  global: BINDING_NAME_TOGGLECHARACTER4
+- id: hoa.ui.keybindings.binding.togglecollision
+  enUS: Toggle Collision
+  zhCN: 打开/关闭碰撞
+  zhTW: "開啟/關閉碰撞"
+  global: BINDING_NAME_TOGGLECOLLISION
+- id: hoa.ui.keybindings.binding.togglecollisiondisplay
+  enUS: Toggle Collision Display
+  zhCN: 打开/关闭碰撞显示
+  zhTW: "開啟/關閉碰撞顯示"
+  global: BINDING_NAME_TOGGLECOLLISIONDISPLAY
+- id: hoa.ui.keybindings.binding.togglecombatlog
+  enUS: Toggle Combat Log
+  zhCN: 打开/关闭战斗日志
+  zhTW: "開啟/關閉戰鬥日誌"
+  global: BINDING_NAME_TOGGLECOMBATLOG
+- id: hoa.ui.keybindings.binding.togglefps
+  enUS: Toggle Framerate Display
+  zhCN: 打开/关闭帧数显示
+  zhTW: "開啟/關閉幀數顯示"
+  global: BINDING_NAME_TOGGLEFPS
+- id: hoa.ui.keybindings.binding.togglefriendstab
+  enUS: Toggle Friends Pane
+  zhCN: 打开/关闭好友面板
+  zhTW: "開啟/關閉好友面板"
+  global: BINDING_NAME_TOGGLEFRIENDSTAB
+- id: hoa.ui.keybindings.binding.togglegamemenu
+  enUS: Toggle Game Menu
+  zhCN: 打开/关闭游戏菜单
+  zhTW: "開啟/關閉遊戲選單"
+  global: BINDING_NAME_TOGGLEGAMEMENU
+- id: hoa.ui.keybindings.binding.toggleguildtab
+  enUS: Toggle Guild Pane
+  zhCN: 打开/关闭公会面板
+  zhTW: "開啟/關閉公會面板"
+  global: BINDING_NAME_TOGGLEGUILDTAB
+- id: hoa.ui.keybindings.binding.togglekeyring
+  enUS: Toggle Keyring
+  zhCN: 打开/关闭钥匙链
+  zhTW: "開啟/關閉鑰匙鏈"
+  global: BINDING_NAME_TOGGLEKEYRING
+- id: hoa.ui.keybindings.binding.toggleminimap
+  enUS: Toggle Minimap
+  zhCN: 打开/关闭地图
+  zhTW: "開啟/關閉地圖"
+  global: BINDING_NAME_TOGGLEMINIMAP
+- id: hoa.ui.keybindings.binding.togglemusic
+  enUS: Toggle Music
+  zhCN: 开启/关闭音乐
+  zhTW: "開啟/關閉音樂"
+  global: BINDING_NAME_TOGGLEMUSIC
+- id: hoa.ui.keybindings.binding.toggleperformancedisplay
+  enUS: Toggle Performance Display
+  zhCN: 打开/关闭性能显示
+  zhTW: "開啟/關閉效能顯示"
+  global: BINDING_NAME_TOGGLEPERFORMANCEDISPLAY
+- id: hoa.ui.keybindings.binding.toggleperformancevalues
+  enUS: Toggle Performance Values
+  zhCN: 打开/关闭性能数值
+  zhTW: "開啟/關閉效能數值"
+  global: BINDING_NAME_TOGGLEPERFORMANCEVALUES
+- id: hoa.ui.keybindings.binding.togglepetbook
+  enUS: Toggle Pet Book
+  zhCN: 打开/关闭宠物法术书
+  zhTW: "開啟/關閉寵物法術書"
+  global: BINDING_NAME_TOGGLEPETBOOK
+- id: hoa.ui.keybindings.binding.toggleplayerbounds
+  enUS: Toggle Player Bounds
+  zhCN: 打开/关闭玩家边界
+  zhTW: "開啟/關閉玩家邊界"
+  global: BINDING_NAME_TOGGLEPLAYERBOUNDS
+- id: hoa.ui.keybindings.binding.toggleportals
+  enUS: Toggle Portals
+  zhCN: 打开/关闭传送门
+  zhTW: "開啟/關閉傳送門"
+  global: BINDING_NAME_TOGGLEPORTALS
+- id: hoa.ui.keybindings.binding.togglequestlog
+  enUS: Toggle Quest Log
+  zhCN: 打开/关闭任务日志
+  zhTW: "開啟/關閉任務日誌"
+  global: BINDING_NAME_TOGGLEQUESTLOG
+- id: hoa.ui.keybindings.binding.toggleraidtab
+  enUS: Toggle Raid Pane
+  zhCN: 打开/关闭团队面板
+  zhTW: "開啟/關閉團隊面板"
+  global: BINDING_NAME_TOGGLERAIDTAB
+- id: hoa.ui.keybindings.binding.togglerun
+  enUS: Toggle Run/Walk
+  zhCN: 跑/走
+  zhTW: "跑/走"
+  global: BINDING_NAME_TOGGLERUN
+- id: hoa.ui.keybindings.binding.togglesheath
+  enUS: Sheath/Unsheath Weapon
+  zhCN: 取出/收起武器
+  zhTW: "取出/收起武器"
+  global: BINDING_NAME_TOGGLESHEATH
+- id: hoa.ui.keybindings.binding.togglesocial
+  enUS: Toggle Social Pane
+  zhCN: 打开/关闭社交界面
+  zhTW: "開啟/關閉社交介面"
+  global: BINDING_NAME_TOGGLESOCIAL
+- id: hoa.ui.keybindings.binding.togglesound
+  enUS: Toggle Sound
+  zhCN: 开启/关闭声效
+  zhTW: "開啟/關閉聲效"
+  global: BINDING_NAME_TOGGLESOUND
+- id: hoa.ui.keybindings.binding.togglespellbook
+  enUS: Toggle Spellbook
+  zhCN: 打开/关闭法术书
+  zhTW: "開啟/關閉法術書"
+  global: BINDING_NAME_TOGGLESPELLBOOK
+- id: hoa.ui.keybindings.binding.togglestats
+  enUS: Toggle Stats
+  zhCN: 打开/关闭属性面板
+  zhTW: "開啟/關閉屬性面板"
+  global: BINDING_NAME_TOGGLESTATS
+- id: hoa.ui.keybindings.binding.toggletalents
+  enUS: Toggle Talent Pane
+  zhCN: 打开/关闭天赋面板
+  zhTW: "開啟/關閉天賦面板"
+  global: BINDING_NAME_TOGGLETALENTS
+- id: hoa.ui.keybindings.binding.toggletris
+  enUS: Toggle Tetris
+  zhCN: 打开/关闭俄罗斯方块
+  zhTW: "開啟/關閉俄羅斯方塊"
+  global: BINDING_NAME_TOGGLETRIS
+- id: hoa.ui.keybindings.binding.toggleui
+  enUS: Toggle User Interface
+  zhCN: 打开/关闭用户界面
+  zhTW: "開啟/關閉使用者介面"
+  global: BINDING_NAME_TOGGLEUI
+- id: hoa.ui.keybindings.binding.togglewhotab
+  enUS: Toggle Who Pane
+  zhCN: 打开/关闭查询面板
+  zhTW: "開啟/關閉查詢面板"
+  global: BINDING_NAME_TOGGLEWHOTAB
+- id: hoa.ui.keybindings.binding.toggleworldmap
+  enUS: Toggle World Map Pane
+  zhCN: 打开/关闭世界地图
+  zhTW: "開啟/關閉世界地圖"
+  global: BINDING_NAME_TOGGLEWORLDMAP
+- id: hoa.ui.keybindings.binding.toggleworldstatescores
+  enUS: Toggle Score Screen
+  zhCN: 打开/关闭积分窗口
+  zhTW: "開啟/關閉積分視窗"
+  global: BINDING_NAME_TOGGLEWORLDSTATESCORES
+- id: hoa.ui.keybindings.binding.turnleft
+  enUS: Turn Left
+  zhCN: 左转
+  zhTW: "左轉"
+  global: BINDING_NAME_TURNLEFT
+- id: hoa.ui.keybindings.binding.turnoraction
+  enUS: Turn or Action
+  zhCN: 转向或操作
+  zhTW: "轉向或操作"
+  global: BINDING_NAME_TURNORACTION
+- id: hoa.ui.keybindings.binding.turnright
+  enUS: Turn Right
+  zhCN: 右转
+  zhTW: "右轉"
+  global: BINDING_NAME_TURNRIGHT
+- id: hoa.ui.keybindings.header.actionbar
+  enUS: Action Bar Functions
+  zhCN: 动作条
+  zhTW: "動作條"
+  global: BINDING_HEADER_ACTIONBAR
+- id: hoa.ui.keybindings.header.camera
+  enUS: Camera Functions
+  zhCN: 视角
+  zhTW: "視角"
+  global: BINDING_HEADER_CAMERA
+- id: hoa.ui.keybindings.header.chat
+  enUS: Chat Functions
+  zhCN: 聊天
+  zhTW: "聊天"
+  global: BINDING_HEADER_CHAT
+- id: hoa.ui.keybindings.header.interface
+  enUS: Interface Panel Functions
+  zhCN: 界面面板
+  zhTW: "介面面板"
+  global: BINDING_HEADER_INTERFACE
+- id: hoa.ui.keybindings.header.itunes_remote
+  enUS: iTunes Remote
+  zhCN: iTunes遥控
+  zhTW: "iTunes遙控"
+  global: BINDING_HEADER_ITUNES_REMOTE
+- id: hoa.ui.keybindings.header.misc
+  enUS: Miscellaneous Functions
+  zhCN: 其他
+  zhTW: "其他"
+  global: BINDING_HEADER_MISC
+- id: hoa.ui.keybindings.header.movement
+  enUS: Movement Keys
+  zhCN: 移动按键
+  zhTW: "移動按鍵"
+  global: BINDING_HEADER_MOVEMENT
+- id: hoa.ui.keybindings.header.multiactionbar
+  enUS: MultiActionBar Bindings
+  zhCN: 多动作条
+  zhTW: "多動作條"
+  global: BINDING_HEADER_MULTIACTIONBAR
+- id: hoa.ui.keybindings.header.raid_target
+  enUS: Raid Targeting
+  zhCN: 队伍标记
+  zhTW: "隊伍標記"
+  global: BINDING_HEADER_RAID_TARGET
+- id: hoa.ui.keybindings.header.targeting
+  enUS: Targeting Functions
+  zhCN: 选中目标
+  zhTW: "選中目標"
+  global: BINDING_HEADER_TARGETING
+- id: hoa.ui.keybindings.key.key_apostrophe
+  enUS: ''''
+  zhCN: ''''
+  zhTW: "'"
+  global: KEY_APOSTROPHE
+- id: hoa.ui.keybindings.key.key_backslash
+  enUS: \
+  zhCN: \
+  zhTW: "\\"
+  global: KEY_BACKSLASH
+- id: hoa.ui.keybindings.key.key_backspace
+  enUS: Backspace
+  zhCN: 退格
+  zhTW: "退格"
+  global: KEY_BACKSPACE
+- id: hoa.ui.keybindings.key.key_backspace_mac
+  enUS: Delete
+  zhCN: 删除
+  zhTW: "刪除"
+  global: KEY_BACKSPACE_MAC
+- id: hoa.ui.keybindings.key.key_bindings
+  enUS: Key Bindings
+  zhCN: 按键设置
+  zhTW: "按鍵設定"
+  global: KEY_BINDINGS
+- id: hoa.ui.keybindings.key.key_button3
+  enUS: Middle Mouse
+  zhCN: 鼠标中键
+  zhTW: "滑鼠中鍵"
+  global: KEY_BUTTON3
+- id: hoa.ui.keybindings.key.key_button4
+  enUS: Mouse Button 4
+  zhCN: 鼠标按键4
+  zhTW: "滑鼠按鍵4"
+  global: KEY_BUTTON4
+- id: hoa.ui.keybindings.key.key_button5
+  enUS: Mouse Button 5
+  zhCN: 鼠标按键5
+  zhTW: "滑鼠按鍵5"
+  global: KEY_BUTTON5
+- id: hoa.ui.keybindings.key.key_comma
+  enUS: ','
+  zhCN: ','
+  zhTW: ","
+  global: KEY_COMMA
+- id: hoa.ui.keybindings.key.key_delete
+  enUS: Delete
+  zhCN: Delete
+  zhTW: "Delete"
+  global: KEY_DELETE
+- id: hoa.ui.keybindings.key.key_delete_mac
+  enUS: Del
+  zhCN: Del
+  zhTW: "Del"
+  global: KEY_DELETE_MAC
+- id: hoa.ui.keybindings.key.key_down
+  enUS: Down Arrow
+  zhCN: 方向键下
+  zhTW: "方向鍵下"
+  global: KEY_DOWN
+- id: hoa.ui.keybindings.key.key_end
+  enUS: End
+  zhCN: End
+  zhTW: "End"
+  global: KEY_END
+- id: hoa.ui.keybindings.key.key_enter
+  enUS: Enter
+  zhCN: Enter
+  zhTW: "Enter"
+  global: KEY_ENTER
+- id: hoa.ui.keybindings.key.key_enter_mac
+  enUS: Return
+  zhCN: Return
+  zhTW: "Return"
+  global: KEY_ENTER_MAC
+- id: hoa.ui.keybindings.key.key_escape
+  enUS: Escape
+  zhCN: Escape
+  zhTW: "Escape"
+  global: KEY_ESCAPE
+- id: hoa.ui.keybindings.key.key_home
+  enUS: Home
+  zhCN: Home
+  zhTW: "Home"
+  global: KEY_HOME
+- id: hoa.ui.keybindings.key.key_insert
+  enUS: Insert
+  zhCN: Insert
+  zhTW: "Insert"
+  global: KEY_INSERT
+- id: hoa.ui.keybindings.key.key_insert_mac
+  enUS: Help
+  zhCN: 帮助
+  zhTW: "幫助"
+  global: KEY_INSERT_MAC
+- id: hoa.ui.keybindings.key.key_left
+  enUS: Left Arrow
+  zhCN: 方向键左
+  zhTW: "方向鍵左"
+  global: KEY_LEFT
+- id: hoa.ui.keybindings.key.key_leftbracket
+  enUS: '['
+  zhCN: '['
+  zhTW: "["
+  global: KEY_LEFTBRACKET
+- id: hoa.ui.keybindings.key.key_minus
+  enUS: '-'
+  zhCN: '-'
+  zhTW: "-"
+  global: KEY_MINUS
+- id: hoa.ui.keybindings.key.key_mousewheeldown
+  enUS: Mouse Wheel Down
+  zhCN: 鼠标滚轮向下滚动
+  zhTW: "滑鼠滾輪向下滾動"
+  global: KEY_MOUSEWHEELDOWN
+- id: hoa.ui.keybindings.key.key_mousewheelup
+  enUS: Mouse Wheel Up
+  zhCN: 鼠标滚轮向上滚动
+  zhTW: "滑鼠滾輪向上滾動"
+  global: KEY_MOUSEWHEELUP
+- id: hoa.ui.keybindings.key.key_numlock
+  enUS: Num Lock
+  zhCN: Num Lock
+  zhTW: "Num Lock"
+  global: KEY_NUMLOCK
+- id: hoa.ui.keybindings.key.key_numlock_mac
+  enUS: Clear
+  zhCN: 清除
+  zhTW: "清除"
+  global: KEY_NUMLOCK_MAC
+- id: hoa.ui.keybindings.key.key_numpad0
+  enUS: Num Pad 0
+  zhCN: 数字键盘0
+  zhTW: "數字鍵盤0"
+  global: KEY_NUMPAD0
+- id: hoa.ui.keybindings.key.key_numpad1
+  enUS: Num Pad 1
+  zhCN: 数字键盘1
+  zhTW: "數字鍵盤1"
+  global: KEY_NUMPAD1
+- id: hoa.ui.keybindings.key.key_numpad2
+  enUS: Num Pad 2
+  zhCN: 数字键盘2
+  zhTW: "數字鍵盤2"
+  global: KEY_NUMPAD2
+- id: hoa.ui.keybindings.key.key_numpad3
+  enUS: Num Pad 3
+  zhCN: 数字键盘3
+  zhTW: "數字鍵盤3"
+  global: KEY_NUMPAD3
+- id: hoa.ui.keybindings.key.key_numpad4
+  enUS: Num Pad 4
+  zhCN: 数字键盘4
+  zhTW: "數字鍵盤4"
+  global: KEY_NUMPAD4
+- id: hoa.ui.keybindings.key.key_numpad5
+  enUS: Num Pad 5
+  zhCN: 数字键盘5
+  zhTW: "數字鍵盤5"
+  global: KEY_NUMPAD5
+- id: hoa.ui.keybindings.key.key_numpad6
+  enUS: Num Pad 6
+  zhCN: 数字键盘6
+  zhTW: "數字鍵盤6"
+  global: KEY_NUMPAD6
+- id: hoa.ui.keybindings.key.key_numpad7
+  enUS: Num Pad 7
+  zhCN: 数字键盘7
+  zhTW: "數字鍵盤7"
+  global: KEY_NUMPAD7
+- id: hoa.ui.keybindings.key.key_numpad8
+  enUS: Num Pad 8
+  zhCN: 数字键盘8
+  zhTW: "數字鍵盤8"
+  global: KEY_NUMPAD8
+- id: hoa.ui.keybindings.key.key_numpad9
+  enUS: Num Pad 9
+  zhCN: 数字键盘9
+  zhTW: "數字鍵盤9"
+  global: KEY_NUMPAD9
+- id: hoa.ui.keybindings.key.key_numpaddecimal
+  enUS: Num Pad .
+  zhCN: 数字键盘.
+  zhTW: "數字鍵盤."
+  global: KEY_NUMPADDECIMAL
+- id: hoa.ui.keybindings.key.key_numpaddivide
+  enUS: Num Pad /
+  zhCN: 数字键盘/
+  zhTW: "數字鍵盤/"
+  global: KEY_NUMPADDIVIDE
+- id: hoa.ui.keybindings.key.key_numpadminus
+  enUS: Num Pad -
+  zhCN: 数字键盘-
+  zhTW: "數字鍵盤-"
+  global: KEY_NUMPADMINUS
+- id: hoa.ui.keybindings.key.key_numpadmultiply
+  enUS: Num Pad *
+  zhCN: 数字键盘*
+  zhTW: "數字鍵盤*"
+  global: KEY_NUMPADMULTIPLY
+- id: hoa.ui.keybindings.key.key_numpadplus
+  enUS: Num Pad +
+  zhCN: 数字键盘+
+  zhTW: "數字鍵盤+"
+  global: KEY_NUMPADPLUS
+- id: hoa.ui.keybindings.key.key_pagedown
+  enUS: Page Down
+  zhCN: Page Down
+  zhTW: "Page Down"
+  global: KEY_PAGEDOWN
+- id: hoa.ui.keybindings.key.key_pageup
+  enUS: Page Up
+  zhCN: Page Up
+  zhTW: "Page Up"
+  global: KEY_PAGEUP
+- id: hoa.ui.keybindings.key.key_pause
+  enUS: Pause
+  zhCN: Pause
+  zhTW: "Pause"
+  global: KEY_PAUSE
+- id: hoa.ui.keybindings.key.key_pause_mac
+  enUS: F15
+  zhCN: F15
+  zhTW: "F15"
+  global: KEY_PAUSE_MAC
+- id: hoa.ui.keybindings.key.key_period
+  enUS: .
+  zhCN: .
+  zhTW: "."
+  global: KEY_PERIOD
+- id: hoa.ui.keybindings.key.key_plus
+  enUS: +
+  zhCN: +
+  zhTW: "+"
+  global: KEY_PLUS
+- id: hoa.ui.keybindings.key.key_printscreen
+  enUS: Print Screen
+  zhCN: Print Screen
+  zhTW: "Print Screen"
+  global: KEY_PRINTSCREEN
+- id: hoa.ui.keybindings.key.key_printscreen_mac
+  enUS: F13
+  zhCN: F13
+  zhTW: "F13"
+  global: KEY_PRINTSCREEN_MAC
+- id: hoa.ui.keybindings.key.key_right
+  enUS: Right Arrow
+  zhCN: 方向键右
+  zhTW: "方向鍵右"
+  global: KEY_RIGHT
+- id: hoa.ui.keybindings.key.key_rightbracket
+  enUS: ']'
+  zhCN: ']'
+  zhTW: "]"
+  global: KEY_RIGHTBRACKET
+- id: hoa.ui.keybindings.key.key_scrolllock
+  enUS: Scroll Lock
+  zhCN: Scroll Lock
+  zhTW: "Scroll Lock"
+  global: KEY_SCROLLLOCK
+- id: hoa.ui.keybindings.key.key_scrolllock_mac
+  enUS: F14
+  zhCN: F14
+  zhTW: "F14"
+  global: KEY_SCROLLLOCK_MAC
+- id: hoa.ui.keybindings.key.key_semicolon
+  enUS: ;
+  zhCN: ;
+  zhTW: ";"
+  global: KEY_SEMICOLON
+- id: hoa.ui.keybindings.key.key_slash
+  enUS: /
+  zhCN: /
+  zhTW: "/"
+  global: KEY_SLASH
+- id: hoa.ui.keybindings.key.key_space
+  enUS: Spacebar
+  zhCN: 空格键
+  zhTW: "空格鍵"
+  global: KEY_SPACE
+- id: hoa.ui.keybindings.key.key_tab
+  enUS: Tab
+  zhCN: Tab
+  zhTW: "Tab"
+  global: KEY_TAB
+- id: hoa.ui.keybindings.key.key_tilde
+  enUS: '~'
+  zhCN: '~'
+  zhTW: "~"
+  global: KEY_TILDE
+- id: hoa.ui.keybindings.key.key_up
+  enUS: Up Arrow
+  zhCN: 方向键上
+  zhTW: "方向鍵上"
+  global: KEY_UP
+- id: hoa.ui.keybindings.reset_prompt
+  enUS: Are you sure you want to reset all keybindings to their defaults?
+  zhCN: 确定要将所有按键设置恢复为默认值吗？
+  zhTW: "確定要將所有按鍵設定恢復為預設值嗎？"
+- id: hoa.ui.keybindings.unbind
+  enUS: Unbind Key
+  zhCN: 解除按键绑定
+  zhTW: "解除按鍵繫結"

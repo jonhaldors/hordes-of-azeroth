@@ -1,0 +1,175 @@
+# Imported by tools/content/dump_tables.py from bonk_passive. Edit this file, then run tools/content/compile.py.
+table: bonk_passive
+columns:
+- id
+- name
+- icon
+- description
+- effect
+- value_per_rank
+- max_rank
+- excludes
+- rare
+rows:
+- - 1
+  - Blessing of Might
+  - Spell_Holy_FistOfJustice
+  - +{10}% Power.
+  - 0
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 2
+  - Berserking
+  - Racial_Troll_Berserk
+  - +{8}% Haste.
+  - 1
+  - 8.0
+  - 0
+  - 0
+  - 0
+- - 4
+  - Aspect of the Cheetah
+  - Ability_Mount_JungleTiger
+  - +{7.5}% movement speed.
+  - 3
+  - 7.5
+  - 0
+  - 0
+  - 0
+- - 5
+  - 'Power Word: Fortitude'
+  - Spell_Holy_WordFortitude
+  - +{25}% maximum health.
+  - 4
+  - 25.0
+  - 0
+  - 0
+  - 0
+- - 6
+  - Spirit
+  - Spell_Holy_DivineSpirit
+  - Regain {0.4}% of your health every second.
+  - 5
+  - 0.4
+  - 0
+  - 0
+  - 0
+- - 8
+  - Rested
+  - Spell_Nature_Sleep
+  - +{15}% experience.
+  - 7
+  - 15.0
+  - 0
+  - 0
+  - 0
+- - 9
+  - Goblin Grabber
+  - INV_Gizmo_02
+  - +{30}% pickup range.
+  - 8
+  - 30.0
+  - 0
+  - 0
+  - 0
+- - 11
+  - Arcane Brilliance
+  - Spell_Holy_ArcaneIntellect
+  - +{10}% Area.
+  - 10
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 13
+  - Devotion Aura
+  - Spell_Holy_DevotionAura
+  - +{10} Armor.
+  - 12
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 15
+  - Elixir of Agility
+  - Spell_Holy_BlessingOfAgility
+  - +{5}% dodge chance.
+  - 14
+  - 5.0
+  - 0
+  - 0
+  - 0
+- - 16
+  - Elixir of the Mongoose
+  - INV_Potion_32
+  - +{4}% critical strike chance.
+  - 15
+  - 4.0
+  - 0
+  - 0
+  - 0
+- - 17
+  - Inner Fire
+  - Spell_Holy_InnerFire
+  - Gain a Shield of {10}% of your maximum health.
+  - 17
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 18
+  - Lucky Rabbit's Foot
+  - INV_Misc_Foot_Kodo
+  - +{5} Luck.
+  - 18
+  - 5.0
+  - 0
+  - 0
+  - 1
+- - 19
+  - Hand of Justice
+  - INV_Jewelry_Talisman_01
+  - +{1} Count.
+  - 2
+  - 1.0
+  - 2
+  - 0
+  - 0
+- - 20
+  - Vampiric Embrace
+  - Spell_Shadow_UnsummonBuilding
+  - Your hits have a {10}% chance to heal you for 1% of your maximum health, up to {0.6}% per second.
+  - 9
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 21
+  - Toxicology
+  - Trade_BrewPoison
+  - +{10}% Poison damage.
+  - 19
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 22
+  - Pyromaniac
+  - Spell_Fire_FlameShock
+  - +{10}% Burning damage.
+  - 20
+  - 10.0
+  - 0
+  - 0
+  - 0
+- - 23
+  - Serrated Blades
+  - Ability_Rogue_Rupture
+  - +{10}% Bleed damage.
+  - 21
+  - 10.0
+  - 0
+  - 0
+  - 0

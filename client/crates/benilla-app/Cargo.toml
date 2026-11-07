@@ -1,0 +1,144 @@
+[package]
+name = "benilla-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The Bevy app as a library: everything but the build-id stamp, which lives in the `benilla` launcher so a new commit does not rebuild this crate"
+
+[lints]
+workspace = true
+
+[features]
+# `dev` compiles in the instruments; the player build (`scripts/gates.sh`) has no defaults.
+default = ["dev"]
+# The asset, format and world crates default `dev` on, so they come in without it, forwarded here.
+dev = ["benilla-assets/dev", "benilla-formats/dev", "benilla-world/dev", "dep:bevy_egui"]
+tracy = ["bevy/trace_tracy"]
+# Writes every system's per-run span to `trace-<ts>.json` in the cwd.
+trace_chrome = ["bevy/trace_chrome"]
+# Links Bevy as a shared library so an incremental rebuild relinks faster. The binary then starts
+# only through `cargo run`, which puts the toolchain's libstd on the loader path.
+bevy_dynamic_linking = ["bevy/dynamic_linking"]
+
+[dependencies]
+anyhow.workspace = true
+# The EditBox clipboard, on the main thread as NSPasteboard requires; bevy_egui's 3.x.
+arboard = "3"
+benilla-ui = { path = "../benilla-ui" }
+bevy.workspace = true
+wgpu.workspace = true
+bevy_egui = { version = "0.39", optional = true }
+bytemuck = { version = "1", features = ["derive"] }
+# `f16` decode for the `WOW_BOOTH_DUMP` dump of the `Rgba16Float` booth targets.
+half = "2"
+# Compiles `assets/ui` into the binary, so the interface loads on a machine without the source.
+include_dir = "0.7"
+# The 1.12 chat filters (`text_filter`), with one `RegexSet` for the any-match pass per line.
+regex = "1"
+# The same filters' word boundaries: `regex` has no look-around, and the client's word class is
+# its own table, not Unicode's.
+fancy-regex = { version = "0.18", default-features = false, features = ["std", "unicode", "perf"] }
+# `getrusage` for perf CPU time; `localtime_r` for the log stamp; the audio clock and render
+# thread's realtime policy on macOS.
+libc = "0.2"
+# PNG encoding only: the macOS cursor's NSImage data and screenshots.
+image = { version = "0.25", default-features = false, features = ["png"] }
+# The "no WoW install" error dialog (`no_install`): AppKit, Win32 and, on Linux, `zenity`; no GTK.
+# `xdg-portal` is the Linux backend that carries the message dialog; `wayland` is its file-dialog
+# parent handle, which a message dialog without a parent never reads.
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+# Thread-to-ECS channels: crossbeam's `Receiver` is `Sync`, so it is a resource without a mutex.
+crossbeam-channel = "0.5"
+benilla-assets = { path = "../benilla-assets", default-features = false }
+benilla-formats = { path = "../benilla-formats", default-features = false }
+benilla-protocol = { path = "../benilla-protocol" }
+benilla-world = { path = "../benilla-world", default-features = false }
+# The CVar diff persisted in `benilla-config/config.toml`.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+# Collision for our kinematic character controller; 0.6 targets Bevy 0.18, 0.7 moves to 0.19.
+avian3d = "0.6"
+# Shapes and rasterizes `FontString` text standalone (`ui_text`), at bevy_text's own 0.16.
+cosmic-text = "0.16"
+# The smooth scan converter `ui_text` rasterizes anti-aliased glyphs with; `swash`'s own version.
+zeno = "0.3.3"
+# The layout's unshifted character per key (`KeyEventExtModifierSupplement`), which bevy's
+# `KeyboardInput` drops; bevy_winit's own 0.30, whose features it sets.
+winit = { version = "0.30", default-features = false }
+# `cosmic-text`'s font database, named by `ui_text`; must stay the version it depends on.
+fontdb = "0.23"
+# The mixer. Its `cpal` backend stays off on every target: `sound::output` is our own backend.
+kira = { version = "0.12", default-features = false, features = ["mp3", "wav", "pcm", "adpcm"] }
+# Aborts a debug build on an allocation in the audio IO callback or render pass; off in release.
+assert_no_alloc = "1.1"
+# `MediaSource`: our source raises kira's decode thread's QoS; must stay kira's version.
+symphonia = { version = "0.6", default-features = false }
+# The audio threads' lock-free SPSC rings (output, mix tap); kira's version, so the graph has one.
+rtrb = "0.3"
+mint = "0.5"
+# The gossip greeting's weighted draw, re-rolled per open as in the reference.
+rand = "0.8"
+
+# Wayland clipboard over the standard `wl_data_device`; arboard's speaks `wlr-data-control`,
+# which GNOME does not implement.
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "android"))))'.dependencies]
+raw-window-handle = "0.6"
+smithay-clipboard = "0.7"
+
+# A native NSCursor: winit's cursor rects revert to the arrow under a continuous render loop.
+[target.'cfg(target_os = "macos")'.dependencies]
+# The audio device layer (`sound::output::coreaudio`), at the versions and features cpal uses.
+coreaudio-rs = { version = "0.13", default-features = false, features = ["audio_unit", "core_audio"] }
+objc2-core-audio = { version = "0.3", default-features = false, features = ["std", "AudioHardware"] }
+objc2-core-audio-types = { version = "0.3", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
+objc2 = "0.5"
+objc2-app-kit = { version = "0.2", features = [
+    "NSApplication",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSWindow",
+    "NSView",
+    "NSImage",
+    "NSCursor",
+    "NSEvent",
+] }
+objc2-foundation = { version = "0.2", features = ["NSArray", "NSData", "NSGeometry"] }
+
+# The audio device layer off macOS (`sound::output::cpal`); on macOS cpal cannot rebuild on a
+# lost default device and drops the IO-cycle timestamp.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+cpal = "0.17"
+
+# Windows CPU clocks for `perf::clock`; `GetLocalTime` for the log stamp (`ui_chat::logging`); the
+# layout's virtual keys for `bindings::layout`; the MTA cpal's device enumerator is made in
+# (`sound::output::cpal`).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
+
+# The login cycle's fake realmd runs the server half of SRP6 (`net::io::cycle_tests`).
+[dev-dependencies]
+benilla-srp = { path = "../benilla-srp" }
+# The synthetic movie the movie screen's tests open.
+benilla-movie = { path = "../benilla-movie", features = ["test-support"] }
+# The UI's geometry comparisons (`benilla_ui::assert_near!`).
+benilla-ui = { path = "../benilla-ui", features = ["test-support"] }
+# The schedule census keeps the build's own graph, sync points included, through a build pass,
+# whose signature names the `IndexSet` bevy already builds (`game_plugins::schedule_tests`).
+indexmap = "2.14.0"
+num-bigint = "0.4.6"
+sha1.workspace = true
+
+# The shader translation test writes the backend this platform renders with, through the naga
+# bevy already builds (`shaders.rs`).
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+naga = { version = "27.0.3", features = ["msl-out"] }
+
+[target.'cfg(not(target_os = "macos"))'.dev-dependencies]
+naga = { version = "27.0.3", features = ["spv-out"] }

@@ -1,0 +1,1310 @@
+# HoA typed protocol between the server, the client and the addon bridge.
+# `tools/protocol/gen.py` emits the C++ writer and the Rust decoder.
+version: 31
+messages:
+  - name: aura_value
+    id: 0x0002
+    direction: server_to_client
+    fields:
+      - { name: spell_id, type: u32 }
+      - { name: value, type: u32 }
+      - { name: max_value, type: u32 }
+  - name: dash
+    id: 0x0003
+    direction: server_to_client
+    fields:
+      - { name: max_charges, type: u8 }
+      - { name: recharge_ms, type: u32 }
+      - { name: cooldown_ms, type: u32 }
+      - { name: blink, type: bool }
+      - { name: charges, type: u8 }
+  - name: aura_percent
+    id: 0x0004
+    direction: server_to_client
+    fields:
+      - { name: spell_id, type: u32 }
+      - { name: percent, type: f32 }
+  - name: aura_text
+    id: 0x0005
+    direction: server_to_client
+    fields:
+      - { name: spell_id, type: u32 }
+      - { name: text, type: string }
+  - name: aura_catalog_entry
+    id: 0x0006
+    direction: server_to_client
+    fields:
+      - { name: index, type: u16 }
+      - { name: total, type: u16 }
+      - { name: spell_id, type: u32 }
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: description, type: string }
+      - { name: stack, type: u32 }
+      - { name: duration, type: u32 }
+  - name: aura_catalog_end
+    id: 0x0007
+    direction: server_to_client
+    fields:
+      - { name: total, type: u16 }
+  - name: hello
+    id: 0x0001
+    direction: server_to_client
+    fields:
+      - { name: protocol_version, type: u16 }
+      - { name: content_hash, type: string }
+      - { name: content_sections, type: string }
+      - { name: language, type: string }
+  - name: run_state
+    id: 0x0010
+    direction: server_to_client
+    fields:
+      - { name: elapsed_s, type: u32 }
+      - { name: duration_s, type: u32 }
+      - { name: kills, type: u32 }
+      - { name: gold_earned, type: u32 }
+      - { name: player_level, type: u8 }
+      - { name: boss_spawned, type: bool }
+      - { name: coins, type: u32 }
+      - { name: chest_price, type: u32 }
+      - { name: stage, type: u32 }
+      - { name: portal, type: bool }
+      - { name: shards_earned, type: u32 }
+      - { name: weapon_stats, type: string }
+      - { name: total_s, type: u32 }
+      - { name: damage_types, type: string }
+  - name: run_start
+    id: 0x0011
+    direction: server_to_client
+    fields:
+      - { name: map_name, type: string }
+      - { name: difficulty, type: string }
+      - { name: duration_s, type: u32 }
+      - { name: stage, type: u32 }
+      - { name: first_miniboss_s, type: u32 }
+      - { name: timeline_marks, type: string }
+      - { name: mythic, type: bool }
+      - { name: stages, type: u32 }
+      - { name: level_name, type: string }
+      - { name: finale, type: bool }
+      - { name: sandbox, type: bool }
+  - name: run_end
+    id: 0x0012
+    direction: server_to_client
+    fields:
+      - { name: went_home, type: bool }
+      - { name: seconds, type: u32 }
+      - { name: kills, type: u32 }
+      - { name: gold, type: u32 }
+      - { name: player_level, type: u8 }
+      - { name: stage, type: u32 }
+      - { name: shards, type: u32 }
+      - { name: victory, type: bool }
+      - { name: mythic, type: bool }
+      - { name: best_level, type: u32 }
+      - { name: best_before, type: u32 }
+      - { name: level_name, type: string }
+      - { name: finale_seconds, type: u32 }
+  - name: run_paused
+    id: 0x0013
+    direction: server_to_client
+    fields:
+      - { name: paused, type: bool }
+  - name: coop_no_pause
+    id: 0x0014
+    direction: server_to_client
+    fields:
+      - { name: no_pause, type: bool }
+  - name: run_xp
+    id: 0x0015
+    direction: server_to_client
+    fields:
+      - { name: level, type: u32 }
+      - { name: xp, type: u32 }
+      - { name: next, type: u32 }
+      - { name: orbs, type: u32 }
+  - name: wave_beat
+    id: 0x0016
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: beat, type: u32 }
+      - { name: seconds, type: u32 }
+  - name: run_support
+    id: 0x0017
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: run_glyph_meter
+    id: 0x0018
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: run_other_meter
+    id: 0x0019
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: run_party_meter
+    id: 0x001A
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: objective
+    id: 0x001B
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: kind, type: string }
+      - { name: x, type: f32 }
+      - { name: y, type: f32 }
+      - { name: map_id, type: u32 }
+      - { name: label, type: string }
+      - { name: seconds, type: u32 }
+      - { name: icon, type: string }
+      - { name: description, type: string }
+  - name: objective_clear
+    id: 0x001C
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+  - name: objective_ping
+    id: 0x001D
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+  - name: mob
+    id: 0x001E
+    direction: server_to_client
+    fields:
+      - { name: kind, type: u32 }
+      - { name: name, type: string }
+      - { name: icons, type: string }
+      - { name: plate_id, type: u32 }
+      - { name: guid, type: string }
+  - name: mob_dead
+    id: 0x001F
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: plate_id, type: u32 }
+      - { name: guid, type: string }
+  - name: mob_clear
+    id: 0x0020
+    direction: server_to_client
+    fields: []
+  - name: ally
+    id: 0x0021
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: plate_id, type: u32 }
+      - { name: guid, type: string }
+  - name: ally_done
+    id: 0x0022
+    direction: server_to_client
+    fields:
+      - { name: plate_id, type: u32 }
+      - { name: guid, type: string }
+  - name: affix_info
+    id: 0x0023
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: description, type: string }
+  - name: offer_open
+    id: 0x0024
+    direction: server_to_client
+    fields:
+      - { name: level, type: u32 }
+      - { name: count, type: u32 }
+      - { name: source, type: string }
+      - { name: rerolls, type: u32 }
+      - { name: banishes, type: u32 }
+      - { name: skips, type: u32 }
+  - name: offer_option
+    id: 0x0025
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: kind, type: string }
+      - { name: new_level, type: u32 }
+      - { name: max_level, type: u32 }
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: description, type: string }
+      - { name: rarity, type: string }
+      - { name: locked, type: bool }
+      - { name: damage_before, type: string }
+      - { name: damage_after, type: string }
+      - { name: damage_label, type: string }
+      - { name: banishable, type: bool }
+  - name: offer_stat
+    id: 0x0026
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: label, type: string }
+      - { name: before, type: string }
+      - { name: after, type: string }
+  - name: offer_end
+    id: 0x0027
+    direction: server_to_client
+    fields: []
+  - name: offer_closed
+    id: 0x0028
+    direction: server_to_client
+    fields: []
+  - name: ley_open
+    id: 0x0029
+    direction: server_to_client
+    fields:
+      - { name: count, type: u32 }
+  - name: ley_option
+    id: 0x002A
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: description, type: string }
+      - { name: rarity, type: u32 }
+      - { name: kind, type: string }
+      - { name: new_level, type: u32 }
+      - { name: max_level, type: u32 }
+  - name: ley_end
+    id: 0x002B
+    direction: server_to_client
+    fields: []
+  - name: ley_closed
+    id: 0x002C
+    direction: server_to_client
+    fields: []
+  - name: glyph_offer
+    id: 0x002D
+    direction: server_to_client
+    fields:
+      - { name: picks_given, type: u32 }
+      - { name: count, type: u32 }
+      - { name: rerolls, type: u32 }
+  - name: glyph_option
+    id: 0x002E
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: id, type: u32 }
+  - name: glyph_offer_end
+    id: 0x002F
+    direction: server_to_client
+    fields: []
+  - name: glyph_close
+    id: 0x0030
+    direction: server_to_client
+    fields: []
+  - name: glyph_taken
+    id: 0x0031
+    direction: server_to_client
+    fields:
+      - { name: ids, type: string }
+  - name: glyph_info
+    id: 0x0032
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: rarity, type: u32 }
+      - { name: description, type: string }
+      - { name: drawback, type: string }
+  - name: glyph_count
+    id: 0x0033
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: count, type: u32 }
+  - name: quest_log_open
+    id: 0x0034
+    direction: server_to_client
+    fields:
+      - { name: npc, type: string }
+  - name: quest_entry
+    id: 0x0035
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: name, type: string }
+      - { name: description, type: string }
+      - { name: icon, type: string }
+      - { name: progress, type: u32 }
+      - { name: amount, type: u32 }
+      - { name: completed, type: bool }
+      - { name: reward, type: string }
+      - { name: reward_icon, type: string }
+      - { name: class_only, type: bool }
+      - { name: category, type: string }
+  - name: quest_log_end
+    id: 0x0036
+    direction: server_to_client
+    fields: []
+  - name: quest_done
+    id: 0x0037
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: name, type: string }
+      - { name: reward, type: string }
+      - { name: icon, type: string }
+  - name: vendor_open
+    id: 0x0038
+    direction: server_to_client
+    fields:
+      - { name: coins, type: u32 }
+      - { name: reroll_cost, type: u32 }
+      - { name: seconds, type: u32 }
+      - { name: name, type: string }
+      - { name: restocks, type: u32 }
+  - name: vendor_slot
+    id: 0x0039
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: kind, type: string }
+      - { name: rank, type: u32 }
+      - { name: max_rank, type: u32 }
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: description, type: string }
+      - { name: rarity, type: string }
+      - { name: locked, type: bool }
+      - { name: price, type: u32 }
+      - { name: state, type: u32 }
+  - name: vendor_end
+    id: 0x003A
+    direction: server_to_client
+    fields: []
+  - name: vendor_close
+    id: 0x003B
+    direction: server_to_client
+    fields: []
+  - name: portal_home
+    id: 0x003C
+    direction: server_to_client
+    fields:
+      - { name: vault_empty, type: bool }
+      - { name: finale, type: bool }
+  - name: portal_endless
+    id: 0x003D
+    direction: server_to_client
+    fields: []
+  - name: found_clear
+    id: 0x003E
+    direction: server_to_client
+    fields: []
+  - name: found_item
+    id: 0x003F
+    direction: server_to_client
+    fields:
+      - { name: place, type: string }
+      - { name: entry, type: u32 }
+      - { name: tier, type: u32 }
+      - { name: lines, type: string }
+      - { name: extra, type: string }
+      - { name: legacy, type: bool }
+  - name: found_end
+    id: 0x0040
+    direction: server_to_client
+    fields: []
+  - name: gear_offer
+    id: 0x0041
+    direction: server_to_client
+    fields:
+      - { name: entry, type: u32 }
+      - { name: replaced, type: u32 }
+      - { name: valor, type: u32 }
+      - { name: quality, type: u32 }
+      - { name: tier, type: u32 }
+      - { name: lines, type: string }
+      - { name: slot, type: u32 }
+      - { name: other_slot, type: u32 }
+      - { name: other_replaced, type: u32 }
+      - { name: extra, type: string }
+      - { name: new_look, type: bool }
+  - name: gear_close
+    id: 0x0042
+    direction: server_to_client
+    fields: []
+  - name: vault_clear
+    id: 0x0043
+    direction: server_to_client
+    fields: []
+  - name: vault_sent
+    id: 0x0044
+    direction: server_to_client
+    fields: []
+  - name: vault_sent_item
+    id: 0x0045
+    direction: server_to_client
+    fields:
+      - { name: entry, type: u32 }
+      - { name: stage, type: u32 }
+      - { name: tier, type: u32 }
+      - { name: lines, type: string }
+      - { name: extra, type: string }
+  - name: vault_item
+    id: 0x0046
+    direction: server_to_client
+    fields:
+      - { name: guid, type: u32 }
+      - { name: entry, type: u32 }
+      - { name: quality, type: u32 }
+      - { name: worn, type: bool }
+      - { name: sell_copper, type: u32 }
+      - { name: saved, type: string }
+      - { name: tier, type: u32 }
+      - { name: best, type: u32 }
+      - { name: owned, type: bool }
+      - { name: scrap, type: u32 }
+      - { name: lines, type: string }
+      - { name: extra, type: string }
+  - name: vault_open
+    id: 0x0047
+    direction: server_to_client
+    fields:
+      - { name: slots, type: u32 }
+      - { name: chosen, type: string }
+      - { name: mode, type: string }
+      - { name: scrap_bonus, type: u32 }
+  - name: vault_close
+    id: 0x0048
+    direction: server_to_client
+    fields: []
+  - name: enchant_clear
+    id: 0x0049
+    direction: server_to_client
+    fields: []
+  - name: enchant_info
+    id: 0x004A
+    direction: server_to_client
+    fields:
+      - { name: cost, type: u32 }
+      - { name: valor, type: u32 }
+  - name: enchant_slot
+    id: 0x004B
+    direction: server_to_client
+    fields:
+      - { name: slot, type: u32 }
+      - { name: effect, type: u32 }
+      - { name: grade, type: u32 }
+      - { name: value, type: f32 }
+      - { name: percent, type: f32 }
+  - name: enchant_offer
+    id: 0x004C
+    direction: server_to_client
+    fields:
+      - { name: slot, type: u32 }
+      - { name: index, type: u32 }
+      - { name: effect, type: u32 }
+      - { name: grade, type: u32 }
+      - { name: value, type: f32 }
+      - { name: percent, type: f32 }
+  - name: enchant_end
+    id: 0x004D
+    direction: server_to_client
+    fields: []
+  - name: enchant_open
+    id: 0x004E
+    direction: server_to_client
+    fields: []
+  - name: enchant_close
+    id: 0x004F
+    direction: server_to_client
+    fields: []
+  - name: cards
+    id: 0x0050
+    direction: server_to_client
+    fields:
+      - { name: entries, type: string }
+  - name: card_tip
+    id: 0x0051
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: name, type: string }
+      - { name: description, type: string }
+  - name: card_cooldown
+    id: 0x0052
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: left_ms, type: i32 }
+      - { name: total_ms, type: u32 }
+  - name: card_now
+    id: 0x0053
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: text, type: string }
+  - name: mastery_state
+    id: 0x0054
+    direction: server_to_client
+    fields:
+      - { name: class_name, type: string }
+      - { name: level, type: u32 }
+      - { name: xp, type: u32 }
+      - { name: next, type: u32 }
+      - { name: max_level, type: u32 }
+      - { name: unspent, type: u32 }
+      - { name: trees, type: bool }
+  - name: wallet
+    id: 0x0055
+    direction: server_to_client
+    fields:
+      - { name: shards, type: u32 }
+  - name: notice
+    id: 0x0056
+    direction: server_to_client
+    fields:
+      - { name: kind, type: string }
+  - name: message
+    id: 0x0057
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: find
+    id: 0x0058
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: npc_name
+    id: 0x0059
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: npc_name, type: string }
+  - name: shard
+    id: 0x005A
+    direction: server_to_client
+    fields:
+      - { name: count, type: u32 }
+      - { name: total, type: u32 }
+  - name: valor
+    id: 0x005B
+    direction: server_to_client
+    fields: []
+  - name: epic_luck
+    id: 0x005C
+    direction: server_to_client
+    fields:
+      - { name: bonus, type: u32 }
+  - name: coop_wait
+    id: 0x005D
+    direction: server_to_client
+    fields:
+      - { name: names, type: string }
+      - { name: seconds, type: u32 }
+  - name: coop_watch
+    id: 0x005E
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: choices, type: u32 }
+  - name: coop_removed
+    id: 0x005F
+    direction: server_to_client
+    fields: []
+  - name: coop_down
+    id: 0x0060
+    direction: server_to_client
+    fields:
+      - { name: pool, type: u32 }
+      - { name: cap, type: u32 }
+      - { name: list, type: string }
+  - name: leash
+    id: 0x0061
+    direction: server_to_client
+    fields:
+      - { name: distance, type: i32 }
+      - { name: radius, type: i32 }
+      - { name: slow_percent, type: i32 }
+  - name: coop_ready
+    id: 0x0062
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+      - { name: seconds, type: u32 }
+  - name: coop_ready_end
+    id: 0x0063
+    direction: server_to_client
+    fields: []
+  - name: starter
+    id: 0x0064
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: icon, type: string }
+      - { name: name, type: string }
+      - { name: unlocked, type: bool }
+      - { name: chosen, type: bool }
+      - { name: hint, type: string }
+      - { name: description, type: string }
+  - name: starter_end
+    id: 0x0065
+    direction: server_to_client
+    fields: []
+  - name: reach_ring
+    id: 0x0066
+    direction: server_to_client
+    fields:
+      - { name: spell_id, type: u32 }
+      - { name: slot, type: u32 }
+  - name: druid_form
+    id: 0x0067
+    direction: server_to_client
+    fields:
+      - { name: form, type: string }
+  - name: greed
+    id: 0x0068
+    direction: server_to_client
+    fields:
+      - { name: stacks, type: u32 }
+      - { name: reward_percent, type: u32 }
+      - { name: mob_percent, type: u32 }
+  - name: hearth
+    id: 0x0069
+    direction: server_to_client
+    fields:
+      - { name: percent, type: i32 }
+      - { name: inside, type: bool }
+      - { name: seconds, type: u32 }
+  - name: capture
+    id: 0x006A
+    direction: server_to_client
+    fields:
+      - { name: label, type: string }
+      - { name: percent, type: i32 }
+  - name: moonwell
+    id: 0x006B
+    direction: server_to_client
+    fields:
+      - { name: seconds, type: u32 }
+      - { name: inside, type: bool }
+      - { name: total, type: u32 }
+  - name: ley_blessings
+    id: 0x006C
+    direction: server_to_client
+    fields: []
+  - name: ley_bless
+    id: 0x006D
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: icon, type: string }
+      - { name: text, type: string }
+  - name: ley_bless_end
+    id: 0x006E
+    direction: server_to_client
+    fields: []
+  - name: event_timer
+    id: 0x006F
+    direction: server_to_client
+    fields:
+      - { name: label, type: string }
+      - { name: seconds, type: u32 }
+      - { name: total, type: u32 }
+  - name: death_recap
+    id: 0x0070
+    direction: server_to_client
+    fields:
+      - { name: max_health, type: u32 }
+      - { name: start_health, type: u32 }
+      - { name: killer, type: u32 }
+      - { name: kill_amount, type: u32 }
+      - { name: overkill, type: u32 }
+      - { name: taken, type: u32 }
+      - { name: healed, type: u32 }
+  - name: death_source
+    id: 0x0071
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: icon, type: string }
+      - { name: name, type: string }
+      - { name: spell, type: string }
+      - { name: kind, type: string }
+      - { name: damage, type: u64 }
+  - name: death_events
+    id: 0x0072
+    direction: server_to_client
+    fields:
+      - { name: text, type: string }
+  - name: run_summary
+    id: 0x0073
+    direction: server_to_client
+    fields:
+      - { name: damage_taken, type: u64 }
+      - { name: elites, type: u32 }
+      - { name: minis, type: u32 }
+      - { name: bosses, type: u32 }
+  - name: summary_weapon
+    id: 0x0074
+    direction: server_to_client
+    fields:
+      - { name: icon, type: string }
+      - { name: name, type: string }
+      - { name: level, type: u32 }
+      - { name: max_level, type: u32 }
+      - { name: evolved, type: bool }
+      - { name: damage, type: u64 }
+      - { name: kills, type: u32 }
+      - { name: school, type: string }
+  - name: summary_spell
+    id: 0x0075
+    direction: server_to_client
+    fields:
+      - { name: icon, type: string }
+      - { name: name, type: string }
+      - { name: damage, type: u64 }
+      - { name: kills, type: u32 }
+  - name: summary_end
+    id: 0x0076
+    direction: server_to_client
+    fields: []
+  - name: board_open
+    id: 0x0077
+    direction: server_to_client
+    fields: []
+  - name: board_header
+    id: 0x0078
+    direction: server_to_client
+    fields:
+      - { name: line, type: string }
+  - name: board_row
+    id: 0x0079
+    direction: server_to_client
+    fields:
+      - { name: view, type: u32 }
+      - { name: class_id, type: u32 }
+      - { name: position, type: u32 }
+      - { name: line, type: string }
+  - name: board_page
+    id: 0x007A
+    direction: server_to_client
+    fields:
+      - { name: view, type: u32 }
+      - { name: class_id, type: u32 }
+      - { name: offset, type: u32 }
+      - { name: total, type: u32 }
+  - name: board_choice
+    id: 0x007B
+    direction: server_to_client
+    fields:
+      - { name: choice, type: i32 }
+      - { name: climb, type: u32 }
+      - { name: game_master, type: bool }
+      - { name: server_modified, type: bool }
+  - name: board_end
+    id: 0x007C
+    direction: server_to_client
+    fields: []
+  - name: shop_open
+    id: 0x007D
+    direction: server_to_client
+    fields:
+      - { name: kind, type: u32 }
+      - { name: open, type: bool }
+      - { name: npc, type: string }
+      - { name: currency, type: string }
+      - { name: balance, type: u32 }
+      - { name: level, type: u32 }
+      - { name: xp, type: u32 }
+      - { name: xp_next, type: u32 }
+      - { name: max_level, type: u32 }
+      - { name: earned, type: u32 }
+      - { name: from_quests, type: u32 }
+      - { name: class_name, type: string }
+      - { name: points_per_row, type: u32 }
+      - { name: inspect, type: bool }
+      - { name: gates, type: string }
+      - { name: coop_guest, type: bool }
+  - name: shop_tree
+    id: 0x007E
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: name, type: string }
+      - { name: background, type: string }
+      - { name: spent, type: u32 }
+  - name: mastery_tree
+    id: 0x007F
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: name, type: string }
+      - { name: background, type: string }
+      - { name: layout, type: u32 }
+      - { name: gates, type: string }
+      - { name: spent, type: u32 }
+  - name: shop_node
+    id: 0x0080
+    direction: server_to_client
+    fields:
+      - { name: tree, type: u32 }
+      - { name: id, type: u32 }
+      - { name: row, type: u32 }
+      - { name: column, type: u32 }
+      - { name: icon, type: string }
+      - { name: rank, type: u32 }
+      - { name: max_rank, type: u32 }
+      - { name: cost, type: u32 }
+      - { name: required_id, type: u32 }
+      - { name: required_rank, type: u32 }
+      - { name: toggle, type: bool }
+      - { name: enabled, type: bool }
+      - { name: name, type: string }
+      - { name: description, type: string }
+      - { name: locked, type: bool }
+      - { name: quest, type: string }
+      - { name: value_per_rank, type: string }
+      - { name: refund, type: u32 }
+      - { name: quest_description, type: string }
+      - { name: rank_lock, type: string }
+  - name: mastery_node
+    id: 0x0081
+    direction: server_to_client
+    fields:
+      - { name: tree, type: u32 }
+      - { name: id, type: u32 }
+      - { name: row, type: u32 }
+      - { name: column, type: u32 }
+      - { name: icon, type: string }
+      - { name: rank, type: u32 }
+      - { name: max_rank, type: u32 }
+      - { name: cost, type: u32 }
+      - { name: required_id, type: u32 }
+      - { name: required_rank, type: u32 }
+      - { name: name, type: string }
+      - { name: description, type: string }
+      - { name: value_per_rank, type: string }
+      - { name: refund, type: u32 }
+      - { name: shape, type: u32 }
+      - { name: position, type: string }
+      - { name: parents, type: string }
+      - { name: excludes, type: string }
+  - name: mastery_presets
+    id: 0x0082
+    direction: server_to_client
+    fields:
+      - { name: active, type: u32 }
+      - { name: points_1, type: u32 }
+      - { name: points_2, type: u32 }
+      - { name: points_3, type: u32 }
+  - name: mastery_preset_ranks
+    id: 0x0083
+    direction: server_to_client
+    fields:
+      - { name: preset, type: u32 }
+      - { name: ranks, type: string }
+  - name: shop_end
+    id: 0x0084
+    direction: server_to_client
+    fields: []
+  - name: shop_close
+    id: 0x0085
+    direction: server_to_client
+    fields: []
+  - name: gear
+    id: 0x0086
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: stats, type: string }
+  - name: gear_end
+    id: 0x0087
+    direction: server_to_client
+    fields: []
+  - name: trinket_tip
+    id: 0x0088
+    direction: server_to_client
+    fields:
+      - { name: entry, type: u32 }
+      - { name: count, type: u32 }
+      - { name: text, type: string }
+  - name: arena
+    id: 0x0089
+    direction: server_to_client
+    fields:
+      - { name: npc_present, type: bool }
+      - { name: npc, type: string }
+      - { name: gold_bonus, type: u32 }
+      - { name: challenges, type: string }
+      - { name: perks, type: string }
+  - name: tier
+    id: 0x008A
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: key, type: string }
+      - { name: name, type: string }
+      - { name: unlocked, type: bool }
+      - { name: hint, type: string }
+      - { name: best, type: u32 }
+      - { name: description, type: string }
+      - { name: art, type: string }
+      - { name: maps, type: string }
+      - { name: levels, type: u32 }
+      - { name: open_level, type: u32 }
+      - { name: dungeons, type: string }
+      - { name: details, type: string }
+      - { name: first_level, type: u32 }
+  - name: tier_end
+    id: 0x008B
+    direction: server_to_client
+    fields: []
+  - name: tier_info
+    id: 0x008C
+    direction: server_to_client
+    fields:
+      - { name: tier_id, type: u32 }
+      - { name: aim, type: string }
+      - { name: boss, type: string }
+      - { name: charge_seconds, type: u32 }
+      - { name: crowd, type: u32 }
+      - { name: carried_from, type: string }
+  - name: level_preview
+    id: 0x008D
+    direction: server_to_client
+    fields:
+      - { name: tier_id, type: u32 }
+      - { name: band, type: u32 }
+      - { name: health, type: string }
+      - { name: damage, type: string }
+      - { name: veterans, type: string }
+      - { name: affixes, type: u32 }
+      - { name: gold, type: string }
+      - { name: legendary, type: string }
+      - { name: epic, type: string }
+      - { name: blue, type: string }
+      - { name: green, type: string }
+      - { name: white, type: string }
+      - { name: cleared, type: string }
+      - { name: drop_tier, type: u32 }
+      - { name: stone, type: bool }
+  - name: level_best
+    id: 0x008E
+    direction: server_to_client
+    fields:
+      - { name: tier_id, type: u32 }
+      - { name: band, type: u32 }
+      - { name: clears, type: u32 }
+      - { name: first_clear, type: u32 }
+      - { name: best_ms, type: u32 }
+      - { name: best_ms_by, type: string }
+      - { name: damage, type: u32 }
+      - { name: damage_by, type: string }
+      - { name: kills, type: u32 }
+      - { name: kills_by, type: string }
+      - { name: gold, type: u32 }
+      - { name: gold_by, type: string }
+      - { name: valor, type: u32 }
+      - { name: valor_by, type: string }
+      - { name: finale, type: u32 }
+      - { name: finale_seconds, type: u32 }
+  - name: map_info
+    id: 0x008F
+    direction: server_to_client
+    fields:
+      - { name: key, type: string }
+      - { name: map_id, type: u32 }
+      - { name: summary, type: string }
+      - { name: description, type: string }
+      - { name: zone_file, type: string }
+      - { name: u, type: string }
+      - { name: v, type: string }
+  - name: zone_art
+    id: 0x0090
+    direction: server_to_client
+    fields:
+      - { name: file, type: string }
+      - { name: texture, type: string }
+      - { name: width, type: u32 }
+      - { name: height, type: u32 }
+      - { name: x, type: string }
+      - { name: y, type: string }
+  - name: codex
+    id: 0x0091
+    direction: server_to_client
+    fields:
+      - { name: kind, type: string }
+      - { name: line, type: string }
+  - name: weapon_info
+    id: 0x0092
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: name, type: string }
+      - { name: ranks, type: string }
+      - { name: interval, type: u32 }
+      - { name: next_cast, type: i32 }
+      - { name: line, type: string }
+      - { name: description, type: string }
+      - { name: damage, type: string }
+      - { name: header, type: string }
+      - { name: faster, type: bool }
+      - { name: tags, type: string }
+      - { name: radius, type: string }
+  - name: weapon_evolution
+    id: 0x0093
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: evolution, type: string }
+      - { name: evolution_text, type: string }
+      - { name: evolved_from, type: string }
+      - { name: chance_text, type: string }
+      - { name: chance, type: u32 }
+  - name: weapon_evolution_option
+    id: 0x0094
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: name, type: string }
+      - { name: text, type: string }
+  - name: cooldown_pie
+    id: 0x0095
+    direction: server_to_client
+    fields:
+      - { name: index, type: u32 }
+      - { name: pie_ms, type: u32 }
+      - { name: timer, type: i32 }
+      - { name: held, type: bool }
+  - name: quartermaster
+    id: 0x0096
+    direction: server_to_client
+    fields:
+      - { name: tier, type: u32 }
+      - { name: scrap, type: u32 }
+  - name: quartermaster_upgrade_clear
+    id: 0x0097
+    direction: server_to_client
+    fields: []
+  - name: quartermaster_upgrade
+    id: 0x0098
+    direction: server_to_client
+    fields:
+      - { name: guid, type: u32 }
+      - { name: entry, type: u32 }
+      - { name: tier, type: u32 }
+      - { name: cost, type: u32 }
+      - { name: can, type: bool }
+      - { name: worn, type: bool }
+      - { name: lines, type: string }
+      - { name: extra, type: string }
+      - { name: reroll_cost, type: u32 }
+      - { name: reroll_line, type: u32 }
+      - { name: offer_line, type: u32 }
+      - { name: offers, type: string }
+      - { name: ranges, type: string }
+      - { name: left, type: u32 }
+  - name: quartermaster_upgrade_end
+    id: 0x0099
+    direction: server_to_client
+    fields:
+      - { name: scrap, type: u32 }
+  - name: music
+    id: 0x009A
+    direction: server_to_client
+    fields:
+      - { name: track, type: string }
+  - name: loadout
+    id: 0x009B
+    direction: server_to_client
+    fields:
+      - { name: entries, type: string }
+      - { name: spell_slots, type: u32 }
+      - { name: passive_slots, type: u32 }
+  - name: druid_slots
+    id: 0x009C
+    direction: server_to_client
+    fields:
+      - { name: slots, type: string }
+  - name: boss_bar
+    id: 0x009D
+    direction: server_to_client
+    fields:
+      - { name: data, type: string }
+  - name: titles
+    id: 0x009E
+    direction: server_to_client
+    fields:
+      - { name: active, type: u32 }
+      - { name: list, type: string }
+  - name: stats
+    id: 0x009F
+    direction: server_to_client
+    fields:
+      - { name: in_run, type: bool }
+      - { name: caps, type: string }
+      - { name: after_caps, type: string }
+  - name: keyword_timers
+    id: 0x00A0
+    direction: server_to_client
+    fields:
+      - { name: entries, type: string }
+  - name: visual_mark
+    id: 0x00A1
+    direction: server_to_client
+    fields:
+      - { name: key, type: string }
+      - { name: shape, type: u8 }
+      - { name: x, type: f32 }
+      - { name: y, type: f32 }
+      - { name: z, type: f32 }
+      - { name: yaw, type: f32 }
+      - { name: size, type: f32 }
+      - { name: duration_ms, type: u32 }
+      - { name: flags, type: u8 }
+      - { name: style, type: u8 }
+      - { name: follow, type: u64 }
+      - { name: texture, type: string }
+      - { name: done_ms, type: u32 }
+      - { name: opacity_percent, type: u8 }
+      - { name: persistent, type: bool }
+  - name: visual_mark_remove
+    id: 0x00A2
+    direction: server_to_client
+    fields:
+      - { name: key, type: string }
+  - name: visual_telegraph_clear
+    id: 0x00A3
+    direction: server_to_client
+    fields: []
+  - name: visual_clear
+    id: 0x00A4
+    direction: server_to_client
+    fields: []
+  - name: visual_kit
+    id: 0x00A5
+    direction: server_to_client
+    fields:
+      - { name: kit_id, type: u32 }
+      - { name: x, type: f32 }
+      - { name: y, type: f32 }
+      - { name: z, type: f32 }
+      - { name: yaw, type: f32 }
+      - { name: hold_ms, type: u32 }
+      - { name: raised, type: bool }
+  - name: visual_flight
+    id: 0x00A6
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+      - { name: from_x, type: f32 }
+      - { name: from_y, type: f32 }
+      - { name: from_z, type: f32 }
+      - { name: to_x, type: f32 }
+      - { name: to_y, type: f32 }
+      - { name: to_z, type: f32 }
+      - { name: duration_ms, type: u32 }
+      - { name: display_id, type: u32 }
+      - { name: scale, type: f32 }
+  - name: visual_land
+    id: 0x00A7
+    direction: server_to_client
+    fields:
+      - { name: id, type: u32 }
+  - name: visual_missile
+    id: 0x00A8
+    direction: server_to_client
+    fields:
+      - { name: spell_id, type: u32 }
+      - { name: from_x, type: f32 }
+      - { name: from_y, type: f32 }
+      - { name: from_z, type: f32 }
+      - { name: to_x, type: f32 }
+      - { name: to_y, type: f32 }
+      - { name: to_z, type: f32 }
+      - { name: hold_ms, type: u32 }
+  - name: visual_prop
+    id: 0x00A9
+    direction: server_to_client
+    fields:
+      - { name: key, type: u32 }
+      - { name: display_id, type: u32 }
+      - { name: x, type: f32 }
+      - { name: y, type: f32 }
+      - { name: z, type: f32 }
+      - { name: yaw, type: f32 }
+      - { name: scale, type: f32 }
+  - name: visual_prop_remove
+    id: 0x00AA
+    direction: server_to_client
+    fields:
+      - { name: key, type: u32 }
+  - name: visual_aura
+    id: 0x00AB
+    direction: server_to_client
+    fields:
+      - { name: key, type: u32 }
+      - { name: spell_id, type: u32 }
+      - { name: x, type: f32 }
+      - { name: y, type: f32 }
+      - { name: z, type: f32 }
+      - { name: scale, type: f32 }
+  - name: visual_aura_remove
+    id: 0x00AC
+    direction: server_to_client
+    fields:
+      - { name: key, type: u32 }
+  - name: hardcore_rested
+    id: 0x00AD
+    direction: server_to_client
+    fields: []
+  - name: hardcore_fell
+    id: 0x00AE
+    direction: server_to_client
+    fields:
+      - { name: name, type: string }
+      - { name: class_id, type: u8 }
+      - { name: level, type: u32 }
+      - { name: best_level, type: u32 }
+      - { name: mastery, type: u32 }
+      - { name: played, type: u32 }
+      - { name: runs, type: u32 }
+      - { name: kills, type: u32 }
+      - { name: killer, type: string }
+      - { name: map, type: string }
+      - { name: ironman, type: bool }
+  - name: mog_outfit
+    id: 0x00AF
+    direction: server_to_client
+    fields:
+      - { name: slot, type: u8 }
+      - { name: name, type: string }
+  - name: mog_begin
+    id: 0x00B0
+    direction: server_to_client
+    fields: []
+  - name: mog_slot
+    id: 0x00B1
+    direction: server_to_client
+    fields:
+      - { name: slot, type: u8 }
+      - { name: worn_entry, type: u32 }
+      - { name: look, type: u32 }
+      - { name: group, type: u8 }
+      - { name: catalog_entry, type: u32 }
+      - { name: can_hide, type: bool }
+  - name: mog_look
+    id: 0x00B2
+    direction: server_to_client
+    fields:
+      - { name: group, type: u8 }
+      - { name: entry, type: u32 }
+      - { name: quality, type: u32 }
+      - { name: owned, type: bool }
+      - { name: source, type: string }
+  - name: mog_end
+    id: 0x00B3
+    direction: server_to_client
+    fields: []

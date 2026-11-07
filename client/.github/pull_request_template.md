@@ -1,0 +1,9 @@
+<!-- One change per pull request. docs/CONTRIBUTING.md says what gets in. -->
+
+**The issue it fixes** (`Fixes #N`, if there is one)
+
+**What this changes**
+
+**What 1.12.1 does, and how you know** (a benilla-re entry or client address, the client's behaviour, a DBC field, a FrameXML line, a capture)
+
+**How you checked it** (`scripts/check.sh` or `scripts/gates.sh`, and before and after)

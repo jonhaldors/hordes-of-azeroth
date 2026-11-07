@@ -1,0 +1,810 @@
+//! The Text arm: one `QuadContent::Text` quad (a region FontString, a message-frame line or the
+//! focused editbox's text) into glyph [`UiQuad`]s, with the editbox's selection and caret, the
+//! ellipsis, the drop shadow and the hyperlink spans.
+
+use bevy::prelude::*;
+
+use benilla_ui::order::ZTarget;
+use benilla_ui::script::{EditBoxTextUi, JustifyH, JustifyV, Outline, TextShadow};
+use benilla_ui::widget::FrameHandle;
+
+use crate::ui_pass::{UiQuad, UvRect};
+use crate::ui_text::{layout_text_quads, layout_text_quads_links, TextSeat, UiFontAtlas};
+
+/// `WOW_TEXT_PROBE=1`: log each Text quad's drawn string, font and ink rows; read once.
+static TEXT_PROBE: std::sync::LazyLock<bool> =
+    std::sync::LazyLock::new(|| std::env::var("WOW_TEXT_PROBE").as_deref() == Ok("1"));
+
+/// The `QuadContent::Text` payload minus the text: the region's resolved style.
+pub(super) struct TextStyle {
+    pub color: Option<[f32; 4]>,
+    pub justify_h: JustifyH,
+    pub justify_v: JustifyV,
+    pub font: Option<String>,
+    pub font_height: Option<f32>,
+    pub text_height: Option<f32>,
+    pub shadow: Option<TextShadow>,
+    pub outline: Outline,
+    pub monochrome: bool,
+    /// The gap between lines, frame-local, scaled like the font height.
+    pub spacing: f32,
+    pub alpha_gradient: Option<(f32, f32)>,
+    /// The V-plate's name and level, seated on the plate's device-snapped overlay, not the UI grid.
+    pub world_seat: bool,
+    /// A single-line EditBox's window: one unwrapped line, cut at the rect, never ellipsized.
+    pub edit_line: bool,
+    /// `nonspacewrap`: what a force-broken line leaves to the next, and where the fit stops.
+    pub non_space_wrap: bool,
+    /// `maxLines`: the ellipsis cuts the text to this many lines, 0 for the rect's height.
+    pub max_lines: u32,
+    /// The text frame whose link buttons this text's spans take, a scrolling message line's or a
+    /// SimpleHTML block's.
+    pub link_owner: Option<FrameHandle>,
+}
+
+/// The extraction loop's context for one Text quad.
+pub(super) struct TextHost<'a> {
+    pub z: u128,
+    pub alpha: f32,
+    pub target: ZTarget,
+    pub rect: Rect,
+    pub clip: Option<Rect>,
+    /// The focused editbox's text UI, unfiltered: [`emit`] matches it to this quad by `target`.
+    /// Its caret and selection are measured from the text region's start, the window's.
+    pub ebox: Option<&'a EditBoxTextUi>,
+    pub screen_h: f32,
+    /// The seam scale `windowH/768`, for the root-unit inputs; rects arrive in px.
+    pub scale: f32,
+    /// The frame's effective scale, already in the rect: glyph size and shadow offset ride it, as
+    /// the 1.12 client's text rides `SetScale` and the UI scale; the editbox x-offsets arrive in
+    /// root units.
+    pub font_scale: f32,
+    /// Captures pin the caret on for deterministic pixels; live, the engine's blink decides.
+    pub caret_pinned: bool,
+}
+
+/// Rasterize one Text quad into `out`, and the hyperlink spans of a text that has a link owner
+/// into `link_spans`. Glyph quads take the region's `z` ([`layout_text_quads`]).
+pub(super) fn emit(
+    atlas: &mut UiFontAtlas,
+    text: &str,
+    style: TextStyle,
+    host: TextHost<'_>,
+    out: &mut Vec<UiQuad>,
+    link_spans: &mut Vec<(FrameHandle, benilla_ui::layout::Rect, String, String)>,
+) {
+    let base_color = style.color.unwrap_or([1.0, 1.0, 1.0, 1.0]);
+    // The block's top snaps to the UI grid, except on a world overlay, which has its own seat.
+    let seat = if style.world_seat {
+        TextSeat::Exact
+    } else {
+        TextSeat::UiGrid
+    };
+    let spec = crate::ui_text::FontSpec {
+        path: style.font.as_deref(),
+        // One-to-one text caps at 32 frame units, then scales; a `SetTextHeight` size is uncapped.
+        height: crate::ui_text::drawn_px(
+            style.font_height,
+            style.text_height,
+            host.scale * host.font_scale,
+        ),
+        outline: style.outline,
+        monochrome: style.monochrome,
+        spacing: style.spacing * host.scale * host.font_scale,
+        // A set shadow seeds each row's pen at its drawn offset (`0x5cddb1`, `0x7726a4`).
+        shadow_x: style
+            .shadow
+            .map_or(0.0, |sh| sh.offset[0] * host.scale * host.font_scale),
+        alpha_gradient: style.alpha_gradient,
+        non_space_wrap: style.non_space_wrap,
+        max_lines: style.max_lines,
+    };
+    // A single-line editbox's region holds its window (`0x77d858`), drawn from the line origin,
+    // unwrapped and cut at the box edge, focused or not; the focused box's selection goes behind
+    // and its caret after.
+    let ebox = host.ebox.filter(|u| u.target == host.target);
+    let mut draw_text: &str = text;
+    let mut draw_rect = host.rect;
+    let mut draw_justify = crate::ui_text::Justify {
+        h: style.justify_h,
+        v: style.justify_v,
+    };
+    let mut text_clip = host.clip;
+    // Hoisted: the band scissor below admits the ink the shadow puts under the fill.
+    let shadow_delta = style.shadow.map(|sh| {
+        (
+            shadow_offset_px(sh.offset[0] * host.scale * host.font_scale),
+            shadow_offset_px(-sh.offset[1] * host.scale * host.font_scale),
+        )
+    });
+    // A message line's scissor gives back the ink the seat nudge and the shadow put below its
+    // band, at the bottom edge only: the top edge still clips a half-fitting scrollback line.
+    if matches!(host.target, ZTarget::Frame(_)) {
+        if let Some(c) = text_clip.as_mut() {
+            c.max.y += band_clip_slack(shadow_delta.map(|(_, dy)| dy));
+        }
+    }
+    let mut ebox_geom = None;
+    if ebox.is_some() || style.edit_line {
+        let (x0, top, cell_h) =
+            crate::ui_text::line_origin(&mut atlas.lock(), text, host.rect, draw_justify, spec);
+        ebox_geom = Some((x0, top, cell_h));
+        // The window fits its region once the flush has windowed it; between an edit and that
+        // flush the region holds the text from the window's start, so it is cut at the region. A
+        // multi-line region is only as tall as its text, and the reference clips neither it nor
+        // the caret texture (`E+0x368`), which after a trailing break stands a line below it:
+        // only a ScrollFrame's clip applies.
+        if style.edit_line {
+            text_clip = Some(host.clip.map_or(host.rect, |c| c.intersect(host.rect)));
+            draw_rect = Rect::new(x0, host.rect.min.y, x0 + 100_000.0, host.rect.max.y);
+            draw_justify = crate::ui_text::Justify {
+                h: JustifyH::Left,
+                v: style.justify_v,
+            };
+        }
+    }
+    if let (Some(ui), Some((x0, top, cell_h))) = (ebox, ebox_geom) {
+        // A multiline box draws wrapped (its region is TOP/LEFT already); the caret and the
+        // selection seat by `(row, x)` at the wrap's row pitch.
+        for &(row, sx0, sx1) in &ui.selection {
+            let hc = ui.highlight_color.to_f32();
+            #[allow(clippy::cast_precision_loss)]
+            let ry = top + row as f32 * cell_h;
+            // The engine's selection x-span is in UI units.
+            out.push(UiQuad {
+                rect: Rect::new(
+                    x0 + sx0 * host.scale,
+                    ry,
+                    x0 + sx1 * host.scale,
+                    ry + cell_h,
+                ),
+                z_key: host.z,
+                texture: None,
+                uv: UvRect::FULL,
+                color: [hc[0], hc[1], hc[2], hc[3] * host.alpha],
+                corner_colors: None,
+                blend: benilla_ui::script::BlendMode::Blend,
+                circular: false,
+                desaturated: false,
+                premultiplied: false,
+                gamma_texel: false,
+                alpha_test: None,
+                uv_clamp: None,
+                clip: text_clip,
+                rotation: 0.0,
+                mask: None,
+                corners: None,
+            });
+        }
+    }
+    // A region FontString whose wrapped text needs more lines than its rect holds draws
+    // `prefix + "..."` (`CSimpleFontString` `0x771ec0`); an editbox never truncates and a message
+    // line sizes to its text. Before the shadow, which the client draws from the same string.
+    let ellipsized = match host.target {
+        ZTarget::Region(region) if ebox.is_none() && !style.edit_line => {
+            crate::ui_text::ellipsize_to_fit(atlas, region, draw_text, draw_rect, spec)
+        }
+        _ => None,
+    };
+    if let Some(display) = ellipsized.as_deref() {
+        draw_text = display;
+    }
+    // The probe prints the displayed string, after the ellipsis and the editbox window.
+    let probe = *TEXT_PROBE;
+    if probe {
+        // For the focused editbox, the engine's caret x and the drawn width, which must agree.
+        let ebox_geom = ebox.map(|ui| {
+            let ink = crate::ui_text::measure_text(&mut atlas.lock(), draw_text, None, spec).0;
+            format!(" caret={:.1} ink={ink:.1}", ui.caret_x * host.scale)
+        });
+        // `px` is the drawn height, after the cap, the seam and the frame scale.
+        info!(
+            "text probe: [{:.0},{:.0} {:.0}x{:.0}] h={:?} px={:?} flags={:?} face={:?}{} {:?}",
+            draw_rect.min.x,
+            draw_rect.min.y,
+            host.rect.width(),
+            host.rect.height(),
+            style.font_height,
+            spec.height,
+            style.outline.flags_text(style.monochrome),
+            spec.path.unwrap_or("<none — the fallback face>"),
+            ebox_geom.unwrap_or_default(),
+            &draw_text[..draw_text.len().min(60)]
+        );
+    }
+    // The font object's `<Shadow>` (`MasterFont`'s `(1, -1)` black, `Fonts.xml:55`, which most
+    // GameFonts inherit): the fill's layout and cells again at the offset in the shadow colour,
+    // pushed first so the stable sort draws it behind. WoW's `y="-1"` is down: screen `dy = −y`.
+    if let (Some(sh), Some((dx, dy))) = (style.shadow, shadow_delta) {
+        let srect = Rect::new(
+            draw_rect.min.x + dx,
+            draw_rect.min.y + dy,
+            draw_rect.max.x + dx,
+            draw_rect.max.y + dy,
+        );
+        let shadow_spec = crate::ui_text::FontSpec { ..spec };
+        let shadow_color = sh.color.to_f32();
+        let mut sq = layout_text_quads(
+            &mut atlas.lock(),
+            draw_text,
+            srect,
+            shadow_color,
+            draw_justify,
+            host.z,
+            shadow_spec,
+            seat,
+        );
+        for q in &mut sq {
+            // Markup tints ride the fill only; the alpha is [`shadow_alpha`].
+            q.color = [
+                shadow_color[0],
+                shadow_color[1],
+                shadow_color[2],
+                shadow_alpha(q.color[3], base_color[3], host.alpha),
+            ];
+            q.clip = text_clip;
+        }
+        out.extend(sq);
+    }
+    let mut glyphs = if let Some(fh) = style.link_owner {
+        // A text whose links take buttons: collect them for the click hit-test.
+        let mut spans = Vec::new();
+        let g = layout_text_quads_links(
+            &mut atlas.lock(),
+            draw_text,
+            draw_rect,
+            base_color,
+            draw_justify,
+            host.z,
+            spec,
+            seat,
+            &mut spans,
+        );
+        for sp in spans {
+            // Back to the engine's y-up UI units.
+            link_spans.push((
+                fh,
+                benilla_ui::layout::Rect::new(
+                    (host.screen_h - sp.rect.max.y) / host.scale,
+                    sp.rect.min.x / host.scale,
+                    (host.screen_h - sp.rect.min.y) / host.scale,
+                    sp.rect.max.x / host.scale,
+                ),
+                sp.link,
+                sp.markup,
+            ));
+        }
+        g
+    } else {
+        layout_text_quads(
+            &mut atlas.lock(),
+            draw_text,
+            draw_rect,
+            base_color,
+            draw_justify,
+            host.z,
+            spec,
+            seat,
+        )
+    };
+    for q in &mut glyphs {
+        q.color[3] *= host.alpha;
+        q.clip = text_clip;
+    }
+    // The seat probe: the fill's ink rows relative to the rect top, to compare with the
+    // vertical-seat law's `d + ascender` (`0x5d1360`); the shadow's quads are not in `glyphs`.
+    let vpl = style.world_seat && benilla_assets::trace::enabled_for("vpl");
+    if (probe || vpl) && !glyphs.is_empty() {
+        let (mut y0, mut y1) = (f32::MAX, f32::MIN);
+        for q in &glyphs {
+            y0 = y0.min(q.rect.min.y);
+            y1 = y1.max(q.rect.max.y);
+        }
+        // Where the plate's text inked, beside the `vpl` tag's `plate=` and `paint=` lines.
+        if vpl {
+            benilla_assets::trace::line(
+                "vpl",
+                &format!(
+                    "text x={:.3} rect={:.3} ink={:.3} rel={:.3} txt={}",
+                    host.rect.min.x,
+                    host.rect.min.y,
+                    y0,
+                    y0 - host.rect.min.y,
+                    draw_text.chars().take(16).collect::<String>()
+                ),
+            );
+        }
+        if probe {
+            info!(
+                "seat probe: top={:.2} ink=[{:.2}..{:.2}] (rel {:.2}..{:.2}) {:?}",
+                host.rect.min.y,
+                y0,
+                y1,
+                y0 - host.rect.min.y,
+                y1 - host.rect.min.y,
+                draw_text.chars().take(20).collect::<String>()
+            );
+        }
+    }
+    out.extend(glyphs);
+    // The caret: a solid bar one line cell tall at the engine's x, pushed after the glyphs to
+    // draw on top. It is 4 script units of the box's scale wide (`0x77ba2d`-`0x77ba67`, the same
+    // value `SetWidth(4)` stores) and takes the box's text colour, alpha included, whenever its
+    // font changes colour (`0x77e2a0`, `0x77e310`); the constructor's white (`0x779ccc`) is only
+    // the colour before one. A single-line box's cut keeps its own bar's width past the edge,
+    // where a full window's caret stands.
+    if let (Some(ui), Some((x0, top, cell_h))) = (ebox, ebox_geom) {
+        let caret_w = caret_width_px(host.scale, host.font_scale);
+        let caret_clip = if style.edit_line {
+            let mut r = host.rect;
+            r.max.x += caret_w;
+            Some(host.clip.map_or(r, |c| c.intersect(r)))
+        } else {
+            text_clip
+        };
+        if host.caret_pinned || ui.caret_on {
+            #[allow(clippy::cast_precision_loss)]
+            let top = top + ui.caret_row as f32 * cell_h;
+            // `caret_x` is in engine UI units.
+            let cx = x0 + ui.caret_x * host.scale;
+            out.push(UiQuad {
+                rect: Rect::new(cx, top, cx + caret_w, top + cell_h),
+                z_key: host.z,
+                texture: None,
+                uv: UvRect::FULL,
+                color: [
+                    base_color[0],
+                    base_color[1],
+                    base_color[2],
+                    base_color[3] * host.alpha,
+                ],
+                corner_colors: None,
+                blend: benilla_ui::script::BlendMode::Blend,
+                circular: false,
+                desaturated: false,
+                premultiplied: false,
+                gamma_texel: false,
+                alpha_test: None,
+                uv_clamp: None,
+                clip: caret_clip,
+                rotation: 0.0,
+                mask: None,
+                corners: None,
+            });
+        }
+    }
+}
+
+/// An EditBox caret's width in script units: `0x77b8c0` sets it to `4.0` over `1024` times the
+/// aspect scale `0.75·a` (`0x77ba2d`-`0x77ba67`), which is exactly what `SetWidth(4)` stores
+/// (`0x7a1fce`-`0x7a1feb`), so it is 4 units of the box's own scale at every aspect.
+const CARET_UNITS: f32 = 4.0;
+
+/// The caret's width in px: [`CARET_UNITS`] at the seam scale and the box's effective scale.
+fn caret_width_px(scale: f32, font_scale: f32) -> f32 {
+    CARET_UNITS * scale * font_scale
+}
+
+/// How far below its band a message-frame line's ink reaches, in the rect's px space: the seat
+/// nudge ([`crate::ui_text::UI_SEAT_NUDGE`]) plus a falling shadow's offset.
+fn band_clip_slack(shadow_dy: Option<f32>) -> f32 {
+    crate::ui_text::UI_SEAT_NUDGE + shadow_dy.map_or(0.0, |dy| dy.max(0.0))
+}
+
+/// One axis of the drop shadow's offset in the rect's px space, rounded half away from zero to a
+/// whole pixel (`0x5c6fa0`, `0x5c7010`, at `0x5c877e`, `0x5c878b`; the `floor` after, `0x5c8796`,
+/// is then a no-op), so an offset under half a pixel is 0 and the shadow sits under the text. Fill
+/// and shadow each take the client's vertical snap, `ceil(y − 0.5)`, which commutes only with an
+/// integer translate: a fractional offset makes the gap between them alternate between 1 and 2 px.
+fn shadow_offset_px(scaled: f32) -> f32 {
+    scaled.round()
+}
+
+/// A shadow glyph's alpha, every scalar the fill rides plus its own: `layout` (the `<Shadow>`
+/// colour's alpha times the write-on gradient), `fill` (the fill colour's alpha, which
+/// `SetTextColor` and a MessageFrame line's fade move) and `host` (the effective frame alpha).
+fn shadow_alpha(layout: f32, fill: f32, host: f32) -> f32 {
+    layout * fill * host
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{band_clip_slack, shadow_alpha, shadow_offset_px};
+
+    #[test]
+    fn a_drop_shadow_fades_through_the_colour_lane_as_well_as_the_frame_lane() {
+        assert_eq!(shadow_alpha(1.0, 1.0, 1.0), 1.0);
+        // The colour lane alone: a message-frame line mid-fade.
+        assert_eq!(shadow_alpha(1.0, 0.25, 1.0), 0.25);
+        // The frame lane alone (`UIFrameFadeOut`).
+        assert_eq!(shadow_alpha(1.0, 1.0, 0.25), 0.25);
+        // Both lanes, under a font object's own semi-transparent shadow.
+        assert_eq!(shadow_alpha(0.8, 0.5, 0.5), 0.2);
+        assert_eq!(shadow_alpha(1.0, 0.0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn the_band_scissor_gives_back_exactly_the_seat_and_the_shadow() {
+        // The shipped GameFont case: seat nudge 1 + a 1px drop shadow.
+        assert_eq!(band_clip_slack(Some(1.0)), 2.0);
+        assert_eq!(band_clip_slack(None), 1.0);
+        assert_eq!(band_clip_slack(Some(-1.0)), 1.0);
+        assert_eq!(band_clip_slack(Some(2.0)), 3.0);
+    }
+
+    /// `1.0546875` is a 1600×900 window's seam times the 0.9 UI scale; 0.4418 a 377-tall window's
+    /// 1-unit offset at 0.9, which 1.12.1 rounds to nothing.
+    #[test]
+    fn a_shadow_offset_rounds_half_away_from_zero_to_a_whole_pixel() {
+        assert_eq!(shadow_offset_px(1.0), 1.0);
+        assert_eq!(shadow_offset_px(1.0546875), 1.0);
+        assert_eq!(shadow_offset_px(-1.0546875), -1.0);
+        assert_eq!(shadow_offset_px(2.109375), 2.0);
+        assert_eq!(shadow_offset_px(1.5), 2.0);
+        assert_eq!(shadow_offset_px(0.5), 1.0);
+        assert_eq!(shadow_offset_px(-0.5), -1.0);
+        assert_eq!(shadow_offset_px(0.4418), 0.0);
+        assert_eq!(shadow_offset_px(-0.4418), 0.0);
+        assert_eq!(shadow_offset_px(0.0), 0.0);
+    }
+
+    /// An integer offset commutes with the client's vertical snap, `ceil(y − 0.5)`.
+    #[test]
+    fn a_whole_pixel_offset_survives_the_anchor_snap_at_every_fraction() {
+        let snap = |y: f32| (y - 0.5).ceil();
+        let d = shadow_offset_px(1.0546875);
+        for step in 0..1000 {
+            let y = 100.0 + step as f32 / 1000.0;
+            assert_eq!(
+                snap(y + d) - snap(y),
+                d,
+                "whole-px offset must translate the snapped block exactly, y={y}"
+            );
+        }
+        // The unrounded offset gives both a 1 and a 2 px gap over one unit of y.
+        let raw = 1.0546875f32;
+        let gaps: std::collections::BTreeSet<i32> = (0..1000)
+            .map(|step| {
+                let y = 100.0 + step as f32 / 1000.0;
+                (snap(y + raw) - snap(y)) as i32
+            })
+            .collect();
+        assert_eq!(gaps, [1, 2].into_iter().collect());
+    }
+}
+
+/// The focused multi-line box's caret through the whole UI pass, on the client faces: the region
+/// that draws its text is only as tall as that text, and the caret must not be cut to it.
+#[cfg(test)]
+mod caret_tests {
+    use bevy::prelude::*;
+    use bevy::window::PrimaryWindow;
+
+    use benilla_ui::script::UiScript;
+
+    use super::super::{paint_script, tick_script, UiQuad, UiQuads};
+    use crate::portrait::PortraitImages;
+    use crate::ui_text::UiFontAtlas;
+
+    /// A focused 270-wide multi-line box at 14 px on a 1024×768 window (`s = 1`), holding `text`.
+    fn app_with_focused_box(text: &str) -> App {
+        app_with(&format!(
+            r#"
+            E = CreateFrame("EditBox", "E")
+            E:SetPoint("TOPLEFT", 100, -100)
+            E:SetWidth(270); E:SetHeight(200)
+            E:SetFont("Fonts\\FRIZQT__.TTF", 14)
+            E:SetMultiLine(true)
+            E:SetFocus()
+            E:SetText({text:?})
+        "#
+        ))
+    }
+
+    /// The whole UI pass on a 1024×768 window (`s = 1`), after `lua` has run.
+    fn app_with(lua: &str) -> App {
+        let script = UiScript::new().unwrap();
+        script.run(lua).unwrap();
+        app_on(script)
+    }
+
+    /// The whole UI pass on a 1024×768 window (`s = 1`) over `script`.
+    pub(super) fn app_on(script: UiScript) -> App {
+        app_sized(script, 1024, 768)
+    }
+
+    /// The whole UI pass on a `w`×`h` window over `script`.
+    fn app_sized(script: UiScript, w: u32, h: u32) -> App {
+        let mut app = App::new();
+        app.insert_non_send_resource(script);
+        app.insert_resource(UiFontAtlas::for_test(1.0).expect("the client faces open"));
+        app.init_resource::<UiQuads>();
+        app.init_resource::<crate::ui_script::UiPassState>();
+        app.init_resource::<Assets<Image>>();
+        app.init_resource::<PortraitImages>();
+        app.init_resource::<crate::portrait::BoothPanes>();
+        app.init_resource::<crate::portrait::PaneRequests>();
+        app.init_resource::<crate::ui_models::UiModelTiles>();
+        app.init_resource::<crate::minimap::MinimapWidget>();
+        app.init_resource::<crate::ui_script::UiFrameCost>();
+        app.init_resource::<crate::ui_script::UiCostWanted>();
+        app.init_resource::<Time>();
+        app.init_resource::<Time<Real>>();
+        app.init_resource::<crate::ui_script::UiClock>();
+        app.init_resource::<benilla_world::frame_pace::FrameStep>();
+        app.init_resource::<crate::ui_script::UiScaleCvar>();
+        app.world_mut().spawn((
+            Window {
+                resolution: UVec2::new(w, h).into(),
+                ..default()
+            },
+            PrimaryWindow,
+        ));
+        app.add_systems(Update, (tick_script, paint_script).chain());
+        // The box seats and sizes itself, the host answers the advances, then the caret draws.
+        for _ in 0..4 {
+            app.update();
+        }
+        app
+    }
+
+    /// The caret: the one untextured quad (these boxes hold no selection).
+    fn caret(app: &App) -> UiQuad {
+        let quads = &app.world().resource::<UiQuads>().quads;
+        let mut carets = quads.iter().filter(|q| q.texture.is_none());
+        let c = carets
+            .next()
+            .expect("the focused box draws its caret")
+            .clone();
+        assert!(carets.next().is_none(), "one caret");
+        c
+    }
+
+    /// Whole and visible: a line tall, and no clip cuts any of it.
+    fn assert_whole(c: &UiQuad) {
+        assert!(c.rect.height() >= 10.0, "a line tall: {:?}", c.rect);
+        if let Some(clip) = c.clip {
+            assert_eq!(
+                clip.intersect(c.rect),
+                c.rect,
+                "the clip cuts the caret: {clip:?}"
+            );
+        }
+    }
+
+    /// A focused single-line box on a 1024x768 window; `before` runs ahead of `SetFont(.., 14)` and
+    /// `after` behind it, both before `SetText`. Its caret and its first glyph.
+    fn single_line_caret(before: &str, after: &str) -> (UiQuad, UiQuad) {
+        let app = app_with(&format!(
+            r#"
+            E = CreateFrame("EditBox", "E")
+            E:SetPoint("TOPLEFT", 100, -100)
+            E:SetWidth(270); E:SetHeight(20)
+            {before}
+            E:SetFont("Fonts\\FRIZQT__.TTF", 14)
+            {after}
+            E:SetFocus()
+            E:SetText("abc")
+        "#
+        ));
+        let quads = &app.world().resource::<UiQuads>().quads;
+        let glyph = quads
+            .iter()
+            .find(|q| q.texture.is_some())
+            .expect("the text draws")
+            .clone();
+        (caret(&app), glyph)
+    }
+
+    /// A bare `<Shadow/>` is 0.001 layout units (`0x7713eb`), drawn rounded half away from zero
+    /// with no floor (`0x5c6fa0`): the stock zone text's shadow is 2 px at 1920×1080 (2.20) and
+    /// 1 px at 1024×768 (1.28), at UI scale 1.
+    #[test]
+    fn a_bare_shadow_draws_its_layout_unit_offset_in_whole_pixels() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        for ((w, h), want) in [((1920, 1080), 2.0), ((1024, 768), 1.0)] {
+            let mut script = UiScript::new().unwrap();
+            script.set_screen_size(w as f32, h as f32);
+            let doc = benilla_ui::framexml::parse(
+                r#"<Ui>
+                    <Font name="BareShadowFont" font="Fonts\FRIZQT__.TTF">
+                        <FontHeight><AbsValue val="20"/></FontHeight>
+                        <Color r="1" g="1" b="1"/>
+                        <Shadow/>
+                    </Font>
+                    <Frame name="BareShadowHost" setAllPoints="true">
+                        <Layers><Layer>
+                            <FontString name="BareShadowText" inherits="BareShadowFont" text="W">
+                                <Anchors><Anchor point="CENTER"/></Anchors>
+                            </FontString>
+                        </Layer></Layers>
+                    </Frame>
+                </Ui>"#,
+            )
+            .unwrap();
+            let report = benilla_ui::loader::load(&script, &doc, &|_| None);
+            assert!(report.errors.is_empty(), "{:?}", report.errors);
+            let app = app_sized(script, w, h);
+            let quads = &app.world().resource::<UiQuads>().quads;
+            let glyph = |black: bool| {
+                quads
+                    .iter()
+                    .find(|q| q.texture.is_some() && (q.color[0] < 0.5) == black)
+                    .unwrap_or_else(|| panic!("{w}x{h}: a glyph, shadow {black}"))
+                    .rect
+            };
+            let (fill, shadow) = (glyph(false), glyph(true));
+            let d = (shadow.min.x - fill.min.x, shadow.min.y - fill.min.y);
+            assert_eq!(d, (want, want), "{w}x{h}");
+        }
+    }
+
+    /// The caret is 4 script units of the box's scale wide, `SetWidth(4)`'s value (`0x77ba2d`).
+    #[test]
+    fn the_caret_is_four_script_units_wide() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        let (c, _) = single_line_caret("", "");
+        assert!((c.rect.width() - 4.0).abs() < 1e-4, "{:?}", c.rect);
+        let (c, _) = single_line_caret("E:SetScale(2)", "");
+        assert!((c.rect.width() - 8.0).abs() < 1e-4, "{:?}", c.rect);
+    }
+
+    /// The caret takes the box's text colour, alpha included, whichever of the font and the colour
+    /// is set first (`0x77e2a0` takes the font's colour on a colour change, `0x77e310`).
+    #[test]
+    fn the_caret_takes_the_boxs_text_colour() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        for (before, after) in [
+            ("", "E:SetTextColor(1, 0.5, 0.25, 0.5)"),
+            ("E:SetTextColor(1, 0.5, 0.25, 0.5)", ""),
+        ] {
+            let (c, g) = single_line_caret(before, after);
+            assert_eq!(c.color, g.color, "the glyph's colour is the control");
+            let want = benilla_ui::color::quant::drawn([1.0, 0.5, 0.25, 0.5]);
+            for (got, want) in c.color.iter().zip(want) {
+                assert!((got - want).abs() < 1e-3, "{:?}", c.color);
+            }
+        }
+    }
+
+    /// An unfocused single-line box draws its window, the part of its text its caret last left
+    /// in view (`0x77d858`), as one line inside its rect, where a FontString too narrow for its
+    /// text would draw `prefix...`.
+    #[test]
+    fn an_unfocused_single_line_box_draws_its_window_on_one_line() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        let text = "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let app = app_with(&format!(
+            r#"
+            E = CreateFrame("EditBox", "E")
+            E:SetAutoFocus(false)
+            E:SetPoint("TOPLEFT", 100, -100)
+            E:SetWidth(120); E:SetHeight(20)
+            E:SetFont("Fonts\\FRIZQT__.TTF", 14)
+            E:SetText("{text}")
+        "#
+        ));
+        let window: String = app
+            .world()
+            .non_send_resource::<UiScript>()
+            .eval("return (E:GetRegions()):GetText()")
+            .unwrap();
+        assert!(
+            !window.is_empty() && window.len() < text.len() && text.ends_with(&window),
+            "the window holds the caret, at the text's end: {window:?}"
+        );
+        let quads = &app.world().resource::<UiQuads>().quads;
+        let glyphs: Vec<&UiQuad> = quads.iter().filter(|q| q.texture.is_some()).collect();
+        assert_eq!(
+            glyphs.len(),
+            window.len(),
+            "the window's glyphs, no ellipsis"
+        );
+        let top = glyphs[0].rect.min.y;
+        for g in &glyphs {
+            assert!((g.rect.min.y - top).abs() < 4.0, "one line: {:?}", g.rect);
+            let clip = g.clip.expect("cut at the box");
+            assert!(
+                g.rect.max.x <= clip.max.x + 0.5,
+                "inside the box: {:?}",
+                g.rect
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_focused_multi_line_box_draws_its_whole_caret() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        let app = app_with_focused_box("");
+        assert_whole(&caret(&app));
+    }
+
+    /// After a trailing break the caret stands on the line the break opened, below the text.
+    #[test]
+    fn a_caret_after_a_trailing_newline_is_drawn_whole_below_the_text() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        let one = caret(&app_with_focused_box("abc"));
+        let after = caret(&app_with_focused_box("abc\n"));
+        assert_whole(&after);
+        assert_eq!(
+            after.rect.min.y,
+            one.rect.min.y + one.rect.height(),
+            "one line down: {:?} against {:?}",
+            after.rect,
+            one.rect
+        );
+    }
+
+    /// The last line's descenders hang below its measured line, as a drop shadow would: no clip
+    /// cuts them.
+    #[test]
+    fn a_focused_multi_line_boxs_last_line_keeps_its_descenders() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        let app = app_with_focused_box("gjpqy");
+        let quads = &app.world().resource::<UiQuads>().quads;
+        let glyphs: Vec<&UiQuad> = quads.iter().filter(|q| q.texture.is_some()).collect();
+        assert_eq!(glyphs.len(), 5, "the five glyphs draw");
+        for g in glyphs {
+            if let Some(clip) = g.clip {
+                assert_eq!(
+                    clip.intersect(g.rect),
+                    g.rect,
+                    "a clip cuts a glyph: {clip:?}"
+                );
+            }
+        }
+    }
+}
+
+/// A message line's links through the whole UI pass, on the stock `UIErrorsFrame`.
+#[cfg(test)]
+mod link_span_tests {
+    use benilla_ui::script::UiScript;
+
+    use super::caret_tests::app_on;
+    use crate::ui_script::test_ui::load_ui;
+
+    const LINE: &str = "|cff1eff00|Hitem:7073:0:0:0|h[Broken Fang]|h|r";
+
+    /// Stock `UIErrorsFrame` is a `<MessageFrame>` (`UIErrorsFrame.xml:4`), whose update
+    /// (`0x786200`) never takes a link button (`0x7a3880`), so its link line takes no mouse; a
+    /// ScrollingMessageFrame's same line does (`0x788ce7`).
+    #[test]
+    fn a_link_in_the_stock_errors_frame_takes_no_mouse() {
+        let _data = benilla_formats::wow_data_or_skip!();
+        let script = UiScript::new().unwrap();
+        for file in [
+            "Interface\\FrameXML\\GlobalStrings.lua",
+            "Interface\\FrameXML\\Fonts.xml",
+            "Interface\\FrameXML\\UIParent.xml",
+            "Interface\\FrameXML\\UIErrorsFrame.xml",
+        ] {
+            load_ui(&script, file);
+        }
+        script
+            .run(&format!(
+                r#"
+                UIErrorsFrame:AddMessage("{LINE}", 1.0, 0.1, 0.1, 1.0)
+                CF = CreateFrame("ScrollingMessageFrame", "CF", UIParent)
+                CF:SetPoint("BOTTOMLEFT", 32, 100); CF:SetWidth(430); CF:SetHeight(120)
+                CF:SetFontObject(ChatFontNormal)
+                CF:AddMessage("{LINE}")
+                "#
+            ))
+            .unwrap();
+        let app = app_on(script);
+        let s = app.world().non_send_resource::<UiScript>();
+        assert_eq!(
+            s.eval::<i64>("return CF:GetNumChildren()").unwrap(),
+            1,
+            "the chat line's link has its button"
+        );
+        assert_eq!(
+            s.eval::<i64>("return UIErrorsFrame:GetNumChildren()")
+                .unwrap(),
+            0,
+            "the error line's link is text"
+        );
+        assert!(s.errors().is_empty(), "{:?}", s.errors());
+    }
+}

@@ -1,0 +1,774 @@
+# Imported by tools/content/dump_cards.py from bonk_card and bonk_card_locale.
+# Edit this file, then run tools/content/compile.py.
+- id: 1
+  name: Major Healthstone
+  icon: INV_Stone_04
+  description: When below 35% health, heal for 35% of your maximum health. 60 sec cooldown.
+  rarity: 2
+  stats: []
+  effect: 1
+  values:
+  - 35.0
+  - 35.0
+  - 0.0
+  cooldown_ms: 60000
+  max_copies: 5
+  in_chests: true
+  name_zhCN: 特效治疗石
+  description_zhCN: 生命值低于35%时，恢复35%最大生命值。冷却时间60秒。
+- id: 2
+  name: Troll's Blood Potion
+  icon: INV_Potion_79
+  description: Regain 0.4% of your health every second.
+  rarity: 0
+  stats:
+  - effect: 5
+    value: 0.4
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 巨魔之血药水
+  description_zhCN: 每秒恢复0.4%生命值。
+- id: 3
+  name: Lifestone
+  icon: INV_Misc_Gem_Emerald_02
+  description: +13.5% maximum health. Regain 0.2% of your health every second.
+  rarity: 1
+  stats:
+  - effect: 4
+    value: 13.5
+  - effect: 5
+    value: 0.2
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 生命石
+  description_zhCN: 最大生命值提高13.5%。每秒恢复0.2%生命值。
+- id: 4
+  name: Dirge's Chimaerok Chops
+  icon: INV_Misc_Food_14
+  description: +16% maximum health.
+  rarity: 0
+  stats:
+  - effect: 4
+    value: 16.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 迪格的奇美洛克排骨
+  description_zhCN: 最大生命值提高16%。
+- id: 5
+  name: Heavy Runecloth Bandage
+  icon: INV_Misc_Bandage_12
+  description: After 4 sec without being hit, regain 1.35% of your health every second.
+  rarity: 0
+  stats: []
+  effect: 2
+  values:
+  - 1.35
+  - 4.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 厚符文布绷带
+  description_zhCN: 在4秒内未受到攻击后，每秒恢复1.35%生命值。
+- id: 6
+  name: Basic Campfire
+  icon: Spell_Fire_Fire
+  description: After standing still for 1 sec, regain 1.35% of your health every second.
+  rarity: 1
+  stats: []
+  effect: 3
+  values:
+  - 1.35
+  - 1.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 基础营火
+  description_zhCN: 原地站立1秒后，每秒恢复1.35%生命值。
+- id: 7
+  name: Tough Jerky
+  icon: INV_Misc_Food_07
+  description: Turkey legs drop 15% more often and heal 30% more.
+  rarity: 0
+  stats: []
+  effect: 4
+  values:
+  - 15.0
+  - 30.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 硬肉干
+  description_zhCN: 火鸡腿的掉落几率提高15%，恢复效果提高30%。
+- id: 8
+  name: 'Darkmoon Card: Heroism'
+  icon: INV_Misc_Ticket_Tarot_Heroism_01
+  description: Your critical strikes have a 20% chance to heal you for 1% of your maximum health, up to 0.8% per sec.
+  rarity: 2
+  stats: []
+  effect: 5
+  values:
+  - 20.0
+  - 1.0
+  - 0.8
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 暗月卡片：英雄
+  description_zhCN: 你的致命一击有20%几率为你恢复1%最大生命值，每秒最多0.8%。
+- id: 9
+  name: Lifegiving Gem
+  icon: INV_Misc_Gem_Ruby_01
+  description: Healing past full health becomes a Shield, up to 20% of your maximum health. Regain 0.25% of your health every second.
+  rarity: 3
+  stats:
+  - effect: 5
+    value: 0.25
+  effect: 6
+  values:
+  - 20.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 生命宝石
+  description_zhCN: 溢出满生命值的治疗会转化为护盾，最多可吸收相当于20%最大生命值的伤害。每秒恢复0.25%生命值。
+- id: 10
+  name: Royal Seal of Eldre'Thalas
+  icon: INV_Jewelry_Talisman_08
+  description: +8 Armor.
+  rarity: 1
+  stats:
+  - effect: 12
+    value: 8.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 埃雷萨拉斯皇家徽记
+  description_zhCN: 护甲提高8点。
+- id: 11
+  name: Force Reactive Disk
+  icon: INV_Shield_15
+  description: Gain a Shield of 11% of your maximum health. When it breaks, fire scorches enemies within 8 yards.
+  rarity: 2
+  stats:
+  - effect: 17
+    value: 11.0
+  effect: 7
+  values:
+  - 1.0
+  - 8.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 力反馈盾牌
+  description_zhCN: 获得一层护盾，可吸收相当于11%最大生命值的伤害。护盾破碎时，烈焰灼烧8码内的敌人。
+- id: 12
+  name: Barbed Choker
+  icon: INV_Jewelry_Necklace_04
+  description: When an enemy hits you, thorns strike all enemies within 8 yards for 40% of a normal enemy's health on Normal. Once every 0.5 sec.
+  rarity: 1
+  stats: []
+  effect: 8
+  values:
+  - 40.0
+  - 8.0
+  - 500.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 尖刺颈饰
+  description_zhCN: 敌人击中你时，荆棘会打击8码内的所有敌人，造成相当于普通难度下普通敌人生命值40%的伤害。每0.5秒至多触发一次。
+- id: 13
+  name: Insignia of the Alliance
+  icon: INV_Jewelry_TrinketPVP_01
+  description: After you are hit, take no damage for 0.5 sec. 8 sec cooldown.
+  rarity: 2
+  stats: []
+  effect: 9
+  values:
+  - 500.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 8000
+  max_copies: 5
+  in_chests: true
+  name_zhCN: 联盟徽记
+  description_zhCN: 你被击中后的0.5秒内不会受到伤害。冷却时间8秒。
+- id: 14
+  name: Swiftness Potion
+  icon: INV_Potion_95
+  description: When you drop below 50% health, run 50% faster for 4 sec. 20 sec cooldown.
+  rarity: 0
+  stats: []
+  effect: 10
+  values:
+  - 50.0
+  - 50.0
+  - 4000.0
+  cooldown_ms: 20000
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 迅捷药水
+  description_zhCN: 生命值降至50%以下时，移动速度提高50%，持续4秒。冷却时间20秒。
+- id: 15
+  name: Soulstone
+  icon: Spell_Shadow_SoulGem
+  description: When you would die, you come back with 40% health instead. Works once.
+  rarity: 3
+  stats: []
+  effect: 11
+  values:
+  - 40.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 1
+  in_chests: true
+  name_zhCN: 灵魂石
+  description_zhCN: 当你将要死亡时，改为以40%生命值复活。仅生效一次。
+- id: 16
+  name: Hand of Ragnaros
+  icon: INV_Hammer_Unique_Sulfuras
+  description: Your spells have a 5% chance to deal 80% of the spell's damage as Fire damage to enemies within 6 yards.
+  rarity: 3
+  stats: []
+  effect: 12
+  values:
+  - 5.0
+  - 0.8
+  - 6.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 拉格纳罗斯之手
+  description_zhCN: 你的法术有5%几率对6码内的敌人造成相当于该法术伤害80%的火焰伤害。
+- id: 17
+  name: Ironfoe
+  icon: INV_Hammer_09
+  description: Your spells have a 6% chance to cast twice.
+  rarity: 2
+  stats: []
+  effect: 13
+  values:
+  - 6.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 铁敌
+  description_zhCN: 你的法术有6%几率施放两次。
+- id: 18
+  name: 'Darkmoon Card: Maelstrom'
+  icon: INV_Misc_Ticket_Tarot_Maelstrom_01
+  description: Your spells have an 8% chance to strike 3 enemies with lightning for 70% of the spell's damage.
+  rarity: 2
+  stats: []
+  effect: 14
+  values:
+  - 8.0
+  - 0.7
+  - 3.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 暗月卡片：漩涡
+  description_zhCN: 你的法术有8%几率以闪电打击3个敌人，造成相当于该法术伤害70%的伤害。
+- id: 19
+  name: Gnomish Death Ray
+  icon: INV_Gizmo_08
+  description: Your spells have a 4% chance to gain +400% Power for that cast.
+  rarity: 3
+  stats: []
+  effect: 15
+  values:
+  - 4.0
+  - 400.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 侏儒死亡射线
+  description_zhCN: 你的法术有4%几率使该次施放的力量提高400%。
+- id: 20
+  name: Bloodlust Brooch
+  icon: INV_Jewelry_Necklace_13
+  description: +1% Power for every 40 kills, up to +6.5%.
+  rarity: 2
+  stats: []
+  effect: 16
+  values:
+  - 0.025
+  - 6.5
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 嗜血胸针
+  description_zhCN: 每击杀40个敌人，力量提高1%，最多提高6.5%。
+- id: 21
+  name: Zandalarian Hero Charm
+  icon: INV_Jewelry_Talisman_10
+  description: Every 30 sec, gain 25% Power for 10 sec.
+  rarity: 2
+  stats: []
+  effect: 17
+  values:
+  - 25.0
+  - 10000.0
+  - 0.0
+  cooldown_ms: 30000
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 赞达拉英雄护符
+  description_zhCN: 每30秒获得25%力量，持续10秒。
+- id: 22
+  name: Blackhand's Breadth
+  icon: INV_Misc_Gem_Sapphire_02
+  description: +4% critical strike chance.
+  rarity: 1
+  stats:
+  - effect: 15
+    value: 4.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 黑手饰物
+  description_zhCN: 致命一击几率提高4%。
+- id: 23
+  name: Kiss of the Spider
+  icon: INV_Misc_MonsterSpiderCarapace_01
+  description: +7% Haste.
+  rarity: 1
+  stats:
+  - effect: 1
+    value: 7.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 蜘蛛之吻
+  description_zhCN: 急速提高7%。
+- id: 24
+  name: Mark of the Champion
+  icon: INV_Jewelry_Talisman_07
+  description: +16% damage to elites, mini-bosses and bosses, and they deal 5% less damage to you.
+  rarity: 2
+  stats: []
+  effect: 18
+  values:
+  - 16.0
+  - 5.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 勇士印记
+  description_zhCN: 对精英、小首领和首领造成的伤害提高16%，且它们对你造成的伤害降低5%。
+- id: 25
+  name: Earthstrike
+  icon: INV_Jewelry_Talisman_04
+  description: +5.5% Power and +2.7% critical strike chance.
+  rarity: 1
+  stats:
+  - effect: 0
+    value: 5.5
+  - effect: 15
+    value: 2.7
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 大地打击
+  description_zhCN: 力量提高5.5%，致命一击几率提高2.7%。
+- id: 26
+  name: Fat Goblin Purse
+  icon: INV_Misc_Bag_10
+  description: +20% Valor.
+  rarity: 0
+  stats: []
+  effect: 19
+  values:
+  - 20.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 肥地精钱袋
+  description_zhCN: 勇气点数提高20%。
+- id: 27
+  name: 'Darkmoon Card: Insight'
+  icon: INV_Misc_Ticket_Tarot_Elemental_01
+  description: +13% experience.
+  rarity: 0
+  stats:
+  - effect: 7
+    value: 13.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 暗月卡片：洞察
+  description_zhCN: 经验值提高13%。
+- id: 28
+  name: Gnomish Magnet
+  icon: INV_Gizmo_02
+  description: Every 180 sec, pulls every experience orb and currency to you.
+  rarity: 1
+  stats: []
+  effect: 20
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 180000
+  max_copies: 1
+  in_chests: true
+  name_zhCN: 侏儒磁铁
+  description_zhCN: 每180秒，将所有经验球和货币吸到你身边。
+- id: 29
+  name: Arcanite Skeleton Key
+  icon: INV_Misc_Key_14
+  description: Chests have an 11% chance to cost nothing.
+  rarity: 0
+  stats: []
+  effect: 21
+  values:
+  - 11.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 奥金万能钥匙
+  description_zhCN: 开启宝箱时有11%几率免费。
+- id: 31
+  name: 'Darkmoon Card: Ascension'
+  icon: INV_Misc_Ticket_Tarot_Portal_01
+  description: Your next level-up offers an evolution for a spell at rank 10 or higher. Used up once offered.
+  rarity: 3
+  stats: []
+  effect: 23
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 1
+  in_chests: true
+  name_zhCN: 暗月卡片：升腾
+  description_zhCN: 你下次升级时，会为一个等级达到10级或以上的法术提供进化选项。提供一次后即消耗。
+- id: 32
+  name: Drake Fang Talisman
+  icon: INV_Misc_MonsterFang_01
+  description: +12% critical strike damage.
+  rarity: 1
+  stats:
+  - effect: 16
+    value: 12.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 龙牙饰物
+  description_zhCN: 致命一击伤害提高12%。
+- id: 33
+  name: Eye of Moam
+  icon: INV_Misc_Eye_01
+  description: +6% Area.
+  rarity: 1
+  stats:
+  - effect: 10
+    value: 6.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 莫阿姆之眼
+  description_zhCN: 范围提高6%。
+- id: 34
+  name: Cloak of Displacement
+  icon: INV_Misc_Cape_18
+  description: +3% dodge chance.
+  rarity: 1
+  stats:
+  - effect: 14
+    value: 3.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 偏移披风
+  description_zhCN: 闪避几率提高3%。
+- id: 35
+  name: 'Darkmoon Card: Blue Dragon'
+  icon: INV_Misc_Ticket_Tarot_BlueDragon_01
+  description: Your spells have a 10% chance to grant 30% Haste for 6 sec. 20 sec cooldown.
+  rarity: 2
+  stats: []
+  effect: 24
+  values:
+  - 10.0
+  - 30.0
+  - 6000.0
+  cooldown_ms: 20000
+  max_copies: 1
+  in_chests: true
+  name_zhCN: 暗月卡片：蓝龙
+  description_zhCN: 你的法术有10%几率使你的急速提高30%，持续6秒。冷却时间20秒。
+- id: 36
+  name: Venomous Totem
+  icon: INV_Misc_Idol_02
+  description: +15% damage over time.
+  rarity: 2
+  stats: []
+  effect: 26
+  values:
+  - 15.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 毒性图腾
+  description_zhCN: 持续伤害提高15%。
+- id: 37
+  name: Talisman of Ascendance
+  icon: INV_Jewelry_Talisman_09
+  description: +1% Power for each second without being hit, up to +20%.
+  rarity: 3
+  stats: []
+  effect: 25
+  values:
+  - 1.0
+  - 20.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: true
+  name_zhCN: 优越护符
+  description_zhCN: 每持续一秒未被击中，力量提高1%，最多提高20%。
+- id: 101
+  name: Thunderfury, Blessed Blade of the Windseeker
+  icon: INV_Sword_39
+  description: Your spells have a 6% chance to cast Chain Lightning, striking 5 enemies for 150% of the spell's damage.
+  rarity: 4
+  stats: []
+  effect: 14
+  values:
+  - 6.0
+  - 1.5
+  - 5.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 雷霆之怒，逐风者的祝福之剑
+  description_zhCN: 你的法术有6%几率施放闪电链，打击5个敌人，造成相当于该法术伤害150%的伤害。
+- id: 102
+  name: Corrupted Ashbringer
+  icon: INV_Sword_62
+  description: Your spells have a 5% chance to deal 200% of the spell's damage as Shadow damage to enemies within 8 yards, healing you for 10% of the damage.
+  rarity: 4
+  stats: []
+  effect: 22
+  values:
+  - 5.0
+  - 2.0
+  - 8.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 堕落的灰烬使者
+  description_zhCN: 你的法术有5%几率对8码内的敌人造成相当于该法术伤害200%的暗影伤害，并为你恢复相当于该伤害10%的生命值。
+- id: 103
+  name: Sulfuras, Hand of Ragnaros
+  icon: INV_Hammer_Unique_Sulfuras
+  description: Your spells have a 6% chance to deal 200% of the spell's damage as Fire damage to enemies within 8 yards.
+  rarity: 4
+  stats: []
+  effect: 12
+  values:
+  - 6.0
+  - 2.0
+  - 8.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 萨弗拉斯，炎魔拉格纳罗斯之手
+  description_zhCN: 你的法术有6%几率对8码内的敌人造成相当于该法术伤害200%的火焰伤害。
+- id: 104
+  name: Rhok'delar, Longbow of the Ancient Keepers
+  icon: INV_Weapon_Bow_13
+  description: Your spells have a 10% chance to cast twice.
+  rarity: 4
+  stats: []
+  effect: 13
+  values:
+  - 10.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 伦鲁迪洛尔，上古守护者的长弓
+  description_zhCN: 你的法术有10%几率施放两次。
+- id: 105
+  name: Atiesh, Greatstaff of the Guardian
+  icon: INV_Staff_Medivh
+  description: +1 Count and +15% Area.
+  rarity: 4
+  stats:
+  - effect: 2
+    value: 1.0
+  - effect: 10
+    value: 15.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 埃提耶什，守护者的传说之杖
+  description_zhCN: 数量提高1，范围提高15%。
+- id: 106
+  name: Kingsfall
+  icon: INV_Weapon_ShortBlade_29
+  description: Your critical strikes have a 50% chance to heal you for 1% of your maximum health, up to 3% per sec.
+  rarity: 4
+  stats: []
+  effect: 5
+  values:
+  - 50.0
+  - 1.0
+  - 3.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 陨落之王
+  description_zhCN: 你的致命一击有50%几率为你恢复1%最大生命值，每秒最多3%。
+- id: 107
+  name: Empyrean Demolisher
+  icon: INV_Mace_09
+  description: Your spells have a 6% chance to cast twice.
+  rarity: 4
+  stats: []
+  effect: 13
+  values:
+  - 6.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 苍穹击碎者
+  description_zhCN: 你的法术有6%几率施放两次。
+- id: 108
+  name: Eye of Sulfuras
+  icon: INV_Jewelry_Necklace_15
+  description: +25% damage to elites, mini-bosses and bosses.
+  rarity: 4
+  stats: []
+  effect: 18
+  values:
+  - 25.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 0
+  in_chests: false
+  name_zhCN: 萨弗拉斯之眼
+  description_zhCN: 对精英、小首领和首领造成的伤害提高25%。
+- id: 151
+  name: Glyph of the Packrat
+  icon: INV_Misc_Bag_10
+  description: +60% pickup range. Power-ups last twice as long.
+  rarity: 0
+  stats:
+  - effect: 8
+    value: 60.0
+  effect: 0
+  values:
+  - 0.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 1
+  in_chests: false
+  name_zhCN: 囤积者雕文
+  description_zhCN: 拾取范围提高60%。强化效果的持续时间加倍。
+- id: 153
+  name: Glyph of Windfury
+  icon: Spell_Nature_Windfury
+  description: Your spells have a 30% chance to cast twice.
+  rarity: 2
+  stats: []
+  effect: 13
+  values:
+  - 30.0
+  - 0.0
+  - 0.0
+  cooldown_ms: 0
+  max_copies: 1
+  in_chests: false
+  name_zhCN: 风怒雕文
+  description_zhCN: 你的法术有30%几率施放两次。

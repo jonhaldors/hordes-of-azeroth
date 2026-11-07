@@ -1,0 +1,1047 @@
+//! The action-bar cursor verbs. The bar is client-authoritative: placing onto an occupied slot
+//! hops the displaced action onto the cursor (`PlaceAction`, `0x4e62e0`). `model.actions` is an
+//! optimistic mirror of the app's table; each change queues one `CMSG_SET_ACTION_BUTTON`, so a
+//! drag-swap is two sends.
+
+use mlua::{Lua, Value};
+
+use crate::script::action::{macro_slot_id, macro_slot_word, ACTION_KIND_ITEM, ACTION_KIND_SPELL};
+use crate::script::binding_abi;
+use crate::script::tick::verb;
+use crate::script::{ActionSlot, Model};
+
+use super::{clear_cursor, set_cursor, CursorAction, CursorMacro, CursorPayload, CursorSpell};
+
+/// The passive-spell refusal's error, errorId `0x9e`: entry `0xb4c0f0` of the table at `0xb4b498`
+/// (stride `0x14`) names this key (`0x84133c`).
+const PASSIVE_ON_BAR_ERROR: &str = "ERR_PASSIVE_ABILITY";
+
+/// The `CMSG_SET_ACTION_BUTTON` slot word.
+fn pack(kind: u8, action: u32) -> u32 {
+    (u32::from(kind) << 24) | (action & 0x00FF_FFFF)
+}
+
+/// The payload slot `id`'s setter puts on the cursor, the setter of the action's kind
+/// (`0x4e6130`, and `0x4e62e0`'s hop): an item action the row grab's mode 7 (`0x4e6215`,
+/// `0x4e6450`), a spell the spell setter's mode 3 (`0x4e6254`, `0x4e6494`), a macro the macro
+/// setter's mode 8 (`0x4e629d`, `0x4e64e2`). `None` is an empty slot; `Some(None)` an action no
+/// setter takes, a macro gone from the list (`0x4e6279`) or an unknown kind (`0x4e626e`): a
+/// pickup then sets nothing, and a place clears the cursor as for an empty slot.
+fn lift(model: &Model, id: u32) -> Option<Option<CursorPayload>> {
+    let slot = model.actions.get(&id)?;
+    if let Some(macro_id) = macro_slot_id(slot.kind, slot.action) {
+        return Some(model.macros.by_id(macro_id).map(|m| {
+            CursorPayload::Macro(CursorMacro {
+                id: macro_id,
+                texture: m.texture.clone(),
+            })
+        }));
+    }
+    Some(match slot.kind {
+        ACTION_KIND_ITEM => Some(CursorPayload::Action(CursorAction {
+            src_slot: id,
+            kind: slot.kind,
+            action: slot.action,
+            texture: slot.texture.clone(),
+            count: slot.count,
+            consumable: slot.consumable,
+            state: model.action_states.get(&id).copied(),
+        })),
+        ACTION_KIND_SPELL => Some(CursorPayload::Spell(CursorSpell {
+            spell_id: slot.action,
+            texture: slot.texture.clone(),
+            // The setter reads the spell's record; the book is where the engine has it.
+            passive: model
+                .spellbook
+                .slots
+                .iter()
+                .any(|s| s.spell_id == slot.action && s.passive),
+        })),
+        _ => None,
+    })
+}
+
+/// `PickupAction(id)`, the slot's shift-click and drag start (`ActionBarFrame.xml:12-38`). With a
+/// spell, item, macro or bar item held it places instead (`0x4e615d`-`0x4e6194`); with nothing
+/// or anything else held it picks up, the setter's clear dropping coins, a pet action, a stabled
+/// pet or a vendor row. A pickup also clears the slot on the wire at once. The cursor
+/// goes first and the slot after, as `0x4e6130` runs its setter ([`lift`]) before the slot clear
+/// `0x4e5db0`, so the pickup's events still read the action in its slot: the setter's inner
+/// `ClearCursor(1,1)` signals on the empty cursor, then its tail. The slot clears even when no
+/// setter takes the action (`0x4e62ba`). Returns whether to repaint.
+pub(super) fn pickup_action(lua: &Lua, id: u32) -> mlua::Result<bool> {
+    let picked = {
+        let model = lua.app_data_ref::<Model>().expect("model app_data");
+        if matches!(
+            model.cursor,
+            Some(
+                CursorPayload::Spell(_)
+                    | CursorPayload::Item(_)
+                    | CursorPayload::Macro(_)
+                    | CursorPayload::Action(_)
+            )
+        ) {
+            None
+        } else {
+            // An empty slot returns before any setter (`0x4e61a3`).
+            Some(lift(&model, id))
+        }
+    };
+    let Some(picked) = picked else {
+        return place_action(lua, id);
+    };
+    let Some(payload) = picked else {
+        return Ok(false);
+    };
+    if let Some(payload) = payload {
+        set_cursor(lua, true, |_| Some(payload));
+    }
+    verb(lua, |model| {
+        model.actions.remove(&id);
+        // The state goes with the action: the reference answers `IsEquippedAction` and kin for
+        // the slot's action at call time (`0x4e74e0`), nil for an empty slot, so the handler
+        // below must not read the lifted item's green border off the emptied slot.
+        model.action_states.remove(&id);
+        model.call_in_verb(set_slot(id, 0));
+        raise_slot_changed(model, id);
+    });
+    Ok(true)
+}
+
+/// `0x4e5d10`, which `DeleteMacro` runs once its record is gone (`0x4f1449`): every action slot
+/// that holds macro `macro_id` is cleared, lowest first (`0x4e5db0`), each sent as 0 and signalling
+/// `ACTIONBAR_SLOT_CHANGED` (`0x4e58e0`).
+pub(crate) fn clear_macro_slots(model: &mut Model, macro_id: u32) {
+    let mut held: Vec<u32> = model
+        .actions
+        .iter()
+        .filter(|(_, slot)| macro_slot_id(slot.kind, slot.action) == Some(macro_id))
+        .map(|(&id, _)| id)
+        .collect();
+    held.sort_unstable();
+    for id in held {
+        model.actions.remove(&id);
+        model.action_states.remove(&id);
+        model.call_in_verb(set_slot(id, 0));
+        raise_slot_changed(model, id);
+    }
+}
+
+/// The slot write's send (`0x4e58e0`): the store's slot `id` set to `packed`, 0 clearing it, and
+/// `CMSG_SET_ACTION_BUTTON`, inside the call and ahead of the slot's signal.
+fn set_slot(id: u32, packed: u32) -> crate::script::ScriptCall {
+    crate::script::ScriptCall::ActionBar(crate::script::ActionBarCall::Set { id, packed })
+}
+
+/// The slot write's tail (`0x4e58e0`): `ACTIONBAR_SLOT_CHANGED` with the 1-based slot, signalled
+/// in place (`0x4e5998`) after the `CMSG_SET_ACTION_BUTTON` it sends.
+fn raise_slot_changed(model: &mut Model, id: u32) {
+    model.raise(
+        "ACTIONBAR_SLOT_CHANGED",
+        vec![crate::script::ScriptValue::Int(i64::from(id))],
+    );
+}
+
+/// `PlaceAction(id)`, the slot's `OnReceiveDrag` and `UseAction(id, 1)`'s place fork. An occupied
+/// slot's action hops onto the cursor with `id` as its source, through its setter ([`lift`]),
+/// whose inner `ClearCursor(1,1)` drops the held payload, hiding the grid, before the setter shows
+/// it again (`0x4e6450`, `0x4e6494`, `0x4e64e2`); an empty slot's place is that clear alone
+/// (`0x4e650f`), as is the place over an occupant no setter takes, an unknown kind or a macro
+/// gone from the list (`0x4e64b3`, `0x4e64be`; `0x4e6694`, `0x4e66a0`; `0x4e67f3`, `0x4e67fe`).
+/// An item stays in its bag, since a bar item is a reference, not a move. The cursor goes first
+/// and the slot after, as `0x4e62e0` writes the slot past the setter, so the cursor's events read
+/// the slot as it was. Returns whether to repaint.
+pub(crate) fn place_action(lua: &Lua, id: u32) -> mlua::Result<bool> {
+    // A bar item's state, carried from its source slot, read before the place hops anything.
+    let state = match &lua.app_data_ref::<Model>().expect("model app_data").cursor {
+        Some(CursorPayload::Action(a)) => a.state,
+        _ => None,
+    };
+    let (placed, displaced) = match verb(lua, |model| plan_place(model, id)) {
+        Place::Refused => return Ok(false),
+        // The passive spell's line, shown inside the verb (`0x4e63ad` → `0x496720`).
+        Place::Shown(key) => {
+            crate::script::calls::display_error(lua, key)?;
+            return Ok(false);
+        }
+        // The held action is already the slot's: `ClearCursor(1,1)` and no write (`0x4e63d4`,
+        // `0x4e65db`, `0x4e673a`).
+        Place::Same => {
+            verb(lua, clear_cursor);
+            return Ok(false);
+        }
+        Place::Write(placed, displaced) => (placed, displaced),
+    };
+    match displaced {
+        Some(Some(displaced)) => {
+            set_cursor(lua, true, |_| Some(displaced));
+        }
+        Some(None) | None => verb(lua, clear_cursor),
+    }
+    verb(lua, |model| {
+        let (kind, action) = (placed.kind, placed.action);
+        model.actions.insert(id, placed);
+        // The placed action's own state, a bar item's carried from its source slot; any other
+        // waits for the app's re-feed rather than reading the displaced occupant's.
+        match state {
+            Some(state) => {
+                model.action_states.insert(id, state);
+            }
+            None => {
+                model.action_states.remove(&id);
+            }
+        }
+        model.call_in_verb(set_slot(id, pack(kind, action)));
+        // Every arm writes through `0x4e684f` into `0x4e58e0`.
+        raise_slot_changed(model, id);
+    });
+    Ok(true)
+}
+
+/// `PlaceAction`'s decision.
+enum Place {
+    /// An accept filter refused: the payload stays held.
+    Refused,
+    /// An accept filter refused with its line: the payload stays held.
+    Shown(&'static str),
+    /// The held action is already in the slot.
+    Same,
+    /// What the slot takes, and the occupant that hops ([`lift`]).
+    Write(ActionSlot, Option<Option<CursorPayload>>),
+}
+
+/// `PlaceAction`'s decision: the accept filters, then whether the held action is the slot's own,
+/// then what the slot takes from the held payload and the occupant that hops.
+fn plan_place(model: &mut Model, id: u32) -> Place {
+    // The two accept filters (`0x4e62e0`) refuse with a bare return: nothing stored or sent, and
+    // the payload stays held. An item needs an on-use spell or an equip slot (`0x4e6571`), so a
+    // bag is placeable; a passive spell (`Attributes & 0x40`) also raises errorId `0x9e` through
+    // `DisplayError` (`0x4e63ad`, `0x496720`), where the item refusal is mute.
+    match &model.cursor {
+        Some(CursorPayload::Item(i)) if !i.bar_placeable => return Place::Refused,
+        Some(CursorPayload::Spell(s)) if s.passive => return Place::Shown(PASSIVE_ON_BAR_ERROR),
+        _ => {}
+    }
+    let Some(held) = model.cursor.as_ref() else {
+        return Place::Refused;
+    };
+    let slot = |kind, action, texture: &Option<String>| ActionSlot {
+        texture: texture.clone(),
+        kind,
+        action,
+        count: 0,
+        consumable: false,
+        // The item's ON_USE spell waits for the app's re-feed, which reads the template.
+        use_spell: None,
+    };
+    let placed = match held {
+        CursorPayload::Action(a) => ActionSlot {
+            count: a.count,
+            consumable: a.consumable,
+            ..slot(a.kind, a.action, &a.texture)
+        },
+        // `GetActionCount` counts the carried bags, off the bags the VM holds; the count gate
+        // (`0x4e5250`) is the template's consumable test, which the held item carries from its
+        // bag or worn record.
+        CursorPayload::Item(i) => ActionSlot {
+            count: carried_count(model, i.item_id),
+            consumable: i.consumable,
+            ..slot(ACTION_KIND_ITEM, i.item_id, &i.texture)
+        },
+        // The face the bar paints for the spell, which the book carries; the cursor shows the
+        // book's icon.
+        CursorPayload::Spell(s) => {
+            let face = model
+                .spellbook
+                .slots
+                .iter()
+                .find(|b| b.spell_id == s.spell_id)
+                .map_or_else(|| s.texture.clone(), |b| b.bar_face());
+            slot(ACTION_KIND_SPELL, s.spell_id, &face)
+        }
+        // `PlaceAction` accepts modes 1, 3, 7 and 8 (`0x4e62e0`): a macro, mode 8, packs its id
+        // under the macro tag. Pet actions (4), coins (2), stabled pets (10) and vendor rows (5)
+        // are refused and stay held.
+        CursorPayload::Macro(m) => {
+            let (kind, action) = macro_slot_word(m.id);
+            slot(kind, action, &m.texture)
+        }
+        CursorPayload::PetAction(_)
+        | CursorPayload::StablePet(_)
+        | CursorPayload::Money(_)
+        | CursorPayload::Merchant(_) => return Place::Refused,
+    };
+    // Each arm compares the held action with the slot's: the spell arm a spell id with the spell
+    // the slot resolves to (`0x4e63d0`, [`resolved_spell`]), so a macro bound to it or an item
+    // casting it matches too; the item arm an item entry, a bag item's or a bar item's alike
+    // (`0x4e65cf`); the macro arm a macro id (`0x4e672f`).
+    let (kind, action) = (placed.kind, placed.action);
+    let same = match model.actions.get(&id) {
+        Some(_) if kind == ACTION_KIND_SPELL => resolved_spell(model, id) == Some(action),
+        Some(slot) => slot.kind == kind && slot.action == action,
+        None => false,
+    };
+    if same {
+        return Place::Same;
+    }
+    Place::Write(placed, lift(model, id))
+}
+
+/// The spell slot `id` resolves to (`0x4e5a50`): a spell slot's own; a macro slot's bound spell
+/// (`0x4e5ba0`, the record's `+0x564`), when the macro exists (`0x4e5030`); an item slot's ON_USE
+/// spell (`0x4e5ae0`). `None` for none, an empty slot or an unbound macro.
+fn resolved_spell(model: &Model, id: u32) -> Option<u32> {
+    let slot = model.actions.get(&id)?;
+    let spell = if let Some(macro_id) = macro_slot_id(slot.kind, slot.action) {
+        model.macros.by_id(macro_id)?;
+        let bound = model.macro_bindings.get(&macro_id)?.spell;
+        u32::try_from(bound).ok()?
+    } else {
+        match slot.kind {
+            ACTION_KIND_SPELL => slot.action,
+            ACTION_KIND_ITEM => slot.use_spell?,
+            _ => return None,
+        }
+    };
+    (spell != 0).then_some(spell)
+}
+
+/// The stacks of `item_id` in the backpack and the four worn bags, the app's carried count.
+fn carried_count(model: &Model, item_id: u32) -> u32 {
+    (0..=4)
+        .filter_map(|bag| model.containers.get(&bag))
+        .flat_map(|c| c.slots.values())
+        .filter(|s| s.item_id == item_id)
+        .map(|s| s.count)
+        .sum()
+}
+
+/// Register `PickupAction` and `PlaceAction` as globals.
+pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
+    let g = lua.globals();
+
+    g.set(
+        "PickupAction",
+        lua.create_function(|lua, id: Value| {
+            // `is-number` else `Usage: PickupAction(slot)` (`0x84c05c`, `0x4e71fe`).
+            let id = binding_abi::index_arg32(lua, id, "Usage: PickupAction(slot)")?;
+            pickup_action(lua, id)?;
+            Ok(())
+        })?,
+    )?;
+    g.set(
+        "PlaceAction",
+        lua.create_function(|lua, id: Value| {
+            // `is-number` else `Usage: PlaceAction(slot)` (`0x84c078`, `0x4e726e`).
+            let id = binding_abi::index_arg32(lua, id, "Usage: PlaceAction(slot)")?;
+            place_action(lua, id)?;
+            Ok(())
+        })?,
+    )?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{pickup_action, place_action};
+    use crate::script::action::ACTION_KIND_ITEM;
+    use crate::script::cursor::{CursorAction, CursorItem, CursorPayload, CursorSpell};
+    use crate::script::{ActionSlot, ActionState, UiScript};
+
+    fn action_slot(texture: &str, kind: u8, action: u32) -> ActionSlot {
+        ActionSlot {
+            texture: Some(texture.into()),
+            kind,
+            action,
+            count: 0,
+            consumable: false,
+            use_spell: None,
+        }
+    }
+
+    #[test]
+    fn pickup_action_empties_the_slot_and_queues_a_clear() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 133)));
+
+        assert!(pickup_action(&s.lua, 1).unwrap());
+        assert!(
+            !s.eval::<bool>("return HasAction(1)").unwrap(),
+            "removed from the engine's optimistic mirror"
+        );
+        assert!(
+            matches!(s.cursor_payload(), Some(CursorPayload::Spell(c)) if c.spell_id == 133),
+            "{:?}",
+            s.cursor_payload()
+        );
+        assert_eq!(s.take_action_sets(), vec![(1, 0)]);
+    }
+
+    /// The cursor's events run before the slot write, as `0x4e6130` runs its setter before the
+    /// slot clear `0x4e5db0` and `0x4e62e0` hops the displaced action before it writes: a handler
+    /// reads each slot as it was. The write's `ACTIONBAR_SLOT_CHANGED` follows in place
+    /// (`0x4e5998`), reading the slot as written.
+    #[test]
+    fn the_cursor_events_fire_before_the_slot_write() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 111)));
+        s.set_action(2, Some(action_slot("Interface\\Icons\\Spell_B", 0x00, 222)));
+        crate::script::tick::heard::listen(
+            &s,
+            &["CURSOR_UPDATE", "ACTIONBAR_SLOT_CHANGED"],
+            Some(
+                "tostring(arg1) .. ' ' .. tostring(GetActionTexture(1)) .. ' ' .. \
+                 tostring(GetActionTexture(2))",
+            ),
+        );
+        s.run("PickupAction(1)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            [
+                "CURSOR_UPDATE nil Interface\\Icons\\Spell_A Interface\\Icons\\Spell_B",
+                "ACTIONBAR_SLOT_CHANGED 1 nil Interface\\Icons\\Spell_B"
+            ]
+        );
+        assert!(!s.eval::<bool>("return HasAction(1)").unwrap());
+        s.run("PlaceAction(2)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            [
+                "CURSOR_UPDATE nil nil Interface\\Icons\\Spell_B",
+                "ACTIONBAR_SLOT_CHANGED 2 nil Interface\\Icons\\Spell_A"
+            ]
+        );
+        assert_eq!(
+            s.eval::<String>("return GetActionTexture(2)").unwrap(),
+            "Interface\\Icons\\Spell_A"
+        );
+    }
+
+    /// `IsEquippedAction` answers for the slot's action at call time (`0x4e74e0`), so the in-place
+    /// `ACTIONBAR_SLOT_CHANGED` of a pickup reads no green border on the emptied slot, the place's
+    /// reads it on the slot the item went to, and a spell placed over the item reads none while
+    /// the item hops with its border. A state left behind kept the border on the empty slot.
+    #[test]
+    fn an_equipped_items_green_border_moves_with_it() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        let worn = || {
+            Some(ActionState {
+                equipped: true,
+                usable: true,
+                ..ActionState::default()
+            })
+        };
+        s.set_action(
+            1,
+            Some(action_slot(
+                "Interface\\Icons\\Trinket",
+                ACTION_KIND_ITEM,
+                19406,
+            )),
+        );
+        s.set_action_state(1, worn());
+        crate::script::tick::heard::listen(
+            &s,
+            &["ACTIONBAR_SLOT_CHANGED"],
+            Some("tostring(arg1) .. ' ' .. tostring(IsEquippedAction(arg1))"),
+        );
+        s.run("PickupAction(1)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_SLOT_CHANGED 1 nil"],
+            "the emptied slot draws no border"
+        );
+        s.run("PlaceAction(2)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_SLOT_CHANGED 2 1"],
+            "the slot the item went to draws it"
+        );
+        // A spell from the book over the item: the item hops onto the cursor with its border.
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 133,
+            texture: Some("Interface\\Icons\\Spell_A".into()),
+            passive: false,
+        }));
+        s.run("PlaceAction(2)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_SLOT_CHANGED 2 nil"],
+            "the spell does not read the item's border"
+        );
+        s.run("PlaceAction(3)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_SLOT_CHANGED 3 1"]
+        );
+    }
+
+    #[test]
+    fn pickup_action_on_an_empty_slot_is_a_no_op() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        assert!(!pickup_action(&s.lua, 5).unwrap());
+        assert!(s.cursor_payload().is_none());
+        assert!(s.take_action_sets().is_empty());
+    }
+
+    #[test]
+    fn place_action_onto_empty_writes_the_slot_and_clears_cursor() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Action(CursorAction {
+            src_slot: 3,
+            kind: 0x00,
+            action: 133,
+            texture: Some("Interface\\Icons\\Spell_A".into()),
+            count: 0,
+            consumable: false,
+            state: None,
+        }));
+
+        assert!(place_action(&s.lua, 7).unwrap());
+        assert!(s.cursor_payload().is_none(), "empty destination clears");
+        assert!(s.eval::<bool>("return HasAction(7)").unwrap());
+        assert_eq!(
+            s.eval::<String>("return GetActionTexture(7)").unwrap(),
+            "Interface\\Icons\\Spell_A"
+        );
+        // 0x00<<24 | 133 == 133.
+        assert_eq!(s.take_action_sets(), vec![(7, 133)]);
+    }
+
+    #[test]
+    fn place_action_onto_occupied_hops_the_displaced_action() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 111)));
+        s.set_action(2, Some(action_slot("Interface\\Icons\\Spell_B", 0x00, 222)));
+
+        assert!(pickup_action(&s.lua, 1).unwrap());
+        assert_eq!(s.take_action_sets(), vec![(1, 0)]);
+
+        assert!(place_action(&s.lua, 2).unwrap());
+        assert_eq!(
+            s.eval::<String>("return GetActionTexture(2)").unwrap(),
+            "Interface\\Icons\\Spell_A"
+        );
+        assert_eq!(
+            s.cursor_payload(),
+            Some(CursorPayload::Spell(CursorSpell {
+                spell_id: 222,
+                texture: Some("Interface\\Icons\\Spell_B".into()),
+                passive: false,
+            }))
+        );
+        assert_eq!(s.take_action_sets(), vec![(2, 111)]);
+    }
+
+    #[test]
+    fn place_action_item_payload_packs_the_item_kind_and_leaves_the_bag_untouched() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Item(CursorItem {
+            item_class: None,
+            guid: 0x114,
+            bar_placeable: true,
+            consumable: false,
+            bag: 0,
+            slot: 1,
+            item_id: 117,
+            texture: Some("Interface\\Icons\\INV_Misc_Food_16".into()),
+            link: None,
+            count: None,
+            quality: Some(1),
+            equip_slots: Vec::new(),
+        }));
+
+        assert!(place_action(&s.lua, 4).unwrap());
+        assert!(s.cursor_payload().is_none());
+        // 0x80<<24 | 117.
+        assert_eq!(s.take_action_sets(), vec![(4, 0x8000_0000 | 117)]);
+        assert!(
+            s.take_container_moves().is_empty(),
+            "a bar item action is a reference, not a move"
+        );
+    }
+
+    #[test]
+    fn place_action_spell_payload_packs_the_spell_kind() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            passive: false,
+            spell_id: 133,
+            texture: Some("Interface\\Icons\\Spell_A".into()),
+        }));
+
+        assert!(place_action(&s.lua, 9).unwrap());
+        assert_eq!(s.take_action_sets(), vec![(9, 133)]); // 0x00<<24 | 133
+    }
+
+    #[test]
+    fn place_action_with_an_empty_cursor_is_a_no_op() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 111)));
+        assert!(!place_action(&s.lua, 1).unwrap());
+        assert!(s.eval::<bool>("return HasAction(1)").unwrap(), "untouched");
+        assert!(s.take_action_sets().is_empty());
+    }
+
+    #[test]
+    fn pickup_action_with_a_payload_held_falls_through_to_place() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Action(CursorAction {
+            src_slot: 1,
+            kind: 0x00,
+            action: 111,
+            texture: Some("Interface\\Icons\\Spell_A".into()),
+            count: 0,
+            consumable: false,
+            state: None,
+        }));
+        assert!(pickup_action(&s.lua, 5).unwrap());
+        assert!(s.cursor_payload().is_none(), "placed onto the empty slot 5");
+        assert!(s.eval::<bool>("return HasAction(5)").unwrap());
+        assert_eq!(s.take_action_sets(), vec![(5, 111)]);
+    }
+
+    #[test]
+    /// The setters show the grid (`0x494dd1`) and every clear's tail hides it (`0x4952b3`), so a
+    /// hop's inner clear hides it before the displaced action's setter shows it again.
+    fn showgrid_hidegrid_fire_on_gain_and_loss_and_twice_on_a_hop() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 111)));
+        s.set_action(2, Some(action_slot("Interface\\Icons\\Spell_B", 0x00, 222)));
+        s.run(
+            r#"
+            shows, hides = 0, 0
+            local f = CreateFrame("Frame", "GridListener")
+            f:RegisterEvent("ACTIONBAR_SHOWGRID")
+            f:RegisterEvent("ACTIONBAR_HIDEGRID")
+            f:SetScript("OnEvent", function()
+                if event == "ACTIONBAR_SHOWGRID" then shows = shows + 1 end
+                if event == "ACTIONBAR_HIDEGRID" then hides = hides + 1 end
+            end)
+            "#,
+        )
+        .unwrap();
+
+        s.run("PickupAction(1)").unwrap(); // None -> Some: SHOW
+        s.tick(0.01);
+        assert_eq!(s.eval::<i64>("return shows").unwrap(), 1);
+        assert_eq!(s.eval::<i64>("return hides").unwrap(), 0);
+
+        s.run("PlaceAction(2)").unwrap(); // Some -> Some (hop): HIDE, then SHOW
+        s.tick(0.01);
+        assert_eq!(s.eval::<i64>("return shows").unwrap(), 2);
+        assert_eq!(s.eval::<i64>("return hides").unwrap(), 1);
+
+        s.run("ClearCursor()").unwrap(); // Some -> None: HIDE
+        s.tick(0.01);
+        assert_eq!(s.eval::<i64>("return shows").unwrap(), 2);
+        assert_eq!(s.eval::<i64>("return hides").unwrap(), 2);
+    }
+
+    #[test]
+    fn a_non_usable_non_equippable_item_is_refused_and_stays_held() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Item(CursorItem {
+            item_class: None,
+            guid: 0x115,
+            bar_placeable: false, // no on-use spell, InventoryType 0
+            consumable: false,
+            bag: 0,
+            slot: 1,
+            item_id: 2589, // Linen Cloth
+            texture: Some("Interface\\Icons\\INV_Fabric_Linen_01".into()),
+            link: None,
+            count: None,
+            quality: Some(1),
+            equip_slots: Vec::new(),
+        }));
+
+        assert!(!place_action(&s.lua, 4).unwrap());
+        assert!(!s.eval::<bool>("return HasAction(4)").unwrap(), "no store");
+        assert!(s.take_action_sets().is_empty(), "no packet");
+        assert!(
+            matches!(s.cursor_payload(), Some(CursorPayload::Item(_))),
+            "a refused payload stays on the cursor — the reference never clears it"
+        );
+        assert!(
+            s.take_ui_errors().is_empty(),
+            "the ITEM refusal is MUTE — only the SPELL arm carries a DisplayError (`4e63ad`); a \
+             toast here would be ours, not the reference's"
+        );
+    }
+
+    #[test]
+    fn a_passive_spell_is_refused_with_the_refs_error_and_stays_held() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 674, // Dual Wield, a passive
+            texture: Some("Interface\\Icons\\Ability_DualWield".into()),
+            passive: true,
+        }));
+
+        assert!(!place_action(&s.lua, 4).unwrap());
+        assert!(!s.eval::<bool>("return HasAction(4)").unwrap());
+        assert!(s.take_action_sets().is_empty());
+        assert!(matches!(s.cursor_payload(), Some(CursorPayload::Spell(_))));
+        assert_eq!(
+            s.take_ui_errors(),
+            vec![super::PASSIVE_ON_BAR_ERROR],
+            "the ref's errorId 0x9e toast — 'You can't put a passive ability in the action bar.'"
+        );
+        assert!(
+            s.take_ui_errors().is_empty(),
+            "…and the queue drains, so the toast fires once per refusal"
+        );
+    }
+
+    #[test]
+    fn an_active_spell_places_without_an_error() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 133, // Fireball
+            texture: Some("Interface\\Icons\\Spell_Fire_FlameBolt".into()),
+            passive: false,
+        }));
+
+        assert!(place_action(&s.lua, 4).unwrap());
+        assert!(s.eval::<bool>("return HasAction(4)").unwrap());
+        assert!(s.take_ui_errors().is_empty());
+    }
+
+    #[test]
+    fn a_bag_is_placeable() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Item(CursorItem {
+            item_class: None,
+            guid: 0x116,
+            bar_placeable: true, // equippable (BAG), even with no on-use spell
+            consumable: false,
+            bag: 0,
+            slot: 1,
+            item_id: 4496, // Small Brown Pouch
+            texture: Some("Interface\\Icons\\INV_Misc_Bag_08".into()),
+            link: None,
+            count: None,
+            quality: Some(1),
+            equip_slots: vec![20, 21, 22, 23],
+        }));
+
+        assert!(place_action(&s.lua, 4).unwrap());
+        assert_eq!(s.take_action_sets(), vec![(4, 0x8000_0000u32 | 4496)]);
+    }
+
+    /// A bar pickup runs the setter of its slot's kind (`0x4e6130`): a spell's shows the grid and
+    /// signals nothing after (`0x494dd1`); an item's row grab shows it and signals after its set
+    /// (`0x49513a`, `0x49515e`). Each inner clear signals first, so a hop hides the grid, still
+    /// reading the dropped action (`0x4952b3` comes before `0x4952bf`), and `CURSOR_UPDATE` reads
+    /// the emptied cursor before the displaced action goes on.
+    #[test]
+    fn a_bar_pickup_and_a_hop_signal_as_their_setters() {
+        let s = {
+            let mut s = UiScript::new().unwrap();
+            s.keep_calls();
+            s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 111)));
+            s.set_action(2, Some(action_slot("Interface\\Icons\\INV_A", 0x80, 4540)));
+            s
+        };
+        crate::script::cursor::install_kind_probe(&s);
+        crate::script::tick::heard::listen(
+            &s,
+            &["CURSOR_UPDATE", "ACTIONBAR_SHOWGRID", "ACTIONBAR_HIDEGRID"],
+            Some("CursorKind()"),
+        );
+        s.run("PickupAction(1)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["CURSOR_UPDATE none", "ACTIONBAR_SHOWGRID spell"]
+        );
+        s.run("PlaceAction(2)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            [
+                "ACTIONBAR_HIDEGRID spell",
+                "CURSOR_UPDATE none",
+                "ACTIONBAR_SHOWGRID action",
+                "CURSOR_UPDATE action"
+            ]
+        );
+        // Onto an empty slot the place is the clear alone (`0x4e650f`).
+        s.run("PlaceAction(3)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_HIDEGRID action", "CURSOR_UPDATE none"]
+        );
+    }
+
+    /// A bar spell lifts as the spell setter's mode 3 (`0x4e6254`), so `CursorHasSpell`
+    /// (`0x489600`) answers 1 and `PickupSpell`'s held check (`0x4b3285`) sees it; a bar macro
+    /// lifts as the macro setter's mode 8 (`0x4e629d`), and one gone from the list lifts nothing
+    /// while its slot still clears (`0x4e6279`, `0x4e62ba`).
+    #[test]
+    fn bar_spells_and_macros_lift_with_their_setters() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 133)));
+        s.run(r#"CreateMacro("Ambush", 1, "/cast Ambush")"#)
+            .unwrap();
+        s.set_action(
+            2,
+            Some(action_slot("Interface\\Icons\\Ability_Ambush", 0x40, 1)),
+        );
+        s.set_action(
+            3,
+            Some(action_slot("Interface\\Icons\\Ability_Ambush", 0x40, 9)),
+        );
+
+        s.run("PickupAction(1)").unwrap();
+        assert!(s.eval::<bool>("return CursorHasSpell() == 1").unwrap());
+        s.run("ClearCursor() PickupAction(2)").unwrap();
+        assert!(matches!(
+            s.cursor_payload(),
+            Some(CursorPayload::Macro(m)) if m.id == 1
+        ));
+        s.run("ClearCursor()").unwrap();
+        crate::script::tick::heard::listen(&s, &["CURSOR_UPDATE"], None);
+        assert!(pickup_action(&s.lua, 3).unwrap());
+        assert!(s.cursor_payload().is_none());
+        assert!(
+            crate::script::tick::heard::take(&s).is_empty(),
+            "no setter, no clear"
+        );
+        assert_eq!(s.take_action_sets(), vec![(1, 0), (2, 0), (3, 0)]);
+    }
+
+    /// `PickupAction` places only a held spell, item, macro or bar item (`0x4e615d`-`0x4e6194`);
+    /// with coins held it picks the slot up, the setter's `ClearCursor(1,1)` dropping the coins
+    /// with their `PLAYER_MONEY`. An empty slot does nothing (`0x4e61a3`).
+    #[test]
+    fn pickup_action_lifts_over_a_payload_it_cannot_place() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_money(1_000);
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 133)));
+        s.run("PickupPlayerMoney(10)").unwrap();
+        crate::script::tick::heard::listen(&s, &["PLAYER_MONEY"], None);
+        s.run("PickupAction(2)").unwrap();
+        assert!(matches!(s.cursor_payload(), Some(CursorPayload::Money(_))));
+        s.run("PickupAction(1)").unwrap();
+        assert!(matches!(s.cursor_payload(), Some(CursorPayload::Spell(_))));
+        assert_eq!(crate::script::tick::heard::take(&s), ["PLAYER_MONEY"]);
+        assert_eq!(s.take_action_sets(), vec![(1, 0)]);
+    }
+
+    /// The held action already in the slot: `ClearCursor(1,1)` and return, no write and no send,
+    /// for a spell (`0x4e63c8`-`0x4e63d4`), an item (`0x4e65cf`-`0x4e65db`) and a macro
+    /// (`0x4e672f`-`0x4e673a`).
+    #[test]
+    fn placing_the_slots_own_action_clears_and_writes_nothing() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Spell_A", 0x00, 133)));
+        s.set_action(2, Some(action_slot("Interface\\Icons\\INV_A", 0x80, 4540)));
+        s.run(r#"CreateMacro("Ambush", 1, "/cast Ambush")"#)
+            .unwrap();
+        s.set_action(
+            3,
+            Some(action_slot("Interface\\Icons\\Ability_Ambush", 0x40, 1)),
+        );
+        let held = [
+            CursorPayload::Spell(CursorSpell {
+                spell_id: 133,
+                texture: None,
+                passive: false,
+            }),
+            CursorPayload::Item(CursorItem {
+                item_class: None,
+                guid: 0x117,
+                bar_placeable: true,
+                consumable: false,
+                bag: 0,
+                slot: 1,
+                item_id: 4540,
+                texture: None,
+                link: None,
+                count: None,
+                quality: None,
+                equip_slots: Vec::new(),
+            }),
+            CursorPayload::Macro(crate::script::cursor::CursorMacro {
+                id: 1,
+                texture: None,
+            }),
+        ];
+        for (slot, payload) in [1, 2, 3].into_iter().zip(held) {
+            s.set_cursor_for_test(payload);
+            assert!(!place_action(&s.lua, slot).unwrap());
+            assert!(
+                s.cursor_payload().is_none(),
+                "slot {slot}: the cursor clears"
+            );
+            assert!(
+                s.take_action_sets().is_empty(),
+                "slot {slot}: nothing written"
+            );
+        }
+    }
+
+    /// A place over an occupant no setter takes, here a macro gone from the list, clears the
+    /// cursor before the write, as over an empty slot (`0x4e64be` to `0x4e6508`).
+    #[test]
+    fn a_place_over_a_dangling_macro_clears_the_cursor() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_action(
+            3,
+            Some(action_slot("Interface\\Icons\\Ability_Ambush", 0x40, 9)),
+        );
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 133,
+            texture: None,
+            passive: false,
+        }));
+        crate::script::tick::heard::listen(&s, &["CURSOR_UPDATE"], None);
+        assert!(place_action(&s.lua, 3).unwrap());
+        assert!(s.cursor_payload().is_none(), "the spell is dropped");
+        assert_eq!(crate::script::tick::heard::take(&s), ["CURSOR_UPDATE"]);
+        assert_eq!(s.take_action_sets(), vec![(3, 133)]);
+    }
+
+    /// The spell arm compares the held spell with the spell the slot resolves to (`0x4e5a50`): a
+    /// macro bound to it (`0x4e5ba0`) or an item casting it (`0x4e5ae0`) is the same action, and
+    /// the place only clears the cursor.
+    #[test]
+    fn a_spell_dropped_on_a_macro_or_item_casting_it_clears_the_cursor() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.run(r#"CreateMacro("Fire", 1, "/cast Fireball")"#)
+            .unwrap();
+        s.set_macro_bindings(std::collections::HashMap::from([(
+            1,
+            crate::script::MacroBinding {
+                spell: 133,
+                pet_book: false,
+            },
+        )]));
+        s.set_action(1, Some(action_slot("Interface\\Icons\\Fire", 0x40, 1)));
+        let mut item = action_slot("Interface\\Icons\\INV_A", 0x80, 4540);
+        item.use_spell = Some(8690);
+        s.set_action(2, Some(item));
+        for (slot, spell_id) in [(1, 133), (2, 8690)] {
+            s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+                spell_id,
+                texture: None,
+                passive: false,
+            }));
+            assert!(!place_action(&s.lua, slot).unwrap());
+            assert!(s.cursor_payload().is_none(), "slot {slot}: cleared");
+            assert!(
+                s.take_action_sets().is_empty(),
+                "slot {slot}: nothing written"
+            );
+        }
+        // Another spell on the macro slot places, the macro hopping onto the cursor.
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 116,
+            texture: None,
+            passive: false,
+        }));
+        assert!(place_action(&s.lua, 1).unwrap());
+        assert!(matches!(s.cursor_payload(), Some(CursorPayload::Macro(_))));
+    }
+
+    /// A spell dropped from the book writes the face the bar paints for it (the weapon face, a
+    /// live `ActiveIconID`), not the book's icon the cursor shows, so its in-place
+    /// `ACTIONBAR_SLOT_CHANGED` reads what the bar feed would and the feed adds nothing.
+    #[test]
+    fn a_dropped_spell_writes_its_bar_face() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_spellbook(crate::script::SpellBookState {
+            tabs: Vec::new(),
+            slots: vec![crate::script::SpellSlotView {
+                spell_id: 2983,
+                name: "Sprint".into(),
+                texture: Some("BOOK".into()),
+                bar_texture: Some(Some("ACTIVE".into())),
+                ..Default::default()
+            }],
+        });
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 2983,
+            texture: Some("BOOK".into()),
+            passive: false,
+        }));
+        crate::script::tick::heard::listen(
+            &s,
+            &["ACTIONBAR_SLOT_CHANGED"],
+            Some("GetActionTexture(arg1)"),
+        );
+        assert!(place_action(&s.lua, 1).unwrap());
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_SLOT_CHANGED ACTIVE"]
+        );
+    }
+
+    /// A worn thrown weapon carries its count gate (`0x4e5250`) onto the bar: the place writes the
+    /// held item's own, not a bag record it does not have.
+    #[test]
+    fn a_worn_thrown_weapon_places_with_its_count_gate() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        let mut inv: crate::script::InventorySlots = Default::default();
+        inv[18] = Some(crate::script::InvSlotView {
+            item_id: 3137,
+            bar_placeable: true,
+            consumable: true,
+            count: 200,
+            icon: Some(r"Interface\Icons\INV_ThrowingAxe_02".into()),
+            equip_slots: vec![18],
+            ..Default::default()
+        });
+        s.set_inventory_slots(inv);
+        crate::script::tick::heard::listen(
+            &s,
+            &["ACTIONBAR_SLOT_CHANGED"],
+            Some("IsConsumableAction(arg1)"),
+        );
+        s.run("PickupInventoryItem(18) PlaceAction(1)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["ACTIONBAR_SLOT_CHANGED 1"]
+        );
+    }
+
+    /// A passive spell's refusal shows inside `PlaceAction` (`0x4e63ad` → `0x496720`): the chunk's
+    /// next line reads it.
+    #[test]
+    fn a_passive_spells_refusal_shows_inside_its_call() {
+        use crate::script::ui_errors::shown::seen_in_call;
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_cursor_for_test(CursorPayload::Spell(CursorSpell {
+            spell_id: 674,
+            texture: None,
+            passive: true,
+        }));
+        let (seen, _) = seen_in_call(&mut s, "PlaceAction(4)");
+        assert_eq!(seen, super::PASSIVE_ON_BAR_ERROR);
+        assert!(s.take_ui_errors().is_empty(), "nothing waits for the feed");
+    }
+}

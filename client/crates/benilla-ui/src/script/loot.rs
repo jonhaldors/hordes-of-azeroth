@@ -1,0 +1,1031 @@
+//! The loot-window bindings: the app pushes the window ([`UiScript::set_loot`]), a coin row first
+//! while the money cell is set, and the verbs over it are script calls ([`LootCall`]) the host
+//! applies inside them, as the reference's are done when they return. `slot` is 1-based; the app
+//! maps a row to the money or the item's wire slot, which Lua never sees.
+//!
+//! The take dispatcher `0x4c2790(slot, confirm)` has two arms. The take itself, `confirm` 0, is the
+//! row click of [`crate::widget::FrameKind::LootButton`] (`0x4c1820`), made after its `<OnClick>`
+//! inside the click's input record. `LootSlot` is the other arm (`0x4c2e70` passes 1 at
+//! `0x4c2ea5`), which acts only on the row a `LOOT_BIND_CONFIRM` stashed (`0x4c27c0`).
+
+use mlua::{Lua, MultiValue, Table, Value};
+
+use super::binding_abi::{self, bool_or_default, flag};
+use super::{Model, ScriptCall};
+
+/// A loot verb the host applies inside its call ([`ScriptCall::Loot`]), its rows 1-based.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LootCall {
+    /// A `LootButton`'s own click: `0x4c2790(slot, 0)` (`0x4c1867`).
+    Take(u32),
+    /// `LootSlot(slot)`: `0x4c2790(slot, 1)`, the confirm arm (`0x4c2e70`).
+    Confirm(u32),
+    /// `CloseLoot([failed])`: `0x48f200(1, 0, failed)` (`0x4c2ec0`).
+    Close { failed: bool },
+    /// `GiveMasterLoot(slot, candidateIndex)` (`0x4c2940`).
+    GiveMaster { slot: u32, candidate: u32 },
+    /// `SetAutoLoot(byte)` (`0x5df460`), which the engine's interactions make, never a verb.
+    SetAutoLoot(bool),
+    /// The rest of a loot call once the handlers its signal ran have returned, as the
+    /// reference's function goes on after `SignalEvent` runs them in place: the bind stash after
+    /// `LOOT_BIND_CONFIRM` (`0x4c2917` after `0x4c290f`), the coin click's close after
+    /// `LOOT_SLOT_CLEARED` (`0x4c286a` after `0x4c2862`). No verb makes it; the host's tail for
+    /// the call does ([`UiScript::resume_loot`]), down to the depth of what the call owed when it
+    /// began, so a call owing several steps runs each.
+    Resume { depth: usize },
+}
+
+/// `CLootButton`'s own Lua method table (`0x847ce4`): one entry, per the registrar's `mov edx,1`.
+pub(super) const REG_LOOTBUTTON_METHODS: &str = "__benilla_lootbutton_methods";
+
+/// The quality `GetLootSlotInfo` answers on an item-cache miss: the reference's -1 (`0x4c23a0`),
+/// never nil. Stock `UIParent.lua:66` builds `ITEM_QUALITY_COLORS` from -1, and `LootFrame_Update`
+/// indexes it unguarded (`LootFrame.lua:82`), so a nil would raise on a cold cache.
+const CACHE_MISS_QUALITY: i64 = -1;
+
+/// The row text on that miss: `0x5d8b00` leaves its buffer empty with no cache record
+/// (`0x5d8b25`), and the binding pushes that empty string.
+const CACHE_MISS_NAME: &str = "";
+
+/// The icon for a row with an item but no display icon: `INV_Misc_QuestionMark` (`0x847fe4`,
+/// `0x4c252b`). A slot with no item gets nil instead: `0x4c2460` returns NULL on its three guards
+/// (`0x4c2470`, `0x4c24a6`, `0x4c24b7`), which `lua_pushstring 0x6f3890` pushes as nil.
+const MISSING_ICON: &str = "Interface\\Icons\\INV_Misc_QuestionMark";
+
+/// The quality of a slot with no item (past the end, slot 0, no window): `0x4c23a0`'s guards
+/// return 0. A cleared slot takes -1 instead: its itemId is 0, which `0x55ba30` turns into a NULL
+/// record (`0x55ba3d`/`0x55ba42`), the cache-miss arm at `0x4c2435`.
+const NO_SLOT_QUALITY: i64 = 0;
+
+/// One loot-window row, resolved by the app; its 1-based slot is its place in [`LootState::rows`].
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LootRow {
+    /// The item's name; `None` while in flight, answered as [`CACHE_MISS_NAME`]. The coin row's
+    /// name is spelled out of [`Self::money`] at the call ([`coin_row_name`]).
+    pub name: Option<String>,
+    /// Icon path; `None` without a display icon, answered as [`MISSING_ICON`].
+    pub texture: Option<String>,
+    /// Stack size looted; 0 for the coin row, whose guard returns before the record read
+    /// (`0x4c22fd`).
+    pub quantity: u32,
+    /// Quality 0..6; `None` while the template is in flight, answered as [`CACHE_MISS_QUALITY`].
+    pub quality: Option<u32>,
+    /// The synthesized coin pile (`LootSlotIsCoin` true, `LootSlotIsItem` false).
+    pub is_coin: bool,
+    /// The coin row's copper, the money cell `0xb71ba0`; 0 for an item.
+    pub money: u32,
+    /// The tooltip store's key, 0 for the coin row: `SetLootItem` reads it. `GetLootSlotInfo`
+    /// returns four values and no id (`0x4c2d07`).
+    pub item_id: u32,
+    /// `GetLootSlotLink`'s answer; `None` for the coin row and while the template is in flight.
+    pub link: Option<String>,
+    /// The drop's random-suffix roll (`randomPropertyId`, 0 unrolled), resolved by the tooltip
+    /// against [`super::Model::random_properties`]. A loot slot is no item object, so this is its
+    /// only enchant source (`SetLootItem 0x533470` copies it from the loot record's `+0x14`).
+    pub random_property_id: u32,
+}
+
+/// One open loot window, pushed whole by the app; `None` means no loot is open.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LootState {
+    /// The fixed slot list, the coin row first while [`Self::has_money`]. A looted slot becomes
+    /// `None` in place (`0x4c1f59`), neither item nor coin, so `LootFrame_Update` hides its button
+    /// there (`LootFrame.lua:80`).
+    pub rows: Vec<Option<LootRow>>,
+    /// The money cell is nonzero (`0xb71ba0`): row 1 is the coin row, taken (-1) or not.
+    pub has_money: bool,
+    /// The names `GetMasterLootCandidate(i)` answers by 1-based slot, from `SMSG_LOOT_MASTER_LIST`.
+    /// Not packed: in a raid each candidate sits in their subgroup's five-slot block, which the
+    /// dropdown labels "Group N" (`LootFrame.lua:197-213`). A `None` (an empty slot, or a name not
+    /// yet resolved) answers nil.
+    pub master_candidates: Vec<Option<String>>,
+    /// The loot source (`[0xb71b48]`) resolves as a unit object (`0x468460`, typemask 8): a
+    /// corpse, not a chest, a bobber or an item. `SetLootPortrait` bakes it under the token
+    /// [`LOOT_PORTRAIT_UNIT`].
+    pub source_unit: bool,
+}
+
+/// The portrait key `SetLootPortrait` binds a texture to, which the app bakes from the loot
+/// source. Upper case, so no `SetPortraitTexture` token, which is lowercased, can name it.
+pub const LOOT_PORTRAIT_UNIT: &str = "LOOT";
+
+/// The wire `loot_type` of fishing loot.
+const FISHING: u8 = 3;
+
+impl LootState {
+    /// `GetNumLootItems` (`0x4c2260`): the last occupied row's position plus one (`0x4c2281`), plus
+    /// one while the money cell is nonzero (`0x4c229b`), so a gap before the last row counts, one
+    /// after it does not, and a taken coin still counts.
+    pub fn count(&self) -> usize {
+        let coin = usize::from(self.has_money);
+        let items = self.rows.get(coin..).unwrap_or_default();
+        items.iter().rposition(Option::is_some).map_or(0, |i| i + 1) + coin
+    }
+}
+
+impl super::UiScript {
+    /// Push (or clear, with `None`) the open loot.
+    pub fn set_loot(&mut self, state: Option<LootState>) {
+        self.model_mut().loot = state;
+    }
+
+    /// The loot type cell (`0xb71bbc`), which the copier stores (`0x4c1dd6`) and no close clears:
+    /// `IsFishingLoot` reads it, window or not.
+    pub fn set_loot_type(&mut self, loot_type: u8) {
+        self.model_mut().loot_type = loot_type;
+    }
+
+    /// `SetAutoLoot` (`0x5df460`) as a call, the interaction's: the byte stored, and with a loot
+    /// target held a sweep of the open window. Inside an engine turn it applies as the turn ends.
+    pub fn set_auto_loot(&mut self, byte: bool) {
+        let lua = self.lua().clone();
+        if let Err(e) = super::calls::submit(&lua, ScriptCall::Loot(LootCall::SetAutoLoot(byte))) {
+            self.model_mut().record_lua_error(&e);
+        }
+    }
+
+    /// Shift as the VM's calls see it (`EventIsKeyDown(0)`, the state `IsShiftKeyDown` reads too):
+    /// what `OpenItem` passes `SetAutoLoot` (`0x5edca7`), read inside its `UseContainerItem` call.
+    pub fn shift_key_down(&self) -> bool {
+        self.model_ref().modifiers.0
+    }
+
+    /// The loot the VM shows now, as the last push or a call left it.
+    pub fn shown_loot(&self) -> Option<LootState> {
+        self.model_ref().loot.clone()
+    }
+
+    /// Make [`LootCall::Resume`] down to `depth`, for the host's tail to a loot call whose signal's
+    /// handlers have run; a refusal is reported as a script error.
+    pub fn resume_loot(&mut self, depth: usize) {
+        let lua = self.lua().clone();
+        if let Err(e) = super::calls::submit(&lua, ScriptCall::Loot(LootCall::Resume { depth })) {
+            self.model_mut().record_lua_error(&e);
+        }
+    }
+
+    /// The loot calls a harness's VM kept ([`Self::keep_calls`]), in call order.
+    pub fn take_loot_calls(&mut self) -> Vec<LootCall> {
+        self.take_calls_where(|call| match call {
+            ScriptCall::Loot(call) => Some(*call),
+            _ => None,
+        })
+    }
+}
+
+/// `GetLootRowName`'s coin arm (`0x4c2550`), read when `GetLootSlotInfo` asks (`0x4c2cc0`): the
+/// copper split (`0x6c6260`), then gold, silver and copper in that order (`0x4c25a0`-`0x4c2637`),
+/// each non-zero one as `"%d %s%s"` (`0x847ffc`) with its word read now from the `GOLD`, `SILVER`
+/// or `COPPER` global (`0x6c6230`, `0x703bf0`, `""` when missing) and `"\n"` (`0x835144`) after
+/// gold and silver, `""` (`0x882748`) after copper.
+fn coin_row_name(lua: &Lua, copper: u32) -> String {
+    let mut name = String::new();
+    for (count, key, tail) in [
+        (copper / 10_000, "GOLD", "\n"),
+        (copper / 100 % 100, "SILVER", "\n"),
+        (copper % 100, "COPPER", ""),
+    ] {
+        if count != 0 {
+            let word = super::glue_core::global_text(lua, key);
+            name.push_str(&format!("{count} {word}{tail}"));
+        }
+    }
+    name
+}
+
+/// Register the loot globals.
+pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
+    let g = lua.globals();
+
+    // SetLootPortrait(texture) (`0x4c2b40`): the loot source's 3D portrait, the unit-frame bake
+    // (`0x524f60`), and the number 1; a source that is no unit object, or no loot, clears the
+    // texture (`0x4c2c0d`) and answers nil. A non-Texture raises the member prologue's errors. No
+    // stock caller: `LootFrame.lua` paints its own portrait art.
+    g.set(
+        "SetLootPortrait",
+        lua.create_function(|lua, texture: Value| {
+            let rh = super::region::this_texture(lua, &texture)?;
+            let mut model = lua.app_data_mut::<Model>().expect("model app_data");
+            if !model.loot.as_ref().is_some_and(|l| l.source_unit) {
+                super::region::clear_texture(&mut model, rh);
+                return Ok(Value::Nil);
+            }
+            model.set_texel(rh, super::texel::TexSet::Own(None));
+            let data = model.region_data.entry(rh).or_default();
+            data.portrait_unit = Some(LOOT_PORTRAIT_UNIT.to_string());
+            data.circular = true;
+            model.note_art(rh);
+            Ok(Value::Integer(1))
+        })?,
+    )?;
+
+    // GetNumLootItems() (`0x4c2c30`): the count, 0 with no window (`0x4c226d`).
+    g.set(
+        "GetNumLootItems",
+        lua.create_function(|lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(model.loot.as_ref().map_or(0, LootState::count) as i64)
+        })?,
+    )?;
+
+    // GetLootSlotInfo(slot) → texture, item, quantity, quality (`0x4c2c60`, `LootFrame.lua:81`),
+    // four on every leg (`0x4c2d07 mov eax,4`): no item is `nil, "", 0, 0`, a cleared slot
+    // `nil, "", 0, -1`. The miss sentinels are a floor: the reference opens no window before every
+    // template lands, and the app holds `LOOT_OPENED` back likewise.
+    g.set(
+        "GetLootSlotInfo",
+        lua.create_function(|lua, slot: Value| {
+            // `is-number` else `Usage: GetLootSlotInfo(slot)` (`0x848004`, `0x4c2c7a`).
+            let slot = binding_abi::index_arg(lua, slot, "Usage: GetLootSlotInfo(slot)")?;
+            // `Some(Some(row))` live, `Some(None)` cleared, `None` no such slot.
+            let slot_state = {
+                let model = lua.app_data_ref::<Model>().expect("model app_data");
+                model
+                    .loot
+                    .as_ref()
+                    .and_then(|l| slot.checked_sub(1).and_then(|n| l.rows.get(n)))
+                    .cloned()
+            };
+            let Some(Some(row)) = slot_state else {
+                let cleared = slot_state.is_some();
+                return Ok(MultiValue::from_vec(vec![
+                    Value::Nil,
+                    Value::String(lua.create_string(CACHE_MISS_NAME)?),
+                    Value::Integer(0),
+                    Value::Integer(if cleared {
+                        CACHE_MISS_QUALITY
+                    } else {
+                        NO_SLOT_QUALITY
+                    }),
+                ]));
+            };
+            let texture =
+                Value::String(lua.create_string(row.texture.as_deref().unwrap_or(MISSING_ICON))?);
+            let item = if row.is_coin {
+                Value::String(lua.create_string(coin_row_name(lua, row.money))?)
+            } else {
+                Value::String(lua.create_string(row.name.as_deref().unwrap_or(CACHE_MISS_NAME))?)
+            };
+            let quality = Value::Integer(row.quality.map_or(CACHE_MISS_QUALITY, i64::from));
+            Ok(MultiValue::from_vec(vec![
+                texture,
+                item,
+                Value::Integer(i64::from(row.quantity)),
+                quality,
+            ]))
+        })?,
+    )?;
+
+    // GetLootSlotLink(slot): nil out of range, for the coin row and while the template is in
+    // flight. The stock row click hands it to `DressUpItemLink` (`LootFrame.lua:149`) and
+    // `ChatFrameEditBox:Insert` (`:152`), both of which take a nil.
+    g.set(
+        "GetLootSlotLink",
+        lua.create_function(|lua, slot: Value| {
+            // `is-number` else `Usage: GetLootSlotLink(slot)` (`0x848024`, `0x4c2d3a`).
+            let slot = binding_abi::index_arg(lua, slot, "Usage: GetLootSlotLink(slot)")?;
+            let link = {
+                let model = lua.app_data_ref::<Model>().expect("model app_data");
+                model
+                    .loot
+                    .as_ref()
+                    .and_then(|l| slot.checked_sub(1).and_then(|n| l.rows.get(n)))
+                    .and_then(|r| r.as_ref()?.link.clone())
+            };
+            match link {
+                Some(link) => Ok(Value::String(lua.create_string(&link)?)),
+                None => Ok(Value::Nil),
+            }
+        })?,
+    )?;
+
+    g.set(
+        "LootSlotIsItem",
+        lua.create_function(|lua, slot: Value| {
+            // `is-number` else `Usage: LootSlotIsItem(slot)` (`0x848044`, `0x4c2da1`).
+            let slot = binding_abi::index_arg(lua, slot, "Usage: LootSlotIsItem(slot)")?;
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(
+                slot.checked_sub(1)
+                    .and_then(|n| model.loot.as_ref()?.rows.get(n)?.as_ref())
+                    .is_some_and(|r| !r.is_coin),
+            ))
+        })?,
+    )?;
+
+    g.set(
+        "LootSlotIsCoin",
+        lua.create_function(|lua, slot: Value| {
+            // `is-number` else `Usage: LootSlotIsCoin(slot)` (`0x848060`, `0x4c2e11`).
+            let slot = binding_abi::index_arg(lua, slot, "Usage: LootSlotIsCoin(slot)")?;
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(
+                slot.checked_sub(1)
+                    .and_then(|n| model.loot.as_ref()?.rows.get(n)?.as_ref())
+                    .is_some_and(|r| r.is_coin),
+            ))
+        })?,
+    )?;
+
+    g.set(
+        "IsFishingLoot",
+        lua.create_function(|lua, ()| {
+            // `0x4c2740` reads the type cell unguarded: a close leaves it.
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(model.loot_type == FISHING))
+        })?,
+    )?;
+
+    // ── `LootButton`'s own method table ──────────────────────────────────────────────────────
+    //
+    // `SetSlot(index)` (`0x4c1880`): 1-based in, 0-based stored (`ftol`, `dec eax` into
+    // `[this+0x4dc]`), no returns; a non-number raises the client's usage string. Its one stock
+    // caller is `LootFrame.lua:94`; the row's `id` does not feed it.
+    {
+        let m = lua.create_table()?;
+        m.set(
+            "SetSlot",
+            lua.create_function(|lua, (this, index): (Table, Value)| {
+                let n = match &index {
+                    Value::Integer(i) => *i as f64,
+                    Value::Number(n) => *n,
+                    // `lua_isnumber` accepts a numeric string.
+                    Value::String(s) => match s.to_str().ok().and_then(|s| s.parse::<f64>().ok()) {
+                        Some(n) => n,
+                        None => return Err(mlua::Error::runtime("Usage: SetSlot(index)")),
+                    },
+                    _ => return Err(mlua::Error::runtime("Usage: SetSlot(index)")),
+                };
+                // `ftol` truncates toward zero, then `dec`; below 1 takes nothing, as the
+                // reference's bounds-checked consumer of the raw decrement does.
+                let slot = (n.trunc() >= 1.0).then(|| n.trunc() as u32 - 1);
+                super::button::set_loot_slot(lua, &this, slot)?;
+                Ok(())
+            })?,
+        )?;
+        lua.set_named_registry_value(REG_LOOTBUTTON_METHODS, m)?;
+    }
+
+    // LootSlot(slot): the LOOT_BIND confirmation only (`0x4c2e70`: `luaL_checknumber(1)`,
+    // `dec eax`, `0x4c2790(slot, 1)`, whose arm at `0x4c27c0` returns unless the slot is the
+    // pending confirm, `cmp edi, [0x847cec]`). On an ordinary row it does nothing.
+    g.set(
+        "LootSlot",
+        lua.create_function(|lua, slot: Value| {
+            // `is-number` else `Usage: LootSlot(slot)` (`0x84807c`, `0x4c2e81`).
+            let slot = binding_abi::index_arg32(lua, slot, "Usage: LootSlot(slot)")?;
+            super::calls::submit(lua, ScriptCall::Loot(LootCall::Confirm(slot)))
+        })?,
+    )?;
+
+    // CloseLoot([failed]) (`0x4c2ec0`): the flag is read through the client's flag coercion
+    // (`0x4c2ec7`, `0x6f1c10`, default 0) and handed to the close (`0x48f200`), which raises
+    // `ERR_LOOT_NO_UI` for a set one (`0x48f27b`). Stock `LootFrame.lua:18` passes 1 when the
+    // window cannot open.
+    g.set(
+        "CloseLoot",
+        lua.create_function(|lua, args: MultiValue| {
+            let failed = bool_or_default(args.front(), false);
+            super::calls::submit(lua, ScriptCall::Loot(LootCall::Close { failed }))
+        })?,
+    )?;
+
+    // GetMasterLootCandidate(index): nil, never an error, out of range or on an empty slot, since
+    // `GroupLootDropDown_Initialize` probes slots 1-5 in a party and 1-40 in a raid and reads nil
+    // as nobody (`LootFrame.lua:168-232`).
+    g.set(
+        "GetMasterLootCandidate",
+        lua.create_function(|lua, index: Value| {
+            // `is-number` else `Usage: GetMasterLootCandidate(index)` (`0x848094`, `0x4c2f27`).
+            let index =
+                binding_abi::index_arg32(lua, index, "Usage: GetMasterLootCandidate(index)")?;
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let name = index.checked_sub(1).and_then(|i| {
+                model
+                    .loot
+                    .as_ref()?
+                    .master_candidates
+                    .get(i as usize)?
+                    .clone()
+            });
+            Ok(name)
+        })?,
+    )?;
+
+    // GiveMasterLoot(slot, candidateIndex): from the dropdown below the quality threshold, and from
+    // the `CONFIRM_LOOT_DISTRIBUTION` popup above it (`LootFrame.lua:234-244`,
+    // `StaticPopup.lua:85-94`).
+    g.set(
+        "GiveMasterLoot",
+        lua.create_function(|lua, (slot, candidate): (Value, Value)| {
+            // `is-number` on args 1 and 2 else `Usage: GiveMasterLoot(slot, index)` (`0x8480bc`,
+            // `0x4c3033`).
+            let slot = binding_abi::index_arg32(lua, slot, "Usage: GiveMasterLoot(slot, index)")?;
+            let candidate =
+                binding_abi::index_arg32(lua, candidate, "Usage: GiveMasterLoot(slot, index)")?;
+            super::calls::submit(
+                lua,
+                ScriptCall::Loot(LootCall::GiveMaster { slot, candidate }),
+            )
+        })?,
+    )?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LootCall, LootRow, LootState};
+    use crate::script::UiScript;
+
+    /// The region data behind a named texture: its portrait key and file.
+    fn portrait_of(s: &UiScript, name: &str) -> (Option<String>, Option<String>) {
+        let model = s.model_ref();
+        let id = model.region_by_name[name];
+        let rh = *model.id_to_region.get(&id).expect("a region");
+        let data = &model.region_data[&rh];
+        (data.portrait_unit.clone(), data.tex.path().clone())
+    }
+
+    /// `SetLootPortrait` (`0x4c2b40`): a unit source binds the loot portrait and answers 1;
+    /// anything else clears the texture and answers nil.
+    #[test]
+    fn loot_portrait_binds_a_unit_source_and_clears_otherwise() {
+        let mut s = UiScript::new().unwrap();
+        s.run(
+            r#"local f = CreateFrame("Frame", "LootHost", UIParent)
+               f:CreateTexture("LootTex")
+               LootTex:SetTexture("Interface\TargetingFrame\TargetDead")"#,
+        )
+        .unwrap();
+        assert!(s
+            .eval::<bool>("return SetLootPortrait(LootTex) == nil")
+            .unwrap());
+        assert_eq!(portrait_of(&s, "LootTex"), (None, None), "no loot: cleared");
+
+        s.run(r#"LootTex:SetTexture("Interface\TargetingFrame\TargetDead")"#)
+            .unwrap();
+        s.set_loot(Some(LootState {
+            source_unit: true,
+            ..loot()
+        }));
+        assert_eq!(s.eval::<i64>("return SetLootPortrait(LootTex)").unwrap(), 1);
+        assert_eq!(
+            portrait_of(&s, "LootTex"),
+            (Some(super::LOOT_PORTRAIT_UNIT.to_string()), None)
+        );
+
+        s.set_loot(Some(loot()));
+        assert!(s
+            .eval::<bool>("return SetLootPortrait(LootTex) == nil")
+            .unwrap());
+        assert_eq!(portrait_of(&s, "LootTex"), (None, None), "a chest: cleared");
+
+        let err = s.run("SetLootPortrait(LootHost)").unwrap_err().to_string();
+        assert!(
+            err.contains("Wrong object type for member function"),
+            "{err}"
+        );
+        let err = s.run("SetLootPortrait()").unwrap_err().to_string();
+        assert!(err.contains("non-table object"), "{err}");
+    }
+
+    fn loot() -> LootState {
+        LootState {
+            source_unit: false,
+            master_candidates: Vec::new(),
+            has_money: true,
+            rows: vec![
+                Some(LootRow {
+                    item_id: 0,
+                    name: None,
+                    texture: Some("Interface\\Icons\\INV_Misc_Coin_01".into()),
+                    quantity: 1,
+                    quality: Some(1),
+                    is_coin: true,
+                    money: 12_345,
+                    link: None,
+                    random_property_id: 0,
+                }),
+                Some(LootRow {
+                    item_id: 0,
+                    name: Some("Wool Cloth".into()),
+                    texture: Some("Interface\\Icons\\INV_Fabric_Wool_01".into()),
+                    quantity: 3,
+                    quality: Some(1),
+                    is_coin: false,
+                    money: 0,
+                    link: Some("|cffffffff|Hitem:2589:0:0:0|h[Wool Cloth]|h|r".into()),
+                    random_property_id: 0,
+                }),
+                // In flight: the loot arrived, its item template has not.
+                Some(LootRow {
+                    item_id: 0,
+                    name: None,
+                    texture: Some("Interface\\Icons\\INV_Misc_QuestionMark".into()),
+                    quantity: 1,
+                    quality: None,
+                    is_coin: false,
+                    money: 0,
+                    link: None,
+                    random_property_id: 0,
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn loot_snapshot_reads() {
+        let mut s = UiScript::new().unwrap();
+        assert_eq!(s.eval::<i64>("return GetNumLootItems()").unwrap(), 0);
+        assert!(s.eval::<bool>("return GetLootSlotInfo(1) == nil").unwrap());
+
+        s.set_loot(Some(loot()));
+        assert_eq!(s.eval::<i64>("return GetNumLootItems()").unwrap(), 3);
+        s.run(r#"GOLD = "Gold" SILVER = "Silver" COPPER = "Copper""#)
+            .unwrap();
+
+        assert!(s.eval::<bool>("return LootSlotIsCoin(1)").unwrap());
+        assert!(s.eval::<bool>("return not LootSlotIsItem(1)").unwrap());
+        let (texture, item, quantity, quality) = s
+            .eval::<(String, String, i64, i64)>("return GetLootSlotInfo(1)")
+            .unwrap();
+        assert_eq!(texture, "Interface\\Icons\\INV_Misc_Coin_01");
+        assert_eq!(item, "1 Gold\n23 Silver\n45 Copper");
+        assert_eq!((quantity, quality), (1, 1));
+
+        assert!(s.eval::<bool>("return LootSlotIsItem(2)").unwrap());
+        assert!(s.eval::<bool>("return not LootSlotIsCoin(2)").unwrap());
+        let (name, qty) = s
+            .eval::<(String, i64)>("local _, i, q = GetLootSlotInfo(2)\nreturn i, q")
+            .unwrap();
+        assert_eq!((name.as_str(), qty), ("Wool Cloth", 3));
+
+        // Row 3 is in flight: the cache-miss sentinels, not nils.
+        let (texture, item, quantity, quality) = s
+            .eval::<(String, String, i64, i64)>("return GetLootSlotInfo(3)")
+            .unwrap();
+        assert_eq!(
+            (item.as_str(), quantity, quality),
+            ("", 1, -1),
+            "an in-flight row answers \"\" / -1, never nil"
+        );
+        assert_eq!(texture, "Interface\\Icons\\INV_Misc_QuestionMark");
+        let mut iconless = loot();
+        iconless.rows[2].as_mut().unwrap().texture = None;
+        s.set_loot(Some(iconless));
+        assert_eq!(
+            s.eval::<String>("return (GetLootSlotInfo(3))").unwrap(),
+            "Interface\\Icons\\INV_Misc_QuestionMark",
+            "a display-info miss answers the reference's question mark, not nil"
+        );
+        s.set_loot(Some(loot()));
+
+        assert_eq!(
+            s.eval::<String>("return GetLootSlotLink(2)").unwrap(),
+            "|cffffffff|Hitem:2589:0:0:0|h[Wool Cloth]|h|r"
+        );
+        assert!(s.eval::<bool>("return GetLootSlotLink(1) == nil").unwrap());
+        assert!(s.eval::<bool>("return GetLootSlotLink(3) == nil").unwrap());
+
+        assert!(s.eval::<bool>("return not IsFishingLoot()").unwrap());
+        s.set_loot_type(3);
+        assert!(s.eval::<bool>("return IsFishingLoot()").unwrap());
+        s.set_loot(None);
+        assert!(
+            s.eval::<bool>("return IsFishingLoot()").unwrap(),
+            "the type cell, not the window"
+        );
+        s.set_loot_type(1);
+        s.set_loot(Some(loot()));
+
+        assert!(s.eval::<bool>("return GetLootSlotInfo(9) == nil").unwrap());
+        assert!(s.eval::<bool>("return GetLootSlotLink(9) == nil").unwrap());
+        assert!(s.eval::<bool>("return not LootSlotIsItem(9)").unwrap());
+        assert!(s.eval::<bool>("return not LootSlotIsCoin(9)").unwrap());
+
+        // A looted slot stays counted but answers neither predicate, and the rows below keep
+        // their slots.
+        let mut cleared = loot();
+        cleared.rows[0] = None;
+        s.set_loot(Some(cleared));
+        assert_eq!(s.eval::<i64>("return GetNumLootItems()").unwrap(), 3);
+        assert!(s.eval::<bool>("return GetLootSlotInfo(1) == nil").unwrap());
+        assert!(s.eval::<bool>("return GetLootSlotLink(1) == nil").unwrap());
+        assert!(s.eval::<bool>("return not LootSlotIsItem(1)").unwrap());
+        assert!(s.eval::<bool>("return not LootSlotIsCoin(1)").unwrap());
+        assert!(s.eval::<bool>("return LootSlotIsItem(2)").unwrap());
+    }
+
+    /// `GetLootSlotInfo` pushes four values on every leg (`0x4c2d07 mov eax,4`): texture, name,
+    /// quantity, quality, with no item id.
+    #[test]
+    fn loot_slot_info_returns_four_values_on_every_leg() {
+        let mut s = UiScript::new().unwrap();
+        let count = |s: &UiScript, slot: u32| -> i64 {
+            s.eval::<i64>(&format!(
+                "return (function(...) return arg.n end)(GetLootSlotInfo({slot}))"
+            ))
+            .unwrap()
+        };
+        // No window.
+        assert_eq!(count(&s, 1), 4);
+        let mut state = loot();
+        state.rows[0].as_mut().unwrap().item_id = 2589;
+        state.rows[1].as_mut().unwrap().item_id = 2589;
+        s.set_loot(Some(state.clone()));
+        // A coin row, an item row with an id, an in-flight row, past the end.
+        for slot in [1, 2, 3, 9] {
+            assert_eq!(count(&s, slot), 4, "slot {slot}");
+        }
+        // A looted slot.
+        state.rows[0] = None;
+        s.set_loot(Some(state));
+        assert_eq!(count(&s, 1), 4);
+    }
+
+    #[test]
+    fn master_loot_candidates_read_1_based_and_nil_past_the_end() {
+        let mut s = UiScript::new().unwrap();
+
+        assert!(s
+            .eval::<bool>("return GetMasterLootCandidate(1) == nil")
+            .unwrap());
+
+        // No candidate list: any loot method but master.
+        s.set_loot(Some(loot()));
+        assert!(s
+            .eval::<bool>("return GetMasterLootCandidate(1) == nil")
+            .unwrap());
+
+        let mut ml = loot();
+        ml.master_candidates = vec![Some("Thrall".into()), Some("Cairne".into())];
+        s.set_loot(Some(ml));
+        assert_eq!(
+            s.eval::<String>("return GetMasterLootCandidate(1)")
+                .unwrap(),
+            "Thrall"
+        );
+        assert_eq!(
+            s.eval::<String>("return GetMasterLootCandidate(2)")
+                .unwrap(),
+            "Cairne"
+        );
+        assert!(
+            s.eval::<bool>("return GetMasterLootCandidate(3) == nil")
+                .unwrap(),
+            "past the end is nil"
+        );
+        assert!(
+            s.eval::<bool>("return GetMasterLootCandidate(0) == nil")
+                .unwrap(),
+            "0 is not a Lua index"
+        );
+        // The raid arm's sweep: 40 probes, none raising.
+        assert_eq!(
+            s.eval::<i64>(
+                "local n = 0
+                 for i = 1, 40 do if GetMasterLootCandidate(i) then n = n + 1 end end
+                 return n",
+            )
+            .unwrap(),
+            2
+        );
+
+        // A raid's slot carries the subgroup, so slot 6 can be filled while 2-5 are empty.
+        let mut raid = loot();
+        raid.master_candidates = vec![
+            Some("Thrall".into()),
+            None,
+            None,
+            None,
+            None,
+            Some("Cairne".into()),
+        ];
+        s.set_loot(Some(raid));
+        assert_eq!(
+            s.eval::<String>("return GetMasterLootCandidate(1)")
+                .unwrap(),
+            "Thrall"
+        );
+        for hole in 2..=5 {
+            assert!(
+                s.eval::<bool>(&format!("return GetMasterLootCandidate({hole}) == nil"))
+                    .unwrap(),
+                "slot {hole} is a hole"
+            );
+        }
+        assert_eq!(
+            s.eval::<String>("return GetMasterLootCandidate(6)")
+                .unwrap(),
+            "Cairne",
+            "an occupant past the holes is still reachable"
+        );
+    }
+
+    /// A VM with no host behind it that keeps its calls, the loot open.
+    fn kept() -> UiScript {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_loot(Some(loot()));
+        s
+    }
+
+    #[test]
+    fn give_master_loot_is_a_call() {
+        let mut s = kept();
+        s.run("GiveMasterLoot(2, 1)").unwrap();
+        assert_eq!(
+            s.take_loot_calls(),
+            vec![LootCall::GiveMaster {
+                slot: 2,
+                candidate: 1
+            }]
+        );
+    }
+
+    /// `LootSlot` is the confirm arm (`0x4c2ea5`, `edx` 1), never the take: as a take it would
+    /// loot any row an addon named, which the reference refuses.
+    #[test]
+    fn loot_slot_is_the_confirm_call_not_the_take() {
+        let mut s = kept();
+        s.run("LootSlot(2)").unwrap();
+        assert_eq!(s.take_loot_calls(), vec![LootCall::Confirm(2)]);
+    }
+
+    #[test]
+    fn close_loot_is_a_call_with_its_flag() {
+        let mut s = kept();
+        for (arg, failed) in [
+            ("", false),
+            ("1", true),
+            ("nil", false),
+            ("0", false),
+            ("'1'", true),
+            ("true", true),
+        ] {
+            s.run(&format!("CloseLoot({arg})")).unwrap();
+            assert_eq!(
+                s.take_loot_calls(),
+                vec![LootCall::Close { failed }],
+                "CloseLoot({arg}), the flag through `0x6f1c10`"
+            );
+        }
+    }
+
+    /// With no host lent and no harness keeping them, a loot verb raises, as every call does.
+    #[test]
+    fn a_loot_verb_with_no_host_raises() {
+        let s = UiScript::new().unwrap();
+        let e = s.run("CloseLoot()").unwrap_err().to_string();
+        assert!(e.contains("no call host"), "{e}");
+    }
+
+    /// `0x4c2260`: the last occupied row's position plus one, plus one while the money cell is
+    /// set (`0x4c229b`), a taken coin's -1 included.
+    #[test]
+    fn the_count_is_the_last_occupied_row_plus_the_money_cell() {
+        let item = || {
+            Some(LootRow {
+                name: Some("Wool Cloth".into()),
+                ..LootRow::default()
+            })
+        };
+        let coin = || {
+            Some(LootRow {
+                is_coin: true,
+                ..LootRow::default()
+            })
+        };
+        let count = |has_money: bool, rows: Vec<Option<LootRow>>| {
+            LootState {
+                rows,
+                has_money,
+                ..LootState::default()
+            }
+            .count()
+        };
+        // Coin, A, B with B taken: 2; with the coin taken too: still 2; A and B taken: 1.
+        assert_eq!(count(true, vec![coin(), item(), None]), 2);
+        assert_eq!(count(true, vec![None, item(), None]), 2);
+        assert_eq!(count(true, vec![coin(), None, None]), 1);
+        // No money: a gap before the last row counts, one after it does not.
+        assert_eq!(count(false, vec![None, item()]), 2);
+        assert_eq!(count(false, vec![item(), None]), 1);
+        assert_eq!(count(false, vec![None, None]), 0);
+        let mut s = UiScript::new().unwrap();
+        let mut state = loot();
+        state.rows[2] = None;
+        s.set_loot(Some(state));
+        assert_eq!(s.eval::<i64>("return GetNumLootItems()").unwrap(), 2);
+    }
+
+    #[test]
+    fn clearing_the_loot_empties_it() {
+        let mut s = UiScript::new().unwrap();
+        s.set_loot(Some(loot()));
+        s.set_loot(None);
+        assert_eq!(s.eval::<i64>("return GetNumLootItems()").unwrap(), 0);
+        assert!(s.eval::<bool>("return GetLootSlotInfo(1) == nil").unwrap());
+    }
+
+    /// A hardware click on a named frame through the pointer path, which hit-tests, so the frame
+    /// is positioned first.
+    fn hardware_click(s: &mut UiScript, name: &str, button: &str) {
+        s.set_screen_size(1024.0, 768.0);
+        s.run(&format!(
+            "{name}:ClearAllPoints() {name}:SetPoint(\"BOTTOMLEFT\", 100, 100) \
+             {name}:SetWidth(50) {name}:SetHeight(50) {name}:EnableMouse(true) {name}:Show()"
+        ))
+        .unwrap();
+        s.resolve();
+        s.mouse_button(125.0, 125.0, button, true);
+        s.mouse_button(125.0, 125.0, button, false);
+    }
+
+    #[test]
+    fn loot_button_is_its_own_registered_type() {
+        let s = UiScript::new().unwrap();
+        s.run(r#"lb = CreateFrame("LootButton", "LB1", UIParent)"#)
+            .unwrap();
+        assert_eq!(
+            s.eval::<String>("return lb:GetObjectType()").unwrap(),
+            "LootButton",
+            "0x495b60 returns its own name, not \"Button\""
+        );
+        // `0x495af0` prepends its name to the base's three.
+        for t in ["LootButton", "Button", "Frame", "Region"] {
+            assert!(
+                s.eval::<bool>(&format!("return lb:IsObjectType({t:?}) and true or false"))
+                    .unwrap(),
+                "IsObjectType({t:?})"
+            );
+        }
+        assert!(!s
+            .eval::<bool>(r#"return lb:IsObjectType("CheckButton") and true or false"#)
+            .unwrap());
+        assert_eq!(
+            s.eval::<String>("return type(lb.SetSlot)").unwrap(),
+            "function"
+        );
+        assert_eq!(
+            s.eval::<String>("return type(lb.SetText)").unwrap(),
+            "function"
+        );
+        // A plain Button lacks it: the chain runs derived to base only.
+        s.run(r#"b = CreateFrame("Button", "PlainB", UIParent)"#)
+            .unwrap();
+        assert_eq!(s.eval::<String>("return type(b.SetSlot)").unwrap(), "nil");
+    }
+
+    #[test]
+    fn an_unmodified_click_runs_the_handler_and_then_takes() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.run(
+            r#"
+            lb = CreateFrame("LootButton", "LB1", UIParent)
+            lb:SetSlot(3)
+            ran = 0
+            lb:SetScript("OnClick", function() ran = ran + 1 end)
+        "#,
+        )
+        .unwrap();
+        hardware_click(&mut s, "LB1", "LeftButton");
+        assert_eq!(s.eval::<i64>("return ran").unwrap(), 1, "the handler ran");
+        assert_eq!(
+            s.take_loot_calls(),
+            vec![LootCall::Take(3)],
+            "and then the take, 1-based"
+        );
+
+        // An erroring handler still loots: `0x4c1833`'s result is never tested.
+        s.run(r#"lb:SetScript("OnClick", function() error("boom") end)"#)
+            .unwrap();
+        hardware_click(&mut s, "LB1", "LeftButton");
+        assert_eq!(
+            s.take_loot_calls(),
+            vec![LootCall::Take(3)],
+            "a broken hook still loots"
+        );
+    }
+
+    /// `0x4c1820` forwards the button code without ever comparing it.
+    #[test]
+    fn right_click_loots_like_left_click() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.run(
+            r#"
+            lb = CreateFrame("LootButton", "LB1", UIParent)
+            lb:SetSlot(2)
+            lb:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        "#,
+        )
+        .unwrap();
+        hardware_click(&mut s, "LB1", "RightButton");
+        assert_eq!(s.take_loot_calls(), vec![LootCall::Take(2)]);
+    }
+
+    /// The handler still runs, so stock `LootFrameItem_OnClick` owns ctrl and shift alone.
+    #[test]
+    fn any_modifier_suppresses_the_take_but_not_the_handler() {
+        for (i, (shift, ctrl, alt)) in [
+            (true, false, false),
+            (false, true, false),
+            (false, false, true),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut s = UiScript::new().unwrap();
+            s.keep_calls();
+            s.run(
+                r#"
+                lb = CreateFrame("LootButton", "LB1", UIParent)
+                lb:SetSlot(1)
+                ran = 0
+                lb:SetScript("OnClick", function() ran = ran + 1 end)
+            "#,
+            )
+            .unwrap();
+            s.set_modifiers(shift, ctrl, alt);
+            hardware_click(&mut s, "LB1", "LeftButton");
+            assert_eq!(
+                s.eval::<i64>("return ran").unwrap(),
+                1,
+                "case {i}: handler ran"
+            );
+            assert!(s.take_loot_calls().is_empty(), "case {i}: no take");
+        }
+    }
+
+    /// A scripted `:Click()` does not even run `OnClick`: `0x4c182b` returns before the base call.
+    #[test]
+    fn a_scripted_click_does_nothing_at_all() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.run(
+            r#"
+            lb = CreateFrame("LootButton", "LB1", UIParent)
+            lb:SetSlot(1)
+            ran = 0
+            lb:SetScript("OnClick", function() ran = ran + 1 end)
+            lb:Click()
+        "#,
+        )
+        .unwrap();
+        assert_eq!(
+            s.eval::<i64>("return ran").unwrap(),
+            0,
+            "the handler never ran"
+        );
+        assert!(s.take_loot_calls().is_empty(), "and nothing was taken");
+        // A plain Button's Click() is unaffected.
+        s.run(
+            r#"
+            b = CreateFrame("Button", "PlainB", UIParent)
+            bran = 0
+            b:SetScript("OnClick", function() bran = bran + 1 end)
+            b:Click()
+        "#,
+        )
+        .unwrap();
+        assert_eq!(s.eval::<i64>("return bran").unwrap(), 1);
+    }
+
+    /// The `this` guard is the reference's `IsA` check at `0x4c18ee`.
+    #[test]
+    fn set_slot_converts_and_guards() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.run(r#"lb = CreateFrame("LootButton", "LB1", UIParent)"#)
+            .unwrap();
+
+        // `ftol` truncates toward zero: 4.9 is row 4, not 5.
+        s.run("lb:SetSlot(4.9)").unwrap();
+        hardware_click(&mut s, "LB1", "LeftButton");
+        assert_eq!(s.take_loot_calls(), vec![LootCall::Take(4)]);
+
+        s.run(r#"lb:SetSlot("2")"#).unwrap();
+        hardware_click(&mut s, "LB1", "LeftButton");
+        assert_eq!(s.take_loot_calls(), vec![LootCall::Take(2)]);
+
+        let e = s.run("lb:SetSlot('x')").unwrap_err().to_string();
+        assert!(e.contains("Usage: SetSlot(index)"), "{e}");
+
+        // Never slotted takes nothing. `LB1` still sits under the cursor and, linked first, would
+        // win the hit test, so it hides first.
+        s.run("LB1:Hide()").unwrap();
+        s.run(r#"fresh = CreateFrame("LootButton", "LB2", UIParent)"#)
+            .unwrap();
+        hardware_click(&mut s, "LB2", "LeftButton");
+        assert!(s.take_loot_calls().is_empty());
+
+        s.run(r#"b = CreateFrame("Button", "PlainB", UIParent)"#)
+            .unwrap();
+        let e = s.run("LB1.SetSlot(b, 1)").unwrap_err().to_string();
+        // A Button fails the LootButton type test (`0x4c18ee`, `0x495ab0`).
+        assert!(e.contains("Wrong object type for member function"), "{e}");
+    }
+}

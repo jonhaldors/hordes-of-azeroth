@@ -1,0 +1,22 @@
+# Imported by tools/content/dump_tables.py from bonk_archetype_locale. Edit this file, then run tools/content/compile.py.
+table: bonk_archetype_locale
+columns:
+- id
+- locale
+- name
+rows:
+- - 0
+  - zhCN
+  - 蜂拥者
+- - 1
+  - zhCN
+  - 步兵
+- - 2
+  - zhCN
+  - 壮汉
+- - 3
+  - zhCN
+  - 施法者
+- - 4
+  - zhCN
+  - 冲锋者

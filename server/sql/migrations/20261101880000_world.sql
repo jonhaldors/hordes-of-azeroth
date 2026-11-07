@@ -1,0 +1,21 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261101880000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261101880000');
+
+DROP TEMPORARY TABLE IF EXISTS `starter_convert`;
+CREATE TEMPORARY TABLE `starter_convert` (`old_entry` INT UNSIGNED NOT NULL PRIMARY KEY, `new_entry` INT UNSIGNED NOT NULL);
+INSERT INTO `starter_convert` VALUES (900201, 930080), (900202, 930160), (900203, 930200), (900204, 930280), (900205, 930400), (900206, 930480), (900207, 930520), (900208, 930600), (900209, 930720), (900210, 930800), (900211, 930840), (900212, 930920), (900213, 930960), (900214, 931240), (900215, 931120), (900216, 931000), (900217, 931240), (900218, 931040), (900219, 931200), (900220, 931160), (900221, 931160), (900222, 931160), (900223, 931000), (900224, 931280);
+UPDATE IGNORE `playercreateinfo_item` p JOIN `starter_convert` c ON c.`old_entry` = p.`itemid` SET p.`itemid` = c.`new_entry`;
+DELETE p FROM `playercreateinfo_item` p JOIN `starter_convert` c ON c.`old_entry` = p.`itemid`;
+DROP TEMPORARY TABLE IF EXISTS `starter_convert`;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

@@ -1,0 +1,14 @@
+[package]
+name = "benilla-visual"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Perceptual image diff for the visual A/B render harness"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# PNG IO and the `RgbImage` buffer the metrics run over; no Bevy, so the crate stays fast to test.
+image = { version = "0.25", default-features = false, features = ["png"] }

@@ -1,0 +1,72 @@
+{
+  "hash": "sha256:cd04bcd686885d47832642a76a2c0d48c5638ffe5c926bd506bad2050afb28ba",
+  "schema": 1,
+  "sections": {
+    "cards": {
+      "files": [
+        "shared/content/cards/cards.yaml"
+      ],
+      "hash": "sha256:8aba242a5b845e04070eb9abf8bd523cdcbde8cf60a06f9fec25882de07c095b"
+    },
+    "spells": {
+      "files": [
+        "shared/content/spells/spells.yaml"
+      ],
+      "hash": "sha256:fd15cc13b0ee4a50de7ca46873ffbc20da63300c151d9bd0d6102d48a1a40c64"
+    },
+    "tables": {
+      "files": [
+        "shared/content/tables/bonk_archetype.yaml",
+        "shared/content/tables/bonk_archetype_locale.yaml",
+        "shared/content/tables/bonk_bolt_look.yaml",
+        "shared/content/tables/bonk_boss_line.yaml",
+        "shared/content/tables/bonk_glossary.yaml",
+        "shared/content/tables/bonk_glyph.yaml",
+        "shared/content/tables/bonk_glyph_locale.yaml",
+        "shared/content/tables/bonk_hidden.yaml",
+        "shared/content/tables/bonk_hidden_locale.yaml",
+        "shared/content/tables/bonk_item_card.yaml",
+        "shared/content/tables/bonk_item_stat.yaml",
+        "shared/content/tables/bonk_keyword.yaml",
+        "shared/content/tables/bonk_keyword_locale.yaml",
+        "shared/content/tables/bonk_level.yaml",
+        "shared/content/tables/bonk_map.yaml",
+        "shared/content/tables/bonk_map_creature.yaml",
+        "shared/content/tables/bonk_map_event.yaml",
+        "shared/content/tables/bonk_map_locale.yaml",
+        "shared/content/tables/bonk_map_start.yaml",
+        "shared/content/tables/bonk_mastery.yaml",
+        "shared/content/tables/bonk_mastery_locale.yaml",
+        "shared/content/tables/bonk_mastery_tree.yaml",
+        "shared/content/tables/bonk_mastery_tree_locale.yaml",
+        "shared/content/tables/bonk_mob.yaml",
+        "shared/content/tables/bonk_mob_ability.yaml",
+        "shared/content/tables/bonk_passive.yaml",
+        "shared/content/tables/bonk_passive_locale.yaml",
+        "shared/content/tables/bonk_pet_ability.yaml",
+        "shared/content/tables/bonk_pet_family.yaml",
+        "shared/content/tables/bonk_pet_family_locale.yaml",
+        "shared/content/tables/bonk_powerup.yaml",
+        "shared/content/tables/bonk_quest.yaml",
+        "shared/content/tables/bonk_quest_locale.yaml",
+        "shared/content/tables/bonk_scaling.yaml",
+        "shared/content/tables/bonk_shop_tree.yaml",
+        "shared/content/tables/bonk_shop_tree_locale.yaml",
+        "shared/content/tables/bonk_talent.yaml",
+        "shared/content/tables/bonk_talent_locale.yaml",
+        "shared/content/tables/bonk_tier.yaml",
+        "shared/content/tables/bonk_tier_locale.yaml",
+        "shared/content/tables/bonk_title.yaml",
+        "shared/content/tables/bonk_title_locale.yaml",
+        "shared/content/tables/bonk_upgrade.yaml",
+        "shared/content/tables/bonk_upgrade_locale.yaml",
+        "shared/content/tables/bonk_wave.yaml",
+        "shared/content/tables/bonk_wave_locale.yaml",
+        "shared/content/tables/bonk_weapon.yaml",
+        "shared/content/tables/bonk_weapon_locale.yaml",
+        "shared/content/tables/bonk_weapon_upgrade.yaml"
+      ],
+      "hash": "sha256:c749144df9952cfbe1fe1f2779a09dde92744d39b3e92055574f05e6e48f6c78"
+    }
+  }
+}

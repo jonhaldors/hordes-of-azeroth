@@ -1,0 +1,13 @@
+[package]
+name = "benilla-buildstamp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The git build-id stamp shared by the launchers' build scripts"
+
+[lints]
+workspace = true
+
+[lib]
+# A build-dependency only: it runs in cargo's build-script pass, so it must stay cheap to compile.
+path = "src/lib.rs"

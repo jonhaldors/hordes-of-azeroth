@@ -1,0 +1,32 @@
+[package]
+name = "hoa"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hordes of Azeroth on benilla: the launcher and the plugins 1.12.1 does not have"
+
+[lints]
+workspace = true
+
+[features]
+default = ["dev"]
+dev = ["benilla-app/dev", "benilla-formats/dev", "benilla-world/dev", "benilla-assets/dev"]
+
+[dependencies]
+anyhow.workspace = true
+benilla-app = { path = "../benilla-app", default-features = false }
+benilla-assets = { path = "../benilla-assets", default-features = false }
+benilla-formats = { path = "../benilla-formats", default-features = false }
+benilla-mlua = { path = "../benilla-mlua" }
+benilla-protocol = { path = "../benilla-protocol" }
+benilla-ui = { path = "../benilla-ui" }
+benilla-world = { path = "../benilla-world", default-features = false }
+bevy.workspace = true
+
+[build-dependencies]
+benilla-buildstamp = { path = "../benilla-buildstamp" }
+
+[[bin]]
+name = "HordesOfAzeroth"
+path = "src/main.rs"
+test = false

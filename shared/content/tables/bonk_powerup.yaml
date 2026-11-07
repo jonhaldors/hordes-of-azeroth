@@ -1,0 +1,44 @@
+# Imported by tools/content/dump_tables.py from bonk_powerup. Edit this file, then run tools/content/compile.py.
+table: bonk_powerup
+columns:
+- entry
+- spell_id
+- weight
+- effect
+- value
+rows:
+- - 900004
+  - 23493
+  - 3
+  - 0
+  - 0.0
+- - 900005
+  - 23505
+  - 2
+  - 0
+  - 0.0
+- - 900006
+  - 23451
+  - 2
+  - 0
+  - 0.0
+- - 900050
+  - 0
+  - 1
+  - 1
+  - 0.0
+- - 900051
+  - 15237
+  - 1
+  - 2
+  - 40.0
+- - 900052
+  - 122
+  - 1
+  - 3
+  - 40.0
+- - 900053
+  - 0
+  - 2
+  - 4
+  - 0.5

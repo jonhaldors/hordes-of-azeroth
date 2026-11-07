@@ -1,0 +1,94 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["sam <samuv.eth@gmail.com>"]
+
+# A version two crates share is pinned in `[workspace.dependencies]`; feature additions stay per
+# crate. `image` stays per-crate: its consumers differ on default features, and a member cannot
+# turn off default features that a workspace entry enables.
+# `too_many_arguments` is off: a Bevy system's parameter list is its dependency declaration.
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+
+[workspace.dependencies]
+anyhow = "1.0.102"
+# bevy's default features spelled out without `audio`: `2d`, `3d` and `ui` each pull `bevy_audio`
+# and `vorbis`, and the client mixes through kira. Add a feature by name, never `2d`/`3d`/`ui`; a
+# plugin that takes bevy with its default features brings the audio stack back too.
+bevy = { version = "0.18.1", default-features = false, features = [
+    "default_app",
+    "default_platform",
+    "2d_bevy_render",
+    "3d_bevy_render",
+    "ui_api",
+    "ui_bevy_render",
+    "scene",
+    "picking",
+] }
+# For the `WOW_GPU_MS` meter's query set, which bevy 0.18 does not wrap; must match bevy's wgpu.
+wgpu = "27"
+clap = { version = "4.6.1", features = ["derive"] }
+sha1 = "0.10.6"
+
+[patch.crates-io]
+# kira 0.12.4, patched to compute spatial gains and the volume tween per output chunk and
+# interpolate them, not per sample frame (`third_party/kira/BENILLA.md`).
+kira = { path = "third_party/kira" }
+# A lock-only stand-in: bevy_audio's unbuilt cpal 0.15 would otherwise hold `alsa-sys` 0.3 against
+# cpal 0.17's 0.4, and a lock holds one `links = "alsa"` (`third_party/alsa-0.9/BENILLA.md`).
+alsa = { path = "third_party/alsa-0.9" }
+# wgpu-hal 27.0.4, patched so a presentation stall past wgpu-core's 1 s frame timeout is waited out
+# and not turned into a lost device (`third_party/wgpu-hal/BENILLA.md`).
+wgpu-hal = { path = "third_party/wgpu-hal" }
+
+# Dependencies at opt-level 3 in dev: at opt-level 0, avian/parry collision drops a run to <1 fps.
+[profile.dev.package."*"]
+opt-level = 3
+# One codegen unit each, since `lto = "off"` below drops the ThinLTO that inlines across a crate's
+# units: at 16 units the dependencies cost +1.2 cpu_ms at the leg pin, at one nothing, and a cold
+# build is no slower.
+codegen-units = 1
+
+# The movie decoder at opt-level 3 in dev as well: at 1, decoding the 1024-wide intro takes its
+# install test 29 s, at 3 under 6 s.
+[profile.dev.package.benilla-movie]
+opt-level = 3
+
+# Our crates at opt-level 1: Bevy's generic hot paths monomorphize into them, and at opt-level 0
+# Stormwind drops from a pinned 60 fps to ~45.
+[profile.dev]
+opt-level = 1
+# No ThinLTO: above opt-level 0 rustc runs it over a crate's own codegen units by default, and an
+# incremental rebuild redoes it whole: 19 s of a one-line `benilla-app` edit's 25 s, and half its
+# 5.3 GB. Off, our crates cost +0.7 cpu_ms (+6 %) at the leg pin.
+lto = "off"
+
+# No debuginfo trimming: `debug = "line-tables-only"` measures no recurring win on macOS + sccache.
+
+# The shipping build (`--profile ship`): fat LTO measures -1.0 cpu_ms (-5 %) against `release`,
+# which stays the measured profile because fat LTO's link time would tax every iteration.
+# `-Ctarget-cpu=native` is not set: it is not portable.
+[profile.ship]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+
+# `release` plus incremental, run as `cargo play`: under `release` a one-line edit to
+# `benilla-app` costs 2m47s. Incremental applies to workspace members only, so dependencies stay
+# sccache-cacheable; it changes codegen, so it lives here and not in the measured `release`.
+[profile.play]
+inherits = "release"
+incremental = true
+# Not for speed: under `incremental`, thin-local LTO leaves promoted `anon.*.llvm.*` symbols
+# unresolved and the link fails intermittently (rustc #86049).
+lto = "off"
+
+# One codegen unit each, as in dev: at 16 the dependencies cost +1.2 cpu_ms against `release` at
+# the leg pin, at one the profile is +0.5, and a cold build is no slower.
+[profile.play.package."*"]
+codegen-units = 1

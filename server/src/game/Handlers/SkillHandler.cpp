@@ -1,0 +1,70 @@
+/*
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2009-2011 MaNGOSZero <https://github.com/mangos/zero>
+ * Copyright (C) 2011-2016 Nostalrius <https://nostalrius.org>
+ * Copyright (C) 2016-2017 Elysium Project <https://github.com/elysium-project>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+#include "Common.h"
+#include "Database/DatabaseEnv.h"
+#include "Opcodes.h"
+#include "Log.h"
+#include "Player.h"
+#include "WorldPacket.h"
+#include "WorldSession.h"
+#include "UpdateMask.h"
+#include "Anticheat.h"
+
+void WorldSession::HandleLearnTalentOpcode(WorldPackets::Skill::LearnTalent const& packet)
+{
+    _player->LearnTalent(packet.talent_id, packet.requested_rank);
+}
+
+void WorldSession::HandleTalentWipeConfirmOpcode(WorldPackets::Skill::TalentWipeConfirm const& packet)
+{
+    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(packet.trainerGuid, UNIT_NPC_FLAG_TRAINER);
+    if (!unit)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WORLD: HandleTalentWipeConfirmOpcode - %s not found or you can't interact with him.", packet.trainerGuid.GetString().c_str());
+        return;
+    }
+
+    // remove fake death
+    if (GetPlayer()->HasUnitState(UNIT_STATE_FEIGN_DEATH))
+        GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
+
+    if (!_player->ResetTalents()) // TODO Move money check into this function and remove optional argument from `ResetTalents`
+    {
+        GetPlayer()->SendTalentWipeConfirm(ObjectGuid::Empty); // "You have not spent any talent points"
+        return;
+    }
+
+    unit->CastSpell(_player, 14867, true); // spell: "Untalent Visual Effect"
+}
+
+void WorldSession::HandleUnlearnSkillOpcode(WorldPackets::Skill::UnlearnSkill const& packet)
+{
+    SkillRaceClassInfoEntry const* rcEntry = GetSkillRaceClassInfo(packet.skillId, GetPlayer()->GetRace(), GetPlayer()->GetClass());
+    if (!rcEntry || !(rcEntry->flags & SKILL_FLAG_UNLEARNABLE))
+    {
+        std::stringstream reason;
+        reason << "Attempt to unlearn not unlearnable skill #" << packet.skillId;
+        ProcessAnticheatAction("PassiveAnticheat", reason.str().c_str(), CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
+        return;
+    }
+    GetPlayer()->SetSkill(packet.skillId, 0, 0);
+}

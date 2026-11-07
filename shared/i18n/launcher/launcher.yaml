@@ -1,0 +1,1291 @@
+# Launcher strings. Edit this file, then run tools/i18n/gen_launcher_strings.py.
+- id: hoa.launcher.0_0_0_of_1_0_0_mb
+  enUS: '{0:0.0} of {1:0.0} MB'
+  zhCN: '{0:0.0} / {1:0.0} MB'
+  zhTW: "{0:0.0} / {1:0.0} MB"
+- id: hoa.launcher.0_building_monster_paths_in_the_background_1_of_2_areas_on_3
+  enUS: '{0}: building monster paths in the background, {1} of {2} areas on {3}'
+  zhCN: '{0}：正在后台生成怪物路径，{1}/{2} 个区域，使用 {3}'
+  zhTW: "{0}：正在後臺生成怪物路徑，{1}/{2} 個區域，使用 {3}"
+- id: hoa.launcher.0_characters
+  enUS: '{0} characters'
+  zhCN: '{0} 个角色'
+  zhTW: "{0} 個角色"
+- id: hoa.launcher.0_contains_a_file_outside_the_monster_path_folder
+  enUS: '{0} contains a file outside the monster path folder.'
+  zhCN: '{0} 包含怪物路径文件夹之外的文件。'
+  zhTW: "{0} 包含怪物路徑資料夾之外的檔案。"
+- id: hoa.launcher.0_contains_a_path_outside_the_game_folder
+  enUS: '{0} contains a path outside the game folder.'
+  zhCN: '{0} 包含游戏文件夹之外的路径。'
+  zhTW: "{0} 包含遊戲資料夾之外的路徑。"
+- id: hoa.launcher.0_cores
+  enUS: '{0} cores'
+  zhCN: '{0} 个核心'
+  zhTW: "{0} 個核心"
+- id: hoa.launcher.0_crashed_last_time_send_a_crash_report_to_the_developer_it_
+  enUS: '{0} crashed last time. Send a crash report to the developer?
+
+
+    It holds the game''s server and client logs, your character names and your game settings. You''ll get a reference to put in your bug report.'
+  zhCN: '{0}上次崩溃了。要把崩溃报告发送给开发者吗？
+
+
+    报告包含游戏服务器和客户端的日志、你的角色名称以及游戏设置。你会得到一个参考编号，可以填写到问题反馈中。'
+  zhTW: "{0}上次崩潰了。要把崩潰報告傳送給開發者嗎？\n\n報告包含遊戲伺服器和客戶端的日誌、你的角色名稱以及遊戲設定。你會得到一個參考編號，可以填寫到問題反饋中。"
+- id: hoa.launcher.0_database_log_1
+  enUS: '{0} Database log: {1}'
+  zhCN: '{0} 数据库日志：{1}'
+  zhTW: "{0} 資料庫日誌：{1}"
+- id: hoa.launcher.0_did_not_finish_within_1_0_minutes_its_output_is_in_the_lau
+  enUS: '{0} did not finish within {1:0} minutes. Its output is in the launcher log.'
+  zhCN: '{0} 没有在 {1:0} 分钟内完成。它的输出在启动器日志中。'
+  zhTW: "{0} 沒有在 {1:0} 分鐘內完成。它的輸出在啟動器日誌中。"
+- id: hoa.launcher.0_did_not_start_within_1_0_seconds
+  enUS: '{0} did not start within {1:0} seconds.'
+  zhCN: '{0}没有在 {1:0} 秒内启动。'
+  zhTW: "{0}沒有在 {1:0} 秒內啟動。"
+- id: hoa.launcher.0_didn_t_download_correctly_try_again
+  enUS: '{0} didn''t download correctly. Try again.'
+  zhCN: '{0} 没有正确下载。请重试。'
+  zhTW: "{0} 沒有正確下載。請重試。"
+- id: hoa.launcher.0_downloading_monster_paths_in_the_background_1_of_2_mb
+  enUS: '{0}: downloading monster paths in the background, {1} of {2} MB'
+  zhCN: '{0}：正在后台下载怪物路径，{1}/{2} MB'
+  zhTW: "{0}：正在後臺下載怪物路徑，{1}/{2} MB"
+- id: hoa.launcher.0_failed_exit_code_0x_1_x_2
+  enUS: '{0} failed (exit code 0x{1:X}): {2}'
+  zhCN: '{0} 失败（退出码 0x{1:X}）：{2}'
+  zhTW: "{0} 失敗（退出碼 0x{1:X}）：{2}"
+- id: hoa.launcher.0_installed
+  enUS: '{0} installed'
+  zhCN: '{0}已安装'
+  zhTW: "{0}已安裝"
+- id: hoa.launcher.0_is_missing_1
+  enUS: '{0} is missing. {1}'
+  zhCN: 缺少 {0}。{1}
+  zhTW: "缺少 {0}。{1}"
+- id: hoa.launcher.0_is_missing_from_the_download
+  enUS: '{0} is missing from the download.'
+  zhCN: 下载内容中缺少 {0}。
+  zhTW: "下載內容中缺少 {0}。"
+- id: hoa.launcher.0_is_ready
+  enUS: '{0} is ready'
+  zhCN: '{0}已就绪'
+  zhTW: "{0}已就緒"
+- id: hoa.launcher.0_of_1
+  enUS: '{0} of {1}'
+  zhCN: '{0} / {1}'
+  zhTW: "{0} / {1}"
+- id: hoa.launcher.0_of_1_areas_on_2_high_cpu_use_is_expected_and_only_happens_
+  enUS: '{0} of {1} areas on {2}. High CPU use is expected and only happens once.'
+  zhCN: 已完成 {0}/{1} 个区域，使用 {2}。CPU 占用较高属于正常现象，而且只会发生一次。
+  zhTW: "已完成 {0}/{1} 個區域，使用 {2}。CPU 佔用較高屬於正常現象，而且只會發生一次。"
+- id: hoa.launcher.0_only_works_on_a_regular_account_this_account_is_a_game_mas
+  enUS: '{0} only works on a regular account. This account is a game master account.'
+  zhCN: '{0}只能使用普通账号。此账号是游戏管理员账号。'
+  zhTW: "{0}只能使用普通賬號。此賬號是遊戲管理員賬號。"
+- id: hoa.launcher.0_stopped_with_code_1_2
+  enUS: '{0} stopped with code {1}: {2}'
+  zhCN: '{0} 已停止，退出码 {1}：{2}'
+  zhTW: "{0} 已停止，退出碼 {1}：{2}"
+- id: hoa.launcher.0_stopped_with_code_1_see_2
+  enUS: '{0} stopped with code {1}. See {2}.'
+  zhCN: '{0}已停止，退出码 {1}。请查看 {2}。'
+  zhTW: "{0}已停止，退出碼 {1}。請檢視 {2}。"
+- id: hoa.launcher.1_character
+  enUS: 1 character
+  zhCN: 1 个角色
+  zhTW: "1 個角色"
+- id: hoa.launcher.1_core
+  enUS: 1 core
+  zhCN: 1 个核心
+  zhTW: "1 個核心"
+- id: hoa.launcher.add
+  enUS: Add
+  zhCN: 添加
+  zhTW: "新增"
+- id: hoa.launcher.add_an_account
+  enUS: Add an account…
+  zhCN: 添加账号…
+  zhTW: "新增賬號…"
+- id: hoa.launcher.after_each_run_sends_your_build_picks_boss_times_and_how_the
+  enUS: After each run, sends your build, picks, boss times and how the run ended. No names, chat or files.
+  zhCN: 每次远征结束后，发送你的构筑、选择、首领用时和远征的结局。不包含名称、聊天内容或文件。
+  zhTW: "每次遠征結束後，傳送你的構築、選擇、首領用時和遠征的結局。不包含名稱、聊天內容或檔案。"
+- id: hoa.launcher.after_the_game_its_server_or_the_launcher_crashes_asks_wheth
+  enUS: After the game, its server or the launcher crashes, asks whether to send the logs and gives you a reference for your bug report.
+  zhCN: 游戏、游戏服务器或启动器崩溃后，询问是否发送日志，并给你一个可填入问题反馈的参考编号。
+  zhTW: "遊戲、遊戲伺服器或啟動器崩潰後，詢問是否傳送日誌，並給你一個可填入問題反饋的參考編號。"
+- id: hoa.launcher.all_0_cores
+  enUS: All {0} cores
+  zhCN: 全部 {0} 个核心
+  zhTW: "全部 {0} 個核心"
+- id: hoa.launcher.and
+  enUS: ' and '
+  zhCN: 和
+  zhTW: "和"
+- id: hoa.launcher.applying_updates_to_your_characters
+  enUS: applying updates to your characters
+  zhCN: 正在把更新应用到你的角色
+  zhTW: "正在把更新應用到你的角色"
+- id: hoa.launcher.back_up_my_save_data
+  enUS: Back up my save data…
+  zhCN: 备份我的存档数据…
+  zhTW: "備份我的存檔資料…"
+- id: hoa.launcher.back_up_your_characters
+  enUS: Back up your characters
+  zhCN: 备份你的角色
+  zhTW: "備份你的角色"
+- id: hoa.launcher.backing_up
+  enUS: Backing up…
+  zhCN: 正在备份…
+  zhTW: "正在備份…"
+- id: hoa.launcher.backing_up_your_characters
+  enUS: Backing up your characters
+  zhCN: 正在备份你的角色
+  zhTW: "正在備份你的角色"
+- id: hoa.launcher.backing_up_your_characters_2
+  enUS: backing up your characters
+  zhCN: 正在备份你的角色
+  zhTW: "正在備份你的角色"
+- id: hoa.launcher.backing_up_your_save_data
+  enUS: Backing up your save data
+  zhCN: 正在备份你的存档数据
+  zhTW: "正在備份你的存檔資料"
+- id: hoa.launcher.before_the_build_starts
+  enUS: BEFORE THE BUILD STARTS
+  zhCN: 生成开始之前
+  zhTW: "生成開始之前"
+- id: hoa.launcher.build_monster_paths_while_i_play
+  enUS: Build monster paths while I play
+  zhCN: 我游戏时在后台生成怪物路径
+  zhTW: "我遊戲時在後臺生成怪物路徑"
+- id: hoa.launcher.build_the_spell_effects
+  enUS: Build the spell effects
+  zhCN: 生成法术效果
+  zhTW: "生成法術效果"
+- id: hoa.launcher.building_monster_paths_0
+  enUS: 'Building monster paths: {0}'
+  zhCN: 正在生成怪物路径：{0}
+  zhTW: "正在生成怪物路徑：{0}"
+- id: hoa.launcher.building_monster_paths_failed_movemapgenerator_0_code_1
+  enUS: Building monster paths failed (MoveMapGenerator {0}, code {1}).
+  zhCN: 生成怪物路径失败（MoveMapGenerator {0}，错误码 {1}）。
+  zhTW: "生成怪物路徑失敗（MoveMapGenerator {0}，錯誤碼 {1}）。"
+- id: hoa.launcher.building_the_spell_effects
+  enUS: Building the spell effects
+  zhCN: 正在生成法术效果
+  zhTW: "正在生成法術效果"
+- id: hoa.launcher.buildings_and_trees
+  enUS: buildings and trees
+  zhCN: 建筑和树木
+  zhTW: "建築和樹木"
+- id: hoa.launcher.buy_me_a_coffee
+  enUS: Buy me a coffee
+  zhCN: 请我喝杯咖啡
+  zhTW: "請我喝杯咖啡"
+- id: hoa.launcher.can_t_connect_to_the_co_op_service_try_again_later
+  enUS: Can't connect to the co-op service. Try again later.
+  zhCN: 无法连接到联机服务。请稍后再试。
+  zhTW: "無法連線到聯機服務。請稍後再試。"
+- id: hoa.launcher.can_t_find_world_of_warcraft
+  enUS: Can't find World of Warcraft
+  zhCN: 找不到魔兽世界
+  zhTW: "找不到魔獸世界"
+- id: hoa.launcher.can_t_reach_the_co_op_service_players_in_your_game_keep_play
+  enUS: Can't reach the co-op service. Players in your game keep playing, but new players can't find or join it until it's back.
+  zhCN: 无法连接联机服务。你游戏中的玩家可以继续游戏，但在服务恢复之前，新玩家无法找到或加入你的游戏。
+  zhTW: "無法連線聯機服務。你遊戲中的玩家可以繼續遊戲，但在服務恢復之前，新玩家無法找到或加入你的遊戲。"
+- id: hoa.launcher.cancel
+  enUS: Cancel
+  zhCN: 取消
+  zhTW: "取消"
+- id: hoa.launcher.check_for_updates
+  enUS: Check for updates
+  zhCN: 检查更新
+  zhTW: "檢查更新"
+- id: hoa.launcher.check_the_database
+  enUS: Check the database
+  zhCN: 检查数据库
+  zhTW: "檢查資料庫"
+- id: hoa.launcher.check_the_game_files
+  enUS: Check the game files
+  zhCN: 检查游戏文件
+  zhTW: "檢查遊戲檔案"
+- id: hoa.launcher.checking
+  enUS: checking…
+  zhCN: 检查中…
+  zhTW: "檢查中…"
+- id: hoa.launcher.checking_the_database
+  enUS: Checking the database
+  zhCN: 正在检查数据库
+  zhTW: "正在檢查資料庫"
+- id: hoa.launcher.checking_the_game_files
+  enUS: Checking the game files
+  zhCN: 正在检查游戏文件
+  zhTW: "正在檢查遊戲檔案"
+- id: hoa.launcher.checks_every_game_file_puts_back_the_ones_that_are_missing_o
+  enUS: Checks every game file, puts back the ones that are missing or damaged and reloads the world. Your characters and unlocks stay.
+  zhCN: 检查每一个游戏文件，补回缺失或损坏的文件，并重新载入世界。你的角色和已解锁内容会保留。
+  zhTW: "檢查每一個遊戲檔案，補回缺失或損壞的檔案，並重新載入世界。你的角色和已解鎖內容會保留。"
+- id: hoa.launcher.choose_a_save_backup
+  enUS: Choose a save backup
+  zhCN: 选择一份存档备份
+  zhTW: "選擇一份存檔備份"
+- id: hoa.launcher.choose_repair_the_game_in_the_menu_next_to_play
+  enUS: Choose Repair the game in the ••• menu next to Play.
+  zhCN: 请在“开始游戏”旁边的 ••• 菜单中选择“修复游戏”。
+  zhTW: "請在“開始遊戲”旁邊的 ••• 選單中選擇“修復遊戲”。"
+- id: hoa.launcher.close_the_game_first
+  enUS: Close the game first
+  zhCN: 请先关闭游戏
+  zhTW: "請先關閉遊戲"
+- id: hoa.launcher.close_the_game_first_the_launcher_keeps_the_game_s_server_ru
+  enUS: Close the game first. The launcher keeps the game's server running until then.
+  zhCN: 请先关闭游戏。在此之前，启动器会让游戏服务器保持运行。
+  zhTW: "請先關閉遊戲。在此之前，啟動器會讓遊戲伺服器保持執行。"
+- id: hoa.launcher.closing
+  enUS: Closing
+  zhCN: 正在关闭
+  zhTW: "正在關閉"
+- id: hoa.launcher.closing_2
+  enUS: Closing…
+  zhCN: 正在关闭…
+  zhTW: "正在關閉…"
+- id: hoa.launcher.co_op_isn_t_available_in_this_build
+  enUS: Co-op isn't available in this build.
+  zhCN: 此版本不支持联机合作。
+  zhTW: "此版本不支援聯機合作。"
+- id: hoa.launcher.continue
+  enUS: Continue
+  zhCN: 继续
+  zhTW: "繼續"
+- id: hoa.launcher.couldn_t_check_for_updates
+  enUS: Couldn't check for updates
+  zhCN: 无法检查更新
+  zhTW: "無法檢查更新"
+- id: hoa.launcher.couldn_t_connect_to_the_host_both_of_your_routers_block_dire
+  enUS: 'Couldn''t connect to the host: both of your routers block direct connections. The host can forward TCP port 3725, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi, and try again.'
+  zhCN: 无法连接到房主：你们双方的路由器都阻止了直接连接。房主可以转发 TCP 端口 3725，或者你们都加入同一个 VPN（例如 Radmin VPN、ZeroTier 或 Hamachi）后再试。
+  zhTW: "無法連線到房主：你們雙方的路由器都阻止了直接連線。房主可以轉發 TCP 埠 3725，或者你們都加入同一個 VPN（例如 Radmin VPN、ZeroTier 或 Hamachi）後再試。"
+- id: hoa.launcher.couldn_t_connect_to_the_host_their_router_doesn_t_accept_dir
+  enUS: Couldn't connect to the host. Their router doesn't accept direct connections, and the backup connection between your two networks failed too. The host can forward TCP port 3725, you can host the game yourself if your port is forwarded, or you can both join the same VPN, such as Radmin VPN, ZeroTier or Hamachi.
+  zhCN: 无法连接到房主：对方的路由器不接受直接连接，你们两个网络之间的备用连接也失败了。房主可以转发 TCP 端口 3725；如果你的端口已转发，你也可以自己创建游戏；或者你们都加入同一个 VPN（例如 Radmin VPN、ZeroTier 或 Hamachi）后再试。
+  zhTW: "無法連線到房主：對方的路由器不接受直接連線，你們兩個網路之間的備用連線也失敗了。房主可以轉發 TCP 埠 3725；如果你的埠已轉發，你也可以自己建立遊戲；或者你們都加入同一個 VPN（例如 Radmin VPN、ZeroTier 或 Hamachi）後再試。"
+- id: hoa.launcher.couldn_t_connect_to_the_host_they_can_only_be_reached_over_t
+  enUS: 'Couldn''t connect to the host: they can only be reached over their VPN. Join the same VPN network as the host, such as Radmin VPN, ZeroTier or Hamachi, and try again.'
+  zhCN: 无法连接到房主：只能通过其 VPN 访问到房主。请加入与房主相同的 VPN 网络（例如 Radmin VPN、ZeroTier 或 Hamachi）后再试。
+  zhTW: "無法連線到房主：只能透過其 VPN 訪問到房主。請加入與房主相同的 VPN 網路（例如 Radmin VPN、ZeroTier 或 Hamachi）後再試。"
+- id: hoa.launcher.couldn_t_download_0_1_check_your_connection_and_try_again
+  enUS: Couldn't download {0} ({1}). Check your connection and try again.
+  zhCN: 无法下载 {0}（{1}）。请检查网络连接后重试。
+  zhTW: "無法下載 {0}（{1}）。請檢查網路連線後重試。"
+- id: hoa.launcher.couldn_t_reach_github_check_your_connection_and_try_again
+  enUS: Couldn't reach GitHub. Check your connection and try again.
+  zhCN: 无法连接到 GitHub。请检查网络连接后重试。
+  zhTW: "無法連線到 GitHub。請檢查網路連線後重試。"
+- id: hoa.launcher.creating_0
+  enUS: creating {0}
+  zhCN: 正在创建 {0}
+  zhTW: "正在建立 {0}"
+- id: hoa.launcher.creating_the_database
+  enUS: creating the database
+  zhCN: 正在创建数据库
+  zhTW: "正在建立資料庫"
+- id: hoa.launcher.creating_your_account
+  enUS: creating your account
+  zhCN: 正在创建你的账号
+  zhTW: "正在建立你的賬號"
+- id: hoa.launcher.d_mmmm_hh_mm
+  enUS: d MMMM, HH:mm
+  zhCN: M月d日 HH:mm
+  zhTW: "M月d日 HH:mm"
+- id: hoa.launcher.database_error_0
+  enUS: 'Database error: {0}'
+  zhCN: 数据库错误：{0}
+  zhTW: "資料庫錯誤：{0}"
+- id: hoa.launcher.delete
+  enUS: Delete
+  zhCN: 删除
+  zhTW: "刪除"
+- id: hoa.launcher.delete_0
+  enUS: Delete {0}…
+  zhCN: 删除 {0}…
+  zhTW: "刪除 {0}…"
+- id: hoa.launcher.delete_the_account_0_its_characters_gold_and_unlocks_are_del
+  enUS: 'Delete the account {0}?
+
+
+    Its characters, gold and unlocks are deleted the next time you press Play. Back up your save data first if you might want them back.'
+  zhCN: '要删除账号 {0} 吗？
+
+
+    它的角色、金币和已解锁内容会在你下次点击“开始游戏”时被删除。如果以后可能还想要回它们，请先备份你的存档数据。'
+  zhTW: "要刪除賬號 {0} 嗎？\n\n它的角色、金幣和已解鎖內容會在你下次點選“開始遊戲”時被刪除。如果以後可能還想要回它們，請先備份你的存檔資料。"
+- id: hoa.launcher.done_sooner_but_the_pc_may_feel_slow_until_then
+  enUS: Done sooner, but the PC may feel slow until then.
+  zhCN: 完成得更快，但在此之前电脑可能会变卡。
+  zhTW: "完成得更快，但在此之前電腦可能會變卡。"
+- id: hoa.launcher.download_the_game_files
+  enUS: Download the game files
+  zhCN: 下载游戏文件
+  zhTW: "下載遊戲檔案"
+- id: hoa.launcher.download_the_missing_files
+  enUS: Download the missing files
+  zhCN: 下载缺失的文件
+  zhTW: "下載缺失的檔案"
+- id: hoa.launcher.download_the_update
+  enUS: Download the update
+  zhCN: 下载更新
+  zhTW: "下載更新"
+- id: hoa.launcher.downloading_monster_paths
+  enUS: Downloading monster paths
+  zhCN: 正在下载怪物路径
+  zhTW: "正在下載怪物路徑"
+- id: hoa.launcher.downloading_the_game_files
+  enUS: Downloading the game files
+  zhCN: 正在下载游戏文件
+  zhTW: "正在下載遊戲檔案"
+- id: hoa.launcher.downloading_the_missing_files
+  enUS: Downloading the missing files
+  zhCN: 正在下载缺失的文件
+  zhTW: "正在下載缺失的檔案"
+- id: hoa.launcher.downloading_the_update
+  enUS: Downloading the update
+  zhCN: 正在下载更新
+  zhTW: "正在下載更新"
+- id: hoa.launcher.earlier_patch_notes
+  enUS: Earlier patch notes
+  zhCN: 较早的更新说明
+  zhTW: "較早的更新說明"
+- id: hoa.launcher.every_open_slot_has_a_pending_join_request_try_again_shortly
+  enUS: Every open slot has a pending join request. Try again shortly.
+  zhCN: 所有空位都有待处理的加入请求。请稍后再试。
+  zhTW: "所有空位都有待處理的加入請求。請稍後再試。"
+- id: hoa.launcher.every_zone_gets_a_map_of_where_creatures_can_walk_climb_and_
+  enUS: Every zone gets a map of where creatures can walk, climb and fit. Monsters use it to chase you around trees, up ramps and through doorways instead of running into walls, and the horde uses it to spawn only where it can reach you, never inside a rock or on a rooftop.
+  zhCN: 每个区域都会生成一张地图，标明生物能在哪里行走、攀爬和通过。怪物借助它绕过树木、爬上坡道、穿过门洞来追击你，而不会一头撞在墙上；怪潮也靠它只在能够抵达你的位置刷新，绝不会刷在岩石里或屋顶上。
+  zhTW: "每個區域都會生成一張地圖，標明生物能在哪裡行走、攀爬和透過。怪物藉助它繞過樹木、爬上坡道、穿過門洞來追擊你，而不會一頭撞在牆上；怪潮也靠它只在能夠抵達你的位置重新整理，絕不會刷在岩石裡或屋頂上。"
+- id: hoa.launcher.fastest_0
+  enUS: Fastest. {0}
+  zhCN: 最快。{0}
+  zhTW: "最快。{0}"
+- id: hoa.launcher.finishes_sooner_while_the_launcher_is_open
+  enUS: Finishes sooner while the launcher is open.
+  zhCN: 只要启动器保持打开，就能更快完成。
+  zhTW: "只要啟動器保持開啟，就能更快完成。"
+- id: hoa.launcher.first_install
+  enUS: FIRST INSTALL
+  zhCN: 首次安装
+  zhTW: "首次安裝"
+- id: hoa.launcher.first_zones_before_you_can_play
+  enUS: First zones, before you can play
+  zhCN: 最先的区域（完成后才能开始游戏）
+  zhTW: "最先的區域（完成後才能開始遊戲）"
+- id: hoa.launcher.game_is_full
+  enUS: Game is full.
+  zhCN: 房间已满。
+  zhTW: "房間已滿。"
+- id: hoa.launcher.getting_ready
+  enUS: Getting ready
+  zhCN: 正在准备
+  zhTW: "正在準備"
+- id: hoa.launcher.github_answered_with_an_error_0_try_again_in_a_moment
+  enUS: GitHub answered with an error ({0}). Try again in a moment.
+  zhCN: GitHub 返回了错误（{0}）。请稍后再试。
+  zhTW: "GitHub 返回了錯誤（{0}）。請稍後再試。"
+- id: hoa.launcher.give_the_account_a_name
+  enUS: Give the account a name.
+  zhCN: 请给账号起个名字。
+  zhTW: "請給賬號起個名字。"
+- id: hoa.launcher.half_0_cores
+  enUS: 'Half: {0} cores'
+  zhCN: 一半：{0} 个核心
+  zhTW: "一半：{0} 個核心"
+- id: hoa.launcher.harder_zones_in_the_background_afterwards
+  enUS: Harder zones, in the background afterwards
+  zhCN: 较难的区域（之后在后台完成）
+  zhTW: "較難的區域（之後在後臺完成）"
+- id: hoa.launcher.hordes_of_azeroth
+  enUS: Hordes of Azeroth
+  zhCN: 艾泽拉斯之潮
+  zhTW: "艾澤拉斯之潮"
+- id: hoa.launcher.hordes_of_azeroth_is_in_early_access_can_the_launcher_send_d
+  enUS: 'Hordes of Azeroth is in early access. Can the launcher send data about your runs to help balance the game?
+
+
+    After each run it sends your build, picks, boss times and how the run ended, with a random id for this install. No names, chat or files. You can turn it off any time in the … menu.'
+  zhCN: '艾泽拉斯之潮目前处于抢先体验阶段。启动器可以发送你的远征数据，帮助平衡游戏吗？
+
+
+    每次远征结束后，启动器会发送你的构筑、选择、首领用时和远征的结局，并附带这份安装专用的随机编号。不包含名称、聊天内容或文件。你可以随时在 ••• 菜单中关闭此功能。'
+  zhTW: "艾澤拉斯之潮目前處於搶先體驗階段。啟動器可以傳送你的遠征資料，幫助平衡遊戲嗎？\n\n每次遠征結束後，啟動器會傳送你的構築、選擇、首領用時和遠征的結局，並附帶這份安裝專用的隨機編號。不包含名稱、聊天內容或檔案。你可以隨時在 ••• 選單中關閉此功能。"
+- id: hoa.launcher.hordes_of_azeroth_needs_the_english_world_of_warcraft_1_12_1
+  enUS: Hordes of Azeroth needs the English World of Warcraft 1.12.1 (build 5875) WoW.exe.
+  zhCN: 艾泽拉斯之潮需要英文版魔兽世界 1.12.1（build 5875）的 WoW.exe。
+  zhTW: "艾澤拉斯之潮需要英文版魔獸世界 1.12.1（build 5875）的 WoW.exe。"
+- id: hoa.launcher.hosting
+  enUS: Hosting
+  zhCN: 创建房间
+  zhTW: "建立房間"
+- id: hoa.launcher.how_hard_should_your_pc_work
+  enUS: How hard should your PC work?
+  zhCN: 你的电脑要出多少力？
+  zhTW: "你的電腦要出多少力？"
+- id: hoa.launcher.incorrect_password
+  enUS: Incorrect password.
+  zhCN: 密码不正确。
+  zhTW: "密碼不正確。"
+- id: hoa.launcher.install
+  enUS: Install
+  zhCN: 安装
+  zhTW: "安裝"
+- id: hoa.launcher.installing
+  enUS: Installing…
+  zhCN: 正在安装…
+  zhTW: "正在安裝…"
+- id: hoa.launcher.invalid_request
+  enUS: Invalid request.
+  zhCN: 无效的请求。
+  zhTW: "無效的請求。"
+- id: hoa.launcher.it_s_worked_out_from_your_own_game_files_one_533_yard_square
+  enUS: It's worked out from your own game files, one 533-yard square at a time. Westfall, The Barrens and Duskwood come first; the harder zones finish in the background while you play.
+  zhCN: 它们由你自己的游戏文件计算得出，每次处理一块 533 码见方的区域。西部荒野、贫瘠之地和暮色森林会最先完成；较难的区域会在你游戏时于后台完成。
+  zhTW: "它們由你自己的遊戲檔案計算得出，每次處理一塊 533 碼見方的區域。西部荒野、貧瘠之地和暮色森林會最先完成；較難的區域會在你遊戲時於後臺完成。"
+- id: hoa.launcher.its_database
+  enUS: its database
+  zhCN: 游戏数据库
+  zhTW: "遊戲資料庫"
+- id: hoa.launcher.its_login_server
+  enUS: its login server
+  zhCN: 游戏登录服务器
+  zhTW: "遊戲登入伺服器"
+- id: hoa.launcher.its_world_server
+  enUS: its world server
+  zhCN: 游戏世界服务器
+  zhTW: "遊戲世界伺服器"
+- id: hoa.launcher.join_request_expired
+  enUS: Join request expired.
+  zhCN: 加入请求已过期。
+  zhTW: "加入請求已過期。"
+- id: hoa.launcher.join_the_hordes_of_azeroth_discord
+  enUS: Join the Hordes of Azeroth Discord
+  zhCN: 加入艾泽拉斯之潮的 Discord
+  zhTW: "加入艾澤拉斯之潮的 Discord"
+- id: hoa.launcher.joining_a_co_op_game
+  enUS: Joining a co-op game
+  zhCN: 加入联机游戏
+  zhTW: "加入聯機遊戲"
+- id: hoa.launcher.keep_running_in_the_tray
+  enUS: Keep running in the tray
+  zhCN: 在系统托盘中保持运行
+  zhTW: "在系統托盤中保持執行"
+- id: hoa.launcher.language_english
+  enUS: English
+  zhCN: English
+  zhTW: "English"
+- id: hoa.launcher.language_simplified_chinese
+  enUS: 简体中文
+  zhCN: 简体中文
+  zhTW: "簡體中文"
+- id: hoa.launcher.language_traditional_chinese
+  enUS: Traditional Chinese
+  zhCN: 繁体中文
+  zhTW: 繁體中文
+- id: hoa.launcher.later_patch_notes
+  enUS: Later patch notes
+  zhCN: 较新的更新说明
+  zhTW: "較新的更新說明"
+- id: hoa.launcher.line_of_sight
+  enUS: line of sight
+  zhCN: 视线
+  zhTW: "視線"
+- id: hoa.launcher.loading_the_world
+  enUS: Loading the world
+  zhCN: 正在载入世界
+  zhTW: "正在載入世界"
+- id: hoa.launcher.loading_the_world_about_a_minute
+  enUS: loading the world (about a minute)
+  zhCN: 正在载入世界（大约一分钟）
+  zhTW: "正在載入世界（大約一分鐘）"
+- id: hoa.launcher.lost_connection_to_the_host_your_progress_up_to_the_last_few
+  enUS: Lost connection to the host. Your progress up to the last few seconds is saved.
+  zhCN: 与房主的连接已断开。你直到最后几秒前的进度都已保存。
+  zhTW: "與房主的連線已斷開。你直到最後幾秒前的進度都已儲存。"
+- id: hoa.launcher.lost_the_connection_to_the_host_your_progress_up_to_the_last
+  enUS: Lost the connection to the host. Your progress up to the last few seconds is saved.
+  zhCN: 与房主的连接已断开。你直到最后几秒前的进度都已保存。
+  zhTW: "與房主的連線已斷開。你直到最後幾秒前的進度都已儲存。"
+- id: hoa.launcher.monster_path_build_speed
+  enUS: Monster path build speed…
+  zhCN: 怪物路径生成速度…
+  zhTW: "怪物路徑生成速度…"
+- id: hoa.launcher.monster_paths
+  enUS: Monster paths
+  zhCN: 怪物路径
+  zhTW: "怪物路徑"
+- id: hoa.launcher.name_the_new_account_it_starts_with_no_characters_gold_or_un
+  enUS: Name the new account. It starts with no characters, gold or unlocks.
+  zhCN: 给新账号起个名字。新账号一开始没有角色、金币或已解锁内容。
+  zhTW: "給新賬號起個名字。新賬號一開始沒有角色、金幣或已解鎖內容。"
+- id: hoa.launcher.newer
+  enUS: Newer  ›
+  zhCN: 较新  ›
+  zhTW: "較新  ›"
+- id: hoa.launcher.no
+  enUS: 'No'
+  zhCN: 否
+  zhTW: "否"
+- id: hoa.launcher.no_characters_yet
+  enUS: no characters yet
+  zhCN: 还没有角色
+  zhTW: "還沒有角色"
+- id: hoa.launcher.no_details
+  enUS: no details
+  zhCN: 没有详细信息
+  zhTW: "沒有詳細資訊"
+- id: hoa.launcher.no_game_found_with_that_code
+  enUS: No game found with that code.
+  zhCN: 没有找到该房间码对应的房间。
+  zhTW: "沒有找到該房間碼對應的房間。"
+- id: hoa.launcher.no_release_is_published_yet
+  enUS: No release is published yet.
+  zhCN: 尚未发布任何版本。
+  zhTW: "尚未釋出任何版本。"
+- id: hoa.launcher.not_found
+  enUS: Not found.
+  zhCN: 未找到。
+  zhTW: "未找到。"
+- id: hoa.launcher.not_installed
+  enUS: Not installed
+  zhCN: 未安装
+  zhTW: "未安裝"
+- id: hoa.launcher.offer_to_send_crash_reports
+  enUS: Offer to send crash reports
+  zhCN: 提示发送崩溃报告
+  zhTW: "提示傳送崩潰報告"
+- id: hoa.launcher.ok
+  enUS: OK
+  zhCN: 确定
+  zhTW: "確定"
+- id: hoa.launcher.older
+  enUS: ‹  Older
+  zhCN: ‹  较早
+  zhTW: "‹  較早"
+- id: hoa.launcher.only_players_on_your_own_network_can_join_to_let_others_join
+  enUS: Only players on your own network can join. To let others join, forward TCP port {0} on your router to this PC, or enter a public address when you host.
+  zhCN: 只有与你处于同一网络的玩家可以加入。要让其他人加入，请在路由器上把 TCP 端口 {0} 转发到这台电脑，或者在创建房间时填写公网地址。
+  zhTW: "只有與你處於同一網路的玩家可以加入。要讓其他人加入，請在路由器上把 TCP 埠 {0} 轉發到這臺電腦，或者在建立房間時填寫公網地址。"
+- id: hoa.launcher.only_players_on_your_vpn_can_join_to_let_others_join_forward
+  enUS: Only players on your VPN can join. To let others join, forward TCP port {0} on your router to this PC.
+  zhCN: 只有你的 VPN 内的玩家可以加入。要让其他人加入，请在路由器上把 TCP 端口 {0} 转发到这台电脑。
+  zhTW: "只有你的 VPN 內的玩家可以加入。要讓其他人加入，請在路由器上把 TCP 埠 {0} 轉發到這臺電腦。"
+- id: hoa.launcher.open_addons_folder
+  enUS: Open AddOns folder
+  zhCN: 打开 AddOns 文件夹
+  zhTW: "開啟 AddOns 資料夾"
+- id: hoa.launcher.open_game_folder
+  enUS: Open game folder
+  zhCN: 打开游戏文件夹
+  zhTW: "開啟遊戲資料夾"
+- id: hoa.launcher.open_launcher
+  enUS: Open launcher
+  zhCN: 打开启动器
+  zhTW: "開啟啟動器"
+- id: hoa.launcher.open_logs_folder
+  enUS: Open logs folder
+  zhCN: 打开日志文件夹
+  zhTW: "開啟日誌資料夾"
+- id: hoa.launcher.other_players_can_t_connect_to_you_your_router_blocks_automa
+  enUS: 'Other players can''t connect to you: your router blocks automatic port forwarding, or your internet provider shares your address. You can still join other games.'
+  zhCN: 其他玩家无法连接到你：你的路由器阻止了自动端口转发，或者你的网络运营商与他人共用地址。你仍然可以加入其他玩家的房间。
+  zhTW: "其他玩家無法連線到你：你的路由器阻止了自動埠轉發，或者你的網路運營商與他人共用地址。你仍然可以加入其他玩家的房間。"
+- id: hoa.launcher.other_players_can_t_reach_0_1_check_that_it_forwards_tcp_to_
+  enUS: Other players can't reach {0}:{1}. Check that it forwards TCP to port {2} on this PC.
+  zhCN: 其他玩家无法连接到 {0}:{1}。请检查它是否把 TCP 转发到了这台电脑的 {2} 端口。
+  zhTW: "其他玩家無法連線到 {0}:{1}。請檢查它是否把 TCP 轉發到了這臺電腦的 {2} 埠。"
+- id: hoa.launcher.other_players_can_t_reach_you_on_tcp_port_0_forward_that_por
+  enUS: Other players can't reach you on TCP port {0}. Forward that port on your router to this PC and allow the launcher through Windows Firewall, then host again. If your internet provider shares your address, hosting won't work. You can still join other games.
+  zhCN: 其他玩家无法通过 TCP 端口 {0} 连接到你。请在路由器上把该端口转发到这台电脑，并允许启动器通过 Windows 防火墙，然后重新创建房间。如果你的网络运营商与他人共用地址，则无法创建房间，但你仍然可以加入其他人的房间。
+  zhTW: "其他玩家無法透過 TCP 埠 {0} 連線到你。請在路由器上把該埠轉發到這臺電腦，並允許啟動器透過 Windows 防火牆，然後重新建立房間。如果你的網路運營商與他人共用地址，則無法建立房間，但你仍然可以加入其他人的房間。"
+- id: hoa.launcher.party_already_has_that_class
+  enUS: Party already has that class.
+  zhCN: 队伍中已有该职业。
+  zhTW: "隊伍中已有該職業。"
+- id: hoa.launcher.patch_0
+  enUS: Patch {0}
+  zhCN: '{0} 版本'
+  zhTW: "{0} 版本"
+- id: hoa.launcher.patch_notes
+  enUS: PATCH NOTES
+  zhCN: 更新说明
+  zhTW: "更新說明"
+- id: hoa.launcher.patch_notes_appear_here_once_the_launcher_can_reach_github
+  enUS: Patch notes appear here once the launcher can reach GitHub.
+  zhCN: 启动器能连接到 GitHub 后，更新说明会显示在这里。
+  zhTW: "啟動器能連線到 GitHub 後，更新說明會顯示在這裡。"
+- id: hoa.launcher.play
+  enUS: Play
+  zhCN: 开始游戏
+  zhTW: "開始遊戲"
+- id: hoa.launcher.play_as
+  enUS: PLAY AS
+  zhCN: 游戏账号
+  zhTW: "遊戲賬號"
+- id: hoa.launcher.playing
+  enUS: Playing
+  zhCN: 游戏中
+  zhTW: "遊戲中"
+- id: hoa.launcher.port_0_is_already_in_use_so_you_can_t_host
+  enUS: Port {0} is already in use, so you can't host.
+  zhCN: 端口{0}已被占用，因此你无法创建房间。
+  zhTW: "埠{0}已被佔用，因此你無法建立房間。"
+- id: hoa.launcher.port_0_is_in_use_by_1_hordes_of_azeroth_needs_it_for_2_close
+  enUS: Port {0} is in use by {1}. Hordes of Azeroth needs it for {2}. Close that program (or stop its service) and try again.
+  zhCN: 端口 {0} 已被 {1} 占用，而艾泽拉斯之潮需要用它来运行{2}。请关闭该程序（或停止它的服务）后重试。
+  zhTW: "埠 {0} 已被 {1} 佔用，而艾澤拉斯之潮需要用它來執行{2}。請關閉該程式（或停止它的服務）後重試。"
+- id: hoa.launcher.press_continue_to_carry_on_where_it_stopped
+  enUS: press Continue to carry on where it stopped
+  zhCN: 点击“继续”，从中断的地方接着安装
+  zhTW: "點選“繼續”，從中斷的地方接著安裝"
+- id: hoa.launcher.press_repair_to_put_them_back
+  enUS: press Repair to put them back
+  zhCN: 点击“修复”把它们补回来
+  zhTW: "點選“修復”把它們補回來"
+- id: hoa.launcher.process_0
+  enUS: process {0}
+  zhCN: 进程 {0}
+  zhTW: "程序 {0}"
+- id: hoa.launcher.put_the_launcher_in_your_world_of_warcraft_1_12_1_folder_nex
+  enUS: Put the launcher in your World of Warcraft 1.12.1 folder, next to WoW.exe.
+  zhCN: 请把启动器放进你的魔兽世界 1.12.1 文件夹，与 WoW.exe 放在一起。
+  zhTW: "請把啟動器放進你的魔獸世界 1.12.1 資料夾，與 WoW.exe 放在一起。"
+- id: hoa.launcher.put_your_own_addons_here_one_folder_each_the_hordes_of_azero
+  enUS: Put your own addons here, one folder each. The Hordes of Azeroth addon in this folder is replaced at every start.
+  zhCN: 把你自己的插件放在这里，每个插件一个文件夹。这个文件夹里的艾泽拉斯之潮插件会在每次启动时被替换。
+  zhTW: "把你自己的外掛放在這裡，每個外掛一個資料夾。這個資料夾裡的艾澤拉斯之潮外掛會在每次啟動時被替換。"
+- id: hoa.launcher.puts_back_the_save_data_from_a_backup_file
+  enUS: Puts back the save data from a backup file.
+  zhCN: 从备份文件中恢复存档数据。
+  zhTW: "從備份檔案中恢復存檔資料。"
+- id: hoa.launcher.puts_back_the_save_data_from_a_backup_file_last_backup_0
+  enUS: 'Puts back the save data from a backup file. Last backup: {0}.'
+  zhCN: 从备份文件中恢复存档数据。上次备份：{0}。
+  zhTW: "從備份檔案中恢復存檔資料。上次備份：{0}。"
+- id: hoa.launcher.quit
+  enUS: Quit
+  zhCN: 退出
+  zhTW: "退出"
+- id: hoa.launcher.read_the_maps
+  enUS: Read the maps
+  zhCN: 读取地图
+  zhTW: "讀取地圖"
+- id: hoa.launcher.reading_the_maps
+  enUS: Reading the maps
+  zhCN: 正在读取地图
+  zhTW: "正在讀取地圖"
+- id: hoa.launcher.ready_to_install
+  enUS: Ready to install
+  zhCN: 可以安装了
+  zhTW: "可以安裝了"
+- id: hoa.launcher.ready_to_play
+  enUS: Ready to play
+  zhCN: 可以开始游戏了
+  zhTW: "可以開始遊戲了"
+- id: hoa.launcher.rebuild_the_spell_effects
+  enUS: Rebuild the spell effects
+  zhCN: 重新生成法术效果
+  zhTW: "重新生成法術效果"
+- id: hoa.launcher.rebuilding_the_spell_effects
+  enUS: Rebuilding the spell effects
+  zhCN: 正在重新生成法术效果
+  zhTW: "正在重新生成法術效果"
+- id: hoa.launcher.reloading_the_world
+  enUS: Reloading the world
+  zhCN: 正在重新载入世界
+  zhTW: "正在重新載入世界"
+- id: hoa.launcher.rename
+  enUS: Rename
+  zhCN: 重命名
+  zhTW: "重新命名"
+- id: hoa.launcher.rename_0
+  enUS: Rename {0}…
+  zhCN: 重命名 {0}…
+  zhTW: "重新命名 {0}…"
+- id: hoa.launcher.rename_this_account_only_its_name_in_the_launcher_changes
+  enUS: Rename this account. Only its name in the launcher changes.
+  zhCN: 重命名这个账号。只会改变它在启动器中的名称。
+  zhTW: "重新命名這個賬號。只會改變它在啟動器中的名稱。"
+- id: hoa.launcher.repair
+  enUS: REPAIR
+  zhCN: 修复
+  zhTW: "修復"
+- id: hoa.launcher.repair_2
+  enUS: Repair
+  zhCN: 修复
+  zhTW: "修復"
+- id: hoa.launcher.repair_checks_every_game_file_downloads_the_ones_that_are_mi
+  enUS: 'Repair checks every game file, downloads the ones that are missing or damaged and reloads the world. It takes a minute or two. Your characters and unlocks are backed up first and stay as they are.
+
+
+    Repair the game now?'
+  zhCN: '修复会检查每一个游戏文件，重新下载缺失或损坏的文件，并重新载入世界。大约需要一两分钟。你的角色和已解锁内容会先备份，并保持原样。
+
+
+    现在修复游戏吗？'
+  zhTW: "修復會檢查每一個遊戲檔案，重新下載缺失或損壞的檔案，並重新載入世界。大約需要一兩分鐘。你的角色和已解鎖內容會先備份，並保持原樣。\n\n現在修復遊戲嗎？"
+- id: hoa.launcher.repair_the_game
+  enUS: Repair the game…
+  zhCN: 修复游戏…
+  zhTW: "修復遊戲…"
+- id: hoa.launcher.repairing
+  enUS: Repairing…
+  zhCN: 正在修复…
+  zhTW: "正在修復…"
+- id: hoa.launcher.repairing_hordes_of_azeroth
+  enUS: Repairing Hordes of Azeroth
+  zhCN: 正在修复艾泽拉斯之潮
+  zhTW: "正在修復艾澤拉斯之潮"
+- id: hoa.launcher.report_a_bug
+  enUS: Report a bug
+  zhCN: 报告问题
+  zhTW: "報告問題"
+- id: hoa.launcher.requires_mastery_0_or_lower
+  enUS: Requires Mastery {0} or lower.
+  zhCN: 要求专精{0}级或更低。
+  zhTW: "要求專精{0}級或更低。"
+- id: hoa.launcher.requires_mythic_0_cleared
+  enUS: Requires Mythic {0} cleared.
+  zhCN: 需要已通关史诗{0}级。
+  zhTW: "需要已通關史詩{0}級。"
+- id: hoa.launcher.restore
+  enUS: Restore
+  zhCN: 恢复
+  zhTW: "恢復"
+- id: hoa.launcher.restore_0_every_account_s_characters_gold_unlocks_and_settin
+  enUS: 'Restore {0}?
+
+
+    Every account''s characters, gold, unlocks and settings go back to how they were in that backup. The launcher backs up how things are now first.'
+  zhCN: '要恢复 {0} 吗？
+
+
+    所有账号的角色、金币、已解锁内容和设置都会回到该备份时的状态。启动器会先备份当前的状态。'
+  zhTW: "要恢復 {0} 嗎？\n\n所有賬號的角色、金幣、已解鎖內容和設定都會回到該備份時的狀態。啟動器會先備份當前的狀態。"
+- id: hoa.launcher.restore_a_backup
+  enUS: Restore a backup…
+  zhCN: 恢复备份…
+  zhTW: "恢復備份…"
+- id: hoa.launcher.restored_0
+  enUS: restored {0}
+  zhCN: 已恢复 {0}
+  zhTW: "已恢復 {0}"
+- id: hoa.launcher.restoring
+  enUS: Restoring…
+  zhCN: 正在恢复…
+  zhTW: "正在恢復…"
+- id: hoa.launcher.restoring_your_save_data
+  enUS: Restoring your save data
+  zhCN: 正在恢复你的存档数据
+  zhTW: "正在恢復你的存檔資料"
+- id: hoa.launcher.save_backups
+  enUS: Save backups
+  zhCN: 存档备份
+  zhTW: "存檔備份"
+- id: hoa.launcher.save_logs
+  enUS: Save logs
+  zhCN: 保存日志
+  zhTW: "儲存日誌"
+- id: hoa.launcher.saved_0
+  enUS: saved {0}
+  zhCN: 已保存 {0}
+  zhTW: "已儲存 {0}"
+- id: hoa.launcher.saves_a_zip_of_your_logs_and_opens_the_bug_report_form_attac
+  enUS: Saves a zip of your logs and opens the bug report form. Attach the zip to your report.
+  zhCN: 把日志打包成 zip 保存，并打开问题反馈表单。请把这个 zip 附在你的反馈中。
+  zhTW: "把日誌打包成 zip 儲存，並開啟問題反饋表單。請把這個 zip 附在你的反饋中。"
+- id: hoa.launcher.saves_the_characters_gold_unlocks_and_settings_of_every_acco
+  enUS: Saves the characters, gold, unlocks and settings of every account into one file.
+  zhCN: 把所有账号的角色、金币、已解锁内容和设置保存到一个文件中。
+  zhTW: "把所有賬號的角色、金幣、已解鎖內容和設定儲存到一個檔案中。"
+- id: hoa.launcher.saving_and_stopping_the_game_s_server
+  enUS: saving and stopping the game's server
+  zhCN: 正在保存并停止游戏服务器
+  zhTW: "正在儲存並停止遊戲伺服器"
+- id: hoa.launcher.send_run_data_to_help_balance_the_game
+  enUS: Send run data to help balance the game
+  zhCN: 发送远征数据，帮助平衡游戏
+  zhTW: "傳送遠征資料，幫助平衡遊戲"
+- id: hoa.launcher.send_your_logs_to_the_developer_with_this_bug_report_they_ho
+  enUS: 'Send your logs to the developer with this bug report?
+
+
+    They hold the game''s server and client logs, your character names and your game settings. You''ll get a reference to put in your report.'
+  zhCN: '要把你的日志随这份问题反馈一起发送给开发者吗？
+
+
+    日志包含游戏服务器和客户端的日志、你的角色名称以及游戏设置。你会得到一个参考编号，可以填写到反馈中。'
+  zhTW: "要把你的日誌隨這份問題反饋一起傳送給開發者嗎？\n\n日誌包含遊戲伺服器和客戶端的日誌、你的角色名稱以及遊戲設定。你會得到一個參考編號，可以填寫到反饋中。"
+- id: hoa.launcher.set_up_the_database
+  enUS: Set up the database
+  zhCN: 设置数据库
+  zhTW: "設定資料庫"
+- id: hoa.launcher.set_up_the_game
+  enUS: Set up the game
+  zhCN: 设置游戏
+  zhTW: "設定遊戲"
+- id: hoa.launcher.setting_up_hordes_of_azeroth
+  enUS: Setting up Hordes of Azeroth
+  zhCN: 正在设置艾泽拉斯之潮
+  zhTW: "正在設定艾澤拉斯之潮"
+- id: hoa.launcher.setting_up_the_database
+  enUS: Setting up the database
+  zhCN: 正在设置数据库
+  zhTW: "正在設定資料庫"
+- id: hoa.launcher.setting_up_the_game
+  enUS: Setting up the game
+  zhCN: 正在设置游戏
+  zhTW: "正在設定遊戲"
+- id: hoa.launcher.slower_and_the_pc_stays_easy_to_use
+  enUS: Slower, and the PC stays easy to use.
+  zhCN: 速度较慢，但电脑依然流畅好用。
+  zhTW: "速度較慢，但電腦依然流暢好用。"
+- id: hoa.launcher.some_game_files_are_missing
+  enUS: Some game files are missing
+  zhCN: 部分游戏文件缺失
+  zhTW: "部分遊戲檔案缺失"
+- id: hoa.launcher.some_game_files_were_missing_or_damaged_so_the_launcher_puts
+  enUS: Some game files were missing or damaged, so the launcher puts them back. Your characters and unlocks stay as they are.
+  zhCN: 部分游戏文件缺失或损坏，启动器会把它们补回来。你的角色和已解锁内容保持原样。
+  zhTW: "部分遊戲檔案缺失或損壞，啟動器會把它們補回來。你的角色和已解鎖內容保持原樣。"
+- id: hoa.launcher.starting
+  enUS: Starting
+  zhCN: 正在启动
+  zhTW: "正在啟動"
+- id: hoa.launcher.starting_2
+  enUS: Starting…
+  zhCN: 正在启动…
+  zhTW: "正在啟動…"
+- id: hoa.launcher.starting_the_database
+  enUS: Starting the database
+  zhCN: 正在启动数据库
+  zhTW: "正在啟動資料庫"
+- id: hoa.launcher.starting_the_game
+  enUS: Starting the game
+  zhCN: 正在启动游戏
+  zhTW: "正在啟動遊戲"
+- id: hoa.launcher.starting_the_login_server
+  enUS: Starting the login server
+  zhCN: 正在启动登录服务器
+  zhTW: "正在啟動登入伺服器"
+- id: hoa.launcher.stop_installing_the_launcher_carries_on_where_it_stopped_nex
+  enUS: Stop installing? The launcher carries on where it stopped next time.
+  zhCN: 要停止安装吗？下次启动器会从中断的地方继续。
+  zhTW: "要停止安裝嗎？下次啟動器會從中斷的地方繼續。"
+- id: hoa.launcher.support_hordes_of_azeroth_on_buy_me_a_coffee
+  enUS: Support Hordes of Azeroth on Buy Me a Coffee
+  zhCN: 在 Buy Me a Coffee 上支持艾泽拉斯之潮
+  zhTW: "在 Buy Me a Coffee 上支援艾澤拉斯之潮"
+- id: hoa.launcher.survive_the_horde_as_long_as_you_can
+  enUS: Survive the horde. As long as you can.
+  zhCN: 在怪潮中活下去，尽你所能！
+  zhTW: "在怪潮中活下去，盡你所能！"
+- id: hoa.launcher.teaching_monsters_to_find_their_way
+  enUS: Teaching monsters to find their way
+  zhCN: 教怪物学会认路
+  zhTW: "教怪物學會認路"
+- id: hoa.launcher.terrain_and_areas
+  enUS: terrain and areas
+  zhCN: 地形和区域
+  zhTW: "地形和區域"
+- id: hoa.launcher.that_game_only_takes_players_on_the_host_s_network
+  enUS: That game only takes players on the host's network.
+  zhCN: 该房间只接受与房主处于同一网络的玩家。
+  zhTW: "該房間只接受與房主處於同一網路的玩家。"
+- id: hoa.launcher.that_join_has_ended
+  enUS: That join has ended.
+  zhCN: 这次加入已经结束。
+  zhTW: "這次加入已經結束。"
+- id: hoa.launcher.that_public_address_can_t_be_found
+  enUS: That public address can't be found.
+  zhCN: 找不到该公网地址。
+  zhTW: "找不到該公網地址。"
+- id: hoa.launcher.that_public_address_isn_t_valid_enter_it_as_address_port_for
+  enUS: That public address isn't valid. Enter it as address:port, for example example.com:3725.
+  zhCN: 该公网地址无效。请按“地址:端口”的格式填写，例如 example.com:3725。
+  zhTW: "該公網地址無效。請按“地址:埠”的格式填寫，例如 example.com:3725。"
+- id: hoa.launcher.the_account_0_couldn_t_be_created_see_server_logs_server_log
+  enUS: The account {0} couldn't be created. See server/logs/Server.log.
+  zhCN: 无法创建账号 {0}。请查看 server/logs/Server.log。
+  zhTW: "無法建立賬號 {0}。請檢視 server/logs/Server.log。"
+- id: hoa.launcher.the_account_couldn_t_be_created_see_server_logs_server_log
+  enUS: The account couldn't be created. See server/logs/Server.log.
+  zhCN: 无法创建账号。请查看 server/logs/Server.log。
+  zhTW: "無法建立賬號。請檢視 server/logs/Server.log。"
+- id: hoa.launcher.the_account_you_play_as_each_account_has_its_own_characters_
+  enUS: The account you play as. Each account has its own characters, gold and unlocks.
+  zhCN: 你游玩时使用的账号。每个账号都有各自的角色、金币和已解锁内容。
+  zhTW: "你遊玩時使用的賬號。每個賬號都有各自的角色、金幣和已解鎖內容。"
+- id: hoa.launcher.the_backup_couldn_t_be_restored
+  enUS: The backup couldn't be restored
+  zhCN: 无法恢复备份
+  zhTW: "無法恢復備份"
+- id: hoa.launcher.the_backup_couldn_t_be_saved
+  enUS: The backup couldn't be saved
+  zhCN: 无法保存备份
+  zhTW: "無法儲存備份"
+- id: hoa.launcher.the_co_op_service_refused_the_request
+  enUS: The co-op service refused the request.
+  zhCN: 联机服务拒绝了该请求。
+  zhTW: "聯機服務拒絕了該請求。"
+- id: hoa.launcher.the_co_op_service_sent_an_invalid_response
+  enUS: The co-op service sent an invalid response.
+  zhCN: 联机服务返回了无效的响应。
+  zhTW: "聯機服務返回了無效的響應。"
+- id: hoa.launcher.the_connection_closed_during_the_transfer
+  enUS: The connection closed during the transfer.
+  zhCN: 传输过程中连接已关闭。
+  zhTW: "傳輸過程中連線已關閉。"
+- id: hoa.launcher.the_crash_report_couldn_t_be_sent
+  enUS: The crash report couldn't be sent
+  zhCN: 无法发送崩溃报告
+  zhTW: "無法傳送崩潰報告"
+- id: hoa.launcher.the_database
+  enUS: the database
+  zhCN: 数据库
+  zhTW: "資料庫"
+- id: hoa.launcher.the_download_didn_t_work_so_the_launcher_builds_the_monster_
+  enUS: The download didn't work, so the launcher builds the monster paths for {0}
+  zhCN: 下载没有成功，所以启动器会自行为 {0} 生成怪物路径
+  zhTW: "下載沒有成功，所以啟動器會自行為 {0} 生成怪物路徑"
+- id: hoa.launcher.the_first_install_takes_a_few_minutes
+  enUS: the first install takes a few minutes
+  zhCN: 第一次安装需要几分钟
+  zhTW: "第一次安裝需要幾分鐘"
+- id: hoa.launcher.the_game
+  enUS: the game
+  zhCN: 游戏
+  zhTW: "遊戲"
+- id: hoa.launcher.the_game_closed_while_starting_its_log_is_0
+  enUS: The game closed while starting. Its log is {0}.
+  zhCN: 游戏在启动时关闭了。它的日志位于 {0}。
+  zhTW: "遊戲在啟動時關閉了。它的日誌位於 {0}。"
+- id: hoa.launcher.the_game_couldn_t_start
+  enUS: The game couldn't start
+  zhCN: 游戏无法启动
+  zhTW: "遊戲無法啟動"
+- id: hoa.launcher.the_game_crashed_inside_your_graphics_driver_it_will_use_dir
+  enUS: 'The game crashed inside your graphics driver. It will use DirectX 12 from now on, so press Play to try again.
+
+
+    Updating your graphics driver may also fix it.'
+  zhCN: '游戏在你的显卡驱动中崩溃了。今后它将使用 DirectX 12，请再次点击“开始游戏”重试。
+
+
+    更新显卡驱动也可能解决这个问题。'
+  zhTW: "遊戲在你的顯示卡驅動中崩潰了。今後它將使用 DirectX 12，請再次點選“開始遊戲”重試。\n\n更新顯示卡驅動也可能解決這個問題。"
+- id: hoa.launcher.the_game_is_repaired
+  enUS: the game is repaired
+  zhCN: 游戏已修复
+  zhTW: "遊戲已修復"
+- id: hoa.launcher.the_game_s_database_didn_t_answer_is_the_game_running
+  enUS: The game's database didn't answer. Is the game running?
+  zhCN: 游戏的数据库没有响应。游戏是否正在运行？
+  zhTW: "遊戲的資料庫沒有響應。遊戲是否正在執行？"
+- id: hoa.launcher.the_game_s_server
+  enUS: the game's server
+  zhCN: 游戏服务器
+  zhTW: "遊戲伺服器"
+- id: hoa.launcher.the_game_s_server_stops_when_you_close_the_game
+  enUS: the game's server stops when you close the game
+  zhCN: 关闭游戏时，游戏服务器也会停止
+  zhTW: "關閉遊戲時，遊戲伺服器也會停止"
+- id: hoa.launcher.the_game_server_didn_t_answer_is_it_running
+  enUS: The game server didn't answer. Is it running?
+  zhCN: 游戏服务器没有响应。它是否已启动？
+  zhTW: "遊戲伺服器沒有響應。它是否已啟動？"
+- id: hoa.launcher.the_host_closed_the_lobby
+  enUS: The host closed the lobby.
+  zhCN: 房主关闭了房间。
+  zhTW: "房主關閉了房間。"
+- id: hoa.launcher.the_host_couldn_t_take_your_character
+  enUS: The host couldn't take your character.
+  zhCN: 房主无法接收你的角色。
+  zhTW: "房主無法接收你的角色。"
+- id: hoa.launcher.the_host_declined_your_request_you_can_ask_again_in_0_second
+  enUS: The host declined your request. You can ask again in {0} seconds.
+  zhCN: 房主拒绝了你的请求。你可以在{0}秒后再次申请。
+  zhTW: "房主拒絕了你的請求。你可以在{0}秒後再次申請。"
+- id: hoa.launcher.the_host_didn_t_respond
+  enUS: The host didn't respond.
+  zhCN: 房主没有响应。
+  zhTW: "房主沒有響應。"
+- id: hoa.launcher.the_host_is_playing_an_ironman_character_ironman_characters_
+  enUS: The host is playing an ironman character. Ironman characters can't play co-op.
+  zhCN: 房主正在使用铁人角色。铁人角色无法进行联机合作。
+  zhTW: "房主正在使用鐵人角色。鐵人角色無法進行聯機合作。"
+- id: hoa.launcher.the_install_isn_t_finished
+  enUS: The install isn't finished
+  zhCN: 安装尚未完成
+  zhTW: "安裝尚未完成"
+- id: hoa.launcher.the_install_stopped
+  enUS: The install stopped
+  zhCN: 安装已中断
+  zhTW: "安裝已中斷"
+- id: hoa.launcher.the_joining_player_s_account_couldn_t_be_created
+  enUS: The joining player's account couldn't be created.
+  zhCN: 无法为加入的玩家创建账号。
+  zhTW: "無法為加入的玩家建立賬號。"
+- id: hoa.launcher.the_language_the_game_shows_its_text_in
+  enUS: The language the game shows its text in
+  zhCN: 游戏显示文字所用的语言
+  zhTW: "遊戲顯示文字所用的語言"
+- id: hoa.launcher.the_launcher
+  enUS: the launcher
+  zhCN: 启动器
+  zhTW: "啟動器"
+- id: hoa.launcher.the_launcher_builds_everything_from_your_own_world_of_warcra
+  enUS: The launcher builds everything from your own World of Warcraft files. You can close it and come back; it carries on where it stopped.
+  zhCN: 启动器会根据你自己的魔兽世界文件生成所有内容。你可以关闭它，之后再回来，它会从中断的地方继续。
+  zhTW: "啟動器會根據你自己的魔獸世界檔案生成所有內容。你可以關閉它，之後再回來，它會從中斷的地方繼續。"
+- id: hoa.launcher.the_launcher_checks_every_game_file_puts_back_the_ones_that_
+  enUS: The launcher checks every game file, puts back the ones that are missing or damaged and reloads the world. Your characters and unlocks are backed up first and stay as they are.
+  zhCN: 启动器会检查每一个游戏文件，补回缺失或损坏的文件，并重新载入世界。你的角色和已解锁内容会先备份，并保持原样。
+  zhTW: "啟動器會檢查每一個遊戲檔案，補回缺失或損壞的檔案，並重新載入世界。你的角色和已解鎖內容會先備份，並保持原樣。"
+- id: hoa.launcher.the_launcher_now_works_out_where_monsters_can_walk_in_every_
+  enUS: The launcher now works out where monsters can walk in every zone. It builds these maps from your own game files, one area at a time, and it only has to do this once.
+  zhCN: 启动器现在要计算出每个区域里怪物能走的地方。它会根据你自己的游戏文件，一次一个区域地生成这些地图，而且只需要做这一次。
+  zhTW: "啟動器現在要計算出每個區域裡怪物能走的地方。它會根據你自己的遊戲檔案，一次一個區域地生成這些地圖，而且只需要做這一次。"
+- id: hoa.launcher.the_login_server
+  enUS: the login server
+  zhCN: 登录服务器
+  zhTW: "登入伺服器"
+- id: hoa.launcher.the_logs_couldn_t_be_saved
+  enUS: The logs couldn't be saved
+  zhCN: 无法保存日志
+  zhTW: "無法儲存日誌"
+- id: hoa.launcher.the_logs_couldn_t_be_sent
+  enUS: The logs couldn't be sent
+  zhCN: 无法发送日志
+  zhTW: "無法傳送日誌"
+- id: hoa.launcher.the_release_information_couldn_t_be_read_try_again_in_a_mome
+  enUS: The release information couldn't be read. Try again in a moment.
+  zhCN: 无法读取发布信息。请稍后再试。
+  zhTW: "無法讀取釋出資訊。請稍後再試。"
+- id: hoa.launcher.the_repair_replaces_files_the_game_has_open
+  enUS: the repair replaces files the game has open
+  zhCN: 修复会替换游戏正在使用的文件
+  zhTW: "修復會替換遊戲正在使用的檔案"
+- id: hoa.launcher.the_repair_stopped
+  enUS: The repair stopped
+  zhCN: 修复已中断
+  zhTW: "修復已中斷"
+- id: hoa.launcher.the_transfer_was_too_large
+  enUS: The transfer was too large.
+  zhCN: 传输的数据太大。
+  zhTW: "傳輸的資料太大。"
+- id: hoa.launcher.the_update_replaces_files_the_game_has_open
+  enUS: the update replaces files the game has open
+  zhCN: 更新会替换游戏正在使用的文件
+  zhTW: "更新會替換遊戲正在使用的檔案"
+- id: hoa.launcher.the_update_stopped
+  enUS: The update stopped
+  zhCN: 更新已中断
+  zhTW: "更新已中斷"
+- id: hoa.launcher.the_world_database_didn_t_match_the_server_about_a_minute
+  enUS: the world database didn't match the server (about a minute)
+  zhCN: 世界数据库与服务器不匹配（大约一分钟）
+  zhTW: "世界資料庫與伺服器不匹配（大約一分鐘）"
+- id: hoa.launcher.the_world_database_doesn_t_match_the_server_0
+  enUS: The world database doesn't match the server. {0}
+  zhCN: 世界数据库与服务器不匹配。{0}
+  zhTW: "世界資料庫與伺服器不匹配。{0}"
+- id: hoa.launcher.the_world_database_file_server_sql_world_sql_is_missing_0
+  enUS: The world database file (server/sql/world.sql) is missing. {0}
+  zhCN: 缺少世界数据库文件（server/sql/world.sql）。{0}
+  zhTW: "缺少世界資料庫檔案（server/sql/world.sql）。{0}"
+- id: hoa.launcher.the_world_server
+  enUS: the world server
+  zhCN: 世界服务器
+  zhTW: "世界伺服器"
+- id: hoa.launcher.the_world_server_isn_t_running
+  enUS: The world server isn't running.
+  zhCN: 世界服务器没有运行。
+  zhTW: "世界伺服器沒有執行。"
+- id: hoa.launcher.there_is_already_an_account_called_0
+  enUS: There is already an account called {0}.
+  zhCN: 已经有一个叫 {0} 的账号了。
+  zhTW: "已經有一個叫 {0} 的賬號了。"
+- id: hoa.launcher.they_come_ready_made_a_0_mb_download_for_every_zone
+  enUS: They come ready-made, a {0} MB download for every zone.
+  zhCN: 它们已经预先制作好，所有区域的数据一共只需下载 {0} MB。
+  zhTW: "它們已經預先製作好，所有區域的資料一共只需下載 {0} MB。"
+- id: hoa.launcher.they_were_saved_on_your_desktop_instead_attach_that_file_to_
+  enUS: They were saved on your desktop instead. Attach that file to your bug report.
+  zhCN: 它们已改为保存在你的桌面上。请把该文件附在你的问题反馈中。
+  zhTW: "它們已改為儲存在你的桌面上。請把該檔案附在你的問題反饋中。"
+- id: hoa.launcher.this_client_can_t_be_used
+  enUS: This client can't be used
+  zhCN: 无法使用这个客户端
+  zhTW: "無法使用這個客戶端"
+- id: hoa.launcher.this_file_isn_t_a_hordes_of_azeroth_save_backup
+  enUS: This file isn't a Hordes of Azeroth save backup.
+  zhCN: 这个文件不是艾泽拉斯之潮的存档备份。
+  zhTW: "這個檔案不是艾澤拉斯之潮的存檔備份。"
+- id: hoa.launcher.this_folder_is_a_hordes_of_azeroth_source_checkout_install_t
+  enUS: This folder is a Hordes of Azeroth source checkout. Install the game into a separate copy of World of Warcraft 1.12.1 instead.
+  zhCN: 这个文件夹是艾泽拉斯之潮的源码仓库。请改为把游戏安装到另一份独立的魔兽世界 1.12.1 副本中。
+  zhTW: "這個資料夾是艾澤拉斯之潮的原始碼倉庫。請改為把遊戲安裝到另一份獨立的魔獸世界 1.12.1 副本中。"
+- id: hoa.launcher.this_is_heavy_work_and_only_happens_once_your_processor_can_
+  enUS: This is heavy work and only happens once. Your processor can sit at 100% and your fans may spin up until it's done. To use fewer cores, open the ••• menu next to Play and choose Monster path build speed.
+  zhCN: 这项工作很吃资源，而且只会进行一次。完成之前，处理器可能一直满载，风扇也可能高速转动。若想少用几个核心，请打开“开始游戏”旁边的 ••• 菜单，选择“怪物路径生成速度”。
+  zhTW: "這項工作很吃資源，而且只會進行一次。完成之前，處理器可能一直滿載，風扇也可能高速轉動。若想少用幾個核心，請開啟“開始遊戲”旁邊的 ••• 選單，選擇“怪物路徑生成速度”。"
+- id: hoa.launcher.this_is_heavy_work_your_processor_can_sit_at_100_and_your_fa
+  enUS: This is heavy work. Your processor can sit at 100% and your fans may spin up until it finishes. That's expected and nothing is wrong. With half the cores it takes longer, but your PC stays easy to use in the meantime.
+  zhCN: 这项工作很吃资源。完成之前，处理器可能一直满载，风扇也可能高速转动，这是正常现象，并不是出了问题。只用一半核心会花更长时间，但期间你的电脑依然流畅好用。
+  zhTW: "這項工作很吃資源。完成之前，處理器可能一直滿載，風扇也可能高速轉動，這是正常現象，並不是出了問題。只用一半核心會花更長時間，但期間你的電腦依然流暢好用。"
+- id: hoa.launcher.too_many_lobbies_created_try_again_in_a_few_minutes
+  enUS: Too many lobbies created. Try again in a few minutes.
+  zhCN: 创建的房间过多。请几分钟后再试。
+  zhTW: "建立的房間過多。請幾分鐘後再試。"
+- id: hoa.launcher.too_many_requests
+  enUS: Too many requests.
+  zhCN: 请求过多。
+  zhTW: "請求過多。"
+- id: hoa.launcher.too_many_requests_try_again_in_a_few_minutes
+  enUS: Too many requests. Try again in a few minutes.
+  zhCN: 请求过多。请几分钟后再试。
+  zhTW: "請求過多。請幾分鐘後再試。"
+- id: hoa.launcher.too_many_requests_try_again_in_a_minute
+  enUS: Too many requests. Try again in a minute.
+  zhCN: 请求过多。请一分钟后再试。
+  zhTW: "請求過多。請一分鐘後再試。"
+- id: hoa.launcher.too_many_wrong_passwords_for_that_game_try_again_in_a_few_mi
+  enUS: Too many wrong passwords for that game. Try again in a few minutes.
+  zhCN: 该游戏的密码错误次数过多。请几分钟后再试。
+  zhTW: "該遊戲的密碼錯誤次數過多。請幾分鐘後再試。"
+- id: hoa.launcher.unknown_request
+  enUS: Unknown request.
+  zhCN: 未知的请求。
+  zhTW: "未知的請求。"
+- id: hoa.launcher.up_to_date
+  enUS: up to date
+  zhCN: 已是最新
+  zhTW: "已是最新"
+- id: hoa.launcher.update
+  enUS: UPDATE
+  zhCN: 更新
+  zhTW: "更新"
+- id: hoa.launcher.update_2
+  enUS: Update
+  zhCN: 更新
+  zhTW: "更新"
+- id: hoa.launcher.update_the_database
+  enUS: Update the database
+  zhCN: 更新数据库
+  zhTW: "更新資料庫"
+- id: hoa.launcher.updated_to_0
+  enUS: updated to {0}
+  zhCN: 已更新到 {0}
+  zhTW: "已更新到 {0}"
+- id: hoa.launcher.updating
+  enUS: Updating…
+  zhCN: 正在更新…
+  zhTW: "正在更新…"
+- id: hoa.launcher.updating_the_database
+  enUS: Updating the database
+  zhCN: 正在更新数据库
+  zhTW: "正在更新資料庫"
+- id: hoa.launcher.updating_the_launcher
+  enUS: Updating the launcher
+  zhCN: 正在更新启动器
+  zhTW: "正在更新啟動器"
+- id: hoa.launcher.updating_to_0
+  enUS: Updating to {0}
+  zhCN: 正在更新到 {0}
+  zhTW: "正在更新到 {0}"
+- id: hoa.launcher.use_report_a_bug_to_save_your_logs_and_attach_them_to_your_b
+  enUS: Use Report a bug to save your logs and attach them to your bug report.
+  zhCN: 请使用“报告问题”保存日志，并把日志附在你的问题反馈中。
+  zhTW: "請使用“報告問題”儲存日誌，並把日誌附在你的問題反饋中。"
+- id: hoa.launcher.version_mismatch_that_game_runs_a_different_version_of_horde
+  enUS: 'Version mismatch: that game runs a different version of Hordes of Azeroth.'
+  zhCN: 版本不匹配：该房间运行的是不同版本的艾泽拉斯之潮。
+  zhTW: "版本不匹配：該房間執行的是不同版本的艾澤拉斯之潮。"
+- id: hoa.launcher.windows_itself_system
+  enUS: Windows itself (System)
+  zhCN: Windows 系统本身（System）
+  zhTW: "Windows 系統本身（System）"
+- id: hoa.launcher.yes
+  enUS: 'Yes'
+  zhCN: 是
+  zhTW: "是"
+- id: hoa.launcher.you_already_have_a_pending_join_request
+  enUS: You already have a pending join request.
+  zhCN: 你已有一个待处理的加入请求。
+  zhTW: "你已有一個待處理的加入請求。"
+- id: hoa.launcher.you_can_change_these_settings_any_time_from_the_menu_next_to
+  enUS: You can change these settings any time from the ••• menu next to Play, even while it's building. The new setting applies from the next chunk of the build onwards.
+  zhCN: 你可以随时在“开始游戏”旁边的 ••• 菜单中更改这些设置，生成过程中也可以。新设置会从下一批区域开始生效。
+  zhTW: "你可以隨時在“開始遊戲”旁邊的 ••• 選單中更改這些設定，生成過程中也可以。新設定會從下一批區域開始生效。"
+- id: hoa.launcher.you_re_already_hosting_a_game
+  enUS: You're already hosting a game.
+  zhCN: 你已经创建了一个房间。
+  zhTW: "你已經建立了一個房間。"
+- id: hoa.launcher.you_were_removed_from_the_party
+  enUS: You were removed from the party.
+  zhCN: 你已被移出队伍。
+  zhTW: "你已被移出隊伍。"
+- id: hoa.launcher.your_characters_and_unlocks_are_backed_up_first_and_stay_as_
+  enUS: Your characters and unlocks are backed up first and stay as they are. You can close the launcher and come back; it carries on where it stopped.
+  zhCN: 你的角色和已解锁内容会先备份，并保持原样。你可以关闭启动器，之后再回来，它会从中断的地方继续。
+  zhTW: "你的角色和已解鎖內容會先備份，並保持原樣。你可以關閉啟動器，之後再回來，它會從中斷的地方繼續。"
+- id: hoa.launcher.your_characters_and_unlocks_stay
+  enUS: your characters and unlocks stay
+  zhCN: 你的角色和已解锁内容会保留
+  zhTW: "你的角色和已解鎖內容會保留"
+- id: hoa.launcher.your_crash_report_was_sent_reference_0_put_this_reference_in
+  enUS: 'Your crash report was sent. Reference: {0}
+
+
+    Put this reference in your bug report on GitHub or Discord.'
+  zhCN: '崩溃报告已发送。参考编号：{0}
+
+
+    请把这个编号写进你在 GitHub 或 Discord 上提交的问题反馈中。'
+  zhTW: "崩潰報告已傳送。參考編號：{0}\n\n請把這個編號寫進你在 GitHub 或 Discord 上提交的問題反饋中。"
+- id: hoa.launcher.your_lobby_expired_host_again_to_list_it
+  enUS: Your lobby expired. Host again to list it.
+  zhCN: 你的房间已过期。请重新创建房间，使其重新出现在房间列表中。
+  zhTW: "你的房間已過期。請重新建立房間，使其重新出現在房間列表中。"
+- id: hoa.launcher.your_logs_were_sent_reference_0_put_this_reference_in_your_b
+  enUS: 'Your logs were sent. Reference: {0}
+
+
+    Put this reference in your bug report on GitHub or Discord.'
+  zhCN: '日志已发送。参考编号：{0}
+
+
+    请把这个编号写进你在 GitHub 或 Discord 上提交的问题反馈中。'
+  zhTW: "日誌已傳送。參考編號：{0}\n\n請把這個編號寫進你在 GitHub 或 Discord 上提交的問題反饋中。"
+- id: hoa.launcher.your_party_already_has_this_class_join_with_a_character_of_a
+  enUS: Your party already has this class. Join with a character of another class.
+  zhCN: 你的队伍中已有这个职业。请换用其他职业的角色加入。
+  zhTW: "你的隊伍中已有這個職業。請換用其他職業的角色加入。"
+- id: hoa.launcher.windows_didn_t_let_the_launcher_restart_itself
+  enUS: Windows didn't let the launcher restart itself. Close the launcher and open it again to finish the update.
+  zhCN: Windows 不允许启动器自行重启。请关闭启动器后重新打开，以完成更新。
+  zhTW: "Windows 不允許啟動器自行重新啟動。請關閉啟動器後重新開啟，以完成更新。"
+- id: hoa.launcher.no_data_arrived_for_0_0_seconds
+  enUS: 'No data arrived for {0:0} seconds'
+  zhCN: '{0:0} 秒内没有收到数据'
+  zhTW: '{0:0} 秒內沒有收到資料'
+- id: hoa.launcher.couldn_t_write_0_1
+  enUS: "Couldn't write {0} ({1})."
+  zhCN: 无法写入 {0}（{1}）。
+  zhTW: "無法寫入 {0}（{1}）。"
+- id: hoa.launcher.the_partly_downloaded_file_didn_t_match_and_was_started_over
+  enUS: "The partly downloaded file didn't match and was started over"
+  zhCN: 下载了一部分的文件校验不匹配，已重新开始下载
+  zhTW: "下載了一部分的檔案校驗不匹配，已重新開始下載"

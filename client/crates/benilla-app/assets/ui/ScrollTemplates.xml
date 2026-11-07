@@ -1,0 +1,239 @@
+<Ui>
+    <!--
+        Benilla's scroll parts: a `Slider` bar with its arrow helpers, an optional trough, and a
+        real-scroll kit that pans a `<ScrollFrame>` child whose height is known only after layout.
+        Faux lists use the stock `FauxScrollFrameTemplate`; this file declares only `Benilla` names.
+        The bar template carries the real-scroll OnValueChanged itself, as the reference's
+        `UIPanelScrollBarTemplate` does (UIPanelTemplates.xml:156-158); an instance adds nothing.
+    -->
+    <Script><![CDATA[
+        -- One valueStep per step, where the reference's arrows and wheel move half the bar
+        -- (UIPanelTemplates.xml:137/149, UIPanelTemplates.lua:150-157).
+        -- Soundless: the reference plays UChatScrollButton on an arrow click, never on the wheel.
+        function BenillaScrollBar_Step(scrollBar, dir)
+            local step = scrollBar:GetValueStep()
+            if step <= 0 then step = 1 end
+            scrollBar:SetValue(scrollBar:GetValue() + dir * step)
+        end
+
+        -- Greys each arrow at its end of the range (reference: ScrollFrame_OnScrollRangeChanged).
+        function BenillaScrollBar_UpdateArrows(scrollBar)
+            local minV, maxV = scrollBar:GetMinMaxValues()
+            local val = scrollBar:GetValue()
+            local up = getglobal(scrollBar:GetName() .. "ScrollUpButton")
+            local down = getglobal(scrollBar:GetName() .. "ScrollDownButton")
+            if val <= minV then up:Disable() else up:Enable() end
+            if val >= maxV then down:Disable() else down:Enable() end
+        end
+
+        -- ReputationFrame's hang, 8 left, 21 above, 20 below (ReputationFrame.xml:573-599 against
+        -- UIPanelTemplates.xml:166-181). Lazy: the bar does not exist at the trough's OnLoad.
+        function BenillaScrollTrough_Seat(trough, scrollBar)
+            if trough.seated then return end
+            trough.seated = true
+            trough:ClearAllPoints()
+            trough:SetPoint("TOPLEFT", scrollBar, "TOPLEFT", -8, 21)
+            trough:SetPoint("BOTTOMRIGHT", scrollBar, "BOTTOMRIGHT", 7, -20)
+        end
+
+        -- Show and hide a bar only through here, so its `<barname>Trough` follows.
+        function BenillaScrollBar_SetShown(scrollBar, shown)
+            local trough = getglobal(scrollBar:GetName() .. "Trough")
+            if trough then BenillaScrollTrough_Seat(trough, scrollBar) end
+            if shown then
+                scrollBar:Show()
+                if trough then trough:Show() end
+            else
+                scrollBar:Hide()
+                if trough then trough:Hide() end
+            end
+        end
+
+        -- For a stock `FauxScrollFrameTemplate` frame; call after `FauxScrollFrame_Update`.
+        function BenillaScrollTrough_Follow(scrollFrameName)
+            local sf = getglobal(scrollFrameName)
+            if not sf then return end
+            local bar = getglobal(scrollFrameName .. "ScrollBar")
+            if not bar then return end
+            local trough = getglobal(bar:GetName() .. "Trough")
+            if not trough then return end
+            BenillaScrollTrough_Seat(trough, bar)
+            if sf:IsShown() then trough:Show() else trough:Hide() end
+        end
+
+        -- One row per wheel notch (+1 up), from the owner window's OnMouseWheel; the reference's
+        -- `ScrollFrameTemplate_OnMouseWheel` moves half the bar.
+        function BenillaFauxScrollFrame_OnMouseWheel(frame, delta)
+            local scrollBar = getglobal(frame:GetName() .. "ScrollBar")
+            BenillaScrollBar_Step(scrollBar, -delta)
+        end
+
+        -- ══════════════════════════ The real-scroll kit ══════════════════════════════════════════
+        -- Shaped on UIPanelTemplates.xml:166-211: the bar is the `Slider` child `$parentBar`.
+        BENILLA_SCROLL_STEP = 20   -- px per arrow click or wheel notch
+        BENILLA_SCROLL_PAD = 20    -- px of room below the child's last element
+
+        -- The loop back through SyncBar ends in one hop: Slider:SetValue ignores an equal value.
+        function BenillaScrollBar_OnValueChanged(bar, value)
+            bar:GetParent():SetVerticalScroll(value)
+            BenillaScrollBar_UpdateArrows(bar)
+        end
+
+        -- The range the bar follows: the engine's, the reference's union of the child's whole
+        -- subtree, unless the frame measures its own content (`sf.contentRange`).
+        function BenillaScroll_Range(sf)
+            if sf.contentRange then return sf.contentRange(sf) end
+            return sf:GetVerticalScrollRange()
+        end
+
+        -- Hides the bar when the content fits, a range under a whole unit: the reference's
+        -- `ScrollFrame_OnScrollRangeChanged` tests `floor(scrollrange) == 0`
+        -- (UIPanelTemplates.lua:265).
+        function BenillaScroll_SyncBar(sf)
+            local bar = getglobal(sf:GetName() .. "Bar")
+            if not bar then return end
+            local range = BenillaScroll_Range(sf)
+            bar:SetValueStep(BENILLA_SCROLL_STEP)
+            bar:SetMinMaxValues(0, range)
+            bar:SetValue(sf:GetVerticalScroll())
+            BenillaScrollBar_UpdateArrows(bar)
+            BenillaScrollBar_SetShown(bar, floor(range) ~= 0)
+        end
+
+        -- Clamped here: SetVerticalScroll stores any value, as the reference's does.
+        function BenillaScroll_Step(sf, delta)
+            local target = sf:GetVerticalScroll() + delta
+            local range = BenillaScroll_Range(sf)
+            if target > range then target = range end
+            if target < 0 then target = 0 end
+            sf:SetVerticalScroll(target)
+            BenillaScroll_SyncBar(sf)
+        end
+
+        -- The wheel's delta is +1 per notch up, and up scrolls toward the top.
+        function BenillaScroll_OnMouseWheel(sf, delta)
+            BenillaScroll_Step(sf, -delta * BENILLA_SCROLL_STEP)
+        end
+
+        -- Nil if hidden, a blank FontString, or not laid out yet.
+        function BenillaScroll_WidgetBottom(w)
+            if not w then return nil end
+            if w.IsShown then
+                if not w:IsShown() then return nil end
+            elseif w.GetText then
+                local t = w:GetText()
+                if not t or t == "" then return nil end
+            end
+            return w:GetBottom()
+        end
+
+        -- Rects resolve after Lua runs, so owners re-run this from OnUpdate; it writes only on a
+        -- real change, since SetHeight invalidates layout.
+        function BenillaScroll_ResizeChild(scrollName, widgets)
+            local sf = getglobal(scrollName)
+            -- Not a derived name: the reference pairs `<X>ScrollFrame` with `<X>ScrollChildFrame`.
+            local child = sf:GetScrollChild()
+            if not child then return false end
+            local top = child:GetTop()
+            if not top then return false end
+            local bottom = nil
+            for i = 1, table.getn(widgets) do
+                local b = BenillaScroll_WidgetBottom(getglobal(widgets[i]))
+                if b and (not bottom or b < bottom) then bottom = b end
+            end
+            local height = 1
+            if bottom then height = (top - bottom) + BENILLA_SCROLL_PAD end
+            if height < 1 then height = 1 end
+            if math.abs(child:GetHeight() - height) < 1 then return false end
+            child:SetHeight(height)
+            sf:UpdateScrollChildRect()
+            return true
+        end
+    ]]></Script>
+
+    <!-- The stock scrollbar art cropped to its centred 16px, as `UIPanelScrollBarButton` does. -->
+    <Slider name="BenillaScrollBarTemplate" virtual="true">
+        <Size><AbsDimension x="16" y="0"/></Size>
+        <Frames>
+            <Button name="$parentScrollUpButton">
+                <Size><AbsDimension x="16" y="16"/></Size>
+                <Anchors><Anchor point="BOTTOM" relativePoint="TOP"/></Anchors>
+                <NormalTexture file="Interface\Buttons\UI-ScrollBar-ScrollUpButton-Up"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></NormalTexture>
+                <PushedTexture file="Interface\Buttons\UI-ScrollBar-ScrollUpButton-Down"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></PushedTexture>
+                <DisabledTexture file="Interface\Buttons\UI-ScrollBar-ScrollUpButton-Disabled"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></DisabledTexture>
+                <HighlightTexture file="Interface\Buttons\UI-ScrollBar-ScrollUpButton-Highlight" alphaMode="ADD"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></HighlightTexture>
+                <Scripts><OnClick>BenillaScrollBar_Step(this:GetParent(), -1); PlaySound("UChatScrollButton")</OnClick></Scripts>
+            </Button>
+            <Button name="$parentScrollDownButton">
+                <Size><AbsDimension x="16" y="16"/></Size>
+                <Anchors><Anchor point="TOP" relativePoint="BOTTOM"/></Anchors>
+                <NormalTexture file="Interface\Buttons\UI-ScrollBar-ScrollDownButton-Up"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></NormalTexture>
+                <PushedTexture file="Interface\Buttons\UI-ScrollBar-ScrollDownButton-Down"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></PushedTexture>
+                <DisabledTexture file="Interface\Buttons\UI-ScrollBar-ScrollDownButton-Disabled"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></DisabledTexture>
+                <HighlightTexture file="Interface\Buttons\UI-ScrollBar-ScrollDownButton-Highlight" alphaMode="ADD"><TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/></HighlightTexture>
+                <Scripts><OnClick>BenillaScrollBar_Step(this:GetParent(), 1); PlaySound("UChatScrollButton")</OnClick></Scripts>
+            </Button>
+        </Frames>
+        <Scripts>
+            <OnValueChanged>BenillaScrollBar_OnValueChanged(this, arg1)</OnValueChanged>
+        </Scripts>
+        <ThumbTexture name="$parentThumbTexture" file="Interface\Buttons\UI-ScrollBar-Knob">
+            <Size><AbsDimension x="16" y="16"/></Size>
+            <TexCoords left="0.25" right="0.75" top="0.25" bottom="0.75"/>
+        </ThumbTexture>
+    </Slider>
+
+    <!--
+        A bar's trough, drawn per window in 1.12. Declare it before its bar, named
+        `<barname>Trough`, with no anchors. `UI-Character-ScrollBar` holds two 31-wide pieces,
+        the left capped at the top, the right at the bottom.
+        Deviation: a three-slice where the reference overlaps two quads, since two quads reach
+        only 362 units and a page here is 563 tall.
+        The fill is ItemTextFrame's 0.8-alpha black; fill and art are in separate layers because
+        the client orders overlapping quads within one layer by texture handle.
+    -->
+    <Frame name="BenillaScrollTroughTemplate" virtual="true" hidden="true">
+        <Size><AbsDimension x="31"/></Size>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <!-- The channel interior, inset 6 from each edge of the 31-wide piece. -->
+                <Texture name="$parentFill">
+                    <Anchors>
+                        <Anchor point="TOPLEFT"><Offset><AbsDimension x="6" y="0"/></Offset></Anchor>
+                        <Anchor point="BOTTOMRIGHT"><Offset><AbsDimension x="-6" y="0"/></Offset></Anchor>
+                    </Anchors>
+                    <Color r="0" g="0" b="0" a="0.8"/>
+                </Texture>
+            </Layer>
+            <Layer level="BORDER">
+                <!-- Left column, rows 0..22: the cap, the up-arrow socket and a crossbar. -->
+                <Texture name="$parentTop" file="Interface\PaperDollInfoFrame\UI-Character-ScrollBar">
+                    <Size><AbsDimension y="23"/></Size>
+                    <Anchors>
+                        <Anchor point="TOPLEFT"/>
+                        <Anchor point="TOPRIGHT"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.484375" top="0" bottom="0.08984375"/>
+                </Texture>
+                <!-- Right column, ending on v 0.421875 as ReputationFrame's does. -->
+                <Texture name="$parentBottom" file="Interface\PaperDollInfoFrame\UI-Character-ScrollBar">
+                    <Size><AbsDimension y="26"/></Size>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT"/>
+                        <Anchor point="BOTTOMRIGHT"/>
+                    </Anchors>
+                    <TexCoords left="0.515625" right="1.0" top="0.3203125" bottom="0.421875"/>
+                </Texture>
+                <!-- Declared last: an anchor to a later sibling falls back to the parent. -->
+                <Texture name="$parentMiddle" file="Interface\PaperDollInfoFrame\UI-Character-ScrollBar">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentTop" relativePoint="BOTTOMLEFT"/>
+                        <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottom" relativePoint="TOPRIGHT"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.484375" top="0.1171875" bottom="0.2734375"/>
+                </Texture>
+            </Layer>
+        </Layers>
+    </Frame>
+
+</Ui>

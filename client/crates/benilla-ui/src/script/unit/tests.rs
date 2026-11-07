@@ -1,0 +1,2324 @@
+//! The `Unit*` binding tests.
+
+use crate::script::{PartyState, PlayerRecord, UiScript, UnitGuids, UnitState};
+
+fn player() -> UnitState {
+    UnitState {
+        exists: true,
+        name: Some("Benilla".into()),
+        health: 72,
+        max_health: 100,
+        level: 12,
+        power_type: 1, // rage
+        power: 35,
+        max_power: 100,
+        dead: false,
+        reaction: 0,
+        race: Some("Night Elf".into()),
+        race_file: Some("NightElf".into()),
+        class: Some("Warrior".into()),
+        class_file: Some("WARRIOR".into()),
+        sex: 3, // female
+        ..Default::default()
+    }
+}
+
+/// `0x6e6d90`'s order: the `Usage:` check, the not-targeting no-op, the token check, the queue.
+#[test]
+fn spell_target_unit_checks_in_the_references_order() {
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    let usage = |s: &mut UiScript, call: &str| {
+        let err = s.run(call).expect_err(call).to_string();
+        assert!(
+            err.contains(r#"Usage: SpellTargetUnit("unit")"#),
+            "{call}: {err}"
+        );
+    };
+
+    // Not targeting: the argument is still type-checked, then nothing, not even the token check.
+    usage(&mut s, "SpellTargetUnit({})");
+    usage(&mut s, "SpellTargetUnit()");
+    s.run(r#"SpellTargetUnit("not-a-unit") SpellTargetUnit("player")"#)
+        .expect("a bad token is no error while not targeting");
+    assert!(s.take_spell_target_unit().is_empty(), "and nothing queues");
+
+    // Targeting: an unknown token raises, a known one queues, resolved or not.
+    s.set_spell_targeting(true);
+    usage(&mut s, "SpellTargetUnit(nil)");
+    let err = s
+        .run(r#"SpellTargetUnit("not-a-unit")"#)
+        .expect_err("an unknown token while targeting")
+        .to_string();
+    assert!(err.contains("Unknown unit name: not-a-unit"), "{err}");
+    s.run(r#"SpellTargetUnit("player") SpellTargetUnit("party1")"#)
+        .unwrap();
+    assert_eq!(
+        s.take_spell_target_unit(),
+        vec!["player".to_string(), "party1".to_string()]
+    );
+}
+
+#[test]
+fn spell_can_target_unit_answers_per_validated_token() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit_guids(&UnitGuids {
+        player: 0x10,
+        party: [0x21, 0, 0, 0],
+        target: 0x30,
+        ..Default::default()
+    });
+    s.set_spell_targetable_units([0x10, 0x21]);
+    assert!(s
+        .eval::<bool>(r#"return SpellCanTargetUnit("player") == 1"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return SpellCanTargetUnit("PARTY1") == 1"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return SpellCanTargetUnit("target") == nil"#)
+        .unwrap());
+}
+
+#[test]
+fn unit_is_player_reads_the_snapshot() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            is_player: false,
+            ..Default::default()
+        }),
+    );
+    assert!(s
+        .eval::<bool>(r#"return UnitIsPlayer("target") == nil"#)
+        .unwrap());
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            is_player: true,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsPlayer("target")"#).unwrap(),
+        1
+    );
+}
+
+#[test]
+fn unit_level_reads_minus_one_when_the_level_cant_be_told() {
+    use crate::script::PlayerReqState;
+    let mut s = UiScript::new().unwrap();
+    s.set_player_req_state(PlayerReqState {
+        level: 3,
+        ..Default::default()
+    });
+    // Hostile (2) and 10 levels above the player: -1, the target frame's skull.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 13,
+            reaction: 2,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), -1);
+    // 9 above: the level.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 12,
+            reaction: 2,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), 12);
+    // Neutral (4) at 10 above: the level, as the gate is hostile-only.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 13,
+            reaction: 4,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), 13);
+    // A world boss (rank 3) at any gap: -1.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 5,
+            reaction: 4,
+            rank: 3,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), -1);
+    // A hostile player far above reads -1 too: the gate has no player test (`0x518057`-`0x51807b`).
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 60,
+            reaction: 2,
+            is_player: true,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), -1);
+    // An unstreamed level 0 answers 0, not -1: `0x517fc0` pushes the raw field.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 0,
+            reaction: 2,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), 0);
+    // But the rank test runs before the level's (`0x51807d`-`0x518087`, then `0x518092`): a world
+    // boss at level 0 reads -1.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            level: 0,
+            reaction: 4,
+            rank: 3,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), -1);
+}
+
+#[test]
+fn corpse_and_green_range_bindings() {
+    use crate::script::PlayerReqState;
+    let mut s = UiScript::new().unwrap();
+    // `UnitIsCorpse` is an object-type check (`0x5161c0`): a dead unit is not a corpse.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            dead: true,
+            ..Default::default()
+        }),
+    );
+    assert!(s
+        .eval::<bool>(r#"return UnitIsCorpse("target") == nil"#)
+        .unwrap());
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            corpse_object: true,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsCorpse("target")"#).unwrap(),
+        1
+    );
+    // `GetQuestGreenRange`: the grey band for the player's level, 12 past the table.
+    for (pl, want) in [(3u32, 4i64), (46, 9), (120, 12)] {
+        s.set_player_req_state(PlayerReqState {
+            level: pl,
+            ..Default::default()
+        });
+        assert_eq!(
+            s.eval::<i64>("return GetQuestGreenRange()").unwrap(),
+            want,
+            "green range at level {pl}"
+        );
+    }
+}
+
+/// `UnitIsTrivial` (`0x519d70`) over `0x5f0700`: false for a player, else true when the player
+/// out-levels the unit by more than the grey band (`0x80ae98`, indexed by player level / 5, 12
+/// past the table), strictly; nil for a missing unit.
+#[test]
+fn unit_is_trivial_is_the_grey_test_and_never_a_player() {
+    use crate::script::PlayerReqState;
+    let mut s = UiScript::new().unwrap();
+    for call in ["UnitIsTrivial()", "UnitIsTrivial(nil)", "UnitIsTrivial({})"] {
+        let err = s.run(call).expect_err(call).to_string();
+        assert!(
+            err.contains(r#"Usage: UnitIsTrivial("unit")"#),
+            "{call}: {err}"
+        );
+    }
+    let err = s
+        .run(r#"UnitIsTrivial("bogus")"#)
+        .expect_err("an unknown token")
+        .to_string();
+    assert!(err.contains("Unknown unit name: bogus"), "{err}");
+    // No unit: nil.
+    assert!(s
+        .eval::<bool>(r#"return UnitIsTrivial("target") == nil"#)
+        .unwrap());
+
+    let at = |s: &mut UiScript, level: u32, is_player: bool| {
+        s.set_unit(
+            "target",
+            Some(UnitState {
+                exists: true,
+                has_object: true,
+                level,
+                is_player,
+                ..Default::default()
+            }),
+        );
+        s.eval::<Option<i64>>(r#"return UnitIsTrivial("target")"#)
+            .unwrap()
+    };
+    // Player level 10 (index 2, band 5): 4 below is green, 5 below is still green (the gap must
+    // exceed the band), 6 below is grey.
+    s.set_player_req_state(PlayerReqState {
+        level: 10,
+        ..Default::default()
+    });
+    assert_eq!(at(&mut s, 6, false), None, "a gap of 4");
+    assert_eq!(at(&mut s, 5, false), None, "a gap equal to the band");
+    assert_eq!(at(&mut s, 4, false), Some(1), "a gap past the band");
+    // With no object, `0x515940` finds none: nil, however low (`0x519da8`).
+    s.set_unit(
+        "party1",
+        Some(UnitState {
+            exists: true,
+            level: 1,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<Option<i64>>(r#"return UnitIsTrivial("party1")"#)
+            .unwrap(),
+        None,
+        "no object"
+    );
+    assert_eq!(at(&mut s, 12, false), None, "a unit above the player");
+    // A player never is, however low.
+    assert_eq!(at(&mut s, 1, true), None, "a low player");
+    // Past the table's end the band is 12: level 120, gap 12 is green, 13 grey.
+    s.set_player_req_state(PlayerReqState {
+        level: 120,
+        ..Default::default()
+    });
+    assert_eq!(at(&mut s, 108, false), None);
+    assert_eq!(at(&mut s, 107, false), Some(1));
+    // Level 40 is index 8, whose band is 8.
+    s.set_player_req_state(PlayerReqState {
+        level: 40,
+        ..Default::default()
+    });
+    assert_eq!(at(&mut s, 32, false), None);
+    assert_eq!(at(&mut s, 31, false), Some(1));
+    // No player (level 0): nothing is trivial.
+    s.set_player_req_state(PlayerReqState::default());
+    assert_eq!(at(&mut s, 0, false), None);
+}
+
+#[test]
+fn target_unit_queues_the_token_for_the_app_to_resolve() {
+    use crate::script::SelectionRequest;
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    assert!(s.take_selection_requests().is_empty());
+    s.eval::<()>(r#"TargetUnit("player")"#).unwrap();
+    s.eval::<()>(r#"TargetUnit("target")"#).unwrap();
+    assert_eq!(
+        s.take_selection_requests(),
+        vec![
+            SelectionRequest::Unit("player".into()),
+            SelectionRequest::Unit("target".into()),
+        ]
+    );
+    assert!(s.take_selection_requests().is_empty());
+}
+
+/// `TargetUnit` (`0x4899d0`) raises its usage for an argument `lua_isstring` refuses (`0x4899f1`,
+/// `0x4899f8` → `0x489a25`, the string at `0x842644`), nil and no argument included, and the
+/// resolver `0x515970` (`0x489a08`) raises `Unknown unit name` for a token it does not know, both
+/// before the select (`0x489a16`). A number passes `lua_isstring` and is read as its string.
+#[test]
+fn target_unit_raises_for_a_non_string_or_an_unknown_token() {
+    use crate::script::SelectionRequest;
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    for call in ["TargetUnit()", "TargetUnit(nil)", "TargetUnit({})"] {
+        let err = s.run(call).expect_err(call).to_string();
+        assert!(
+            err.contains(r#"Usage: TargetUnit("unit")"#),
+            "{call}: {err}"
+        );
+    }
+    let err = s
+        .run(r#"TargetUnit("bogus")"#)
+        .expect_err("an unknown token")
+        .to_string();
+    assert!(err.contains("Unknown unit name: bogus"), "{err}");
+    assert!(s.take_selection_requests().is_empty(), "nothing selects");
+    s.run(r#"TargetUnit("")"#)
+        .expect("an empty token names nobody");
+    assert_eq!(
+        s.take_selection_requests(),
+        vec![SelectionRequest::Unit(String::new())]
+    );
+}
+
+/// A nil `AssistUnit` argument raises its usage (`0x489c22`) and queues nothing.
+#[test]
+fn the_selection_queue_carries_all_three_verbs_in_call_order() {
+    use crate::script::SelectionRequest;
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    s.eval::<()>(r#"TargetUnit("party1")"#).unwrap();
+    s.eval::<()>(r#"AssistUnit("target")"#).unwrap();
+    assert!(s.eval::<()>(r#"AssistUnit(nil)"#).is_err());
+    s.eval::<()>("TargetLastEnemy()").unwrap();
+    assert_eq!(
+        s.take_selection_requests(),
+        vec![
+            SelectionRequest::Unit("party1".into()),
+            SelectionRequest::Assist("target".into()),
+            SelectionRequest::LastEnemy,
+        ]
+    );
+    assert!(s.take_selection_requests().is_empty());
+}
+
+/// The reverse flag as `0x6f1c10` reads it (default 0): absent, nil, 0 and `"0"` are forward, 1,
+/// `true` and `"1"` reverse (`Bindings.xml:458`). The four shims differ only in the mode.
+#[test]
+fn target_nearest_queues_its_mode_and_reverse_flag() {
+    use crate::script::NearestMode::{Enemy, Friend, PartyMember, RaidMember};
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    assert!(s.take_target_nearest_requests().is_empty());
+    s.eval::<()>("TargetNearestFriend()").unwrap();
+    s.eval::<()>("TargetNearestFriend(1)").unwrap();
+    s.eval::<()>("TargetNearestFriend(true)").unwrap();
+    s.eval::<()>("TargetNearestFriend(0)").unwrap();
+    s.eval::<()>("TargetNearestFriend(nil)").unwrap();
+    s.eval::<()>(r#"TargetNearestFriend("0")"#).unwrap();
+    s.eval::<()>(r#"TargetNearestEnemy("1")"#).unwrap();
+    s.eval::<()>("TargetNearestPartyMember()").unwrap();
+    s.eval::<()>("TargetNearestRaidMember(1)").unwrap();
+    assert_eq!(
+        s.take_target_nearest_requests(),
+        vec![
+            (Friend, false),
+            (Friend, true),
+            (Friend, true),
+            (Friend, false),
+            (Friend, false),
+            (Friend, false),
+            (Enemy, true),
+            (PartyMember, false),
+            (RaidMember, true),
+        ]
+    );
+    assert!(s.take_target_nearest_requests().is_empty());
+}
+
+#[test]
+fn set_unit_is_read_by_the_bindings() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+
+    assert_eq!(s.eval::<i64>(r#"return UnitExists("player")"#).unwrap(), 1);
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Benilla"
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitHealth("player")"#).unwrap(), 72);
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitHealthMax("player")"#).unwrap(),
+        100
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("player")"#).unwrap(), 12);
+    assert!(s
+        .eval::<bool>(r#"return UnitIsDead("player") == nil"#)
+        .unwrap());
+}
+
+#[test]
+fn absent_token_reports_not_existing_with_zero_numbers() {
+    let s = UiScript::new().unwrap();
+    assert!(s
+        .eval::<bool>(r#"return UnitExists("target") == nil"#)
+        .unwrap());
+    assert_eq!(s.eval::<i64>(r#"return UnitHealth("target")"#).unwrap(), 0);
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitHealthMax("target")"#).unwrap(),
+        0
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("target")"#).unwrap(), 0);
+    assert!(s
+        .eval::<bool>(r#"return UnitName("target") == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return UnitIsDead("target") == nil"#)
+        .unwrap());
+}
+
+#[test]
+fn a_dead_unit_reports_dead_and_zero_health() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            name: None,
+            health: 0,
+            max_health: 3200,
+            level: 30,
+            dead: true,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitExists("target")"#).unwrap(), 1);
+    assert_eq!(s.eval::<i64>(r#"return UnitIsDead("target")"#).unwrap(), 1);
+    assert_eq!(s.eval::<i64>(r#"return UnitHealth("target")"#).unwrap(), 0);
+    // A resolved unit with no name yet reads `UNKNOWNOBJECT`, never nil; a bare VM has no
+    // GlobalStrings, so this is the literal fallback.
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("target")"#).unwrap(),
+        "Unknown Being"
+    );
+}
+
+/// `UnitName` (`0x517020`) is nil only for a zero guid or an empty `"player"` record, else a
+/// string: the name, or `UNKNOWNOBJECT` while it is in flight (`0x609324`). `PetStable.lua:129`
+/// concatenates it on `UNIT_PET`, before a called pet's name arrives.
+#[test]
+fn unitname_reads_unknownobject_for_a_resolved_unit_whose_name_is_in_flight() {
+    let mut s = UiScript::new().unwrap();
+    let pending = UnitState {
+        exists: true,
+        has_object: true,
+        name: None,
+        level: 58,
+        guid: 0xF140_0000_0000_0001,
+        ..Default::default()
+    };
+    s.set_unit("pet", Some(pending.clone()));
+
+    // No GlobalStrings: the literal fallback (`0x860fa4`).
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("pet")"#).unwrap(),
+        "Unknown Being"
+    );
+    s.run(r#"UNKNOWNOBJECT = "Unknown""#).unwrap();
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("pet")"#).unwrap(),
+        "Unknown"
+    );
+    // An empty global is the same miss as an absent one.
+    s.run(r#"UNKNOWNOBJECT = """#).unwrap();
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("pet")"#).unwrap(),
+        "Unknown Being"
+    );
+    // Two returns, the realm nil.
+    assert_eq!(
+        s.eval::<i64>(r#"local t = {UnitName("pet")}; return table.getn(t)"#)
+            .unwrap(),
+        1,
+        "a trailing nil is not counted by getn"
+    );
+    assert!(s
+        .eval::<bool>(r#"local _, realm = UnitName("pet"); return realm == nil"#)
+        .unwrap());
+
+    let mut named = pending.clone();
+    named.name = Some("Snarl".into());
+    s.set_unit("pet", Some(named));
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("pet")"#).unwrap(),
+        "Snarl"
+    );
+
+    // `"player"` reads the record, never the snapshot: an empty record is nil.
+    s.set_unit("player", Some(pending));
+    assert!(s
+        .eval::<bool>(r#"return UnitName("player") == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return UnitName("PLAYER") == nil"#)
+        .unwrap());
+
+    // A token that resolves nothing is guid 0: nil.
+    assert!(s
+        .eval::<bool>(r#"return UnitName("target") == nil"#)
+        .unwrap());
+}
+
+#[test]
+fn power_bindings_read_the_active_type() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player())); // rage 35/100
+                                          // One value: `0x517940` pushes a number, never a string.
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitPowerType("player")"#).unwrap(),
+        1
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitMana("player")"#).unwrap(), 35);
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitManaMax("player")"#).unwrap(),
+        100
+    );
+    // `UnitMana` reports the active power, here rage, as `UnitFrame.lua:218` reads it for every
+    // type; `UnitPower` and `UnitPowerMax` are not 1.12 verbs.
+    assert!(
+        s.eval::<bool>("return UnitPower == nil and UnitPowerMax == nil")
+            .unwrap(),
+        "UnitPower and UnitPowerMax are not 1.12 globals"
+    );
+    // An absent unit is the number 0, never nil: `UnitFrame.lua:122` indexes `ManaBarColor` by it.
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitPowerType("target")"#).unwrap(),
+        0
+    );
+}
+
+#[test]
+fn get_money_reads_the_pushed_purse() {
+    let mut s = UiScript::new().unwrap();
+    assert_eq!(s.eval::<i64>("return GetMoney()").unwrap(), 0);
+    s.set_money(123_456);
+    assert_eq!(s.eval::<i64>("return GetMoney()").unwrap(), 123_456);
+}
+
+#[test]
+fn unit_xp_reads_the_player_globals() {
+    let mut s = UiScript::new().unwrap();
+    assert_eq!(s.eval::<i64>(r#"return UnitXP("player")"#).unwrap(), 0);
+    assert_eq!(s.eval::<i64>(r#"return UnitXPMax("player")"#).unwrap(), 0);
+    s.set_player_xp(4200, 6000);
+    assert_eq!(s.eval::<i64>(r#"return UnitXP("player")"#).unwrap(), 4200);
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitXPMax("player")"#).unwrap(),
+        6000
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitXP("target")"#).unwrap(), 0);
+    assert_eq!(s.eval::<i64>(r#"return UnitXPMax("target")"#).unwrap(), 0);
+}
+
+/// `UnitXP` and `UnitXPMax` resolve their token (`0x51738e`) and answer for the active player's
+/// object by whatever token names it (`0x5173ad`-`0x5173c9`): `"target"` on yourself and
+/// `"PLAYER"` read the experience, another unit 0, and a token the resolver does not know raises
+/// (`0x515c14`).
+#[test]
+fn unit_xp_answers_any_token_naming_the_active_player() {
+    const ME: u64 = 0x10;
+    const OTHER: u64 = 0x20;
+    let mut s = UiScript::new().unwrap();
+    s.set_player_xp(4200, 6000);
+    let seat = |s: &mut UiScript, target: u64| {
+        s.set_unit_guids(&UnitGuids {
+            player: ME,
+            target,
+            held: [(ME, 0), (OTHER, 0)].into_iter().collect(),
+            ..Default::default()
+        });
+    };
+    seat(&mut s, ME);
+    for token in ["target", "PLAYER"] {
+        assert_eq!(
+            s.eval::<(i64, i64)>(&format!("return UnitXP({token:?}), UnitXPMax({token:?})"))
+                .unwrap(),
+            (4200, 6000),
+            "{token}"
+        );
+    }
+    seat(&mut s, OTHER);
+    assert_eq!(
+        s.eval::<(i64, i64)>(r#"return UnitXP("target"), UnitXPMax("target")"#)
+            .unwrap(),
+        (0, 0)
+    );
+    for call in [r#"UnitXP("bogus")"#, r#"UnitXPMax("npctarget")"#] {
+        let err = s.run(call).unwrap_err().to_string();
+        assert!(err.contains("Unknown unit name"), "{call}: {err}");
+    }
+}
+
+#[test]
+fn set_unit_none_removes_the_token() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+    assert_eq!(s.eval::<i64>(r#"return UnitExists("player")"#).unwrap(), 1);
+    s.set_unit("player", None);
+    assert!(s
+        .eval::<bool>(r#"return UnitExists("player") == nil"#)
+        .unwrap());
+    assert_eq!(s.eval::<i64>(r#"return UnitHealth("player")"#).unwrap(), 0);
+}
+
+#[test]
+fn party_frame_predicates_report_1_or_nil() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit(
+        "party1",
+        Some(UnitState {
+            exists: true,
+            is_connected: true,
+            pvp: true,
+            is_pvp_ffa: false,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsConnected("party1")"#)
+            .unwrap(),
+        1
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitIsPVP("party1")"#).unwrap(), 1);
+    assert!(s
+        .eval::<bool>(r#"return UnitIsPVPFreeForAll("party1") == nil"#)
+        .unwrap());
+
+    s.set_unit(
+        "party1",
+        Some(UnitState {
+            exists: true,
+            is_connected: false,
+            pvp: false,
+            is_pvp_ffa: true,
+            ..Default::default()
+        }),
+    );
+    assert!(s
+        .eval::<bool>(r#"return UnitIsConnected("party1") == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return UnitIsPVP("party1") == nil"#)
+        .unwrap());
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsPVPFreeForAll("party1")"#)
+            .unwrap(),
+        1
+    );
+
+    assert!(s
+        .eval::<bool>(r#"return UnitIsConnected("party2") == nil"#)
+        .unwrap());
+}
+
+#[test]
+fn unit_race_class_sex_report_the_snapshot_or_the_absent_shape() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+    assert_eq!(
+        s.eval::<(String, String)>(r#"return UnitRace("player")"#)
+            .unwrap(),
+        ("Night Elf".into(), "NightElf".into())
+    );
+    assert_eq!(
+        s.eval::<(String, String)>(r#"return UnitClass("player")"#)
+            .unwrap(),
+        ("Warrior".into(), "WARRIOR".into())
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitSex("player")"#).unwrap(), 3);
+    // An absent token: `nil, nil` for the pairs, but `UnitSex` answers the number 2 (`0x517f9f`).
+    assert!(s
+        .eval::<bool>(r#"local a, b = UnitRace("target") return a == nil and b == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"local a, b = UnitClass("target") return a == nil and b == nil"#)
+        .unwrap());
+    assert_eq!(s.eval::<i64>(r#"return UnitSex("target")"#).unwrap(), 2);
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            ..Default::default()
+        }),
+    );
+    assert!(s
+        .eval::<bool>(r#"local a, b = UnitRace("target") return a == nil and b == nil"#)
+        .unwrap());
+    // An unstreamed sex byte reads 2 too.
+    assert_eq!(s.eval::<i64>(r#"return UnitSex("target")"#).unwrap(), 2);
+}
+
+/// `UnitFactionGroup` answers (English, localized), or `nil, nil` for a unit with no side.
+#[test]
+fn faction_group_pair_and_the_pvp_toggle() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            faction_group: Some("Horde".into()),
+            ..Default::default()
+        }),
+    );
+    let (english, localized) = s
+        .eval::<(String, String)>(r#"return UnitFactionGroup("target")"#)
+        .unwrap();
+    // With no localized name fed, the second return falls back to the English one, not nil.
+    assert_eq!((english.as_str(), localized.as_str()), ("Horde", "Horde"));
+
+    // A deDE-shaped client: the halves are `InternalName` and `Name0`, and stock builds texture
+    // paths from the English first (`TargetFrame.lua:198`, `BattlefieldFrame.lua:195`).
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            faction_group: Some("Horde".into()),
+            faction_group_localized: Some("Horde-Allianz".into()),
+            ..Default::default()
+        }),
+    );
+    let (english, localized) = s
+        .eval::<(String, String)>(r#"return UnitFactionGroup("target")"#)
+        .unwrap();
+    assert_eq!(
+        (english.as_str(), localized.as_str()),
+        ("Horde", "Horde-Allianz"),
+        "the FIRST return is the English InternalName — a texture path is built from it"
+    );
+
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            faction_group: None,
+            ..Default::default()
+        }),
+    );
+    assert!(s
+        .eval::<bool>(r#"local a, b = UnitFactionGroup("target") return a == nil and b == nil"#)
+        .unwrap());
+    // An absent unit, a recognised token naming nothing, answers the same.
+    assert!(s
+        .eval::<bool>(r#"local a = UnitFactionGroup("party4") return a == nil"#)
+        .unwrap());
+
+    s.keep_calls();
+    assert_eq!(s.take_pvp_toggles(), 0, "nothing queued yet");
+    s.run("TogglePVP() TogglePVP()").unwrap();
+    assert_eq!(
+        s.take_pvp_toggles(),
+        2,
+        "one send per call, never collapsed"
+    );
+    assert_eq!(s.take_pvp_toggles(), 0, "the take empties the kept calls");
+}
+
+/// The word table at `0x850424` by gated rank answers a string for every input: an absent token
+/// reads index 0, "normal", never nil.
+#[test]
+fn unit_classification_reads_the_five_word_table() {
+    let mut s = UiScript::new().unwrap();
+
+    for (rank, word) in [
+        (0, "normal"),
+        (1, "elite"),
+        (2, "rareelite"),
+        (3, "worldboss"),
+        (4, "rare"),
+    ] {
+        s.set_unit(
+            "target",
+            Some(UnitState {
+                exists: true,
+                rank,
+                ..UnitState::default()
+            }),
+        );
+        assert_eq!(
+            s.eval::<String>(r#"return UnitClassification("target")"#)
+                .unwrap(),
+            word,
+            "rank {rank}"
+        );
+    }
+
+    s.set_unit("target", None);
+    assert_eq!(
+        s.eval::<String>(r#"return UnitClassification("target")"#)
+            .unwrap(),
+        "normal",
+        "an absent unit is normal, not nil"
+    );
+    assert_eq!(
+        s.eval::<String>(r#"return UnitClassification()"#).unwrap(),
+        "normal",
+        "a missing token is normal, not nil"
+    );
+}
+
+// ── `UnitAffectingCombat` and `TargetByName` ────────────────────────────────────────────────────
+
+/// Not in combat and no such unit share one nil arm: `0x517e48` and `0x517e5c` both jump to
+/// `0x517e73`.
+#[test]
+fn unit_affecting_combat_is_one_or_nil_and_hides_the_missing_unit() {
+    let mut s = UiScript::new().unwrap();
+    let mut hot = player();
+    hot.in_combat = true;
+    s.set_unit("player", Some(hot));
+    s.set_unit("target", Some(player())); // exists, peaceful
+
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitAffectingCombat("player")"#)
+            .unwrap(),
+        1,
+        "the number 1, never a boolean"
+    );
+    assert!(s
+        .eval::<bool>(r#"return UnitAffectingCombat("target") == nil"#)
+        .unwrap());
+    assert!(
+        s.eval::<bool>(r#"return UnitAffectingCombat("party3") == nil"#)
+            .unwrap(),
+        "an unresolvable token is the SAME nil a peaceful unit gives"
+    );
+    // A number passes the gate (`0x6f3510`) as the token "5", which matches no prefix and raises.
+    assert!(
+        s.run("UnitAffectingCombat(5)").is_err(),
+        "a number is coerced to a token that matches nothing, so it raises"
+    );
+}
+
+/// The usage raise is `luaL_error` (`0x6f4940`), which does not return.
+#[test]
+fn unit_affecting_combat_raises_on_a_bad_argument() {
+    let s = UiScript::new().unwrap();
+    for call in ["UnitAffectingCombat()", "UnitAffectingCombat({})"] {
+        let err = s
+            .eval::<mlua::Value>(&format!("return {call}"))
+            .unwrap_err();
+        assert!(
+            format!("{err}").contains(r#"Usage: UnitAffectingCombat("unit")"#),
+            "{call} must raise the usage line, got {err}"
+        );
+    }
+}
+
+/// `exactMatch`, which the slash command cannot pass, turns off the resolver's
+/// longest-common-prefix tier.
+#[test]
+fn target_by_name_queues_the_name_and_the_exact_flag() {
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    assert!(s.take_target_by_name_requests().is_empty());
+
+    s.run(r#"TargetByName("Rag")"#).unwrap();
+    s.run(r#"TargetByName("Ragnaros", 1)"#).unwrap();
+    s.run(r#"TargetByName("Ragnaros", 0)"#).unwrap();
+    s.run(r#"TargetByName("Ragnaros", true)"#).unwrap();
+    s.run("TargetByName(5)").unwrap(); // a number stringifies, as `0x6f3690` does
+    assert_eq!(
+        s.take_target_by_name_requests(),
+        vec![
+            ("Rag".to_string(), false),
+            ("Ragnaros".to_string(), true),
+            ("Ragnaros".to_string(), false),
+            ("Ragnaros".to_string(), true),
+            ("5".to_string(), false),
+        ]
+    );
+    assert!(s.take_target_by_name_requests().is_empty());
+
+    // A missing name raises: the gate call at `0x489d69` fails to `0x489de1`.
+    let err = s.eval::<mlua::Value>("return TargetByName()").unwrap_err();
+    assert!(
+        format!("{err}").contains(r#"Usage: TargetByName("name")"#),
+        "got {err}"
+    );
+}
+
+/// A by-name candidate as the app's feed pushes it: `name` at `dist2`, held, under `guid`.
+fn candidate(guid: u64, name: &str, dist2: f32) -> crate::script::NameCandidate {
+    crate::script::NameCandidate {
+        name: name.into(),
+        dist2,
+        state: UnitState {
+            exists: true,
+            has_object: true,
+            guid,
+            name: Some(name.into()),
+            health: 40,
+            max_health: 50,
+            ..Default::default()
+        },
+        assistable_alive: true,
+    }
+}
+
+/// A seated selection that targets nobody.
+fn alone(guid: u64) -> crate::script::SeatedSelection {
+    crate::script::SeatedSelection {
+        guid,
+        held: true,
+        target: 0,
+        target_held: false,
+    }
+}
+
+/// `0x515970` reads the target's `UNIT_FIELD_TARGET` as it resolves `"targettarget"`, so a seat
+/// carries the hop: a held unit as its snapshot, an unheld groupmate through its own token's push
+/// (the chain's roster arm), and nobody once the new target targets nobody.
+#[test]
+fn a_seated_selection_carries_its_target_of_target() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit_guids(&UnitGuids {
+        player: 0x10,
+        party: [0x22, 0, 0, 0],
+        target: 0x21,
+        ..Default::default()
+    });
+    let mut mate = candidate(0x22, "Bob", 9.0).state;
+    mate.has_object = false;
+    s.set_unit("party1", Some(mate));
+    s.set_unit("targettarget", Some(candidate(0x50, "Stale", 1.0).state));
+    s.set_name_candidate(0x31, Some(candidate(0x31, "Red Affinity", 4.0)));
+    s.set_name_candidate(0x32, Some(candidate(0x32, "Blue Whelp", 4.0)));
+    let tot = |s: &UiScript| {
+        s.eval::<Option<String>>("return UnitName('targettarget')")
+            .unwrap()
+    };
+
+    s.seat_selection(Some(crate::script::SeatedSelection {
+        guid: 0x31,
+        held: true,
+        target: 0x32,
+        target_held: true,
+    }));
+    assert_eq!(tot(&s).as_deref(), Some("Blue Whelp"), "a held hop");
+
+    s.seat_selection(Some(crate::script::SeatedSelection {
+        guid: 0x31,
+        held: true,
+        target: 0x22,
+        target_held: false,
+    }));
+    assert_eq!(tot(&s).as_deref(), Some("Bob"), "an unheld groupmate");
+
+    s.seat_selection(Some(alone(0x32)));
+    assert!(s
+        .eval::<bool>("return UnitExists('targettarget') == nil")
+        .unwrap());
+    s.seat_selection(None);
+    assert!(s
+        .eval::<bool>("return UnitExists('targettarget') == nil")
+        .unwrap());
+}
+
+/// Every selecting verb commits through `SetSelection 0x493540` before it returns, and the host
+/// seats the selection it committed as `"target"` for the rest of the chunk: the unit's by-name
+/// snapshot, else a pushed snapshot of its guid, else the unit as its guid alone, and nothing for a
+/// deselect. Each seat tells the feed to re-push `"target"` from the committed selection.
+#[test]
+fn a_seated_selection_is_the_target_for_the_rest_of_the_chunk() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit_guids(&UnitGuids {
+        player: 0x10,
+        party: [0x22, 0, 0, 0],
+        target: 0x21,
+        ..Default::default()
+    });
+    s.set_unit("target", Some(candidate(0x21, "Old Mob", 1.0).state));
+    let mut mate = candidate(0x22, "Bob", 9.0).state;
+    mate.health = 45;
+    s.set_unit("party1", Some(mate));
+    s.set_name_candidate(0x31, Some(candidate(0x31, "Red Affinity", 4.0)));
+    assert!(!s.take_target_view_moved());
+    let health = |s: &UiScript| s.eval::<i64>("return UnitHealth('target')").unwrap();
+
+    s.seat_selection(Some(alone(0x31)));
+    assert_eq!(
+        s.eval::<String>("return UnitName('target')").unwrap(),
+        "Red Affinity"
+    );
+    assert_eq!(
+        health(&s),
+        40,
+        "the pick's whole snapshot, not only its name"
+    );
+    assert_eq!(s.model_ref().unit_guids.target, 0x31);
+    assert!(s.take_target_view_moved());
+
+    s.seat_selection(Some(alone(0x22)));
+    assert_eq!(
+        health(&s),
+        45,
+        "no candidate: party1's push of the same guid"
+    );
+
+    s.seat_selection(Some(alone(0x40)));
+    assert!(s.eval::<bool>("return UnitExists('target') == 1").unwrap());
+    assert_eq!(
+        s.model_ref().snapshot_unit("target").map(|u| u.guid),
+        Some(0x40),
+        "neither: the unit as its guid alone"
+    );
+
+    s.seat_selection(None);
+    assert!(s
+        .eval::<bool>("return UnitExists('target') == nil")
+        .unwrap());
+    assert_eq!(s.model_ref().unit_guids.target, 0);
+    assert!(s.take_target_view_moved());
+}
+
+/// Seating the unit the feed's own `"target"` push already shows keeps that push (here, a health
+/// the candidate's does not share), and the view has not moved.
+#[test]
+fn seating_the_shown_target_keeps_the_feeds_push() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit_guids(&UnitGuids {
+        player: 0x10,
+        target: 0x21,
+        ..Default::default()
+    });
+    let mut fed = candidate(0x21, "Old Mob", 1.0).state;
+    fed.health = 12;
+    s.set_unit("target", Some(fed));
+    s.set_name_candidate(0x21, Some(candidate(0x21, "Old Mob", 1.0)));
+    s.seat_selection(Some(alone(0x21)));
+    assert_eq!(s.eval::<i64>("return UnitHealth('target')").unwrap(), 12);
+    assert!(!s.take_target_view_moved());
+}
+
+/// With no host to commit them, the selecting verbs move nothing: the VM never guesses a
+/// selection, which only the host's commit seats ([`UiScript::seat_selection`]).
+#[test]
+fn a_selecting_verb_with_no_host_leaves_the_target_alone() {
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    s.set_unit_guids(&UnitGuids {
+        player: 0x10,
+        party: [0x22, 0, 0, 0],
+        target: 0x21,
+        ..Default::default()
+    });
+    s.set_unit("party1", Some(candidate(0x22, "Bob", 9.0).state));
+    s.set_name_candidate(0x22, Some(candidate(0x22, "Bob", 9.0)));
+    s.set_unit("target", Some(candidate(0x21, "Old Mob", 1.0).state));
+    for lua in [
+        "TargetUnit('party1')",
+        "TargetByName('Bob')",
+        "ClearTarget()",
+    ] {
+        assert_eq!(
+            s.eval::<Option<String>>(&format!("{lua} return UnitName('target')"))
+                .unwrap()
+                .as_deref(),
+            Some("Old Mob"),
+            "{lua}"
+        );
+        assert_eq!(s.take_script_calls().len(), 1, "{lua}: kept for a host");
+    }
+    assert!(!s.take_target_view_moved());
+}
+
+/// `0x516cf0` tests `UNIT_FIELD_CHARMEDBY` (fields 10-11) non-zero, not a `UNIT_FIELD_FLAGS` bit.
+#[test]
+fn unit_is_charmed_answers_one_or_nil_and_only_for_the_charmed_side() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+    let mut mc = player();
+    mc.charmed = true;
+    s.set_unit("target", Some(mc));
+
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsCharmed("target")"#).unwrap(),
+        1
+    );
+    assert_eq!(
+        s.eval::<String>(r#"return type(UnitIsCharmed("target"))"#)
+            .unwrap(),
+        "number",
+        "the reference pushes a number, not a boolean"
+    );
+    assert_eq!(
+        s.arity(r#"UnitIsCharmed("target")"#).unwrap(),
+        1,
+        "exactly one value on the hit path"
+    );
+
+    for token in ["player", "party1"] {
+        assert!(
+            s.eval::<Option<i64>>(&format!(r#"return UnitIsCharmed("{token}")"#))
+                .unwrap()
+                .is_none(),
+            "{token} is not charmed, so the answer is nil"
+        );
+        assert_eq!(
+            s.eval::<String>(&format!(r#"return type(UnitIsCharmed("{token}"))"#))
+                .unwrap(),
+            "nil",
+            "…nil rather than false or 0"
+        );
+    }
+
+    assert!(
+        s.eval::<Option<i64>>(r#"return UnitIsCharmed("player")"#)
+            .unwrap()
+            .is_none(),
+        "a charmER is not charmed; UNIT_FIELD_CHARM is never read by this binding"
+    );
+}
+
+/// `0x516d40` tests `UNIT_FLAG_PLUS_MOB` (`0x40`) and never the rank getter (`0x605620`). The
+/// server sets the bit from the rank, so the two part only while the creature record is missing.
+#[test]
+fn unit_is_plus_mob_reads_the_flag_bit_and_not_the_rank() {
+    let with = |flags: u32, rank: u32| UnitState {
+        exists: true,
+        has_object: true,
+        flags,
+        rank,
+        ..Default::default()
+    };
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+
+    // The server sets the bit on `!IsPet() && rank > 0` (`Creature.h:186`), so rare carries it.
+    for (rank, word) in [
+        (1u32, "elite"),
+        (2, "rareelite"),
+        (3, "worldboss"),
+        (4, "rare"),
+    ] {
+        s.set_unit("target", Some(with(0x40, rank)));
+        assert_eq!(
+            s.eval::<i64>(r#"return UnitIsPlusMob("target")"#).unwrap(),
+            1,
+            "a {word} carries UNIT_FLAG_PLUS_MOB, so the answer is the number 1"
+        );
+    }
+    s.set_unit("target", Some(with(0, 0)));
+    assert!(
+        s.eval::<Option<i64>>(r#"return UnitIsPlusMob("target")"#)
+            .unwrap()
+            .is_none(),
+        "a normal mob answers nil"
+    );
+
+    // The flag without a rank: a creature whose cache record has not arrived.
+    s.set_unit("target", Some(with(0x40, 0)));
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsPlusMob("target")"#).unwrap(),
+        1,
+        "the bit alone decides — no creature-cache rank is consulted"
+    );
+    // A rank without the flag: a pet, which the server excludes.
+    s.set_unit("target", Some(with(0x8, 2)));
+    assert!(
+        s.eval::<Option<i64>>(r#"return UnitIsPlusMob("target")"#)
+            .unwrap()
+            .is_none(),
+        "no bit, no plus mob — a neighbouring flag (player-controlled) must not read as one"
+    );
+
+    // One of the 13 with no `lua_isstring` gate: nil is quiet, and an unrecognised token raises
+    // through the resolver (`0x515940`).
+    assert!(s.run("UnitIsPlusMob()").is_ok(), "nil token stays quiet");
+    assert!(
+        s.run("UnitIsPlusMob(nil)").is_ok(),
+        "…and so does an explicit nil"
+    );
+    assert!(
+        s.eval::<Option<i64>>(r#"return UnitIsPlusMob("party5")"#)
+            .unwrap()
+            .is_none(),
+        "recognised but naming nothing — nil, not a raise"
+    );
+    let err = s.run(r#"UnitIsPlusMob("bogus")"#).unwrap_err().to_string();
+    assert!(
+        err.contains("Unknown unit name: bogus"),
+        "an unrecognised token raises the resolver's own text: {err}"
+    );
+}
+
+/// The resolver (`0x515970`) compares every literal with `_strnicmp`, folding ASCII case.
+#[test]
+fn a_unit_token_resolves_whatever_its_case() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+    let mut tgt = player();
+    tgt.name = Some("Hogger".into());
+    s.set_unit("target", Some(tgt));
+
+    for spelling in ["player", "Player", "PLAYER", "PlAyEr"] {
+        assert_eq!(
+            s.eval::<String>(&format!(r#"return UnitName("{spelling}")"#))
+                .unwrap(),
+            "Benilla",
+            "UnitName(\"{spelling}\") must resolve"
+        );
+        assert_eq!(
+            s.eval::<i64>(&format!(r#"return UnitLevel("{spelling}")"#))
+                .unwrap(),
+            12
+        );
+        assert_eq!(
+            s.eval::<i64>(&format!(r#"return UnitExists("{spelling}")"#))
+                .unwrap(),
+            1
+        );
+    }
+    for spelling in ["target", "Target", "TARGET"] {
+        assert_eq!(
+            s.eval::<String>(&format!(r#"return UnitName("{spelling}")"#))
+                .unwrap(),
+            "Hogger"
+        );
+    }
+
+    for spelling in ["Party1", "PARTY1", "raid9", "MouseOver"] {
+        assert!(
+            !s.eval::<bool>(&format!(r#"return UnitExists("{spelling}")"#))
+                .unwrap(),
+            "{spelling} was never seated"
+        );
+    }
+}
+
+/// A `"Target"` push must not create an entry shadowing `"target"`.
+#[test]
+fn seating_a_token_folds_its_key_too() {
+    let mut s = UiScript::new().unwrap();
+    let mut a = player();
+    a.name = Some("First".into());
+    s.set_unit("Target", Some(a));
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("target")"#).unwrap(),
+        "First",
+        "a token seated as \"Target\" is readable as \"target\""
+    );
+
+    s.set_unit("TARGET", None);
+    assert!(
+        s.eval::<bool>(r#"return UnitExists("target") == nil"#)
+            .unwrap(),
+        "removal folds too — no shadowed entry survives"
+    );
+}
+
+/// `0x515970` ends its nine compares in `luaL_error(L, "Unknown unit name: %s")`.
+#[test]
+fn an_unrecognised_unit_token_raises_and_a_recognised_empty_one_does_not() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+
+    for bogus in ["bogus", "focus", "boss1", "arena1"] {
+        let err = s
+            .run(&format!(r#"UnitName("{bogus}")"#))
+            .expect_err(&format!("{bogus} must raise"))
+            .to_string();
+        assert!(
+            err.contains(&format!("Unknown unit name: {bogus}")),
+            "the raise carries the client's own text and the offending token: {err}"
+        );
+    }
+    // `npc` is the one full-string compare, so a suffix on it matches nothing.
+    assert!(s.run(r#"UnitName("npctarget")"#).is_err());
+    assert!(s.run(r#"UnitName("NPC")"#).is_ok());
+
+    for absent in [
+        "party5",
+        "raid17",
+        "pet",
+        "mouseover",
+        "partypet2",
+        "raidpet3",
+    ] {
+        assert!(
+            s.eval::<Option<String>>(&format!(r#"return UnitName("{absent}")"#))
+                .unwrap()
+                .is_none(),
+            "{absent} is recognised and absent — nil, not a raise"
+        );
+    }
+    // A recognised prefix with a suffix is quiet too: the compares stop at either NUL.
+    for junk in ["playerfoo", "raidx", "petx", "targetish"] {
+        assert!(
+            s.eval::<Option<String>>(&format!(r#"return UnitName("{junk}")"#))
+                .unwrap()
+                .is_none(),
+            "{junk} matches a PREFIX, so it is a quiet nil — not a raise. This is the leg an \
+             implementation that raises on \"did not resolve\" gets wrong."
+        );
+    }
+    // Quiet nil: the empty string passes the `lua_isstring` gate and stops at the resolver's
+    // empty guard.
+    assert!(s.run(r#"UnitName("")"#).is_ok());
+
+    // An absent or nil argument raises `Usage: UnitName("unit")` (`0x850ee0`) from `UnitName`'s
+    // own gate (`0x517048`).
+    assert!(s.run("UnitName()").is_err(), "absent argument raises");
+    assert!(s.run("UnitName(nil)").is_err(), "nil argument raises");
+    // A number passes the gate as "5" and raises the resolver's message instead.
+    assert!(
+        s.run("UnitName(5)").is_err(),
+        "a number reaches the resolver"
+    );
+
+    // Three of the 13 with no gate, where nil is quiet.
+    for quiet in ["UnitExists", "UnitIsVisible", "UnitClassification"] {
+        assert!(
+            s.run(&format!("{quiet}()")).is_ok(),
+            "{quiet} is one of the 13 with no gate — nil must stay quiet"
+        );
+    }
+
+    // A two-unit call checks both tokens.
+    assert!(s.run(r#"UnitIsUnit("player", "bogus")"#).is_err());
+    assert!(s.run(r#"UnitIsUnit("bogus", "player")"#).is_err());
+    assert!(s.run(r#"UnitIsUnit("player", "party3")"#).is_ok());
+}
+
+/// The resolver compares bytes with an ASCII fold, so a non-ASCII token matches no prefix and
+/// raises, where slicing it as a `str` would panic mid-character.
+#[test]
+fn a_multibyte_unit_token_raises_rather_than_panicking() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+
+    // Each puts a multibyte character across a prefix length: 3, 4, 5 or 6 bytes.
+    for token in ["pé", "раid", "playér", "targét", "мышь", "日本語のトークン"] {
+        let err = s
+            .run(&format!(r#"UnitName("{token}")"#))
+            .expect_err("a non-ASCII token matches no prefix, so it raises")
+            .to_string();
+        assert!(
+            err.contains("Unknown unit name"),
+            "it must RAISE, not panic and not answer: {err}"
+        );
+    }
+    assert!(s
+        .eval::<Option<String>>(r#"return UnitName("playerfoo")"#)
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Benilla"
+    );
+}
+
+/// `0x516030` tests only that the client holds the object, so an out-of-range party member exists
+/// but is not visible.
+#[test]
+fn unit_is_visible_is_object_presence_not_existence() {
+    let mut s = UiScript::new().unwrap();
+
+    s.set_unit(
+        "party1",
+        Some(UnitState {
+            exists: true,
+            has_object: true,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsVisible("party1")"#).unwrap(),
+        1,
+        "a held object is visible — and the return is the NUMBER 1, never a boolean"
+    );
+
+    // Out of range: the roster has the member, the object manager does not.
+    s.set_unit(
+        "party1",
+        Some(UnitState {
+            exists: true,
+            has_object: false,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<Option<i64>>(r#"return UnitIsVisible("party1")"#)
+            .unwrap(),
+        None,
+        "no object -> nil, even though the token still exists"
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitExists("party1")"#).unwrap(),
+        1,
+        "...and UnitExists must NOT have moved with it — the roster fallback is the difference"
+    );
+
+    // pfUI's portrait test (`api/unitframes.lua:1873`).
+    assert!(
+        s.eval::<bool>(
+            r#"return (not UnitIsVisible("party1") or not UnitIsConnected("party1")) and true or false"#
+        )
+        .unwrap(),
+        "the portrait branch fires for an out-of-range member"
+    );
+
+    assert_eq!(
+        s.eval::<Option<i64>>(r#"return UnitIsVisible("party4")"#)
+            .unwrap(),
+        None
+    );
+}
+
+/// `0x519c90` and `0x519d00` test `UNIT_DYNAMIC_FLAGS` bits `0x4` and `0x8` behind object
+/// presence, and unlike `UnitIsVisible` both raise `Usage:` on a bad argument.
+#[test]
+fn the_tapped_pair_is_two_masks_of_one_field_and_raises_on_a_bad_argument() {
+    let mut s = UiScript::new().unwrap();
+    let set = |s: &mut UiScript, tapped, by_player| {
+        s.set_unit(
+            "target",
+            Some(UnitState {
+                exists: true,
+                has_object: true,
+                tapped,
+                tapped_by_player: by_player,
+                ..Default::default()
+            }),
+        );
+    };
+
+    set(&mut s, false, false);
+    assert_eq!(
+        s.eval::<Option<i64>>(r#"return UnitIsTapped("target")"#)
+            .unwrap(),
+        None
+    );
+
+    // Tapped by someone else: the grey bar (pfUI `api/unitframes.lua:2012`).
+    set(&mut s, true, false);
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsTapped("target")"#).unwrap(),
+        1,
+        "the return is the NUMBER 1, never a boolean"
+    );
+    assert_eq!(
+        s.eval::<Option<i64>>(r#"return UnitIsTappedByPlayer("target")"#)
+            .unwrap(),
+        None
+    );
+    assert!(
+        s.eval::<bool>(
+            r#"return (UnitIsTapped("target") and not UnitIsTappedByPlayer("target")) and true or false"#
+        )
+        .unwrap(),
+        "someone else's kill — the conjunction addons actually draw"
+    );
+
+    set(&mut s, true, true);
+    assert!(
+        !s.eval::<bool>(
+            r#"return (UnitIsTapped("target") and not UnitIsTappedByPlayer("target")) and true or false"#
+        )
+        .unwrap(),
+        "my own tap is not greyed"
+    );
+
+    // No object with the bit set, which the feed never builds: it sets `tapped` only from a live
+    // descriptor, so the binding reads the field as given.
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            has_object: false,
+            tapped: true,
+            tapped_by_player: false,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsTapped("target")"#).unwrap(),
+        1,
+        "the binding reads the field it is given; the conjunct is enforced at the FEED, and this \
+         assertion records which of the two owns it"
+    );
+
+    // Shape A, nil included: `check_unit_token` lets nil through, so the gate is the binding's.
+    for bad in ["{}", "true", "nil", "", "function() end"] {
+        assert!(
+            s.run(&format!("UnitIsTapped({bad})")).is_err(),
+            "UnitIsTapped({bad}) must raise — shape A, not the neighbour's shape C"
+        );
+        assert!(
+            s.run(&format!("UnitIsTappedByPlayer({bad})")).is_err(),
+            "UnitIsTappedByPlayer({bad}) must raise too — the pair shares its gate"
+        );
+    }
+}
+
+/// `0x516210`: the player object's `PLAYER_FLAGS & 0x1`, or the resolved guid is the group
+/// leader's; each leg is asserted with the other dead.
+#[test]
+fn unit_is_party_leader_ors_two_legs_and_answers_one_when_solo() {
+    let mut s = UiScript::new().unwrap();
+    const ME: u64 = 0x1111;
+    const THEM: u64 = 0x2222;
+
+    // Leg 1 alone: the flag, as on a stranger who leads their own party.
+    s.set_party(PartyState {
+        leader_guid: 0x9999,
+        own_guid: 0,
+        ..Default::default()
+    });
+    s.set_unit(
+        "target",
+        Some(UnitState {
+            exists: true,
+            has_object: true,
+            guid: THEM,
+            group_leader: true,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsPartyLeader("target")"#)
+            .unwrap(),
+        1,
+        "the server's PLAYER_FLAGS bit answers on its own"
+    );
+
+    // Leg 2 alone: an out-of-range member, with no object to read, whose guid is our leader.
+    s.set_party(PartyState {
+        leader_guid: THEM,
+        own_guid: 0,
+        ..Default::default()
+    });
+    s.set_unit(
+        "party1",
+        Some(UnitState {
+            exists: true,
+            has_object: false,
+            guid: THEM,
+            group_leader: false,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsPartyLeader("party1")"#)
+            .unwrap(),
+        1,
+        "the GUID compare answers where there is no descriptor to read a flag from"
+    );
+
+    s.set_unit(
+        "party2",
+        Some(UnitState {
+            exists: true,
+            has_object: true,
+            guid: ME,
+            group_leader: false,
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        s.eval::<Option<i64>>(r#"return UnitIsPartyLeader("party2")"#)
+            .unwrap(),
+        None
+    );
+
+    // No zero guard: solo, the cached leader is 0 and an unresolved token is 0, so the answer is
+    // 1; `IsPartyLeader` (`0x4e9130`) guards a zero leader, `0x516210` does not.
+    s.set_party(PartyState::default());
+    assert_eq!(
+        s.eval::<i64>("return UnitIsPartyLeader(nil)").unwrap(),
+        1,
+        "solo + unresolvable token: 0 == 0, and the reference answers 1"
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitIsPartyLeader("target")"#)
+            .unwrap(),
+        1,
+        "...and so does a token with no snapshot, by the same route"
+    );
+
+    assert!(s.run(r#"UnitIsPartyLeader("notatoken")"#).is_err());
+}
+
+/// `GetDamageBonusStat()` (`0x48b520`) is the player's class row's field 2 plus one, 0 with no
+/// player or no row; it takes no unit, so another unit's class never answers.
+#[test]
+fn damage_bonus_stat_is_the_player_class_stat_one_based() {
+    let mut s = UiScript::new().unwrap();
+    assert_eq!(s.eval::<i64>("return GetDamageBonusStat()").unwrap(), 0);
+
+    let mut rogue = player();
+    rogue.damage_bonus_stat = Some(1);
+    s.set_unit("target", Some(rogue.clone()));
+    assert_eq!(
+        s.eval::<i64>("return GetDamageBonusStat()").unwrap(),
+        0,
+        "the target is not the player"
+    );
+    s.set_unit("player", Some(rogue));
+    assert_eq!(s.eval::<i64>("return GetDamageBonusStat()").unwrap(), 2);
+
+    let mut warrior = player();
+    warrior.damage_bonus_stat = Some(0);
+    s.set_unit("player", Some(warrior));
+    assert_eq!(s.eval::<i64>("return GetDamageBonusStat()").unwrap(), 1);
+
+    let mut rowless = player();
+    rowless.damage_bonus_stat = None;
+    s.set_unit("player", Some(rowless));
+    assert_eq!(s.eval::<i64>("return GetDamageBonusStat()").unwrap(), 0);
+}
+
+/// Stock calls it unconditionally (`PaperDollFrame.lua:429`, `PaperDollFrame.lua:580`), so the
+/// global must exist for every class.
+#[test]
+fn unit_has_relic_slot_answers_one_or_nil() {
+    let mut s = UiScript::new().unwrap();
+
+    let mut druid = player();
+    druid.class = Some("Druid".into());
+    druid.class_file = Some("DRUID".into());
+    druid.has_relic_slot = true;
+    s.set_unit("player", Some(druid));
+
+    let mut warrior = player();
+    warrior.has_relic_slot = false;
+    s.set_unit("target", Some(warrior));
+
+    // The true leg is the number 1 (`0x519ec8`).
+    assert_eq!(
+        s.eval::<String>(r#"return tostring(UnitHasRelicSlot("player"))"#)
+            .unwrap(),
+        "1"
+    );
+    assert_eq!(
+        s.eval::<String>(r#"return type(UnitHasRelicSlot("player"))"#)
+            .unwrap(),
+        "number"
+    );
+    // The false leg is nil, never false (`0x519edb`).
+    assert_eq!(
+        s.eval::<String>(r#"return type(UnitHasRelicSlot("target"))"#)
+            .unwrap(),
+        "nil"
+    );
+    // No `"player"` fast path: `InspectPaperDollFrame.lua:123` passes the inspected unit.
+    assert_eq!(
+        s.eval::<String>(r#"return type(UnitHasRelicSlot("party1"))"#)
+            .unwrap(),
+        "nil"
+    );
+    assert_eq!(
+        s.eval::<String>("return type(UnitHasRelicSlot)").unwrap(),
+        "function"
+    );
+}
+
+/// Each of these carries two `lua_isstring` gates in the table at `0x850438`, so either argument
+/// nil raises.
+#[test]
+fn a_two_token_predicate_raises_on_either_nil_argument() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+    s.set_unit("target", Some(player()));
+
+    for verb in [
+        "UnitIsUnit",
+        "UnitIsEnemy",
+        "UnitIsFriend",
+        "UnitCanCooperate",
+        "UnitCanAttack",
+        "UnitReaction",
+    ] {
+        assert!(
+            s.run(&format!(r#"{verb}("player", "target")"#)).is_ok(),
+            "{verb} with both tokens is fine"
+        );
+        assert!(
+            s.run(&format!(r#"{verb}("player")"#)).is_err(),
+            "{verb} with the SECOND argument absent must raise"
+        );
+        assert!(
+            s.run(&format!(r#"{verb}(nil, "target")"#)).is_err(),
+            "{verb} with the FIRST argument nil must raise"
+        );
+        assert!(s.run(&format!("{verb}()")).is_err(), "{verb} with neither");
+    }
+
+    // `GetRaidTargetIndex` takes a token and is gated.
+    assert!(s.run(r#"GetRaidTargetIndex("player")"#).is_ok());
+    assert!(s.run("GetRaidTargetIndex()").is_err());
+
+    // These take no argument and have no gate; `GetTimeToWellRested` is a stub in the reference
+    // that always pushes nil.
+    for none in [
+        "GetQuestGreenRange",
+        "GetRestState",
+        "GetXPExhaustion",
+        "GetTimeToWellRested",
+        "GetBillingTimeRested",
+    ] {
+        assert!(s.run(&format!("{none}()")).is_ok(), "{none} takes no token");
+    }
+}
+
+// ── The predicates' return shape ────────────────────────────────────────────────────────────────
+
+/// The reference pushes the number 1 (`lua_pushnumber`, `0x6f3810`) or nil (`0x6f37f0`), and no
+/// unit binding calls `lua_pushboolean` (`0x6f39f0`). mlua reads 1 as `true`, so only `type`,
+/// `== 1` and `== nil` tell the shapes apart.
+#[test]
+fn every_unit_predicate_is_one_or_nil_and_never_a_boolean() {
+    // (binding, the call, a UnitState that makes it true)
+    let table: Vec<(&str, &str, UnitState)> = vec![
+        (
+            "UnitExists",
+            r#"UnitExists("target")"#,
+            UnitState {
+                exists: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsVisible",
+            r#"UnitIsVisible("target")"#,
+            UnitState {
+                exists: true,
+                has_object: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsDead",
+            r#"UnitIsDead("target")"#,
+            UnitState {
+                exists: true,
+                dead: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsGhost",
+            r#"UnitIsGhost("target")"#,
+            UnitState {
+                exists: true,
+                ghost: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsDeadOrGhost",
+            r#"UnitIsDeadOrGhost("target")"#,
+            UnitState {
+                exists: true,
+                dead: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsCorpse",
+            r#"UnitIsCorpse("target")"#,
+            UnitState {
+                exists: true,
+                corpse_object: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsPlayer",
+            r#"UnitIsPlayer("target")"#,
+            UnitState {
+                exists: true,
+                is_player: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitPlayerControlled",
+            r#"UnitPlayerControlled("target")"#,
+            UnitState {
+                exists: true,
+                player_controlled: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsPlusMob",
+            r#"UnitIsPlusMob("target")"#,
+            UnitState {
+                exists: true,
+                flags: 0x40,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsCharmed",
+            r#"UnitIsCharmed("target")"#,
+            UnitState {
+                exists: true,
+                charmed: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsTapped",
+            r#"UnitIsTapped("target")"#,
+            UnitState {
+                exists: true,
+                tapped: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsTappedByPlayer",
+            r#"UnitIsTappedByPlayer("target")"#,
+            UnitState {
+                exists: true,
+                tapped_by_player: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitAffectingCombat",
+            r#"UnitAffectingCombat("target")"#,
+            UnitState {
+                exists: true,
+                in_combat: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsConnected",
+            r#"UnitIsConnected("target")"#,
+            UnitState {
+                exists: true,
+                is_connected: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsPVP",
+            r#"UnitIsPVP("target")"#,
+            UnitState {
+                exists: true,
+                pvp: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitIsPVPFreeForAll",
+            r#"UnitIsPVPFreeForAll("target")"#,
+            UnitState {
+                exists: true,
+                is_pvp_ffa: true,
+                ..Default::default()
+            },
+        ),
+        (
+            "UnitHasRelicSlot",
+            r#"UnitHasRelicSlot("target")"#,
+            UnitState {
+                exists: true,
+                has_relic_slot: true,
+                ..Default::default()
+            },
+        ),
+        // The GUID leg: the mouseover, seated on both legs, shares the live target's GUID.
+        (
+            "UnitIsUnit",
+            r#"UnitIsUnit("target", "mouseover")"#,
+            UnitState {
+                exists: true,
+                guid: 42,
+                ..Default::default()
+            },
+        ),
+    ];
+
+    let mouseover = || UnitState {
+        exists: true,
+        guid: 42,
+        ..Default::default()
+    };
+    for (name, call, live) in table {
+        let mut s = UiScript::new().unwrap();
+        s.set_unit("player", Some(player()));
+        s.set_unit("mouseover", Some(mouseover()));
+        s.set_unit("target", Some(live));
+
+        assert_eq!(
+            s.eval::<String>(&format!("return type({call})")).unwrap(),
+            "number",
+            "{name} pushes a boolean where the reference pushes tag 3 (lua_pushnumber)"
+        );
+        assert_eq!(
+            s.eval::<i64>(&format!("return {call}")).unwrap(),
+            1,
+            "{name}'s true leg is the number 1"
+        );
+        assert!(
+            s.eval::<bool>(&format!("return {call} == 1")).unwrap(),
+            "{name}: the corpus idiom `== 1` must match on the true leg"
+        );
+        assert!(
+            !s.eval::<bool>(&format!("return {call} == true")).unwrap(),
+            "{name}: `== true` must NEVER match — the reference cannot push tag 1"
+        );
+        assert_eq!(
+            s.arity(call).unwrap(),
+            1,
+            "{name} returns exactly one value on the true leg"
+        );
+
+        // The false leg: nil, one value. Clearing the token also covers the absent-unit arm.
+        let mut s = UiScript::new().unwrap();
+        s.set_unit("player", Some(player()));
+        s.set_unit("mouseover", Some(mouseover()));
+        s.set_unit("target", None);
+
+        assert!(
+            s.eval::<bool>(&format!("return {call} == nil")).unwrap(),
+            "{name}'s false leg is nil — a boolean `false` is not nil, and a caller comparing \
+             against nil would read the opposite of the truth"
+        );
+        assert!(
+            !s.eval::<bool>(&format!("return {call} == false")).unwrap(),
+            "{name}: `== false` must never match"
+        );
+        assert_eq!(
+            s.arity(call).unwrap(),
+            1,
+            "{name} returns exactly one value on the false leg too — nil, never zero values"
+        );
+    }
+}
+
+/// The addon idiom: under a boolean, neither `== 1` nor `== nil` would ever be true.
+#[test]
+fn the_equals_one_idiom_branches_correctly_on_a_live_and_a_dead_token() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+    s.set_unit("target", Some(player()));
+
+    assert_eq!(
+        s.eval::<String>(
+            r#"if UnitExists("target") == 1 then return "live" else return "dead" end"#
+        )
+        .unwrap(),
+        "live"
+    );
+
+    s.set_unit("target", None);
+    assert_eq!(
+        s.eval::<String>(
+            r#"if UnitExists("target") == 1 then return "live" else return "dead" end"#
+        )
+        .unwrap(),
+        "dead"
+    );
+    assert_eq!(
+        s.eval::<String>(
+            r#"if UnitExists("target") == nil then return "gone" else return "here" end"#
+        )
+        .unwrap(),
+        "gone",
+        "the `== nil` half — the comparison a boolean INVERTS"
+    );
+}
+
+/// `UnitOnTaxi` (`0x517a40`) has the family's shape: the number 1 or nil, and `Usage:` from its
+/// gate (`0x517a48`).
+#[test]
+fn unit_on_taxi_is_one_or_nil_and_raises_the_reference_usage() {
+    let mut s = UiScript::new().unwrap();
+    s.set_unit("player", Some(player()));
+
+    assert!(s
+        .eval::<bool>(r#"return UnitOnTaxi("player") == nil"#)
+        .unwrap());
+    s.set_unit(
+        "player",
+        Some(UnitState {
+            flags: TAXI_FLIGHT,
+            ..player()
+        }),
+    );
+    assert_eq!(
+        s.eval::<String>(r#"return type(UnitOnTaxi("player"))"#)
+            .unwrap(),
+        "number"
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitOnTaxi("player")"#).unwrap(), 1);
+    assert!(!s
+        .eval::<bool>(r#"return UnitOnTaxi("player") == true"#)
+        .unwrap());
+
+    let err = s.eval::<mlua::Value>("return UnitOnTaxi()").unwrap_err();
+    assert!(
+        err.to_string().contains(r#"Usage: UnitOnTaxi("unit")"#),
+        "the gate's own message, not mlua's type error: {err}"
+    );
+}
+
+/// `UNIT_FIELD_FLAGS` bit 20, `UNIT_FLAG_TAXI_FLIGHT` (`0x517a86`).
+const TAXI_FLIGHT: u32 = 1 << 20;
+
+/// `UnitOnTaxi` resolves the token and tests bit 20 of that unit's flags (`0x517a76`-`0x517a8c`),
+/// so a party member or the target answers, a neighbouring bit does not, and a token naming
+/// nothing is nil; an unrecognised token raises in the resolver (`0x515c14`).
+#[test]
+fn unit_on_taxi_reads_the_flag_of_any_resolved_unit() {
+    let mut s = UiScript::new().unwrap();
+    let with = |flags: u32| {
+        Some(UnitState {
+            exists: true,
+            flags,
+            ..Default::default()
+        })
+    };
+    s.set_unit("party1", with(TAXI_FLIGHT | 0x8));
+    s.set_unit("party2", with(!TAXI_FLIGHT));
+    s.set_unit("target", with(TAXI_FLIGHT));
+    for token in ["party1", "PARTY1", "target"] {
+        assert_eq!(
+            s.eval::<i64>(&format!("return UnitOnTaxi({token:?})"))
+                .unwrap(),
+            1,
+            "{token}"
+        );
+    }
+    assert!(
+        s.eval::<Option<i64>>(r#"return UnitOnTaxi("party2")"#)
+            .unwrap()
+            .is_none(),
+        "every other bit set"
+    );
+    assert!(
+        s.eval::<Option<i64>>(r#"return UnitOnTaxi("party3")"#)
+            .unwrap()
+            .is_none(),
+        "recognised but naming nothing"
+    );
+    let err = s.run(r#"UnitOnTaxi("bogus")"#).unwrap_err().to_string();
+    assert!(err.contains("Unknown unit name: bogus"), "{err}");
+}
+
+/// The reference's `"player"` arm reads the record (`0x51708c` reads `0xc27d88`), never the
+/// snapshot, so a nameless player push cannot blank the name.
+#[test]
+fn the_player_record_outlives_every_snapshot() {
+    let mut s = UiScript::new().unwrap();
+
+    // Before Enter World the record is empty: nil.
+    assert!(s
+        .eval::<bool>(r#"return UnitName("player") == nil"#)
+        .unwrap());
+
+    // Enter World seeds it from the character row, before any addon file runs.
+    s.set_player_record(PlayerRecord {
+        name: "Nelprifour".into(),
+        race: Some(("Night Elf".into(), "NightElf".into())),
+        class: Some(("Priest".into(), "PRIEST".into())),
+        sex: 2,
+    });
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Nelprifour",
+        "the buffer answers with no player snapshot at all — the reference runs addon OnUpdate \
+         for many frames with no local player object and this verb still answers"
+    );
+
+    // The descriptor has landed, but the name cache missed our own guid.
+    let nameless = UnitState {
+        exists: true,
+        has_object: true,
+        name: None,
+        level: 5,
+        ..Default::default()
+    };
+    s.set_unit("player", Some(nameless));
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Nelprifour",
+        "a nameless snapshot must not reach this verb — that push is the reported bug"
+    );
+    assert_eq!(
+        s.eval::<String>(r#"return UnitRace("player")"#).unwrap(),
+        "Night Elf",
+        "the same holds for the other three fields of the record"
+    );
+    assert_eq!(
+        s.eval::<String>(r#"local _, t = UnitClass("player"); return t"#)
+            .unwrap(),
+        "PRIEST",
+        "UnitClass's second return is the UPPERCASE token"
+    );
+    assert_eq!(s.eval::<i64>(r#"return UnitSex("player")"#).unwrap(), 2);
+    // `UnitLevel` reads the snapshot: the record's level accessor (`0x5abe00`) has no caller.
+    assert_eq!(s.eval::<i64>(r#"return UnitLevel("player")"#).unwrap(), 5);
+
+    // Removing the token, as at logout, keeps the record.
+    s.set_unit("player", None);
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Nelprifour"
+    );
+    assert!(
+        s.eval::<bool>(r#"return UnitExists("player") == nil"#)
+            .unwrap(),
+        "the name and the unit are different questions — which is exactly what the buffer buys"
+    );
+
+    // An empty seed is refused: nothing empties the reference's record.
+    s.set_player_record(PlayerRecord::default());
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Nelprifour"
+    );
+    assert_eq!(
+        s.eval::<String>(r#"return UnitRace("player")"#).unwrap(),
+        "Night Elf"
+    );
+
+    // A named push updates the record, so a push never leaves the two disagreeing.
+    let mut other = player();
+    other.name = Some("Onewarrior".into());
+    s.set_unit("player", Some(other));
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("player")"#).unwrap(),
+        "Onewarrior"
+    );
+    assert_eq!(
+        s.eval::<String>(r#"local _, t = UnitClass("player"); return t"#)
+            .unwrap(),
+        "WARRIOR",
+        "a push that carries the field updates it; one that does not leaves it standing"
+    );
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitSex("player")"#).unwrap(),
+        3,
+        "player() is female — the record follows the push"
+    );
+
+    // Two returns, the realm nil.
+    assert_eq!(
+        s.eval::<i64>(r#"local t = {UnitName("player")}; return table.getn(t)"#)
+            .unwrap(),
+        1
+    );
+    // The record path folds case too.
+    assert_eq!(
+        s.eval::<String>(r#"return UnitName("PLAYER")"#).unwrap(),
+        "Onewarrior"
+    );
+}
+
+/// An all-zero record, which a bare VM here can reach: `UnitName` nil (`0x517095`), `UnitRace` and
+/// `UnitClass` `nil, nil` as race and class 0 have no row, and `UnitSex` 2, as `0x517ef9` indexes
+/// its table (`0x808be4`) unchecked.
+#[test]
+fn an_unseeded_player_record_answers_the_references_four_ways() {
+    let s = UiScript::new().unwrap();
+    assert!(s
+        .eval::<bool>(r#"return UnitName("player") == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return UnitRace("player") == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"local _, t = UnitRace("player"); return t == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"return UnitClass("player") == nil"#)
+        .unwrap());
+    assert!(s
+        .eval::<bool>(r#"local _, t = UnitClass("player"); return t == nil"#)
+        .unwrap());
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitSex("player")"#).unwrap(),
+        2,
+        "the one of the four with no bounds check — an all-zero record reads male, not nil"
+    );
+    // The record arm needs the whole token: `"playerfoo"` goes to the resolver.
+    assert!(s
+        .eval::<bool>(r#"return UnitName("playerfoo") == nil"#)
+        .unwrap());
+    assert_eq!(
+        s.eval::<i64>(r#"return UnitSex("playerfoo")"#).unwrap(),
+        2,
+        "…which for UnitSex is the same 2, by the binding's own unresolved-token default"
+    );
+}
+
+/// The unit frames' selecting verbs and `SpellTargetUnit` each apply inside their call with a host
+/// lent: `TargetUnit` (`0x4899d0`), `AssistUnit` (`0x489b80`), `TargetLastEnemy`, `TargetByName`
+/// (`0x489d60`), `ClearTarget` (`0x489ff0`) and, with the cursor up, `SpellTargetUnit`
+/// (`0x6e6d90`).
+#[test]
+fn the_unit_verbs_apply_in_the_call_with_a_host_lent() {
+    use crate::script::{ScriptCall, SelectionRequest};
+    let mut s = UiScript::new().unwrap();
+    let calls = crate::script::host::test_support::applied_in_call(
+        &mut s,
+        r#"TargetUnit("player") AssistUnit("player") TargetLastEnemy() TargetByName("Rag")
+        ClearTarget()"#,
+    );
+    assert_eq!(
+        calls,
+        vec![
+            ScriptCall::Select {
+                request: SelectionRequest::Unit("player".into()),
+                may_cast: true,
+            },
+            ScriptCall::Select {
+                request: SelectionRequest::Assist("player".into()),
+                may_cast: true,
+            },
+            ScriptCall::Select {
+                request: SelectionRequest::LastEnemy,
+                may_cast: true,
+            },
+            ScriptCall::TargetByName {
+                name: "Rag".into(),
+                exact: false,
+                may_cast: true,
+            },
+            ScriptCall::ClearTarget,
+        ]
+    );
+    s.set_spell_targeting(true);
+    assert_eq!(
+        crate::script::host::test_support::applied_in_call(&mut s, r#"SpellTargetUnit("player")"#),
+        vec![ScriptCall::SpellTargetUnit("player".into())]
+    );
+}
+
+/// `UnitName` on a unit with no object reads the name cache by guid with a callback (`0x5171eb`):
+/// a miss goes back to the host to ask, once per read; a held unit or a named one asks nothing.
+#[test]
+fn unit_name_hands_a_no_object_miss_back_to_ask() {
+    let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    let read = |s: &mut UiScript, unit: UnitState| {
+        s.set_unit("target", Some(unit));
+        s.eval::<String>(r#"return UnitName("target")"#).unwrap();
+        s.take_unit_name_asks()
+    };
+    let unheld = UnitState {
+        guid: 0x77,
+        ..Default::default()
+    };
+    assert_eq!(read(&mut s, unheld.clone()), vec![0x77]);
+    assert_eq!(read(&mut s, unheld.clone()), vec![0x77], "every read asks");
+    let held = UnitState {
+        has_object: true,
+        ..unheld.clone()
+    };
+    assert_eq!(read(&mut s, held), Vec::<u64>::new());
+    let named = UnitState {
+        name: Some("Wanderer".into()),
+        ..unheld
+    };
+    assert_eq!(read(&mut s, named), Vec::<u64>::new());
+}

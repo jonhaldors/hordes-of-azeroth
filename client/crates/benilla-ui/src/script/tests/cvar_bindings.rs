@@ -1,0 +1,385 @@
+//! The `GetCVar` (`0x488ba0`), `SetCVar` (`0x488c10`) and `RegisterCVar` (`0x488b00`) bindings:
+//! how each reads its arguments, the read-only flag, and when `CVAR_UPDATE` fires.
+
+use crate::script::UiScript;
+
+fn script_with(rows: &[(&str, &str)]) -> UiScript {
+    let s = UiScript::new().unwrap();
+    s.register_cvars(rows.iter().copied());
+    s
+}
+
+fn get(s: &UiScript, name: &str) -> String {
+    s.eval::<String>(&format!("return GetCVar({name:?})"))
+        .unwrap()
+}
+
+fn raised(s: &UiScript, chunk: &str) -> String {
+    s.run(chunk)
+        .expect_err(&format!("{chunk} must raise"))
+        .to_string()
+}
+
+/// `lua_tostring` on argument 2 returns NULL for anything but a string or a number, and the
+/// binding stores `"0"` for it (`0x488c8d`-`0x488c98`): an unticked box's `GetChecked()` is nil.
+#[test]
+fn set_cvar_stores_zero_for_a_value_with_no_string_form() {
+    let mut s = script_with(&[("EnableMusic", "1")]);
+    for value in ["nil", "true", "false", "{}", "print"] {
+        s.set_cvar_host("EnableMusic", "1");
+        s.run(&format!("SetCVar(\"EnableMusic\", {value})"))
+            .unwrap_or_else(|e| panic!("SetCVar with {value} raised: {e}"));
+        assert_eq!(get(&s, "EnableMusic"), "0", "SetCVar with {value}");
+        assert_eq!(
+            s.take_cvar_changes(),
+            vec![("EnableMusic".to_string(), "0".to_string())],
+            "SetCVar with {value} is a real write"
+        );
+    }
+    s.set_cvar_host("EnableMusic", "1");
+    s.run("SetCVar(\"EnableMusic\")").unwrap();
+    assert_eq!(get(&s, "EnableMusic"), "0", "an absent value");
+}
+
+/// A number goes through `luaV_tostring` (`0x6f7c80`), MSVC's `%.14g`; a string is kept as is.
+#[test]
+fn set_cvar_stores_a_number_as_lua_text() {
+    let s = script_with(&[("MusicVolume", "1.0")]);
+    for (lua, stored) in [
+        // The stock Sound slider's single-precision 0.4, widened.
+        ("0.4000000059604645", "0.40000000596046"),
+        ("0.7", "0.7"),
+        ("3", "3"),
+        ("-2.5", "-2.5"),
+        ("1e20", "1e+020"),
+        ("0.00001", "1e-005"),
+        ("\"0.4000000059604645\"", "0.4000000059604645"),
+    ] {
+        s.run(&format!("SetCVar(\"MusicVolume\", {lua})")).unwrap();
+        assert_eq!(get(&s, "MusicVolume"), stored, "SetCVar with {lua}");
+    }
+}
+
+/// `lua_isstring(1)` fails (`0x488c1a`) and the binding raises the reference's own usage text
+/// (`0x84235c`); a number passes and names the CVar by its text.
+#[test]
+fn set_cvar_raises_the_reference_usage_without_a_name() {
+    let s = script_with(&[("5", "a")]);
+    for chunk in [
+        "SetCVar()",
+        "SetCVar(nil, 1)",
+        "SetCVar({}, 1)",
+        "SetCVar(true, 1)",
+    ] {
+        assert!(
+            raised(&s, chunk).contains("Usage: SetCVar(\"cvar\", value [, \"scriptCvar\")"),
+            "{chunk}"
+        );
+    }
+    s.run("SetCVar(5, \"b\")").unwrap();
+    assert_eq!(get(&s, "5"), "b");
+}
+
+/// `lua_isstring(1)` fails (`0x488ba8`) and `GetCVar` raises the reference's own usage text
+/// (`0x842330`); a number passes and names the CVar by its text.
+#[test]
+fn get_cvar_raises_the_reference_usage_without_a_name() {
+    let s = script_with(&[("5", "a")]);
+    for chunk in ["GetCVar()", "GetCVar(nil)", "GetCVar({})", "GetCVar(true)"] {
+        // Through `luaL_error` (`0x488bb7`), at the caller's line.
+        assert_eq!(
+            crate::script::lua_message(&s.run(chunk).expect_err(chunk)),
+            "[string \"(chunk)\"]:1: Usage: GetCVar(\"cvar\")",
+            "{chunk}"
+        );
+    }
+    assert_eq!(s.eval::<String>("return GetCVar(5)").unwrap(), "a");
+}
+
+/// `GetCVarDefault` (`0x488cf0`) tests `lua_isstring(1)` too, and raises its own usage text,
+/// which names `SetCVarDefault` (`0x84238c`).
+#[test]
+fn get_cvar_default_raises_the_reference_usage_without_a_name() {
+    let s = script_with(&[("5", "a")]);
+    for chunk in [
+        "GetCVarDefault()",
+        "GetCVarDefault(nil)",
+        "GetCVarDefault({})",
+    ] {
+        // Through `luaL_error` (`0x488d07`), at the caller's line.
+        assert_eq!(
+            crate::script::lua_message(&s.run(chunk).expect_err(chunk)),
+            "[string \"(chunk)\"]:1: Usage: SetCVarDefault(\"cvar\")",
+            "{chunk}"
+        );
+    }
+    assert_eq!(s.eval::<String>("return GetCVarDefault(5)").unwrap(), "a");
+}
+
+/// Flag bit2 (`0x488c67`-`0x488c78`): the in-game session flags three rows (`0x48f566`); `SetCVar`
+/// raises on one and every other write stores nothing; before the flag the same write lands.
+#[test]
+fn set_cvar_refuses_a_read_only_row_only_once_flagged() {
+    let mut s = script_with(&[
+        ("realmList", "us.logon.worldofwarcraft.com"),
+        ("realmName", ""),
+        ("scriptMemory", "0"),
+        ("MusicVolume", "1.0"),
+    ]);
+    s.run(
+        "SEEN = 0 \
+         f = CreateFrame(\"Frame\") \
+         f:RegisterEvent(\"CVAR_UPDATE\") \
+         f:SetScript(\"OnEvent\", function() SEEN = SEEN + 1 end)",
+    )
+    .unwrap();
+    for name in crate::script::IN_WORLD_READ_ONLY_CVARS {
+        s.run(&format!("SetCVar({name:?}, \"before\")")).unwrap();
+        assert_eq!(
+            get(&s, name),
+            "before",
+            "{name} is writable before the flag"
+        );
+    }
+    s.take_cvar_changes();
+
+    for name in crate::script::IN_WORLD_READ_ONLY_CVARS {
+        s.set_cvar_read_only(name, true);
+    }
+    for name in crate::script::IN_WORLD_READ_ONLY_CVARS {
+        let upper = name.to_ascii_uppercase();
+        assert_eq!(
+            raised(&s, &format!("SetCVar({upper:?}, \"after\", \"TOKEN\")"))
+                .lines()
+                .next(),
+            // Through `luaL_error` (`0x488c78`), at the caller's line.
+            Some(
+                format!("runtime error: [string \"(chunk)\"]:1: \"{upper}\" is read-only").as_str()
+            ),
+            "the name as passed, any case"
+        );
+        assert_eq!(get(&s, name), "before", "{name} kept its value");
+    }
+    assert!(s.take_cvar_changes().is_empty(), "nothing was written");
+    assert_eq!(
+        s.eval::<f64>("return SEEN").unwrap(),
+        0.0,
+        "a refused write fires nothing"
+    );
+    s.run("SetCVar(\"MusicVolume\", 0.5)").unwrap();
+    assert_eq!(get(&s, "MusicVolume"), "0.5", "other rows stay writable");
+
+    s.take_cvar_changes();
+    // Every other write goes through `CVar::Set` (`0x63df50`) into `InternalSet`, which returns at
+    // the flag (`0x63e0ba`): an engine write and every console form store nothing, and raise
+    // nothing.
+    s.set_cvar_engine("realmList", "logon.example.org");
+    s.run(
+        "ConsoleExec(\"realmName Elsewhere\") ConsoleExec(\"set realmName Elsewhere\") \
+         ConsoleExec(\"cvar_default scriptMemory\")",
+    )
+    .unwrap();
+    for name in crate::script::IN_WORLD_READ_ONLY_CVARS {
+        assert_eq!(get(&s, name), "before", "{name} kept its value");
+    }
+    assert!(s.take_cvar_changes().is_empty(), "nothing was written");
+    // The host's mirror sync is not a write.
+    s.set_cvar_host("realmName", "Synced");
+    assert_eq!(get(&s, "realmName"), "Synced");
+
+    // `ShutdownGame`'s clear (`0x491252`).
+    s.set_cvar_read_only("realmList", false);
+    s.run("SetCVar(\"realmList\", \"again\")").unwrap();
+    assert_eq!(get(&s, "realmList"), "again");
+}
+
+/// `InternalSet` (`0x63e0b0`) compares with `SStrCmpI` (`0x63e0ec`), so a change of case only
+/// stores and queues nothing; and it never parse-checks, so text on a numeric row is kept.
+#[test]
+fn set_cvar_compares_case_blind_and_keeps_any_text() {
+    let mut s = script_with(&[("myKnob", "foo"), ("MasterVolume", "1.0")]);
+    s.run("SetCVar('myKnob', 'Foo') ConsoleExec('myKnob FOO') ConsoleExec('set myknob fOO')")
+        .unwrap();
+    assert_eq!(get(&s, "myKnob"), "foo");
+    assert!(s.take_cvar_changes().is_empty(), "nothing moved");
+    s.run("SetCVar('MasterVolume', 'wat')").unwrap();
+    assert_eq!(get(&s, "MasterVolume"), "wat");
+    assert_eq!(
+        s.take_cvar_changes(),
+        [("MasterVolume".to_string(), "wat".to_string())]
+    );
+}
+
+/// A re-seed from the host replaces every row, and the flag outlives it, as the reference's
+/// rows keep their flags through every write.
+#[test]
+fn the_read_only_flag_survives_a_host_reseed() {
+    let mut s = script_with(&[("realmName", "")]);
+    s.set_cvar_read_only("realmName", true);
+    s.seed_cvars([crate::script::SeededCvar {
+        name: "realmName".into(),
+        value: "Here".into(),
+        default: String::new(),
+        latched: false,
+        check: None,
+        reset: None,
+        session: false,
+    }]);
+    assert!(raised(&s, "SetCVar(\"realmName\", \"x\")").contains("is read-only"));
+}
+
+/// `CVAR_UPDATE` fires whenever argument 3 passes `lua_isstring`, changed or not, with the token
+/// as arg1 and the value text as arg2 (`0x488cad`-`0x488cd5`), inside the call: `SignalEvent2`
+/// (`0x703f50`) walks its listeners in place.
+#[test]
+fn set_cvar_fires_cvar_update_inside_the_call_for_every_token() {
+    let s = script_with(&[("MusicVolume", "1.0")]);
+    s.run(
+        "SEEN = {} \
+         f = CreateFrame(\"Frame\") \
+         f:RegisterEvent(\"CVAR_UPDATE\") \
+         f:SetScript(\"OnEvent\", function() table.insert(SEEN, arg1 .. \"=\" .. arg2) end)",
+    )
+    .unwrap();
+    let seen = |s: &UiScript| -> Vec<String> { s.eval("return SEEN").unwrap() };
+
+    // No token, or one with no string form: nothing fires.
+    for chunk in [
+        "SetCVar(\"MusicVolume\", \"0.5\")",
+        "SetCVar(\"MusicVolume\", \"0.5\", nil)",
+        "SetCVar(\"MusicVolume\", \"0.5\", true)",
+        "SetCVar(\"MusicVolume\", \"0.5\", {})",
+    ] {
+        s.run(chunk).unwrap();
+        assert!(seen(&s).is_empty(), "{chunk} fires nothing");
+    }
+
+    // Seen by the next statement of the same chunk, with no tick between.
+    assert_eq!(
+        s.eval::<f64>("SetCVar(\"MusicVolume\", \"0.6\", \"MUSIC_VOLUME\") return getn(SEEN)")
+            .unwrap(),
+        1.0,
+        "the handler ran before SetCVar returned"
+    );
+    // The same value again still fires.
+    s.run("SetCVar(\"MusicVolume\", \"0.6\", \"MUSIC_VOLUME\")")
+        .unwrap();
+    // A number token is its text; a value with no string form is "0".
+    s.run("SetCVar(\"MusicVolume\", nil, 7)").unwrap();
+    s.run("SetCVar(\"MusicVolume\", 0.25, \"VOL\")").unwrap();
+    assert_eq!(
+        seen(&s),
+        vec!["MUSIC_VOLUME=0.6", "MUSIC_VOLUME=0.6", "7=0", "VOL=0.25"]
+    );
+    assert!(s.errors().is_empty(), "script errors: {:?}", s.errors());
+}
+
+/// `RegisterCVar` takes argument 2 as the default only when `lua_isstring` passes (`0x488b56`),
+/// else `"0"` (`0x488b6f`); a number default is `%.14g` text. Without a name it raises its usage
+/// text (`0x8422e8`).
+#[test]
+fn register_cvar_defaults_to_zero_and_reads_numbers_as_lua_text() {
+    let mut s = UiScript::new().unwrap();
+    for (name, arg, stored) in [
+        ("Bare", "", "0"),
+        ("Nil", ", nil", "0"),
+        ("True", ", true", "0"),
+        ("Table", ", {}", "0"),
+        ("Float", ", 0.4000000059604645", "0.40000000596046"),
+        ("Int", ", 3", "3"),
+        ("Text", ", \"on\"", "on"),
+    ] {
+        s.run(&format!("RegisterCVar({name:?}{arg})")).unwrap();
+        assert_eq!(get(&s, name), stored, "RegisterCVar({name:?}{arg})");
+        assert_eq!(
+            s.eval::<String>(&format!("return GetCVarDefault({name:?})"))
+                .unwrap(),
+            stored,
+            "the default too"
+        );
+    }
+    assert!(s
+        .take_cvar_registrations()
+        .contains(&("Bare".to_string(), "0".to_string())));
+    assert!(
+        s.eval::<bool>("return tonumber(GetCVar(\"Bare\")) == 0")
+            .unwrap(),
+        "an addon's tonumber of a bare registration is 0, not nil"
+    );
+    for chunk in [
+        "RegisterCVar()",
+        "RegisterCVar(nil, \"1\")",
+        "RegisterCVar({})",
+    ] {
+        assert!(
+            raised(&s, chunk).contains("Usage: RegisterCVar(\"cvar\" [, default])"),
+            "{chunk}"
+        );
+    }
+}
+
+/// `RegisterCVar` creates at most 30 CVars per process (`0x488b25`: `cmp [0xb4e3c8], 0x1e`), and
+/// raises `0x8422c0` once there, before the name is even looked up. Only a creation counts
+/// (`0x488b8f`): a live name and a name the config file already holds do not.
+#[test]
+fn register_cvar_creates_thirty_cvars_per_process() {
+    let mut s = script_with(&[("farclip", "350")]);
+    s.set_cvar_saved_base([("savedknob".to_string(), "4".to_string())]);
+    s.run("RegisterCVar('farclip', '1') RegisterCVar('SavedKnob', '1')")
+        .unwrap();
+    assert_eq!(s.cvar_lua_created(), 0, "neither call created a record");
+    for i in 0..29 {
+        s.run(&format!("RegisterCVar('knob{i}', '1')")).unwrap();
+    }
+    s.run("RegisterCVar('knob0', '2')").unwrap();
+    assert_eq!(s.cvar_lua_created(), 29, "a re-declaration is no creation");
+    s.run("RegisterCVar('knob29', '1')").unwrap();
+    assert_eq!(s.cvar_lua_created(), 30);
+    for chunk in ["RegisterCVar('knob30', '1')", "RegisterCVar('knob0', '1')"] {
+        // Through `luaL_error` (`0x488b34`), at the caller's line.
+        assert_eq!(
+            crate::script::lua_message(&s.run(chunk).expect_err(chunk)),
+            "[string \"(chunk)\"]:1: Attempted to register too many CVars",
+            "{chunk}"
+        );
+    }
+    assert!(s.cvar("knob30").is_none());
+    assert_eq!(
+        s.take_cvar_registrations().len(),
+        31,
+        "30 counted, one saved"
+    );
+
+    // The count is the process's: a new VM seeded with it is already at the limit.
+    let mut next = UiScript::new().unwrap();
+    next.set_cvar_lua_created(s.cvar_lua_created());
+    assert!(next.run("RegisterCVar('fresh', '1')").is_err());
+}
+
+/// A seeded row's change callback runs before the store (`CVar::Set` `0x63df7d`): a refusal keeps
+/// the applied value and queues nothing for the host but the callback's console line.
+#[test]
+fn a_seeded_check_refuses_before_the_store() {
+    let mut s = UiScript::new().unwrap();
+    s.seed_cvars([crate::script::SeededCvar {
+        name: "shadowLevel".into(),
+        value: "1".into(),
+        default: "1".into(),
+        latched: false,
+        check: Some(crate::script::check_shadow_level),
+        reset: None,
+        session: false,
+    }]);
+    s.run("SetCVar('shadowLevel', 2)").unwrap();
+    assert_eq!(get(&s, "shadowLevel"), "1");
+    assert!(s.take_cvar_changes().is_empty());
+    s.run("SetCVar('shadowLevel', 0)").unwrap();
+    assert_eq!(get(&s, "shadowLevel"), "0");
+    assert_eq!(
+        s.take_cvar_console_lines(),
+        [
+            "Shadow mip level must be in range 0 - 1.",
+            "Shadow mip level changed upon restart.",
+        ]
+    );
+}
