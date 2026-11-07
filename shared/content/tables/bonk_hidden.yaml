@@ -1,0 +1,43 @@
+# Imported by tools/content/dump_tables.py from bonk_hidden. Edit this file, then run tools/content/compile.py.
+table: bonk_hidden
+columns:
+- id
+- name
+- map_id
+- chance
+- trigger
+- object_entry
+- boss_entry
+- boss_scale
+- add_entry
+- add_count
+- chest_choices
+- yell
+- found_text
+rows:
+- - 1
+  - Hogger
+  - 1
+  - 15.0
+  - 0
+  - 900060
+  - 448
+  - 1.3
+  - 117
+  - 4
+  - 4
+  - Grrr... fresh meat!
+  - Something big was hiding in that bush... it's Hogger!
+- - 2
+  - Old Murk-Eye
+  - 1
+  - 15.0
+  - 1
+  - 900061
+  - 391
+  - 1.5
+  - 126
+  - 6
+  - 4
+  - Mrrglllglglgl!
+  - A murloc camp! Old Murk-Eye and his band charge out of the surf!

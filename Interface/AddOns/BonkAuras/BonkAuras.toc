@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: BonkAuras
+## Notes: WeakAuras-style buff tracker for Hordes of Azeroth / 监控魔兽世界 Buff 与 Hordes of Azeroth 天赋状态
+## Author: xenoglossy-asyncio
+## Version: 0.1.0
+## SavedVariables: BonkAurasDB
+BonkAurasSpells.lua
+BonkAuras.lua

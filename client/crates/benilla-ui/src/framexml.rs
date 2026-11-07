@@ -1,0 +1,944 @@
+//! The FrameXML document layer: a `.xml` file's text as an owned, order-preserving tree, with
+//! `inherits` template expansion and `$parent` name substitution; no widgets and no Lua. It
+//! follows the reference's loader (`0x6edc00`–`0x6f3000`, the file loader `0x6ede10`), whose XML
+//! tokenizer is an embedded expat and ours `roxmltree`.
+
+use std::collections::{HashMap, HashSet};
+use std::fmt;
+
+/// An owned XML element, attributes in document order. Lookups fold case, as the reference's
+/// `GetAttribute 0x6f2cf0` and element-name compares (`0x64a4c0`) do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Element {
+    pub tag: String,
+    attrs: Vec<(String, String)>,
+    pub children: Vec<Element>,
+    /// The node's own direct text (the reference node's body text at `+0xc`): a handler or
+    /// `<Script>` body.
+    pub body: String,
+}
+
+impl Element {
+    /// Case-insensitive attribute lookup.
+    pub fn attr(&self, name: &str) -> Option<&str> {
+        self.attrs
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+    }
+
+    /// A boolean attribute as the frame loaders read it: `0x6f2cf0` fetches the attribute and a
+    /// missing or empty one is skipped (`0x769891`, `0x77a0b5`), leaving what the constructor set;
+    /// any other goes through the client's string-to-bool `0x6f1b30`
+    /// ([`crate::strings::string_to_bool`]), so `hidden="1"` and `movable="yes"` are true and
+    /// `hidden="false"` is not.
+    pub fn attr_bool_opt(&self, name: &str) -> Option<bool> {
+        self.attr(name)
+            .filter(|v| !v.is_empty())
+            .map(crate::strings::string_to_bool)
+    }
+
+    /// [`attr_bool_opt`](Self::attr_bool_opt) for a flag the constructor leaves off.
+    pub fn attr_bool(&self, name: &str) -> bool {
+        self.attr_bool_opt(name).unwrap_or(false)
+    }
+
+    /// The two attributes the reference compares whole, case-insensitively, against `"true"`
+    /// (`0x862234`) rather than parsing: `virtual` (`0x6ee190`) and `setAllPoints` (`0x767879`).
+    pub fn attr_is_true(&self, name: &str) -> bool {
+        self.attr(name)
+            .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.attr("name")
+    }
+
+    pub fn attrs(&self) -> &[(String, String)] {
+        &self.attrs
+    }
+}
+
+/// A `<Script file=…>` or an inline `<Script>` body; both run in document order with the rest of
+/// the top level (`0x704bc0`/`0x704cd0`, from `0x6ede10`'s walk).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScriptRef {
+    File(String),
+    Inline {
+        body: String,
+        /// The 1-based line of the file that `body` starts on, so the loader can pad the chunk and
+        /// Lua's error lines are the file's.
+        line: u32,
+    },
+}
+
+/// One top-level item, kept in document order: the reference runs `<Include>` and `<Script>`
+/// interleaved with frame definitions (`0x6ede10`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TopLevel {
+    /// `<Include file=…>`: load another file at this point (`0x8710c0`).
+    Include(String),
+    Script(ScriptRef),
+    /// `<Font …>`, a named font definition (`0x87106c`).
+    Font(Element),
+    /// An element with `virtual="true"`: a template keyed by `name`, not instantiated
+    /// (`0x6ee500`).
+    Template(Element),
+    /// An element without `virtual="true"`: instantiated in place.
+    Instance(Element),
+}
+
+/// One parsed document: its top-level items in order, and the issues it loaded past.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ParsedDocument {
+    pub items: Vec<TopLevel>,
+    /// An `<Include>` or `<Font>` missing its attribute, a root that is not `<Ui>`: logged, and the
+    /// file goes on.
+    pub warnings: Vec<String>,
+}
+
+impl ParsedDocument {
+    /// The named templates, registered in document order as the loader registers them, for
+    /// [`expand`]; an unnamed one (the reference's "Unnamed virtual node" error, `0x6ee1c4`) is
+    /// absent.
+    pub fn templates(&self) -> Templates {
+        let mut templates = Templates::default();
+        for item in &self.items {
+            if let TopLevel::Template(el) = item {
+                if let Some(name) = el.name().filter(|n| !n.is_empty()) {
+                    templates.register(name, el.clone(), None);
+                }
+            }
+        }
+        templates
+    }
+}
+
+/// What an `inherits=` name resolves against: the template table, or the font namespace.
+pub trait Inheritable {
+    /// The element registered under `name`, compared case-insensitively, ASCII only.
+    fn find(&self, name: &str) -> Option<&Element>;
+}
+
+impl Inheritable for HashMap<&str, &Element> {
+    fn find(&self, name: &str) -> Option<&Element> {
+        self.get(name).copied().or_else(|| {
+            self.iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(name))
+                .map(|(_, v)| *v)
+        })
+    }
+}
+
+/// The FrameXML template table (`0x6ee500`), global across a UI load's files. A name registers
+/// once: the hash upper-cases it (`SStrHash 0x64b3f0`) and the bucket walk compares with
+/// `SStrCmpI 0x64a4c0`, so the key is the name with ASCII case folded, and the lookup `0x6ee6f0`
+/// matches the same way. Each entry keeps the script-execution context it was registered under.
+#[derive(Debug, Clone, Default)]
+pub struct Templates {
+    entries: HashMap<String, Template>,
+}
+
+#[derive(Debug, Clone)]
+struct Template {
+    /// Shared, so a load's per-level reads hold the node without copying it.
+    element: std::rc::Rc<Element>,
+    /// The context word at registration (`[entry+0x1c]`, `0x6ee6be`); `None` is the reference's 0.
+    context: Option<String>,
+}
+
+/// What [`Templates::register`] did with a definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Registration {
+    /// The name was free.
+    Added,
+    /// The name's entry came from a non-zero context and this one from context 0 (`0x6ee5c1`).
+    Replaced,
+    /// The name was taken: the reference logs `"Virtual object named %s already exists"`
+    /// (`0x871188`, severity 1) and keeps the first (`0x6ee5a4`).
+    Refused,
+}
+
+impl Templates {
+    /// Register `element` under `name` from `context` (`None` is context 0). A taken name is
+    /// replaced only when its entry's context is non-zero and this one is 0 (`0x6ee594`-`0x6ee5a2`);
+    /// every other repeat is refused and leaves the entry as it was.
+    pub fn register(
+        &mut self,
+        name: &str,
+        element: Element,
+        context: Option<&str>,
+    ) -> Registration {
+        let template = Template {
+            element: std::rc::Rc::new(element),
+            context: context.map(str::to_owned),
+        };
+        match self.entries.entry(name.to_ascii_lowercase()) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(template);
+                Registration::Added
+            }
+            std::collections::hash_map::Entry::Occupied(mut slot) => {
+                if slot.get().context.is_some() && context.is_none() {
+                    slot.insert(template);
+                    Registration::Replaced
+                } else {
+                    Registration::Refused
+                }
+            }
+        }
+    }
+
+    /// The template registered under `name`, case-folded (`0x6ee6f0`).
+    pub fn get(&self, name: &str) -> Option<&Element> {
+        self.entries
+            .get(&name.to_ascii_lowercase())
+            .map(|t| &*t.element)
+    }
+
+    /// The templates `element`'s load runs before its own body, in the order the reference runs
+    /// them: each level's `inherits` template is loaded through its own recursive load first
+    /// (`0x76fe5b`), the most distant first. [`expand`] flattens the same chain into one element,
+    /// losing the boundaries that per-level state (a texture's wrap flag, `0x76fec6`) follows. A
+    /// cycle stops at the repeated name.
+    pub fn inherited_levels(&self, element: &Element) -> Vec<std::rc::Rc<Element>> {
+        self.inherited_levels_until(element, |_| false)
+    }
+
+    /// [`Self::inherited_levels`], the walk stopping at the first `inherits` that `is_font` claims:
+    /// a FontString looks the name up as a font first and loads no template once one answers
+    /// (`0x770f69` → `0x770fb7`), so a template of the same name, and what it inherits, is never a
+    /// level.
+    pub fn inherited_levels_until(
+        &self,
+        element: &Element,
+        is_font: impl Fn(&str) -> bool,
+    ) -> Vec<std::rc::Rc<Element>> {
+        let mut out: Vec<std::rc::Rc<Element>> = Vec::new();
+        let mut active: Vec<String> = Vec::new();
+        let mut name = element.attr("inherits").map(str::to_string);
+        while let Some(n) = name.filter(|n| !n.is_empty()) {
+            if is_font(&n) {
+                break;
+            }
+            let key = n.to_ascii_lowercase();
+            if active.contains(&key) {
+                break;
+            }
+            let Some(t) = self.entries.get(&key) else {
+                break;
+            };
+            active.push(key);
+            name = t.element.attr("inherits").map(str::to_string);
+            out.push(t.element.clone());
+        }
+        out.reverse();
+        out
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.entries.contains_key(&name.to_ascii_lowercase())
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+impl Inheritable for Templates {
+    fn find(&self, name: &str) -> Option<&Element> {
+        self.get(name)
+    }
+}
+
+/// Malformed XML; anything softer is a [`ParsedDocument::warnings`] entry.
+#[derive(Debug)]
+pub enum Error {
+    Xml(roxmltree::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Xml(e) => write!(f, "malformed FrameXML document: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Xml(e) => Some(e),
+        }
+    }
+}
+
+/// Parse FrameXML text. As in `0x6ede10`, the root's children are walked in order: `<Include>`
+/// and `<Script>` keep their place, `<Font>` is a font, and any other element, known tag or not,
+/// is a template when `virtual="true"` and an instance otherwise; widget types are checked at
+/// instantiation. A root that is not `<Ui>` only warns: the reference's walk is not known to check
+/// the root's tag.
+pub fn parse(text: &str) -> Result<ParsedDocument, Error> {
+    // The reference's expat is created by `XML_ParserCreate 0x7e6690`, not the NS variant, so a
+    // prefix is opaque and an undeclared one (`xsi:` with no `xmlns:xsi`) is no error, where
+    // `roxmltree` rejects the whole document. Bind the prefix the error names and re-read; the
+    // bytes are otherwise untouched, and `element_from_node` drops prefixed attributes.
+    let repaired;
+    let doc = match roxmltree::Document::parse(text) {
+        Ok(doc) => doc,
+        Err(roxmltree::Error::UnknownNamespace(..)) => {
+            repaired = bind_undeclared_prefixes(text);
+            roxmltree::Document::parse(&repaired).map_err(Error::Xml)?
+        }
+        Err(e) => return Err(Error::Xml(e)),
+    };
+    let root = doc.root_element();
+
+    let mut warnings = Vec::new();
+    if !root.tag_name().name().eq_ignore_ascii_case("Ui") {
+        warnings.push(format!(
+            "root element is <{}>, not <Ui>; tolerated (the reference's file loader walks \
+             the root's children regardless of the root's own tag)",
+            root.tag_name().name()
+        ));
+    }
+
+    let mut items = Vec::new();
+    for child in root.children().filter(|n| n.is_element()) {
+        let tag = child.tag_name().name();
+        if tag.eq_ignore_ascii_case("Include") {
+            match attr_ci(child, "file") {
+                Some(file) => items.push(TopLevel::Include(file)),
+                None => warnings.push("<Include> without a file attribute; skipped".to_string()),
+            }
+        } else if tag.eq_ignore_ascii_case("Script") {
+            match attr_ci(child, "file") {
+                Some(file) => items.push(TopLevel::Script(ScriptRef::File(file))),
+                None => items.push(TopLevel::Script(ScriptRef::Inline {
+                    body: direct_text(child),
+                    line: inline_start_line(&doc, child),
+                })),
+            }
+        } else if tag.eq_ignore_ascii_case("Font") {
+            let el = element_from_node(child);
+            if el.name().is_none() {
+                warnings.push("<Font> without a name attribute".to_string());
+            }
+            items.push(TopLevel::Font(el));
+        } else {
+            let el = element_from_node(child);
+            if el.attr_is_true("virtual") {
+                // An unnamed one is kept: the loader reports it where the reference does.
+                items.push(TopLevel::Template(el));
+            } else {
+                items.push(TopLevel::Instance(el));
+            }
+        }
+    }
+
+    Ok(ParsedDocument { items, warnings })
+}
+
+/// Declare each prefix the document uses but never binds, one per round on the root's start tag
+/// (in scope everywhere, the root's own name included), taking the prefix each
+/// `UnknownNamespace` error names, never a text scan, which would match inside comments and
+/// values. Any other error, or [`MAX_BOUND_PREFIXES`] rounds, returns the text as it stands.
+pub(crate) fn bind_undeclared_prefixes(text: &str) -> String {
+    let mut out = text.to_string();
+    for _ in 0..MAX_BOUND_PREFIXES {
+        let Err(roxmltree::Error::UnknownNamespace(prefix, _)) = roxmltree::Document::parse(&out)
+        else {
+            return out;
+        };
+        let Some(at) = root_attr_insertion_point(&out) else {
+            return out;
+        };
+        // An inert URI, distinct per prefix so two stray prefixes stay two namespaces.
+        out.insert_str(
+            at,
+            &format!(" xmlns:{prefix}=\"urn:benilla:undeclared:{prefix}\""),
+        );
+    }
+    out
+}
+
+/// The most undeclared prefixes [`bind_undeclared_prefixes`] binds before giving up.
+const MAX_BOUND_PREFIXES: usize = 8;
+
+/// The byte offset just before the `>` or `/>` closing the root's start tag, found by hand since
+/// the document does not parse yet: the prolog is skipped and quoted values are stepped over, so
+/// a `>` inside one (`hyperlinkFormat="|H%s|h[%s]|h"`) is not the tag's end.
+fn root_attr_insertion_point(text: &str) -> Option<usize> {
+    let b = text.as_bytes();
+    let mut i = 0usize;
+    while i < b.len() {
+        if b[i] != b'<' {
+            i += 1;
+            continue;
+        }
+        let rest = &text[i..];
+        if rest.starts_with("<?") {
+            i += rest.find("?>").map(|n| n + 2)?;
+        } else if rest.starts_with("<!--") {
+            i += rest.find("-->").map(|n| n + 3)?;
+        } else if rest.starts_with("<!") {
+            i += rest.find('>').map(|n| n + 1)?;
+        } else {
+            // The root's start tag.
+            let mut j = i + 1;
+            while j < b.len() {
+                match b[j] {
+                    q @ (b'\'' | b'"') => {
+                        j += 1;
+                        while j < b.len() && b[j] != q {
+                            j += 1;
+                        }
+                    }
+                    b'>' => {
+                        // Insert before a `/>`'s slash, not between the slash and the `>`.
+                        let at = if j > 0 && b[j - 1] == b'/' { j - 1 } else { j };
+                        return Some(at);
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            return None;
+        }
+    }
+    None
+}
+
+fn attr_ci(node: roxmltree::Node, name: &str) -> Option<String> {
+    node.attributes()
+        .find(|a| a.name().eq_ignore_ascii_case(name))
+        .map(|a| a.value().to_string())
+}
+
+/// The 1-based line of the first text byte inside a `<Script>`: the first text child's, since
+/// `<![CDATA[` can sit between the tag and the body, else the element's own.
+fn inline_start_line(doc: &roxmltree::Document, node: roxmltree::Node) -> u32 {
+    let at = node
+        .children()
+        .find(|n| n.is_text())
+        .unwrap_or(node)
+        .range()
+        .start;
+    doc.text_pos_at(at).row
+}
+
+fn direct_text(node: roxmltree::Node) -> String {
+    node.children()
+        .filter(|n| n.is_text())
+        .filter_map(|n| n.text())
+        .collect()
+}
+
+fn element_from_node(node: roxmltree::Node) -> Element {
+    Element {
+        tag: node.tag_name().name().to_string(),
+        attrs: node
+            .attributes()
+            // `GetAttribute 0x6f2cf0` matches the whole stored name and no FrameXML key has a
+            // colon, so a prefixed attribute is unreachable; dropping it also stops `roxmltree`'s
+            // local names from letting `xsi:name` answer for `name`.
+            .filter(|a| a.namespace().is_none())
+            .map(|a| (a.name().to_string(), a.value().to_string()))
+            .collect(),
+        children: node
+            .children()
+            .filter(|n| n.is_element())
+            .map(element_from_node)
+            .collect(),
+        body: direct_text(node),
+    }
+}
+
+/// Resolve `inherits` into a materialized [`Element`]: the named template, itself expanded first,
+/// then the element on top. Children are the template's then the element's; the element's
+/// attributes override or extend the template's (case-insensitively). The reference merges
+/// nothing: `LoadXML` re-enters itself on the one object against each template, the most distant
+/// first, then the instance (`0x76985c`; `<Frames>` repeat the walk, `0x76a060`), and reads `name`
+/// and `id` from the instance alone (`PreLoadXML 0x769770`; a region's factory reads its `name`
+/// once, outside the walk, `0x6f2751`/`0x6f27e1`). So here `name` and `id` come from the element
+/// alone, and an unnamed instance stays unnamed; `virtual` merges like any attribute, read only at
+/// registration. A cycle is skipped with a warning.
+pub fn expand(
+    element: &Element,
+    templates: &dyn Inheritable,
+    warnings: &mut Vec<String>,
+) -> Element {
+    expand_known(element, templates, &|_| false, warnings)
+}
+
+/// [`expand`], skipping without a warning an `inherits` that `is_font` claims: a
+/// `<FontString inherits="GameFontNormalSmall">` takes a font, applied later, not a template.
+pub fn expand_known(
+    element: &Element,
+    templates: &dyn Inheritable,
+    is_font: &dyn Fn(&str) -> bool,
+    warnings: &mut Vec<String>,
+) -> Element {
+    let mut active = HashSet::new();
+    expand_inner(element, templates, is_font, warnings, &mut active)
+}
+
+fn expand_inner(
+    element: &Element,
+    templates: &dyn Inheritable,
+    is_font: &dyn Fn(&str) -> bool,
+    warnings: &mut Vec<String>,
+    active: &mut HashSet<String>,
+) -> Element {
+    let Some(inherits) = element.attr("inherits") else {
+        return element.clone();
+    };
+
+    // `inherits` is one name, not a list: `0x6ee6f0` has no splitter, so `"A, B"` misses (later
+    // clients split it). It is used verbatim (`GetAttribute 0x6f2cf0` does not trim; `""` is
+    // skipped, `" "` misses) and matched case-insensitively, ASCII only: `_strnicmp` at
+    // `0x6ee747`, reached despite a mis-cased name because `SStrHash 0x64b3f0` uppercases.
+    let mut base: Option<Element> = None;
+    for name in [inherits].into_iter().filter(|s| !s.is_empty()) {
+        if !active.insert(name.to_string()) {
+            warnings.push(format!(
+                "inheritance cycle detected at template '{name}'; skipping this reference"
+            ));
+            continue;
+        }
+        let Some(template) = templates.find(name) else {
+            // A font object is not an unknown template; it is applied after this.
+            if !is_font(name) {
+                warnings.push(format!(
+                    "unknown template '{name}' referenced by inherits; skipping"
+                ));
+            }
+            active.remove(name);
+            continue;
+        };
+        let expanded_template = expand_inner(template, templates, is_font, warnings, active);
+        active.remove(name);
+        base = Some(match base {
+            None => expanded_template,
+            Some(acc) => merge(&acc, &expanded_template),
+        });
+    }
+
+    match base {
+        Some(base) => merge(&base, element),
+        None => element.clone(),
+    }
+}
+
+/// [`expand`]'s merge; `over`'s tag wins, and its body when it has one. `base`'s `name` and `id`
+/// are dropped: they belong to the node they are written on.
+fn merge(base: &Element, over: &Element) -> Element {
+    let mut attrs: Vec<(String, String)> = base
+        .attrs
+        .iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("name") && !k.eq_ignore_ascii_case("id"))
+        .cloned()
+        .collect();
+    for (k, v) in &over.attrs {
+        if let Some(slot) = attrs.iter_mut().find(|(ek, _)| ek.eq_ignore_ascii_case(k)) {
+            slot.1 = v.clone();
+        } else {
+            attrs.push((k.clone(), v.clone()));
+        }
+    }
+
+    let mut children = base.children.clone();
+    children.extend(over.children.iter().cloned());
+
+    Element {
+        tag: over.tag.clone(),
+        attrs,
+        children,
+        body: if over.body.is_empty() {
+            base.body.clone()
+        } else {
+            over.body.clone()
+        },
+    }
+}
+
+/// The bare node a runtime `CreateFrame(kind, name, parent, inherits)` expands through
+/// [`expand`], so Lua and XML resolve `inherits` alike. The result keeps `tag`, the kind
+/// `CreateFrame` was given: a template's `<Button>` cannot retype a `"Frame"`.
+pub fn inherits_node(tag: &str, inherits: &str) -> Element {
+    Element {
+        tag: tag.to_string(),
+        attrs: vec![("inherits".to_string(), inherits.to_string())],
+        children: Vec::new(),
+        body: String::new(),
+    }
+}
+
+/// What `$parent` expands to with no named ancestor: the literal `"Top"` (`0x8788ac`).
+pub const DEFAULT_PARENT_NAME: &str = "Top";
+
+/// `$parent` substitution (`0x76c5b0`): a leading `$parent`, case-insensitive and the only such
+/// token, becomes `parent_name`, the rest appended verbatim. `parent_name` is the already-resolved
+/// name of the nearest named ancestor (the `+0x9c` walk), else [`DEFAULT_PARENT_NAME`], so nested
+/// `$parent` names compose. The reference calls it from two sites only, in `SetName` (`0x76c691`)
+/// and in the layout resolver `0x76c700` (`0x76c71c`): a name and an anchor's `relativeTo` (XML,
+/// `SetPoint` or `SetAllPoints`) expand, and `parent=` never does.
+pub fn resolve_name(raw: &str, parent_name: &str) -> String {
+    const TOKEN: &str = "$parent";
+    match raw.get(..TOKEN.len()) {
+        Some(prefix) if prefix.eq_ignore_ascii_case(TOKEN) => {
+            format!("{parent_name}{}", &raw[TOKEN.len()..])
+        }
+        _ => raw.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The frame loaders' bool attribute (`0x6f2cf0` then `0x6f1b30`, skipped when missing or
+    /// empty), and the two the reference compares against `"true"` alone.
+    #[test]
+    fn bool_attributes_read_through_the_clients_string_to_bool() {
+        let doc = parse(
+            r#"<Ui><Frame a="1" b="yes" c="On" d="false" e="0" f="" g="maybe" h="true" i="Y" j="off"/></Ui>"#,
+        )
+        .unwrap();
+        let TopLevel::Instance(el) = &doc.items[0] else {
+            panic!("an instance");
+        };
+        for yes in ["a", "b", "c", "h", "i"] {
+            assert_eq!(el.attr_bool_opt(yes), Some(true), "{yes}");
+            assert!(el.attr_bool(yes), "{yes}");
+        }
+        for no in ["d", "e", "g", "j"] {
+            assert_eq!(el.attr_bool_opt(no), Some(false), "{no}");
+            assert!(!el.attr_bool(no), "{no}");
+        }
+        assert_eq!(el.attr_bool_opt("f"), None, "an empty value is skipped");
+        assert_eq!(el.attr_bool_opt("absent"), None);
+        assert!(!el.attr_bool("f") && !el.attr_bool("absent"));
+        assert!(el.attr_is_true("h") && !el.attr_is_true("a") && !el.attr_is_true("i"));
+        // `virtual="1"` is no template: its test is the whole word `true` (`0x6ee190`).
+        let doc = parse(r#"<Ui><Frame name="One" virtual="1"/></Ui>"#).unwrap();
+        assert!(matches!(doc.items[0], TopLevel::Instance(_)));
+    }
+
+    use super::*;
+
+    #[test]
+    fn an_undeclared_namespace_prefix_does_not_cost_the_document() {
+        let doc = parse(
+            r#"<Ui xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
+                <Frame name="Survived"/>
+            </Ui>"#,
+        )
+        .expect("the reference parses this, so we must");
+        assert_eq!(doc.items.len(), 1);
+        let TopLevel::Instance(el) = &doc.items[0] else {
+            panic!("{:?}", doc.items[0])
+        };
+        assert_eq!(el.name(), Some("Survived"));
+    }
+
+    /// One stray prefix is on an element, not an attribute.
+    #[test]
+    fn several_undeclared_prefixes_are_all_bound() {
+        let doc = parse(
+            r#"<Ui xsi:schemaLocation="x" foo:bar="y">
+                <Frame name="A"/>
+                <bar:Frame name="B"/>
+            </Ui>"#,
+        )
+        .expect("every stray prefix is bound, not just the first");
+        assert_eq!(doc.items.len(), 2);
+    }
+
+    /// Both spellings, since stock FrameXML declares `xmlns:xsi` on every `<Ui>`.
+    #[test]
+    fn a_prefixed_attribute_never_answers_an_unprefixed_lookup() {
+        for text in [
+            r#"<Ui><Frame xsi:name="Ghost" text="real"/></Ui>"#,
+            r#"<Ui xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                 <Frame xsi:name="Ghost" text="real"/>
+               </Ui>"#,
+        ] {
+            let doc = parse(text).unwrap();
+            let TopLevel::Instance(el) = &doc.items[0] else {
+                panic!()
+            };
+            assert_eq!(el.name(), None, "a prefixed name= is unreachable: {text}");
+            assert_eq!(el.attr("text"), Some("real"), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_malformed_document_still_fails_with_its_own_error() {
+        assert!(parse(r#"<Ui xsi:a="b"><Frame></Ui>"#).is_err());
+    }
+
+    #[test]
+    fn the_root_tag_is_found_past_a_prolog_and_a_quoted_angle_bracket() {
+        let doc = parse(
+            "<?xml version=\"1.0\"?>\n<!-- a > in a comment -->\n\
+             <Ui xsi:a=\"b\" note=\"a &gt; b\"><Frame name=\"Ok\"/></Ui>",
+        )
+        .unwrap();
+        assert_eq!(doc.items.len(), 1);
+        // A self-closing root: the binding goes before the slash.
+        assert!(parse(r#"<Ui xsi:a="b"/>"#).is_ok());
+    }
+
+    #[test]
+    fn top_level_order_preserves_script_and_element_interleave() {
+        let doc = parse(
+            r#"<Ui>
+                <Script file="A.lua"/>
+                <Frame name="First"/>
+                <Script>print("inline")</Script>
+                <Include file="Other.xml"/>
+                <Frame name="Second"/>
+            </Ui>"#,
+        )
+        .unwrap();
+
+        let kinds: Vec<&str> = doc
+            .items
+            .iter()
+            .map(|item| match item {
+                TopLevel::Include(_) => "include",
+                TopLevel::Script(ScriptRef::File(_)) => "script-file",
+                TopLevel::Script(ScriptRef::Inline { .. }) => "script-inline",
+                TopLevel::Font(_) => "font",
+                TopLevel::Template(_) => "template",
+                TopLevel::Instance(_) => "instance",
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                "script-file",
+                "instance",
+                "script-inline",
+                "include",
+                "instance"
+            ],
+            "document order must be preserved, not grouped by kind"
+        );
+
+        match &doc.items[0] {
+            TopLevel::Script(ScriptRef::File(f)) => assert_eq!(f, "A.lua"),
+            other => panic!("expected file script, got {other:?}"),
+        }
+        assert!(doc.warnings.is_empty());
+    }
+
+    #[test]
+    fn inline_vs_file_script() {
+        let doc = parse(
+            r#"<Ui>
+                <Script file="Foo.lua"/>
+                <Script>local x = 1
+print(x)</Script>
+            </Ui>"#,
+        )
+        .unwrap();
+        assert_eq!(
+            doc.items[0],
+            TopLevel::Script(ScriptRef::File("Foo.lua".to_string()))
+        );
+        match &doc.items[1] {
+            TopLevel::Script(ScriptRef::Inline { body, line }) => {
+                assert!(body.contains("local x = 1"));
+                assert!(body.contains("print(x)"));
+                // Line 3 of the literal above: `<Ui>`, `<Script file=…>`, then this one.
+                assert_eq!(*line, 3, "the inline body's own line in the file");
+            }
+            other => panic!("expected inline script, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn virtual_registers_as_template_non_virtual_as_instance() {
+        let doc = parse(
+            r#"<Ui>
+                <Frame name="MyTemplate" virtual="true"/>
+                <Frame name="MyInstance"/>
+                <Frame VIRTUAL="TRUE" name="CasedTemplate"/>
+            </Ui>"#,
+        )
+        .unwrap();
+        assert!(matches!(doc.items[0], TopLevel::Template(_)));
+        assert!(matches!(doc.items[1], TopLevel::Instance(_)));
+        assert!(
+            matches!(doc.items[2], TopLevel::Template(_)),
+            "virtual attribute name/value compare is case-insensitive"
+        );
+        let templates = doc.templates();
+        assert!(templates.contains("MyTemplate"));
+        assert!(templates.contains("CasedTemplate"));
+        assert_eq!(templates.len(), 2);
+    }
+
+    #[test]
+    fn unnamed_virtual_warns_but_does_not_fail() {
+        let doc = parse(r#"<Ui><Frame virtual="true"/></Ui>"#).unwrap();
+        assert!(matches!(doc.items[0], TopLevel::Template(_)));
+        // Reported by the loader into the document's record, not at parse.
+        assert!(doc.warnings.is_empty(), "{:?}", doc.warnings);
+        assert!(
+            doc.templates().is_empty(),
+            "an unnamed template cannot be inherited"
+        );
+    }
+
+    #[test]
+    fn unknown_top_level_tag_is_tolerated_as_generic_element() {
+        let doc = parse(r#"<Ui><TotallyMadeUpTag name="Whatever" foo="bar"/></Ui>"#).unwrap();
+        match &doc.items[0] {
+            TopLevel::Instance(el) => {
+                assert_eq!(el.tag, "TotallyMadeUpTag");
+                assert_eq!(el.attr("foo"), Some("bar"));
+            }
+            other => panic!("expected a generic instance, got {other:?}"),
+        }
+        assert!(doc.warnings.is_empty());
+    }
+
+    /// All eight callers of `0x6ee6f0` pass `GetAttribute`'s pointer as is, and nothing in
+    /// `0x6ed000`–`0x6f6000` examines a comma; the value is not trimmed either.
+    #[test]
+    fn a_comma_list_is_one_literal_name_that_misses_and_applies_neither_template() {
+        let doc = parse(
+            r#"<Ui>
+                <Frame name="A" virtual="true">
+                    <Layers><Layer level="ARTWORK"><Texture name="FromA"/></Layer></Layers>
+                </Frame>
+                <Frame name="B" virtual="true" alpha="0.5">
+                    <Layers><Layer level="ARTWORK"><Texture name="FromB"/></Layer></Layers>
+                </Frame>
+                <Frame name="Inst" inherits="A, B" alpha="1.0">
+                    <Layers><Layer level="ARTWORK"><Texture name="FromInst"/></Layer></Layers>
+                </Frame>
+                <Frame name="Padded" inherits=" A "/>
+            </Ui>"#,
+        )
+        .unwrap();
+        let templates = doc.templates();
+        let TopLevel::Instance(inst) = &doc.items[2] else {
+            panic!("expected instance")
+        };
+        let mut warnings = Vec::new();
+        let expanded = expand(inst, &templates, &mut warnings);
+
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].contains("A, B"),
+            "the warning must name the literal it looked up: {warnings:?}"
+        );
+
+        // The element loads with its own content only.
+        assert_eq!(expanded.attr("alpha"), Some("1.0"));
+        assert_eq!(expanded.children.len(), 1);
+        fn texture_name(el: &Element) -> &str {
+            el.children[0].children[0].attr("name").unwrap()
+        }
+        assert_eq!(texture_name(&expanded.children[0]), "FromInst");
+
+        // A padded name misses: the value is used verbatim.
+        let TopLevel::Instance(padded) = &doc.items[3] else {
+            panic!("expected instance")
+        };
+        let mut w2 = Vec::new();
+        let expanded = expand(padded, &templates, &mut w2);
+        assert_eq!(w2.len(), 1, "{w2:?}");
+        assert!(
+            expanded.children.is_empty(),
+            "picked up A despite the spaces"
+        );
+    }
+
+    #[test]
+    fn inheritance_chain_recurses() {
+        let doc = parse(
+            r#"<Ui>
+                <Frame name="Root" virtual="true" frameStrata="LOW">
+                    <Layers><Layer level="ARTWORK"><Texture name="RootTex"/></Layer></Layers>
+                </Frame>
+                <Frame name="Mid" virtual="true" inherits="Root" frameStrata="MEDIUM">
+                    <Layers><Layer level="ARTWORK"><Texture name="MidTex"/></Layer></Layers>
+                </Frame>
+                <Frame name="Leaf" inherits="Mid"/>
+            </Ui>"#,
+        )
+        .unwrap();
+        let templates = doc.templates();
+        let TopLevel::Instance(leaf) = &doc.items[2] else {
+            panic!("expected instance")
+        };
+        let mut warnings = Vec::new();
+        let expanded = expand(leaf, &templates, &mut warnings);
+        assert!(warnings.is_empty());
+        // Mid's frameStrata overrides Root's, and Leaf sets none.
+        assert_eq!(expanded.attr("frameStrata"), Some("MEDIUM"));
+        assert_eq!(
+            expanded.children.len(),
+            2,
+            "Root's then Mid's <Layers>, in order"
+        );
+    }
+
+    #[test]
+    fn inheritance_cycle_warns_and_terminates() {
+        let doc = parse(
+            r#"<Ui>
+                <Frame name="A" virtual="true" inherits="B"/>
+                <Frame name="B" virtual="true" inherits="A"/>
+                <Frame name="Inst" inherits="A"/>
+            </Ui>"#,
+        )
+        .unwrap();
+        let templates = doc.templates();
+        let TopLevel::Instance(inst) = &doc.items[2] else {
+            panic!("expected instance")
+        };
+        let mut warnings = Vec::new();
+        let _expanded = expand(inst, &templates, &mut warnings);
+        assert!(
+            warnings.iter().any(|w| w.contains("cycle")),
+            "expected a cycle warning, got {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn parent_name_substitution_basic_and_case_insensitive() {
+        assert_eq!(
+            resolve_name("$parentHealthBar", "PlayerFrame"),
+            "PlayerFrameHealthBar"
+        );
+        assert_eq!(
+            resolve_name("$PARENThealthbar", "PlayerFrame"),
+            "PlayerFramehealthbar"
+        );
+        assert_eq!(resolve_name("$Parent", "PlayerFrame"), "PlayerFrame");
+        assert_eq!(
+            resolve_name("NotAParentName", "PlayerFrame"),
+            "NotAParentName"
+        );
+        // No named ancestor: the caller passes the literal "Top".
+        assert_eq!(resolve_name("$parentFoo", DEFAULT_PARENT_NAME), "TopFoo");
+    }
+
+    #[test]
+    fn parent_name_substitution_composes_through_nested_children() {
+        // The grandchild resolves against the child's resolved name, not its raw "$parent…" text.
+        let parent_name = "PlayerFrame";
+        let child_name = resolve_name("$parentHealthBar", parent_name);
+        assert_eq!(child_name, "PlayerFrameHealthBar");
+        let grandchild_name = resolve_name("$parentText", &child_name);
+        assert_eq!(grandchild_name, "PlayerFrameHealthBarText");
+    }
+}

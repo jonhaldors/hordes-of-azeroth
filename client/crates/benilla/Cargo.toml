@@ -1,0 +1,32 @@
+[package]
+name = "benilla"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The launcher: build.rs stamps the git build id and main() hands it to benilla-app, so a new commit rebuilds this package and not the app crate"
+
+[lints]
+workspace = true
+
+[features]
+# The dev/player seam: `cargo build -p benilla --no-default-features` is the player build.
+default = ["dev"]
+dev = ["benilla-app/dev"]
+# Profiling switches, forwarded so `cargo run -p benilla --features tracy` works.
+tracy = ["benilla-app/tracy"]
+trace_chrome = ["benilla-app/trace_chrome"]
+# Forwards to benilla-app's `bevy_dynamic_linking`, which enables bevy/dynamic_linking.
+bevy_dynamic_linking = ["benilla-app/bevy_dynamic_linking"]
+
+[dependencies]
+# `default-features = false`, or `--no-default-features` here still builds benilla-app with `dev`.
+benilla-app = { path = "../benilla-app", default-features = false }
+
+[build-dependencies]
+benilla-buildstamp = { path = "../benilla-buildstamp" }
+
+[[bin]]
+name = "benilla"
+path = "src/main.rs"
+# No tests here, and test-building this bin would relink the whole app on every commit.
+test = false

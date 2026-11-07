@@ -1,0 +1,24 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261026200021');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261026200021');
+
+ALTER TABLE `bonk_weapon` ADD COLUMN `radius` FLOAT NOT NULL DEFAULT 0 AFTER `range`;
+UPDATE `bonk_weapon` SET `radius` = 3 WHERE `id` IN (422);
+UPDATE `bonk_weapon` SET `radius` = 4 WHERE `id` IN (216, 223, 314, 315, 523, 704, 720, 721, 735);
+UPDATE `bonk_weapon` SET `radius` = 5 WHERE `id` IN (229, 404, 412, 419, 420, 534, 629, 800, 802, 812, 815, 816, 819, 820, 826, 837, 838, 840, 927, 1016, 1022, 1032);
+UPDATE `bonk_weapon` SET `radius` = 6 WHERE `id` IN (202, 204, 224, 225, 226, 227, 405, 418, 513, 530, 535, 835, 919, 1017);
+UPDATE `bonk_weapon` SET `radius` = 8 WHERE `id` IN (137, 218, 219, 306, 308, 313, 319, 323, 324, 325, 326, 327, 328, 417, 421, 506, 510, 518, 524, 525, 532, 533, 626, 635, 718, 723, 728, 909, 925, 929, 930, 1003, 1007, 1014, 1018, 1019, 1020, 1026, 1027, 1036, 1038);
+UPDATE `bonk_weapon` SET `radius` = 10 WHERE `id` IN (205, 220, 221, 300, 303, 305, 309, 310, 311, 312, 317, 318, 321, 322, 329, 330, 332, 401, 402, 407, 408, 413, 414, 415, 416, 423, 425, 426, 427, 428, 521, 603, 606, 618, 619, 624, 625, 627, 632, 733, 804, 806, 810, 823, 824, 828, 832, 834, 910, 931, 932, 1006, 1011, 1024, 1025, 1028, 1029, 1034, 1035);
+UPDATE `bonk_weapon` SET `radius` = 12 WHERE `id` IN (502, 516, 517, 827, 833);
+UPDATE `bonk_weapon` SET `radius` = 14 WHERE `id` IN (633);
+UPDATE `bonk_weapon` SET `radius` = 18 WHERE `id` IN (37, 214, 215);
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

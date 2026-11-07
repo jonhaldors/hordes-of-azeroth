@@ -1,0 +1,31 @@
+# Imported by tools/content/dump_tables.py from bonk_shop_tree_locale. Edit this file, then run tools/content/compile.py.
+table: bonk_shop_tree_locale
+columns:
+- id
+- locale
+- name
+rows:
+- - 1
+  - zhCN
+  - 机动
+- - 2
+  - zhCN
+  - 富足
+- - 3
+  - zhCN
+  - 远征
+- - 4
+  - zhCN
+  - 财运
+- - 5
+  - zhCN
+  - 黑暗运势
+- - 6
+  - zhCN
+  - 补给
+- - 7
+  - zhCN
+  - 训练
+- - 8
+  - zhCN
+  - 暗月恩惠

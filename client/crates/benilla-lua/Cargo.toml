@@ -1,0 +1,15 @@
+[package]
+name = "benilla-lua"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The Lua interpreter benilla's script host runs: 5.1.5 with the 1.12.1 client's grammar, its state as plain Rust data"
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+benilla-formats = { path = "../benilla-formats" }
+roxmltree = "0.20"

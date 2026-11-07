@@ -1,0 +1,15 @@
+[package]
+name = "benilla-mpq"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Read-only MPQ archive reader for WoW 1.12.1 (build 5875)"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Bounds-checked byte readers and the allocation cap on the header, block table and sectors.
+benilla-bytes = { path = "../benilla-bytes" }
+# Inflate for the ZLIB (0x02) sector codec, on its pure-Rust miniz_oxide backend.
+flate2 = "1.1"

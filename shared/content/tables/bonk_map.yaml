@@ -1,0 +1,895 @@
+# Imported by tools/content/dump_tables.py from bonk_map. Edit this file, then run tools/content/compile.py.
+table: bonk_map
+columns:
+- id
+- key
+- name
+- tier
+- map_type
+- map_id
+- zone_id
+- position_x
+- position_y
+- position_z
+- orientation
+- duration_sec
+- level_offset
+- health_multiplier
+- damage_multiplier
+- health_growth_per_min
+- damage_growth_per_min
+- spawn_min_distance
+- spawn_max_distance
+- gold_per_kill
+- stage_gold
+- coins_per_kill
+- powerup_interval_sec
+- powerup_max
+- icon
+- summary
+- description
+rows:
+- - 1
+  - westfall
+  - Westfall
+  - 1
+  - 0
+  - 0
+  - 40
+  - -10235.2
+  - 1222.47
+  - 43.6252
+  - 6.2427
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - INV_Misc_Bandana_03
+  - Defias thugs, gnolls, murlocs
+  - Farmland overrun by the Defias Brotherhood. Edwin VanCleef, Gilnid or Sneed's Shredder leads the stage.
+- - 2
+  - moltencore
+  - Molten Core
+  - 0
+  - 1
+  - 409
+  - 0
+  - 1091.89
+  - -466.985
+  - -105.084
+  - 3.14159
+  - 600
+  - 2
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 46.0
+  - 58.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Spell_Fire_LavaSpawn
+  - Fire elementals, core hounds, Molten Giants
+  - The burning heart of Blackrock Mountain. Magmadar, Golemagg or Baron Geddon leads the stage, with Garr, Lucifron and Gehennas close behind.
+- - 3
+  - barrens
+  - The Barrens
+  - 1
+  - 0
+  - 1
+  - 17
+  - 776.0
+  - -2870.0
+  - 92.7
+  - 3.14
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - INV_Misc_Head_Centaur_01
+  - Quilboars, centaurs, hyenas
+  - Endless dry plains full of Razormane and Kolkar raiders. Charlga Razorflank, Agathelos the Raging or Mutanus the Devourer leads the stage.
+- - 4
+  - duskwood
+  - Duskwood
+  - 1
+  - 0
+  - 0
+  - 10
+  - -10586.0
+  - 144.0
+  - 33.0
+  - 0.0
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 50.0
+  - 62.0
+  - 5
+  - 1100
+  - 1
+  - 40
+  - 3
+  - Spell_Shadow_RaiseDead
+  - Undead, worgen, ogres
+  - A dark forest where the dead walk. Stitches, Morbent Fel or Eliza leads the stage.
+- - 5
+  - zulgurub
+  - Zul'Gurub
+  - 0
+  - 1
+  - 309
+  - 0
+  - -11521.2
+  - -1637.5
+  - 49.5
+  - 0.0
+  - 600
+  - 2
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 48.0
+  - 60.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Ability_Mount_JungleTiger
+  - Gurubashi trolls, bats, tigers
+  - The temple city of the Gurubashi. Hakkar, High Priest Thekal or Bloodlord Mandokir leads the stage, with Jin'do, Venoxis and Mar'li close behind.
+- - 6
+  - ruinsaq
+  - Ruins of Ahn'Qiraj
+  - 0
+  - 1
+  - 509
+  - 0
+  - -8600.6
+  - 1483.5
+  - 33.2
+  - 0.0
+  - 600
+  - 2
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 50.0
+  - 62.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - INV_Misc_AhnQirajTrinket_01
+  - Silithid swarms, Qiraji, Anubisath
+  - The ruined gates of Ahn'Qiraj. Ossirian the Unscarred or Baron Kazum leads the stage.
+- - 7
+  - tanaris
+  - Tanaris
+  - 3
+  - 0
+  - 1
+  - 440
+  - -9315.0
+  - -2998.0
+  - 10.6
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Hyena
+  - Hyenas, ogres, Wastewander bandits
+  - Sun-baked dunes around Zul'Farrak. Gahz'rilla or Chief Ukorz Sandscalp leads the stage.
+- - 8
+  - ungoro
+  - Un'Goro Crater
+  - 3
+  - 0
+  - 1
+  - 490
+  - -7913.0
+  - -1606.0
+  - -270.9
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 52.0
+  - 64.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Raptor
+  - Devilsaurs, raptors, oozes
+  - A primal crater ruled by giant beasts. King Mosh or the Gorishi Hive Queen leads the stage.
+- - 9
+  - stranglethorn
+  - Stranglethorn Vale
+  - 3
+  - 0
+  - 0
+  - 33
+  - -12702.0
+  - -440.0
+  - 32.5
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 48.0
+  - 60.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Gorilla
+  - Jungle trolls, tigers, gorillas
+  - Thick jungle full of Bloodscalp and Skullsplitter trolls. The Mosh'Ogg Lord or Gan'zulah leads the stage.
+- - 10
+  - desolace
+  - Desolace
+  - 3
+  - 0
+  - 1
+  - 405
+  - -715.0
+  - 1840.0
+  - 93.0
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Scorpid
+  - Centaurs, scorpids, satyrs
+  - A barren land of warring centaur clans. Princess Theradras, Celebras the Cursed or Rotgrip leads the stage.
+- - 11
+  - badlands
+  - Badlands
+  - 3
+  - 0
+  - 0
+  - 3
+  - -6930.0
+  - -2885.0
+  - 244.0
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Vulture
+  - Troggs, Dark Iron dwarves, whelps
+  - Scorched canyons above Uldaman. Archaedas, the Ancient Stone Keeper or the Obsidian Sentinel leads the stage.
+- - 12
+  - arathi
+  - Arathi Highlands
+  - 3
+  - 0
+  - 0
+  - 45
+  - -1030.0
+  - -2380.0
+  - 50.5
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Spider
+  - Ogres, Witherbark trolls, Syndicate
+  - Rolling highlands held by ogres and outlaws. Fozruk or Prince Nazjak leads the stage.
+- - 13
+  - swampofsorrows
+  - Swamp of Sorrows
+  - 3
+  - 0
+  - 0
+  - 8
+  - -10270.0
+  - -3150.0
+  - 23.0
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Crocolisk
+  - Crocolisks, Lost Ones, Atal'ai
+  - A sunken swamp around the Temple of Atal'Hakkar. The Avatar of Hakkar, Jammal'an the Prophet or Morphaz leads the stage.
+- - 14
+  - burningsteppes
+  - Burning Steppes
+  - 2
+  - 0
+  - 0
+  - 46
+  - -7781.5
+  - -2912.5
+  - 132.5
+  - 1.7
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - INV_Misc_Head_Dragon_Black
+  - Blackrock orcs, black dragonkin
+  - Ash and fire below Blackrock Spire. Emperor Thaurissan and General Drakkisath lead the stages.
+- - 15
+  - easternplaguelands
+  - Eastern Plaguelands
+  - 2
+  - 0
+  - 0
+  - 139
+  - 2881.0
+  - -4168.6
+  - 96.4
+  - 2.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Spell_Shadow_AbominationExplosion
+  - Scourge, abominations, plaguehounds
+  - The heart of the plague, below Stratholme. Baron Rivendare and Balnazzar lead the stages.
+- - 16
+  - westernplaguelands
+  - Western Plaguelands
+  - 2
+  - 0
+  - 0
+  - 28
+  - 1900.0
+  - -2300.0
+  - 60.1
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - INV_Misc_Bone_HumanSkull_01
+  - Scarlet Crusade, ghouls, plague beasts
+  - Fields between Scholomance and the Scarlet camps. Darkmaster Gandling, Jandice Barov or Doctor Theolen Krastinov leads the stage.
+- - 17
+  - feralas
+  - Feralas
+  - 2
+  - 0
+  - 1
+  - 357
+  - -4180.0
+  - -140.0
+  - 56.3
+  - 3.9
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - INV_Crown_01
+  - Gnolls, ogres, Dire Maul
+  - Ancient forests around Dire Maul. King Gordok and Prince Tortheldrin lead the stages.
+- - 18
+  - searinggorge
+  - Searing Gorge
+  - 2
+  - 0
+  - 0
+  - 51
+  - -7135.0
+  - -1505.0
+  - 241.2
+  - 0.8
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Ability_GolemThunderClap
+  - Dark Iron dwarves, golems, lava spiders
+  - Molten slag pits at the foot of Blackrock Mountain. Rend Blackhand and The Beast lead the stages.
+- - 19
+  - felwood
+  - Felwood
+  - 2
+  - 0
+  - 1
+  - 361
+  - 6270.0
+  - -1380.0
+  - 370.6
+  - 0.8
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Spell_Shadow_SummonInfernal
+  - Satyrs, demons, Jadefire
+  - A corrupted forest full of demons. Lord Kazzak and Kroshius lead the stages.
+- - 20
+  - dunmorogh
+  - Dun Morogh
+  - 1
+  - 0
+  - 0
+  - 1
+  - -5305.0
+  - 75.0
+  - 386.3
+  - 5.8
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - Ability_Mount_MechaStrider
+  - Troggs, Frostmane trolls, Gnomeregan
+  - The frozen shore of Iceflow Lake below Gnomeregan. Troggs and trolls come first, then Mekgineer Thermaplugg or the Dark Iron Ambassador and his machines.
+- - 21
+  - silverpine
+  - Silverpine Forest
+  - 1
+  - 0
+  - 0
+  - 130
+  - 872.6
+  - 1491.5
+  - 38.7
+  - 0.0
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - Ability_Mount_WhiteDireWolf
+  - Worgen, Rot Hide gnolls, Dalaran mages
+  - A dark pine forest haunted by Arugal's worgen. Arugal or Wolf Master Nandos leads the stage.
+- - 22
+  - wetlands
+  - Wetlands
+  - 3
+  - 0
+  - 0
+  - 11
+  - -3519.7
+  - -1432.5
+  - 9.4
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - INV_Misc_Head_Murloc_01
+  - Murlocs, Mosshide gnolls, Dragonmaw orcs
+  - Marshes held by the Dragonmaw and the Dark Iron dwarves. Chieftain Nek'rosh or Balgaras the Foul leads the stage.
+- - 23
+  - silithus
+  - Silithus
+  - 2
+  - 0
+  - 1
+  - 1377
+  - -6584.9
+  - 585.4
+  - 3.7
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Spell_Nature_InsectSwarm
+  - Silithid hives, Twilight cultists, Templars
+  - A desert of silithid hives where the Twilight's Hammer calls up the elemental lords. Prince Skaldrenox or Baron Kazum leads the stage.
+- - 24
+  - lochmodan
+  - Loch Modan
+  - 1
+  - 0
+  - 0
+  - 38
+  - -5614.5
+  - -3606.8
+  - 310.0
+  - 0.0
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Boar
+  - Troggs, Tunnel Rat kobolds, Mo'grosh ogres
+  - Highland lakes overrun by troggs and kobolds, with ogres in the hills. Magosh or Boss Galgosh leads the stage.
+- - 25
+  - darkshore
+  - Darkshore
+  - 1
+  - 0
+  - 1
+  - 148
+  - 6820.0
+  - 97.6
+  - 19.7
+  - 0.0
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - Spell_Nature_StarFall
+  - Blackwood furbolgs, Greymist murlocs, naga
+  - A long wooded coast of maddened furbolgs and naga raiders. Lady Vespira or Lord Sinslayer leads the stage.
+- - 26
+  - redridge
+  - Redridge Mountains
+  - 1
+  - 0
+  - 0
+  - 44
+  - -8940.4
+  - -2082.4
+  - 135.1
+  - 0.0
+  - 600
+  - 0
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 4
+  - 1000
+  - 1
+  - 40
+  - 3
+  - INV_Misc_Head_Gnoll_01
+  - Redridge gnolls, Blackrock orcs, black whelps
+  - Red hills where gnolls and the Blackrock clan raid the farms. Tharil'zun or Gath'Ilzogg leads the stage.
+- - 27
+  - hillsbrad
+  - Hillsbrad Foothills
+  - 3
+  - 0
+  - 0
+  - 267
+  - -419.9
+  - -46.8
+  - 54.1
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Bear
+  - Hillsbrad militia, Mudsnout gnolls, Torn Fin murlocs
+  - Farmland and foothills held by the Hillsbrad militia. Araga or Skhowl leads the stage.
+- - 28
+  - thousandneedles
+  - Thousand Needles
+  - 3
+  - 0
+  - 1
+  - 400
+  - -5116.1
+  - -2350.0
+  - -54.7
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_WindSerpent
+  - Galak centaur, Grimtotem tauren, wind serpents
+  - A canyon of stone spires fought over by centaur and the Grimtotem. Ironeye the Invincible or Arnak Grimtotem leads the stage.
+- - 29
+  - dustwallow
+  - Dustwallow Marsh
+  - 3
+  - 0
+  - 1
+  - 15
+  - -2689.7
+  - -3513.3
+  - 35.0
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 8
+  - 2500
+  - 1
+  - 40
+  - 3
+  - Ability_Hunter_Pet_Turtle
+  - Mirefin murlocs, Bloodfen raptors, Firemane dragonkin
+  - A misty swamp of raptors, murlocs and the dragonkin of the Wyrmbog. Overlord Mok'Morokk or Brimgore leads the stage.
+- - 30
+  - winterspring
+  - Winterspring
+  - 2
+  - 0
+  - 1
+  - 618
+  - 7350.8
+  - -4881.8
+  - 730.5
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Ability_Mount_WhiteTiger
+  - Winterfall furbolgs, yetis, frostsabers, blue dragonkin
+  - A frozen valley of yetis, owlbeasts and the Winterfall tribe. High Chief Winterfall or Princess Tempestria leads the stage.
+- - 31
+  - azshara
+  - Azshara
+  - 2
+  - 0
+  - 1
+  - 16
+  - 3489.1
+  - -4190.1
+  - 97.0
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Spell_Nature_Cyclone
+  - Spitelash naga, Timbermaw furbolgs, Hederine
+  - Ruined shores of the highborne, raided by naga and blood elves. Scalebeard or The Evalcharr leads the stage.
+- - 32
+  - blastedlands
+  - Blasted Lands
+  - 2
+  - 0
+  - 0
+  - 4
+  - -11483.1
+  - -3049.4
+  - 1.1
+  - 0.0
+  - 600
+  - 1
+  - 1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 54.0
+  - 66.0
+  - 13
+  - 5000
+  - 1
+  - 40
+  - 3
+  - Spell_Shadow_Metamorphosis
+  - Dreadmaul ogres, Shadowsworn cultists, demons
+  - A scorched waste before the Dark Portal, where cultists call up demons. Teremus the Devourer or the Doomguard Commander leads the stage.

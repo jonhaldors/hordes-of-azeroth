@@ -1,0 +1,2809 @@
+//! Headless tests for the cast-edge router [`super::route_cast_visuals`] and the aura and mount
+//! watchers, over synthetic visual chains and, where an install is present, the shipped tables.
+
+use std::collections::HashMap;
+
+use bevy::prelude::*;
+
+use benilla_formats::{SpellCatalog, SpellDisplay, SpellVisualCatalog, VisualKit, VisualStages};
+
+use super::super::{CastEvent, CastEventKind, CastHold, EmoteAnim, SheathRequest, WoundAnim};
+use super::{
+    launcher_shots, route_cast_visuals, GroundList, GroundShot, KitPush, MissileSpawn,
+    MissileTarget, SpellKitFx, SpellKitShake, SpellKitSound, SpellVisuals,
+};
+use crate::creature_anim::SpellGoTargets;
+
+/// Demon Armor's shipped chain: visual 130 → precast kit 217 with anim 52, an instant self-buff.
+const SPELL: u32 = 706;
+const VISUAL: u32 = 130;
+const PRECAST_KIT: u32 = 217;
+const HOLD_ANIM: u16 = 52;
+
+/// A ranged-slot spell (`Attributes & 0x2`) whose own visual's cast kit plays the fire clip.
+const RANGED_SPELL: u32 = 19434;
+const RANGED_VISUAL: u32 = 3180;
+const RANGED_CAST_KIT: u32 = 900;
+const FIRE_ANIM: u16 = 46;
+
+fn app() -> App {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                VISUAL,
+                VisualStages {
+                    precast: PRECAST_KIT,
+                    ..Default::default()
+                },
+            ),
+            (
+                RANGED_VISUAL,
+                VisualStages {
+                    cast: RANGED_CAST_KIT,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::from([
+            (
+                PRECAST_KIT,
+                VisualKit {
+                    anim_id: Some(HOLD_ANIM),
+                    ..Default::default()
+                },
+            ),
+            (
+                RANGED_CAST_KIT,
+                VisualKit {
+                    anim_id: Some(FIRE_ANIM),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                SPELL,
+                SpellDisplay {
+                    visual: VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (
+                RANGED_SPELL,
+                SpellDisplay {
+                    visual: RANGED_VISUAL,
+                    attributes: 0x2, // USES_RANGED_SLOT
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, route_cast_visuals);
+    app
+}
+
+fn cast_event(entity: Entity, spell_id: u32, kind: CastEventKind) -> CastEvent {
+    CastEvent {
+        entity,
+        spell_id,
+        kind,
+        cast_flags: 0,
+        item_cast: false,
+        seq: 1,
+    }
+}
+
+fn hold(app: &App, unit: Entity) -> Option<u32> {
+    app.world().entity(unit).get::<CastHold>().map(|h| {
+        assert_eq!(h.anim_id, HOLD_ANIM);
+        h.spell_id
+    })
+}
+
+#[test]
+fn timed_cast_hold_arms_and_releases_across_frames() {
+    let mut app = app();
+    let unit = app.world_mut().spawn_empty().id();
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+    app.update();
+    assert_eq!(hold(&app, unit), Some(SPELL), "START arms the hold");
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Go));
+    app.update();
+    assert_eq!(hold(&app, unit), None, "GO releases it");
+}
+
+/// An instant cast's START and GO drain in one frame: the GO must see the hold its own batch
+/// inserted, or the hold leaks and the cast pose loops forever.
+#[test]
+fn same_frame_start_and_go_leave_no_hold() {
+    let mut app = app();
+    let unit = app.world_mut().spawn_empty().id();
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Go));
+    app.update();
+    assert_eq!(
+        hold(&app, unit),
+        None,
+        "the instant cast's hold is released"
+    );
+}
+
+/// The hold is keyed by spell id, so a proc's GO never drops it, in the same frame or later.
+#[test]
+fn a_foreign_go_never_drops_the_hold() {
+    let mut app = app();
+    let unit = app.world_mut().spawn_empty().id();
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+    app.world_mut()
+        .write_message(cast_event(unit, 999, CastEventKind::Go));
+    app.update();
+    assert_eq!(
+        hold(&app, unit),
+        Some(SPELL),
+        "same-frame foreign GO ignored"
+    );
+
+    app.world_mut()
+        .write_message(cast_event(unit, 999, CastEventKind::Go));
+    app.update();
+    assert_eq!(hold(&app, unit), Some(SPELL), "later foreign GO ignored");
+}
+
+/// The precast kit's sound (kit field 13) rings once at START, not again at GO. Herb Gathering's
+/// shipped chain: visual 91 → precast kit 64, anim 123 (UseStandingLoop), sound 1104 (Gather_Herb).
+#[test]
+fn precast_kit_sound_rings_once_at_start() {
+    const HERB: u32 = 2366;
+    const HERB_VISUAL: u32 = 91;
+    const HERB_KIT: u32 = 64;
+    const HERB_SOUND: u32 = 1104;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            HERB_VISUAL,
+            VisualStages {
+                precast: HERB_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            HERB_KIT,
+            VisualKit {
+                anim_id: Some(123),
+                sound: Some(HERB_SOUND),
+                ..Default::default()
+            },
+        )]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            HERB,
+            SpellDisplay {
+                visual: HERB_VISUAL,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, route_cast_visuals);
+    let unit = app.world_mut().spawn_empty().id();
+
+    app.world_mut()
+        .write_message(cast_event(unit, HERB, CastEventKind::Start));
+    app.update();
+    let played: Vec<_> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .drain()
+        .collect();
+    assert!(
+        matches!(
+            played.as_slice(),
+            [
+                SpellKitSound::StopHold { .. },
+                SpellKitSound::Play { kit_sound, .. }
+            ] if *kit_sound == HERB_SOUND
+        ),
+        "START rings the precast kit's sound once (got {played:?})"
+    );
+
+    app.world_mut()
+        .write_message(cast_event(unit, HERB, CastEventKind::Go));
+    app.update();
+    let after_go: Vec<_> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .drain()
+        .collect();
+    assert!(
+        !after_go
+            .iter()
+            .any(|s| matches!(s, SpellKitSound::Play { .. })),
+        "the GO plays no second kit sound (got {after_go:?})"
+    );
+}
+
+/// The `$TRD` strike sound is the held spell's `SpellVisual` field 14: Mining's visual 93 names
+/// 1143 (Mining Impact), Fireball's visual 67 none.
+#[test]
+fn held_strike_sound_reads_the_visuals_field_14() {
+    const MINING: u32 = 2575;
+    const FIREBALL: u32 = 133;
+    let visuals = SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                93,
+                VisualStages {
+                    precast: 166,
+                    strike_sound: Some(1143),
+                    ..Default::default()
+                },
+            ),
+            (
+                67,
+                VisualStages {
+                    precast: 30,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::new(),
+    );
+    let spells = crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                MINING,
+                SpellDisplay {
+                    visual: 93,
+                    ..Default::default()
+                },
+            ),
+            (
+                FIREBALL,
+                SpellDisplay {
+                    visual: 67,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    };
+    assert_eq!(
+        super::held_strike_sound(&spells, &visuals, MINING),
+        Some(1143)
+    );
+    assert_eq!(super::held_strike_sound(&spells, &visuals, FIREBALL), None);
+    assert_eq!(super::held_strike_sound(&spells, &visuals, 999), None);
+}
+
+#[test]
+fn same_frame_start_and_fail_leave_no_hold() {
+    let mut app = app();
+    let unit = app.world_mut().spawn_empty().id();
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Fail));
+    app.update();
+    assert_eq!(hold(&app, unit), None, "the failed cast's hold is released");
+}
+
+/// The auto-repeat stop's `0x614150(spell, 0)` (`0x6ea139`) stops that spell's kits on the unit:
+/// its hold, its loop (keyed, `0x614167`) and its held effects; another spell's hold stays.
+#[test]
+fn a_kit_reap_drops_its_spells_hold_and_loop_and_spares_another() {
+    let mut app = app();
+    let unit = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+    app.update();
+    app.world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .clear();
+    app.world_mut()
+        .resource_mut::<Messages<SpellKitFx>>()
+        .clear();
+
+    app.world_mut()
+        .write_message(cast_event(unit, 999, CastEventKind::Reap));
+    app.update();
+    assert_eq!(hold(&app, unit), Some(SPELL), "another spell's reap");
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Reap));
+    app.update();
+    assert_eq!(hold(&app, unit), None, "the hold");
+    let stops: Vec<Option<u32>> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .drain()
+        .filter_map(|s| match s {
+            SpellKitSound::StopHold { entity, spell_id } if entity == unit => Some(spell_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        stops,
+        [Some(999), Some(SPELL)],
+        "each reap stops its own loop"
+    );
+    let reaps: Vec<u32> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitFx>>()
+        .drain()
+        .filter_map(|f| match f {
+            SpellKitFx::Reap {
+                entity, spell_id, ..
+            } if entity == unit => Some(spell_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(reaps, [999, SPELL]);
+}
+
+/// The cast edges stop a spell's kits unforced, `0x614150(spell, 0)`: the go's own (`0x6e7fe8`)
+/// and the running repeat spell's (`0x6e7ffb`), a failure's (`0x6e8de4`) and the repeat stop's
+/// (`0x6ea139`); the channel's end stops its old spell's forced (`0x60d1c0` at `0x60d22b`).
+#[test]
+fn the_cast_edges_reap_unforced_and_a_channels_end_forced() {
+    use benilla_protocol::field::FIELD_UNIT_CHANNEL_SPELL;
+    const AUTO_SHOT: u32 = 75;
+    let mut app = app();
+    app.insert_resource(crate::spell::AutoRepeatActive(Some(AUTO_SHOT)));
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            benilla_protocol::ObjectFields::from_pairs(&[(FIELD_UNIT_CHANNEL_SPELL, SPELL)]),
+        ))
+        .id();
+    let reaps = |app: &mut App| -> Vec<(u32, bool)> {
+        app.world_mut()
+            .resource_mut::<Messages<SpellKitFx>>()
+            .drain()
+            .filter_map(|fx| match fx {
+                SpellKitFx::Reap {
+                    spell_id, force, ..
+                } => Some((spell_id, force)),
+                _ => None,
+            })
+            .collect()
+    };
+    app.update();
+    reaps(&mut app);
+    for kind in [CastEventKind::Go, CastEventKind::Fail, CastEventKind::Reap] {
+        app.world_mut()
+            .write_message(cast_event(unit, RANGED_SPELL, kind));
+    }
+    app.update();
+    assert_eq!(
+        reaps(&mut app),
+        [
+            (RANGED_SPELL, false),
+            (AUTO_SHOT, false),
+            (RANGED_SPELL, false),
+            (RANGED_SPELL, false)
+        ]
+    );
+    app.world_mut()
+        .get_mut::<crate::net::ObjectStore>(unit)
+        .unwrap()
+        .0
+        .merge(benilla_protocol::ObjectFields::from_pairs(&[(
+            FIELD_UNIT_CHANNEL_SPELL,
+            0,
+        )]));
+    app.update();
+    assert_eq!(reaps(&mut app), [(SPELL, true)], "the channel's end");
+}
+
+/// The go's own kit stop is skipped for a spell with `AttributesEx & 0x4` while its caster
+/// channels (`UNIT_CHANNEL_SPELL`, the field block's `+0x228`; `0x6e7fca`-`0x6e7fde`), and the
+/// repeat spell's still runs (`0x6e7fed`); with the field clear the go stops its own.
+#[test]
+fn a_channelled_spells_go_keeps_its_kits_while_its_caster_channels() {
+    use benilla_protocol::field::FIELD_UNIT_CHANNEL_SPELL;
+    const DRAIN_LIFE: u32 = 689;
+    let mut app = app();
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            DRAIN_LIFE,
+            SpellDisplay {
+                attributes_ex: 0x4,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    let store = |channel| {
+        crate::net::ObjectStore(benilla_protocol::ObjectFields::from_pairs(&[(
+            FIELD_UNIT_CHANNEL_SPELL,
+            channel,
+        )]))
+    };
+    let channelling = app.world_mut().spawn(store(DRAIN_LIFE)).id();
+    let idle = app.world_mut().spawn(store(0)).id();
+    app.update();
+    app.world_mut()
+        .resource_mut::<Messages<SpellKitFx>>()
+        .clear();
+    app.world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .clear();
+    for unit in [channelling, idle] {
+        app.world_mut()
+            .write_message(cast_event(unit, DRAIN_LIFE, CastEventKind::Go));
+    }
+    app.update();
+    let reaps: Vec<Entity> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitFx>>()
+        .drain()
+        .filter_map(|fx| match fx {
+            SpellKitFx::Reap { entity, .. } => Some(entity),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(reaps, [idle]);
+    let stops: Vec<Entity> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .drain()
+        .filter_map(|s| match s {
+            SpellKitSound::StopHold { entity, .. } => Some(entity),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stops, [idle]);
+}
+
+/// The speed-0 impacts play for a go with no caster unit (`0x6e816b` → `0x6e8bf0`, no caster
+/// passed): a harmful instant hit still flinches its target (`0x6e8c7b`).
+#[test]
+fn a_go_with_no_caster_unit_plays_its_instant_impacts() {
+    const BOLT: u32 = 5143;
+    let mut app = app();
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            BOLT,
+            SpellDisplay {
+                visual: VISUAL,
+                targets: 0x80,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    let target = app.world_mut().spawn_empty().id();
+    app.world_mut().write_message(SpellGoTargets {
+        caster: None,
+        spell_id: BOLT,
+        hits: vec![target],
+        misses: Vec::new(),
+        source: None,
+        dest: None,
+        target_mask: 0x2,
+        ammo_display_id: None,
+        seq: 1,
+    });
+    app.update();
+    let wounds: Vec<Entity> = app
+        .world_mut()
+        .resource_mut::<Messages<WoundAnim>>()
+        .drain()
+        .map(|w| w.entity)
+        .collect();
+    assert_eq!(wounds, [target]);
+}
+
+/// The ranged weapon-visual merge (`0x60d450`): a spell with `Attributes & 0x2` fills every zero
+/// slot of its own row from the caster's weapon visual; a non-ranged spell never looks.
+#[test]
+fn ranged_spells_merge_the_weapon_visual_into_their_empty_slots() {
+    const THROW: u32 = 2764; // Attributes 0x410012, SpellVisual1 0: the shipped Throw row
+    const FIREBALL: u32 = 133; // its own visual; the fallback must stay unused
+    const MULTI_SHOT: u32 = 2643; // RANGED, own visual 567: impact + missile, no body kits
+    const NO_VIS_MELEE: u32 = 772; // no visual, no RANGED attribute: stays silent
+    const WEAPON_VISUAL: u32 = 98; // a shipped thrown weapon's ItemDisplayInfo col-10 visual
+    const MULTI_SHOT_VISUAL: u32 = 567;
+
+    let visuals = SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                WEAPON_VISUAL,
+                VisualStages {
+                    precast: 171,
+                    cast: 172,
+                    ..Default::default()
+                },
+            ),
+            (
+                VISUAL,
+                VisualStages {
+                    precast: PRECAST_KIT,
+                    ..Default::default()
+                },
+            ),
+            (
+                // The shipped row: impact kit 658, missile 528, gate 1, attach 1, no body kits.
+                MULTI_SHOT_VISUAL,
+                VisualStages {
+                    impact: 658,
+                    missile_gate: 1,
+                    missile_model: 528,
+                    missile_attach: 1,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::new(),
+    );
+    let spells = crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                THROW,
+                SpellDisplay {
+                    visual: 0,
+                    attributes: 0x410012,
+                    ..Default::default()
+                },
+            ),
+            (
+                FIREBALL,
+                SpellDisplay {
+                    visual: VISUAL,
+                    attributes: 0x2, // ranged, with its own visual: its own slot wins (`0x60d4b4`)
+                    ..Default::default()
+                },
+            ),
+            (
+                MULTI_SHOT,
+                SpellDisplay {
+                    visual: MULTI_SHOT_VISUAL,
+                    attributes: 0x10002, // the shipped word: RANGED set, own visual present
+                    ..Default::default()
+                },
+            ),
+            (
+                NO_VIS_MELEE,
+                SpellDisplay {
+                    visual: 0,
+                    attributes: 0,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    };
+
+    let throw = super::resolve_stages(&spells, &visuals, THROW, || Some(WEAPON_VISUAL));
+    assert_eq!(
+        throw.map(|s| (s.precast, s.cast)),
+        Some((171, 172)),
+        "Throw borrows the weapon visual's kits"
+    );
+    assert!(
+        super::resolve_stages(&spells, &visuals, THROW, || None).is_none(),
+        "no ranged weapon equipped → still silent"
+    );
+    assert_eq!(
+        super::resolve_stages(&spells, &visuals, FIREBALL, || Some(WEAPON_VISUAL))
+            .map(|s| s.precast),
+        Some(PRECAST_KIT),
+        "a populated slot is never displaced by the weapon's"
+    );
+    let multi = super::resolve_stages(&spells, &visuals, MULTI_SHOT, || Some(WEAPON_VISUAL))
+        .expect("Multi-Shot has its own row");
+    assert_eq!(
+        (multi.precast, multi.cast),
+        (171, 172),
+        "the empty body-kit slots fill from the weapon — else the draw/release is missing"
+    );
+    assert_eq!(
+        (multi.impact, multi.missile_model, multi.missile_attach),
+        (658, 528, 1),
+        "its own impact + missile block survives the merge untouched"
+    );
+    assert_eq!(
+        super::resolve_stages(&spells, &visuals, MULTI_SHOT, || None).map(|s| (s.cast, s.impact)),
+        Some((0, 658)),
+        "no ranged weapon equipped → the own row stands alone, unfilled"
+    );
+    assert!(
+        super::resolve_stages(&spells, &visuals, NO_VIS_MELEE, || Some(WEAPON_VISUAL)).is_none(),
+        "a non-ranged spell never takes the fallback"
+    );
+}
+
+/// The aura watcher arms a state kit's effects persistent under [`super::FxClass::AuraState`] as
+/// the spell enters the slots and reaps them as it leaves. Food: spell 433 → visual 51 → kit 409.
+#[test]
+fn aura_state_kit_arms_persistent_and_reaps_on_aura_end() {
+    use benilla_protocol::messages::ObjectFields;
+
+    const FOOD: u32 = 433;
+    const FOOD_VISUAL: u32 = 51;
+    const STATE_KIT: u32 = 409;
+    const BREAD_FX: u32 = 393;
+
+    #[derive(Resource, Default)]
+    struct FxLog(Vec<SpellKitFx>);
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<SpellKitFx>();
+    app.add_message::<crate::net::FieldChanged>();
+    // The watcher's CharProc and sound writers need their messages; kit 409 carries neither.
+    app.add_message::<crate::aura_visual::AuraProc>();
+    app.add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>();
+    app.init_resource::<FxLog>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables_with_paths(
+        HashMap::from([(
+            FOOD_VISUAL,
+            VisualStages {
+                state: STATE_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            STATE_KIT,
+            VisualKit {
+                // Slot 4 is the spell-hand tag (KIT_SLOT_TAGS[4] = 0x16), bread's shipped slot.
+                effect_slots: [
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(BREAD_FX),
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(BREAD_FX, "Spells\\Item_Bread.mdx".to_string())]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            FOOD,
+            SpellDisplay {
+                visual: FOOD_VISUAL,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(
+        Update,
+        (
+            super::arm_aura_state_fx,
+            |mut r: MessageReader<SpellKitFx>, mut log: ResMut<FxLog>| {
+                log.0.extend(r.read().cloned());
+            },
+        )
+            .chain(),
+    );
+
+    // Slot 0: UNIT_FIELD_AURA[0] (field 47) holds the spell id; occupancy is an effect-index bit
+    // in the slot's AURAFLAGS nibble (field 95's low nibble).
+    let eating = ObjectFields::from_pairs(&[(47, FOOD), (95, 0x0E)]);
+    let fasted = ObjectFields::from_pairs(&[(95, 0)]);
+
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            eating.into_created(benilla_protocol::messages::ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+    {
+        let log = &app.world().resource::<FxLog>().0;
+        assert_eq!(log.len(), 1, "one Begin on the ADD edge");
+        let SpellKitFx::Begin {
+            spell_id,
+            persistent,
+            class,
+            effects,
+            ..
+        } = &log[0]
+        else {
+            panic!("expected Begin");
+        };
+        assert_eq!(*spell_id, FOOD);
+        assert!(*persistent, "state kit persists for the aura's life");
+        assert_eq!(*class, super::FxClass::AuraState);
+        assert_eq!(
+            effects.as_slice(),
+            [super::FxSlot {
+                tag: 0x16,
+                effect: BREAD_FX,
+                path: "Spells\\Item_Bread.mdx".to_string(),
+            }],
+            "bread at the spell hand"
+        );
+    }
+
+    app.update();
+    assert_eq!(
+        app.world().resource::<FxLog>().0.len(),
+        1,
+        "a held aura re-arms nothing"
+    );
+
+    crate::net::apply_fields_for_test(
+        app.world_mut(),
+        unit,
+        fasted.into_created(benilla_protocol::messages::ObjectType::Unit),
+    );
+    app.update();
+    {
+        let log = &app.world().resource::<FxLog>().0;
+        assert_eq!(log.len(), 2, "one Reap on the REMOVE edge");
+        let SpellKitFx::Reap {
+            spell_id, class, ..
+        } = &log[1]
+        else {
+            panic!("expected Reap");
+        };
+        assert_eq!(*spell_id, FOOD);
+        assert_eq!(*class, super::FxClass::AuraState);
+    }
+}
+
+/// An instant harmful GO lays one severity-0 wound on each hit (`0x6e8bf0` at `0x6e8c89`), a
+/// helpful one none; a state kit's wound anim adds nothing (stage 2 never reaches the `[8,10]`
+/// test, `0x60f383`); a missile arrival always wounds (`0x61dc50` at `0x61dc74`).
+#[test]
+fn a_harmful_go_wounds_each_hit_once_and_a_missile_arrival_always() {
+    const HARMFUL: u32 = 7386; // Sunder Armor's shape: instant, enemy-targeted
+    const HELPFUL: u32 = 139; // Renew's shape: instant, ally-targeted
+    const VISUAL_H: u32 = 406;
+    const VISUAL_F: u32 = 280;
+    const IMPACT_KIT: u32 = 556; // no anim
+    const STATE_KIT: u32 = 436; // names CombatWound (9), which must add nothing
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    let stages = VisualStages {
+        impact: IMPACT_KIT,
+        state: STATE_KIT,
+        ..Default::default()
+    };
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(VISUAL_H, stages), (VISUAL_F, stages)]),
+        HashMap::from([
+            (
+                IMPACT_KIT,
+                VisualKit {
+                    anim_id: None,
+                    ..Default::default()
+                },
+            ),
+            (
+                STATE_KIT,
+                VisualKit {
+                    anim_id: Some(9),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                HARMFUL,
+                SpellDisplay {
+                    visual: VISUAL_H,
+                    targets: 0x80,
+                    ..Default::default()
+                },
+            ),
+            (
+                HELPFUL,
+                SpellDisplay {
+                    visual: VISUAL_F,
+                    targets: 0x100,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, route_cast_visuals);
+
+    let caster = app.world_mut().spawn_empty().id();
+    let target = app.world_mut().spawn_empty().id();
+    let wounds = |app: &mut App| -> Vec<Entity> {
+        app.world_mut()
+            .resource_mut::<Messages<WoundAnim>>()
+            .drain()
+            .map(|w| w.entity)
+            .collect()
+    };
+    for (spell_id, expected) in [(HARMFUL, vec![target]), (HELPFUL, Vec::new())] {
+        app.world_mut()
+            .write_message(cast_event(caster, spell_id, CastEventKind::Go));
+        app.world_mut().write_message(SpellGoTargets {
+            caster: Some(caster),
+            spell_id,
+            hits: vec![target],
+            misses: Vec::new(),
+            source: None,
+            dest: None,
+            target_mask: 0x2,
+            ammo_display_id: None,
+            seq: 1,
+        });
+        app.update();
+        assert_eq!(wounds(&mut app), expected, "instant GO of spell {spell_id}");
+    }
+    app.world_mut().write_message(cast_event(
+        target,
+        HELPFUL,
+        CastEventKind::Impact {
+            weapon_visual: None,
+            wound: true,
+        },
+    ));
+    app.update();
+    assert_eq!(wounds(&mut app), vec![target], "missile arrival");
+}
+
+/// The GO's release gate (`0x6e7a70`): a Speed>0 spell whose cast kit plays a body animation above
+/// 0 defers its [`MissileSpawn`] to the animation's release keyframe; any other, Stand included
+/// (`0x6e8295 jg`), launches at GO.
+#[test]
+fn missile_spawn_defers_iff_the_cast_kit_animates() {
+    const ANIMATED: u32 = 133; // Fireball's shape: cast kit with anim 53
+    const SILENT: u32 = 134; // same chain, cast kit with no anim
+    const STANDING: u32 = 135; // same chain, cast kit naming Stand
+    const ANIMATED_VISUAL: u32 = 67;
+    const SILENT_VISUAL: u32 = 68;
+    const STANDING_VISUAL: u32 = 69;
+    const CAST_KIT: u32 = 38;
+    const MUTE_KIT: u32 = 39;
+    const STAND_KIT: u32 = 40;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                ANIMATED_VISUAL,
+                VisualStages {
+                    cast: CAST_KIT,
+                    missile_gate: 1,
+                    ..Default::default()
+                },
+            ),
+            (
+                SILENT_VISUAL,
+                VisualStages {
+                    cast: MUTE_KIT,
+                    missile_gate: 1,
+                    ..Default::default()
+                },
+            ),
+            (
+                STANDING_VISUAL,
+                VisualStages {
+                    cast: STAND_KIT,
+                    missile_gate: 1,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::from([
+            (
+                CAST_KIT,
+                VisualKit {
+                    anim_id: Some(53),
+                    ..Default::default()
+                },
+            ),
+            (
+                MUTE_KIT,
+                VisualKit {
+                    anim_id: None,
+                    ..Default::default()
+                },
+            ),
+            (
+                STAND_KIT,
+                VisualKit {
+                    anim_id: Some(0),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                ANIMATED,
+                SpellDisplay {
+                    visual: ANIMATED_VISUAL,
+                    speed: 24.0,
+                    ..Default::default()
+                },
+            ),
+            (
+                SILENT,
+                SpellDisplay {
+                    visual: SILENT_VISUAL,
+                    speed: 24.0,
+                    ..Default::default()
+                },
+            ),
+            (
+                STANDING,
+                SpellDisplay {
+                    visual: STANDING_VISUAL,
+                    speed: 24.0,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, route_cast_visuals);
+
+    let caster = app.world_mut().spawn_empty().id();
+    let target = app.world_mut().spawn_empty().id();
+    for spell_id in [ANIMATED, SILENT, STANDING] {
+        app.world_mut().write_message(SpellGoTargets {
+            caster: Some(caster),
+            spell_id,
+            hits: vec![target],
+            misses: Vec::new(),
+            source: None,
+            dest: None,
+            target_mask: 0x2,
+            ammo_display_id: None,
+            seq: 1,
+        });
+    }
+    app.update();
+    let spawns: Vec<_> = app
+        .world_mut()
+        .resource_mut::<Messages<MissileSpawn>>()
+        .drain()
+        .map(|m| (m.spell_id, m.awaits_release))
+        .collect();
+    assert_eq!(
+        spawns,
+        vec![(ANIMATED, true), (SILENT, false), (STANDING, false)],
+        "deferred iff the cast kit animates past Stand"
+    );
+}
+
+/// A Speed>0 GO with no hits but a ground point spawns one projectile at it (`0x6e8a50`'s empty-hit
+/// arm), whose arrival (`0x61d870`) rings `SpellVisual` field 13's kit sound at the landing point.
+#[test]
+fn a_targetless_dest_go_spawns_a_ground_missile_whose_arrival_sounds_at_the_point() {
+    const GROUND: u32 = 1543; // Flare's shape: speed>0, dest-targeted, empty hit list
+    const VISUAL: u32 = 318;
+    const AREA_KIT: u32 = 3270;
+    const BOOM: u32 = 4100;
+    let at = Vec3::new(11.0, 2.0, -3.0);
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            VISUAL,
+            VisualStages {
+                // Field 6 ≠ 0: the missile owns the arrival, so the GO plays no dest burst.
+                missile_gate: 1,
+                area_effect: 3021,
+                area_kit: AREA_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            AREA_KIT,
+            VisualKit {
+                sound: Some(BOOM),
+                ..Default::default()
+            },
+        )]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            GROUND,
+            SpellDisplay {
+                visual: VISUAL,
+                speed: 5.0,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, route_cast_visuals);
+
+    let caster = app.world_mut().spawn_empty().id();
+    app.world_mut().write_message(SpellGoTargets {
+        caster: Some(caster),
+        spell_id: GROUND,
+        hits: Vec::new(),
+        misses: Vec::new(),
+        source: None,
+        dest: Some(at),
+        target_mask: 0x40,
+        ammo_display_id: None,
+        seq: 1,
+    });
+    app.update();
+    let spawns: Vec<_> = app
+        .world_mut()
+        .resource_mut::<Messages<MissileSpawn>>()
+        .drain()
+        .collect();
+    assert_eq!(spawns.len(), 1, "one projectile at the point");
+    assert_eq!(
+        spawns[0].grounds,
+        [GroundShot {
+            at,
+            list: GroundList::Hits(Vec::new())
+        }]
+    );
+    assert!(spawns[0].targets.is_empty(), "no unit owns it");
+    assert!(
+        app.world_mut()
+            .resource_mut::<Messages<crate::entities::dest_fx::GroundBurst>>()
+            .drain()
+            .next()
+            .is_none(),
+        "field 6 ≠ 0 suppresses the GO's dest one-shot — the missile owns the arrival"
+    );
+
+    // The arrival the missile lane writes back.
+    app.world_mut().write_message(CastEvent {
+        entity: caster,
+        spell_id: GROUND,
+        kind: CastEventKind::GroundImpact { pos: at },
+        cast_flags: 0,
+        item_cast: false,
+        seq: 2,
+    });
+    app.update();
+    let sounds: Vec<_> = app
+        .world_mut()
+        .resource_mut::<Messages<SpellKitSound>>()
+        .drain()
+        .collect();
+    assert!(
+        matches!(
+            sounds[..],
+            [SpellKitSound::PlayAt { pos, kit_sound }] if pos == at && kit_sound == BOOM
+        ),
+        "the area kit's sound, at the landing point: {sounds:?}"
+    );
+}
+
+/// A cast edge for a despawned unit neither panics the hold insert nor resurrects the unit, whether
+/// it died in the wire drain applied before this chain, or `model_fade::apply_despawn_fade`,
+/// unordered against it, queued the despawn first, which no queue-time check can see.
+#[test]
+fn a_despawned_subject_never_panics_the_router() {
+    {
+        let mut app = app();
+        let unit = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(unit).despawn();
+        app.world_mut()
+            .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+        app.update(); // window 1: the unit is gone before the edge is read
+        assert!(
+            app.world().get_entity(unit).is_err(),
+            "the hold write must not resurrect a dead subject"
+        );
+    }
+    {
+        // Window 2, the fade lane's shape: an ordering edge with no sync point, so both command
+        // queues flush together and the despawn applies first.
+        let mut app = app();
+        let unit = app.world_mut().spawn_empty().id();
+        app.add_systems(
+            Update,
+            (move |mut commands: Commands| {
+                commands.entity(unit).try_despawn();
+            })
+            .before_ignore_deferred(route_cast_visuals),
+        );
+        app.world_mut()
+            .write_message(cast_event(unit, SPELL, CastEventKind::Start));
+        app.update();
+        assert!(
+            app.world().get_entity(unit).is_err(),
+            "the same-frame despawn wins; the hold write is dropped"
+        );
+    }
+}
+
+/// The mount poof, as `0x5ffa50` gives it: only the build leg allocates it, behind
+/// `0x5ffa87 je 0x5ffade` on the new value, so a dismount is silent; any changed value puffs; and
+/// a unit streaming in already mounted does not.
+#[test]
+fn the_mount_poof_puffs_on_the_build_leg_only() {
+    use benilla_protocol::ObjectFields;
+
+    /// `UNIT_FIELD_MOUNTDISPLAYID` (index 133).
+    const FIELD_MOUNTDISPLAYID: u16 = 133;
+    /// The shipped path of `SpellVisualEffectName` row 1185, the druid-morph cloud.
+    const POOF: &str = "Spells\\DruidMorph_Impact_Base.mdx";
+    const POOF_FX: u32 = 1185;
+    /// The M2 attach the hardcoded-effect spawn stamps (`0x80c968[6]`).
+    const BASE_ATTACH: u16 = 0x13;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<SpellKitFx>();
+    app.add_message::<crate::net::FieldChanged>();
+    app.insert_resource(SpellVisuals(
+        SpellVisualCatalog::from_tables(HashMap::new(), HashMap::new()).with_hardcoded(
+            "HARDCODED Mount Poof",
+            POOF_FX,
+            POOF,
+        ),
+    ));
+    app.add_systems(Update, super::arm_mount_poof_fx);
+
+    let fields = |v: u32| ObjectFields::from_pairs(&[(FIELD_MOUNTDISPLAYID, v)]);
+    // Streams in already mounted: a create block is no edge.
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            fields(2404).into_created(benilla_protocol::messages::ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+    let puffs = |app: &mut App| -> Vec<super::FxSlot> {
+        let mut out = Vec::new();
+        let world = app.world_mut();
+        let mut msgs = world.resource_mut::<Messages<SpellKitFx>>();
+        for m in msgs.drain() {
+            if let SpellKitFx::Begin {
+                entity, effects, ..
+            } = m
+            {
+                assert_eq!(entity, unit);
+                out.extend(effects);
+            }
+        }
+        out
+    };
+    assert!(
+        puffs(&mut app).is_empty(),
+        "a rider that streams into view did not just mount"
+    );
+
+    // Dismount: the new value is 0, so the build leg is skipped.
+    crate::net::apply_fields_for_test(app.world_mut(), unit, fields(0));
+    app.update();
+    assert!(puffs(&mut app).is_empty(), "no poof on the way down");
+
+    crate::net::apply_fields_for_test(app.world_mut(), unit, fields(2404));
+    app.update();
+    assert_eq!(
+        puffs(&mut app),
+        vec![super::FxSlot {
+            tag: BASE_ATTACH,
+            effect: POOF_FX,
+            path: POOF.to_string(),
+        }],
+        "the build leg puffs the druid-morph cloud at the base attach"
+    );
+
+    crate::net::apply_fields_for_test(app.world_mut(), unit, fields(2404));
+    app.update();
+    assert!(puffs(&mut app).is_empty(), "no re-puff while just riding");
+
+    // A swap (N → N′) is a change: the reference rebuilds and puffs again.
+    crate::net::apply_fields_for_test(app.world_mut(), unit, fields(2405));
+    app.update();
+    assert_eq!(
+        puffs(&mut app),
+        vec![super::FxSlot {
+            tag: BASE_ATTACH,
+            effect: POOF_FX,
+            path: POOF.to_string(),
+        }]
+    );
+}
+
+/// A kit with a chain `CharProc` emits a `ChainProcPlay` from both dispatcher sites:
+/// `PlaySpellVisualKit`'s tail (the cast release) and the channel poll (`0x612b18`), the only way
+/// a channelled beam is reached.
+#[test]
+fn a_kit_with_a_chain_char_proc_asks_for_a_beam_from_both_dispatcher_sites() {
+    use benilla_formats::{char_proc_type, CharProc};
+
+    const BEAM_SPELL: u32 = 421; // Chain Lightning
+    const BEAM_VISUAL: u32 = 36;
+    const BEAM_CAST_KIT: u32 = 321;
+    const BEAM_CHANNEL_KIT: u32 = 402;
+
+    let mut app = app();
+    // A cast kit with a type-12 proc and a channel kit with a type-0 one, in the shipped shape:
+    // chain id 1, one strand, and the flag that splits cast (0) from channel (1).
+    let mut visuals = HashMap::from([(
+        BEAM_VISUAL,
+        VisualStages {
+            cast: BEAM_CAST_KIT,
+            channel: BEAM_CHANNEL_KIT,
+            ..Default::default()
+        },
+    )]);
+    let mut kits = HashMap::new();
+    for (kit, ty, flag) in [
+        (BEAM_CAST_KIT, char_proc_type::CHAIN_CAST, 0.0),
+        (BEAM_CHANNEL_KIT, char_proc_type::CHAIN_CHANNEL, 1.0),
+    ] {
+        kits.insert(
+            kit,
+            VisualKit {
+                char_proc_slots: [
+                    Some(CharProc {
+                        ty,
+                        params: [1.0, 1.0, flag, 0.0],
+                    }),
+                    None,
+                    None,
+                    None,
+                ],
+                ..Default::default()
+            },
+        );
+    }
+    // A beam-less kit, the control.
+    kits.insert(PRECAST_KIT, VisualKit::default());
+    visuals.insert(
+        VISUAL,
+        VisualStages {
+            cast: PRECAST_KIT,
+            ..Default::default()
+        },
+    );
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(visuals, kits)));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                BEAM_SPELL,
+                SpellDisplay {
+                    visual: BEAM_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (
+                SPELL,
+                SpellDisplay {
+                    visual: VISUAL,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+
+    let plays = |app: &mut App| -> Vec<(Entity, u32, bool)> {
+        app.world_mut()
+            .resource_mut::<Messages<super::ChainProcPlay>>()
+            .drain()
+            .map(|p| (p.entity, p.spell_id, p.proc.flag))
+            .collect()
+    };
+
+    // Site 1, the cast release (`0x60f35c`).
+    let unit = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .write_message(cast_event(unit, BEAM_SPELL, CastEventKind::Go));
+    app.update();
+    assert_eq!(
+        plays(&mut app),
+        vec![(unit, BEAM_SPELL, false)],
+        "the cast kit's type-12 proc asks for a one-shot beam"
+    );
+
+    app.world_mut()
+        .write_message(cast_event(unit, SPELL, CastEventKind::Go));
+    app.update();
+    assert!(plays(&mut app).is_empty(), "a beam-less kit stays silent");
+
+    // Site 2, the channel poll (`0x612b18`), on the rising edge of `UNIT_CHANNEL_SPELL`: the only
+    // play of a channel kit.
+    let channeller = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            benilla_protocol::ObjectFields::from_pairs(&[(144, BEAM_SPELL)])
+                .into_created(benilla_protocol::messages::ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+    assert_eq!(
+        plays(&mut app),
+        vec![(channeller, BEAM_SPELL, true)],
+        "the channel kit's type-0 proc asks for a persistent beam"
+    );
+}
+
+/// The hold resolver (`0x612990`) returns a kit animation only above 0 (`0x612a0a jle`), so a
+/// precast or channel kit naming Stand holds nothing, at the START and on the channel poll alike.
+#[test]
+fn a_precast_or_channel_kit_naming_stand_arms_no_hold() {
+    const STAND_SPELL: u32 = 2060;
+    const STAND_VISUAL: u32 = 90;
+    const STAND_PRECAST_KIT: u32 = 6000;
+    const STAND_CHANNEL_KIT: u32 = 6001;
+
+    let mut app = app();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                STAND_VISUAL,
+                VisualStages {
+                    precast: STAND_PRECAST_KIT,
+                    channel: STAND_CHANNEL_KIT,
+                    ..Default::default()
+                },
+            ),
+            (
+                VISUAL,
+                VisualStages {
+                    precast: PRECAST_KIT,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::from([
+            (
+                STAND_PRECAST_KIT,
+                VisualKit {
+                    anim_id: Some(0),
+                    ..Default::default()
+                },
+            ),
+            (
+                STAND_CHANNEL_KIT,
+                VisualKit {
+                    anim_id: Some(0),
+                    ..Default::default()
+                },
+            ),
+            (
+                PRECAST_KIT,
+                VisualKit {
+                    anim_id: Some(HOLD_ANIM),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                STAND_SPELL,
+                SpellDisplay {
+                    visual: STAND_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (
+                SPELL,
+                SpellDisplay {
+                    visual: VISUAL,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+
+    let unit = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .write_message(cast_event(unit, STAND_SPELL, CastEventKind::Start));
+    app.update();
+    assert!(
+        app.world().entity(unit).get::<CastHold>().is_none(),
+        "a precast kit naming Stand holds nothing"
+    );
+    let control = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .write_message(cast_event(control, SPELL, CastEventKind::Start));
+    app.update();
+    assert_eq!(hold(&app, control), Some(SPELL), "the control still holds");
+
+    let channeller = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            benilla_protocol::ObjectFields::from_pairs(&[(144, STAND_SPELL)])
+                .into_created(benilla_protocol::messages::ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+    assert!(
+        app.world().entity(channeller).get::<CastHold>().is_none(),
+        "a channel kit naming Stand holds nothing"
+    );
+}
+
+/// A cast kit's animation plays as a one-shot through `0x5fe2f0` (`0x60f3c5`), Stand (0) included:
+/// `0x60f366` skips only a negative id and `0x60f510(0)` is false.
+#[test]
+fn a_cast_kit_naming_stand_plays_it_like_any_id() {
+    const STAND_SPELL: u32 = 2061;
+    const STAND_VISUAL: u32 = 91;
+    const STAND_CAST_KIT: u32 = 6002;
+    const SWING_SPELL: u32 = 2062;
+    const SWING_VISUAL: u32 = 92;
+    const SWING_CAST_KIT: u32 = 6003;
+    const SPELL_CAST_DIRECTED: u16 = 53;
+
+    let mut app = app();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                STAND_VISUAL,
+                VisualStages {
+                    cast: STAND_CAST_KIT,
+                    ..Default::default()
+                },
+            ),
+            (
+                SWING_VISUAL,
+                VisualStages {
+                    cast: SWING_CAST_KIT,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::from([
+            (
+                STAND_CAST_KIT,
+                VisualKit {
+                    anim_id: Some(0),
+                    ..Default::default()
+                },
+            ),
+            (
+                SWING_CAST_KIT,
+                VisualKit {
+                    anim_id: Some(SPELL_CAST_DIRECTED),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                STAND_SPELL,
+                SpellDisplay {
+                    visual: STAND_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (
+                SWING_SPELL,
+                SpellDisplay {
+                    visual: SWING_VISUAL,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+
+    let unit = app.world_mut().spawn_empty().id();
+    for spell in [STAND_SPELL, SWING_SPELL] {
+        app.world_mut()
+            .write_message(cast_event(unit, spell, CastEventKind::Go));
+    }
+    app.update();
+    assert_eq!(
+        emote_anims(&mut app, unit),
+        vec![0, SPELL_CAST_DIRECTED],
+        "the Stand kit plays as the control does"
+    );
+}
+
+// ── The shipped-table shooter ────────────────────────────────────────────────────────────────
+//
+// The tests above use bare units, for which `WeaponVisualSrc::caster` (a player's ranged weapon →
+// its substitute visual) is always `None`. These run the shipped DBCs, a self-player and a real
+// `item_template` row: one `CastEvent` in, the body's clip out.
+
+/// Auto Shot, one `SMSG_SPELL_GO` per shot. Its shipped row: `Attributes` 0x50012 (`& 0x2` set),
+/// `AttributesEx2` 0x20 (auto-repeat), Speed 40 and `SpellVisual1` 0, so every clip it plays comes
+/// from the weapon's substitute visual through [`super::resolve_stages`]'s merge.
+const AUTO_SHOT: u32 = 75;
+
+/// A ranged weapon's vmangos `item_template` row; the display → `ItemDisplayInfo` col 10 →
+/// `SpellVisual` → kit → anim chain is re-derived from the shipped DBCs by the test.
+struct RealRanged {
+    name: &'static str,
+    entry: u32,
+    display_id: u32,
+    /// `ItemClass` 2 (weapon) and its subclass: 2 bow, 3 gun, 18 crossbow.
+    class: u32,
+    subclass: u32,
+    /// The pull, from the weapon visual's precast kit: LoadBow 105 or LoadRifle 106.
+    load_anim: u16,
+    /// The release, from its cast kit: AttackBow 46 or AttackRifle 49.
+    fire_anim: u16,
+}
+
+/// A bow (`item_template` 2504, display 8106 → visual 5 → kits 7/164 → 105/46).
+const WORN_SHORTBOW: RealRanged = RealRanged {
+    name: "Worn Shortbow",
+    entry: 2504,
+    display_id: 8106,
+    class: 2,
+    subclass: 2,
+    load_anim: 105,
+    fire_anim: 46,
+};
+
+/// A gun (`item_template` 2508, display 6606 → visual 224 → kits 161/167 → 106/49).
+const OLD_BLUNDERBUSS: RealRanged = RealRanged {
+    name: "Old Blunderbuss",
+    entry: 2508,
+    display_id: 6606,
+    class: 2,
+    subclass: 3,
+    load_anim: 106,
+    fire_anim: 49,
+};
+
+/// A crossbow (`item_template` 12651, display 22929 → visual 743 → kits 803/804 → 106/49):
+/// crossbows share the rifle clips.
+const BLACKCROW: RealRanged = RealRanged {
+    name: "Blackcrow",
+    entry: 12651,
+    display_id: 22929,
+    class: 2,
+    subclass: 18,
+    load_anim: 106,
+    fire_anim: 49,
+};
+
+/// `PLAYER_VISIBLE_ITEM_18_0`, the item entry in equipment slot 17 (vmangos
+/// `EQUIPMENT_SLOT_RANGED`): `PLAYER_VISIBLE_ITEM_1_CREATOR` (258) + 2 + 12 × 17, spelled out as
+/// the base is private to `benilla-protocol`.
+const VISIBLE_RANGED_ENTRY_FIELD: u16 = 258 + 2 + 12 * 17;
+
+/// Keeps the item layer's ask-once channel alive, so an unexpected `ItemQuery` (a template not
+/// landed, which starves the weapon lookup) is observable.
+#[derive(Resource)]
+struct AskLog(crossbeam_channel::Receiver<crate::net::ClientCommand>);
+
+/// The cast router over the shipped tables, with a self-player wearing `weapon` in the ranged slot
+/// and its template landed, as it is by the time anything shoots; `None` without an install.
+fn real_shooter(weapon: &RealRanged) -> Option<(App, Entity)> {
+    let data = benilla_formats::wow_data_or_skip!(None);
+    let mut chain = benilla_formats::open_chain(&data).expect("open the install's MPQ chain");
+    let visuals =
+        benilla_formats::load_spell_visual_catalog(&mut chain).expect("SpellVisual/SpellVisualKit");
+    let spells = benilla_formats::load_spell_catalog(&mut chain).expect("Spell.dbc");
+    let displays =
+        benilla_formats::load_item_display_catalog(&mut chain).expect("ItemDisplayInfo.dbc");
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    app.insert_resource(SpellVisuals(visuals));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: spells,
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.insert_resource(crate::entities::ItemDisplays::icons_for_tests(displays));
+
+    let mut items = crate::items::Items::default();
+    let mut template = crate::items::test_template(weapon.name);
+    template.class = weapon.class;
+    template.subclass = weapon.subclass;
+    template.display_info_id = weapon.display_id;
+    template.inventory_type = 15; // INVTYPE_RANGED, the real row's; unread by this chain
+    items.insert_template(weapon.entry, Some(template));
+    app.insert_resource(items);
+
+    let (tx, rx) = crossbeam_channel::unbounded();
+    app.insert_resource(crate::net::NetCommands(tx));
+    app.insert_resource(AskLog(rx));
+
+    // Our own body, a player, with the weapon's entry in the visible-item field.
+    let unit = app
+        .world_mut()
+        .spawn((
+            crate::net::SelfPlayer,
+            crate::net::NetEntity {
+                kind: benilla_protocol::EntityKind::Player,
+                display_id: Some(49), // HumanMale, which authors 46/49/105/106
+                scale: 1.0,
+            },
+            crate::net::ObjectStore(benilla_protocol::ObjectFields::from_pairs(&[(
+                VISIBLE_RANGED_ENTRY_FIELD,
+                weapon.entry,
+            )])),
+        ))
+        .id();
+    app.add_systems(Update, route_cast_visuals);
+    Some((app, unit))
+}
+
+/// The one-shot clips this frame asked of `unit`'s body.
+fn emote_anims(app: &mut App, unit: Entity) -> Vec<u16> {
+    app.world_mut()
+        .resource_mut::<Messages<EmoteAnim>>()
+        .drain()
+        .filter(|e| e.entity == unit)
+        .map(|e| e.anim_id)
+        .collect()
+}
+
+/// The entries the item layer asked the server for; any means the weapon lookup starved.
+fn asked_entries(app: &App) -> Vec<u32> {
+    app.world()
+        .resource::<AskLog>()
+        .0
+        .try_iter()
+        .filter_map(|c| match c {
+            crate::net::ClientCommand::ItemQuery { entry, .. } => Some(entry),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Auto Shot's GO with a bow equipped reaches the body as AttackBow (46): slot 17's template →
+/// display 8106 → `ItemDisplayInfo` col 10 (visual 5) → the merge → cast kit 164 → anim 46.
+#[test]
+fn a_real_bow_shooters_auto_shot_go_plays_attackbow() {
+    let Some((mut app, unit)) = real_shooter(&WORN_SHORTBOW) else {
+        return;
+    };
+    app.world_mut()
+        .write_message(cast_event(unit, AUTO_SHOT, CastEventKind::Go));
+    app.update();
+    assert_eq!(
+        emote_anims(&mut app, unit),
+        vec![WORN_SHORTBOW.fire_anim],
+        "Auto Shot's GO plays the bow's release clip (asked the server for {:?})",
+        asked_entries(&app)
+    );
+    assert!(
+        asked_entries(&app).is_empty(),
+        "the weapon template was already landed — no ask-once miss starved the lookup"
+    );
+}
+
+/// A gun and a crossbow take the same road to AttackRifle (49), through visuals 224 and 743.
+#[test]
+fn a_real_gun_or_crossbow_shooters_auto_shot_go_plays_attackrifle() {
+    for weapon in [&OLD_BLUNDERBUSS, &BLACKCROW] {
+        let Some((mut app, unit)) = real_shooter(weapon) else {
+            return;
+        };
+        app.world_mut()
+            .write_message(cast_event(unit, AUTO_SHOT, CastEventKind::Go));
+        app.update();
+        assert_eq!(
+            emote_anims(&mut app, unit),
+            vec![weapon.fire_anim],
+            "{}'s Auto Shot GO plays its release clip",
+            weapon.name
+        );
+    }
+}
+
+/// Auto Shot's START, once per auto-repeat activation, arms the LoadBow (105) pull as the cast
+/// hold, with the ranged sheath snap; the GO releases it and fires.
+#[test]
+fn a_real_bow_shooters_auto_shot_start_arms_the_loadbow_hold() {
+    let Some((mut app, unit)) = real_shooter(&WORN_SHORTBOW) else {
+        return;
+    };
+    app.world_mut()
+        .write_message(cast_event(unit, AUTO_SHOT, CastEventKind::Start));
+    app.update();
+    let held = app.world().entity(unit).get::<CastHold>();
+    assert_eq!(
+        held.map(|h| (h.anim_id, h.spell_id, h.ranged)),
+        Some((WORN_SHORTBOW.load_anim, AUTO_SHOT, true)),
+        "START arms the bow's pull as the cast hold"
+    );
+    let sheaths: Vec<_> = app
+        .world_mut()
+        .resource_mut::<Messages<SheathRequest>>()
+        .drain()
+        .filter(|s| s.entity == unit)
+        .map(|s| s.state)
+        .collect();
+    assert_eq!(sheaths, vec![2], "…and the ranged stance snaps drawn");
+
+    app.world_mut()
+        .write_message(cast_event(unit, AUTO_SHOT, CastEventKind::Go));
+    app.update();
+    assert!(
+        app.world().entity(unit).get::<CastHold>().is_none(),
+        "the GO releases the pull"
+    );
+    assert_eq!(
+        emote_anims(&mut app, unit),
+        vec![WORN_SHORTBOW.fire_anim],
+        "…and plays the release"
+    );
+}
+
+/// The control: with the ranged slot empty Auto Shot resolves no clip, having no visual of its own.
+#[test]
+fn a_shooter_with_no_ranged_weapon_resolves_no_clip_at_all() {
+    let Some((mut app, unit)) = real_shooter(&WORN_SHORTBOW) else {
+        return;
+    };
+    // Slot 17 empty, as the wire says it.
+    crate::net::apply_fields_for_test(
+        app.world_mut(),
+        unit,
+        benilla_protocol::ObjectFields::from_pairs(&[(VISIBLE_RANGED_ENTRY_FIELD, 0)])
+            .into_created(benilla_protocol::messages::ObjectType::Unit),
+    );
+    app.world_mut()
+        .write_message(cast_event(unit, AUTO_SHOT, CastEventKind::Start));
+    app.world_mut()
+        .write_message(cast_event(unit, AUTO_SHOT, CastEventKind::Go));
+    app.update();
+    assert!(
+        emote_anims(&mut app, unit).is_empty(),
+        "no weapon, no substitute visual, no clip"
+    );
+    assert!(
+        app.world().entity(unit).get::<CastHold>().is_none(),
+        "and no pull to hold"
+    );
+}
+
+/// A state kit's anim id is a compare, never a play: `0x60edf0`'s one play site
+/// (`0x60f3c5 call 0x5fe2f0`) is skipped for stage 2 (`0x60f387 jne`), the stage both field-4 users
+/// play (the aura watcher and the impact hand-off `0x61dced`), so the id only feeds `0x60f390`'s
+/// compare and a base recompute. Charge (22911) plays Knockdown (121) from impact kit 348; state
+/// kit 349's Stun (14) is a recompute, which Knockdown's base-animation lock refuses.
+#[test]
+fn a_state_kits_anim_is_a_recompute_and_never_a_second_play() {
+    const CHARGE: u32 = 22911;
+    const CHARGE_VISUAL: u32 = 3783;
+    const IMPACT_KIT: u32 = 348;
+    const STATE_KIT: u32 = 349;
+    const KNOCKDOWN: u16 = 121;
+    const STUN: u16 = 14;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<CastEvent>()
+        .add_message::<SpellGoTargets>()
+        .add_message::<KitPush>()
+        .add_message::<EmoteAnim>()
+        .add_message::<WoundAnim>()
+        .add_message::<SpellKitSound>()
+        .add_message::<SpellKitShake>()
+        .add_message::<crate::weapon_trail::TrailArm>()
+        .add_message::<super::BaseAnimRecompute>()
+        .add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<MissileSpawn>()
+        .add_message::<crate::entities::dest_fx::GroundBurst>()
+        .add_message::<super::ChainProcPlay>()
+        .add_message::<SheathRequest>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            CHARGE_VISUAL,
+            VisualStages {
+                impact: IMPACT_KIT,
+                state: STATE_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([
+            (
+                IMPACT_KIT,
+                VisualKit {
+                    anim_id: Some(KNOCKDOWN),
+                    ..Default::default()
+                },
+            ),
+            (
+                STATE_KIT,
+                VisualKit {
+                    anim_id: Some(STUN),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            CHARGE,
+            SpellDisplay {
+                visual: CHARGE_VISUAL,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, route_cast_visuals);
+
+    let caster = app.world_mut().spawn_empty().id();
+    let victim = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .write_message(cast_event(caster, CHARGE, CastEventKind::Go));
+    app.world_mut().write_message(SpellGoTargets {
+        caster: Some(caster),
+        spell_id: CHARGE,
+        hits: vec![victim],
+        misses: Vec::new(),
+        source: None,
+        dest: None,
+        target_mask: 0x2,
+        ammo_display_id: None,
+        seq: 1,
+    });
+    app.update();
+
+    let plays: Vec<(Entity, u16)> = app
+        .world_mut()
+        .resource_mut::<Messages<EmoteAnim>>()
+        .drain()
+        .map(|e| (e.entity, e.anim_id))
+        .collect();
+    assert_eq!(
+        plays,
+        vec![(victim, KNOCKDOWN)],
+        "the impact kit plays; the state kit must not add a second one-shot"
+    );
+    let recomputes: Vec<(Entity, u16)> = app
+        .world_mut()
+        .resource_mut::<Messages<super::BaseAnimRecompute>>()
+        .drain()
+        .map(|r| (r.entity, r.anim_id))
+        .collect();
+    assert_eq!(
+        recomputes,
+        vec![(victim, STUN)],
+        "the state kit's id is spent on the stage-2 recompute instead"
+    );
+}
+
+/// An anim-only state kit still arms, and its add edge owes a recompute: 15 shipped state kits are
+/// anim-only (`benilla-extract kitanim`), kit 586's Stun (14) among them.
+#[test]
+fn an_anim_only_state_kit_still_arms_on_the_aura_add_edge() {
+    use benilla_protocol::messages::ObjectFields;
+
+    const SPELL: u32 = 6902; // Sneezing Fit
+    const VISUAL: u32 = 517;
+    const STATE_KIT: u32 = 586; // anim 14, no effect slot, no sound, no CharProc
+    const STUN: u16 = 14;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<crate::aura_visual::AuraProc>()
+        .add_message::<SpellKitSound>()
+        .add_message::<super::BaseAnimRecompute>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            VISUAL,
+            VisualStages {
+                state: STATE_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            STATE_KIT,
+            VisualKit {
+                anim_id: Some(STUN),
+                ..Default::default()
+            },
+        )]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            SPELL,
+            SpellDisplay {
+                visual: VISUAL,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, super::arm_aura_state_fx);
+
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            ObjectFields::from_pairs(&[(47, SPELL), (95, 0x0E)])
+                .into_created(benilla_protocol::messages::ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+
+    let recomputes: Vec<(Entity, u16)> = app
+        .world_mut()
+        .resource_mut::<Messages<super::BaseAnimRecompute>>()
+        .drain()
+        .map(|r| (r.entity, r.anim_id))
+        .collect();
+    assert_eq!(
+        recomputes,
+        vec![(unit, STUN)],
+        "an anim-only state kit is not nothing — its ADD edge owes a recompute"
+    );
+}
+
+/// A state kit naming Stand (0) is not skipped: the recompute runs for any id of 0 or more
+/// (`0x60f366 jl`), but the pin takes only an id above 0 (`0x5fdeb5 jle`). Kit 6354, Heart of
+/// Hakkar Banning's, names Stand and has no effect, sound or proc.
+#[test]
+fn a_stand_state_kit_recomputes_but_never_pins() {
+    use benilla_protocol::messages::ObjectFields;
+
+    const SPELL: u32 = 24203;
+    const VISUAL: u32 = 7243;
+    const STATE_KIT: u32 = 6354;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<crate::aura_visual::AuraProc>()
+        .add_message::<SpellKitSound>()
+        .add_message::<super::BaseAnimRecompute>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            VISUAL,
+            VisualStages {
+                state: STATE_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            STATE_KIT,
+            VisualKit {
+                anim_id: Some(0),
+                ..Default::default()
+            },
+        )]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            SPELL,
+            SpellDisplay {
+                visual: VISUAL,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, super::arm_aura_state_fx);
+
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            ObjectFields::from_pairs(&[(47, SPELL), (95, 0x0E)])
+                .into_created(benilla_protocol::messages::ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+
+    let recomputes: Vec<(Entity, u16)> = app
+        .world_mut()
+        .resource_mut::<Messages<super::BaseAnimRecompute>>()
+        .drain()
+        .map(|r| (r.entity, r.anim_id))
+        .collect();
+    assert_eq!(
+        recomputes,
+        vec![(unit, 0)],
+        "Stand still owes the recompute"
+    );
+    assert!(
+        app.world()
+            .entity(unit)
+            .get::<super::super::StateKitPins>()
+            .is_none(),
+        "…but id 0 pins nothing"
+    );
+}
+
+/// A state kit with an anim pins its unit while the aura lives, newest at the head (`0x620360`),
+/// and the aura's removal takes its pin (`0x614150` force 1).
+#[test]
+fn a_state_kits_anim_pins_its_unit_while_the_aura_lives() {
+    use benilla_protocol::messages::{ObjectFields, ObjectType};
+
+    const PEON_SLEEPING: u32 = 17743;
+    const SLEEP_VISUAL: u32 = 4762;
+    const SLEEP_KIT: u32 = 906; // EmoteSleep (71) and the head's Sleep_State_Head
+    const EMOTE_SLEEP: u16 = 71;
+    const SNEEZING_FIT: u32 = 6902;
+    const SNEEZE_VISUAL: u32 = 517;
+    const SNEEZE_KIT: u32 = 586; // anim-only Stun (14)
+    const STUN: u16 = 14;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<crate::aura_visual::AuraProc>()
+        .add_message::<SpellKitSound>()
+        .add_message::<super::BaseAnimRecompute>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                SLEEP_VISUAL,
+                VisualStages {
+                    state: SLEEP_KIT,
+                    ..Default::default()
+                },
+            ),
+            (
+                SNEEZE_VISUAL,
+                VisualStages {
+                    state: SNEEZE_KIT,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::from([
+            (
+                SLEEP_KIT,
+                VisualKit {
+                    anim_id: Some(EMOTE_SLEEP),
+                    ..Default::default()
+                },
+            ),
+            (
+                SNEEZE_KIT,
+                VisualKit {
+                    anim_id: Some(STUN),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                PEON_SLEEPING,
+                SpellDisplay {
+                    visual: SLEEP_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (
+                SNEEZING_FIT,
+                SpellDisplay {
+                    visual: SNEEZE_VISUAL,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, super::arm_aura_state_fx);
+    let pins = |app: &App, unit: Entity| {
+        app.world()
+            .entity(unit)
+            .get::<super::super::StateKitPins>()
+            .cloned()
+    };
+
+    // vmangos puts the peon's aura in the first negative slot, 32 (field 79).
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            ObjectFields::from_pairs(&[(79, PEON_SLEEPING), (99, 0x09)])
+                .into_created(ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+    assert_eq!(
+        pins(&app, unit),
+        Some(super::super::StateKitPins(vec![(
+            PEON_SLEEPING,
+            EMOTE_SLEEP
+        )])),
+        "the sleeping aura pins EmoteSleep"
+    );
+
+    crate::net::apply_fields_for_test(
+        app.world_mut(),
+        unit,
+        ObjectFields::from_pairs(&[(80, SNEEZING_FIT), (99, 0x99)]),
+    );
+    app.update();
+    assert_eq!(
+        pins(&app, unit),
+        Some(super::super::StateKitPins(vec![
+            (SNEEZING_FIT, STUN),
+            (PEON_SLEEPING, EMOTE_SLEEP)
+        ])),
+        "the newer kit is the head"
+    );
+
+    crate::net::apply_fields_for_test(
+        app.world_mut(),
+        unit,
+        ObjectFields::from_pairs(&[(79, 0), (99, 0x90)]),
+    );
+    app.update();
+    assert_eq!(
+        pins(&app, unit),
+        Some(super::super::StateKitPins(vec![(SNEEZING_FIT, STUN)])),
+        "the sleep's removal takes its pin alone"
+    );
+
+    crate::net::apply_fields_for_test(
+        app.world_mut(),
+        unit,
+        ObjectFields::from_pairs(&[(80, 0), (99, 0)]),
+    );
+    app.update();
+    assert_eq!(pins(&app, unit), None, "no live kit, no pin");
+}
+
+/// One sweep arms by ascending slot (`0x604e7b`-`0x604e85`), so the highest slot's kit is the
+/// head, whatever the spell ids: Sneezing Fit (6902) in slot 33 over Peon Sleeping in slot 32.
+#[test]
+fn a_sweeps_pins_arm_in_slot_order() {
+    use benilla_protocol::messages::{ObjectFields, ObjectType};
+
+    const PEON_SLEEPING: u32 = 17743;
+    const SLEEP_VISUAL: u32 = 4762;
+    const SLEEP_KIT: u32 = 906;
+    const EMOTE_SLEEP: u16 = 71;
+    const SNEEZING_FIT: u32 = 6902;
+    const SNEEZE_VISUAL: u32 = 517;
+    const SNEEZE_KIT: u32 = 586;
+    const STUN: u16 = 14;
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_message::<SpellKitFx>()
+        .add_message::<crate::net::FieldChanged>()
+        .add_message::<crate::aura_visual::AuraProc>()
+        .add_message::<SpellKitSound>()
+        .add_message::<super::BaseAnimRecompute>();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([
+            (
+                SLEEP_VISUAL,
+                VisualStages {
+                    state: SLEEP_KIT,
+                    ..Default::default()
+                },
+            ),
+            (
+                SNEEZE_VISUAL,
+                VisualStages {
+                    state: SNEEZE_KIT,
+                    ..Default::default()
+                },
+            ),
+        ]),
+        HashMap::from([
+            (
+                SLEEP_KIT,
+                VisualKit {
+                    anim_id: Some(EMOTE_SLEEP),
+                    ..Default::default()
+                },
+            ),
+            (
+                SNEEZE_KIT,
+                VisualKit {
+                    anim_id: Some(STUN),
+                    ..Default::default()
+                },
+            ),
+        ]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                PEON_SLEEPING,
+                SpellDisplay {
+                    visual: SLEEP_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (
+                SNEEZING_FIT,
+                SpellDisplay {
+                    visual: SNEEZE_VISUAL,
+                    ..Default::default()
+                },
+            ),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.add_systems(Update, super::arm_aura_state_fx);
+
+    let unit = app
+        .world_mut()
+        .spawn(crate::net::ObjectStore(
+            ObjectFields::from_pairs(&[(79, PEON_SLEEPING), (80, SNEEZING_FIT), (99, 0x99)])
+                .into_created(ObjectType::Unit),
+        ))
+        .id();
+    app.update();
+    assert_eq!(
+        app.world()
+            .entity(unit)
+            .get::<super::super::StateKitPins>()
+            .cloned(),
+        Some(super::super::StateKitPins(vec![
+            (SNEEZING_FIT, STUN),
+            (PEON_SLEEPING, EMOTE_SLEEP)
+        ])),
+        "slot 33's kit armed last, so it is the head"
+    );
+}
+
+/// `CancelCast`'s reap is `0x614150` on the record's spell (`0x6e4a8e`-`0x6e4ab7`), which stops
+/// only the effects that spell's kits made (`0x614167`): Esc with Blizzard's cursor up over a
+/// running Arcane Missiles channel ends the cursor and leaves the channel's hold and its loop.
+#[test]
+fn esc_with_a_cursor_up_leaves_the_running_channels_hold_and_loop() {
+    use benilla_protocol::messages::{ObjectFields, ObjectType};
+    use bevy::ecs::system::RunSystemOnce;
+
+    const ARCANE_MISSILES: u32 = 5143;
+    const AM_VISUAL: u32 = 225;
+    const AM_CHANNEL_KIT: u32 = 436;
+    const AM_HUM: u32 = 3136;
+    const BLIZZARD: u32 = 10;
+    const ME: u64 = 10;
+
+    let mut app = app();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            AM_VISUAL,
+            VisualStages {
+                channel: AM_CHANNEL_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            AM_CHANNEL_KIT,
+            VisualKit {
+                anim_id: Some(HOLD_ANIM),
+                sound: Some(AM_HUM),
+                ..Default::default()
+            },
+        )]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                ARCANE_MISSILES,
+                SpellDisplay {
+                    visual: AM_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (BLIZZARD, SpellDisplay::default()),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    // What the cancel reads and writes.
+    let (tx, _rx) = crossbeam_channel::unbounded();
+    app.insert_resource(crate::net::NetCommands(tx))
+        .init_resource::<crate::spell::PendingCast>()
+        .init_resource::<crate::spell::QueuedMeleeSpell>()
+        .init_resource::<crate::spell::ActiveChannel>()
+        .init_resource::<crate::spell::AutoRepeatActive>()
+        .init_resource::<crate::spell::SpellTargeting>()
+        .init_resource::<crate::ui_cast::CastReports>()
+        .init_resource::<crate::creature_anim::UnitEdits>()
+        .init_resource::<crate::creature_anim::PlaySeq>()
+        .init_resource::<crate::net::GuidIndex>()
+        .init_resource::<crate::net::SelfGuid>();
+    // The player, channelling: `UNIT_CHANNEL_SPELL` (144) holds Arcane Missiles.
+    let me = app
+        .world_mut()
+        .spawn((
+            crate::net::Guid(ME),
+            crate::net::SelfPlayer,
+            crate::net::ObjectStore(
+                ObjectFields::from_pairs(&[(144, ARCANE_MISSILES)])
+                    .into_created(ObjectType::Player),
+            ),
+        ))
+        .id();
+    app.world_mut()
+        .resource_mut::<crate::net::GuidIndex>()
+        .0
+        .insert(ME, me);
+    app.world_mut().resource_mut::<crate::net::SelfGuid>().0 = Some(ME);
+    let sounds = |app: &mut App| -> Vec<SpellKitSound> {
+        app.world_mut()
+            .resource_mut::<Messages<SpellKitSound>>()
+            .drain()
+            .collect()
+    };
+
+    // The channel poll's rising edge holds the channel and rings its hum.
+    app.update();
+    let rise = sounds(&mut app);
+    assert!(
+        rise.iter().any(|s| matches!(
+            s,
+            SpellKitSound::Play { entity, kit_sound, .. } if *entity == me && *kit_sound == AM_HUM
+        )),
+        "the channel's loop (got {rise:?})"
+    );
+    assert_eq!(hold(&app, me), Some(ARCANE_MISSILES));
+
+    // Blizzard's attempt fills the record (`0x6e4f88`, `0x6e4fb1`) and raises its cursor.
+    {
+        let world = app.world_mut();
+        let mut pending = world.resource_mut::<crate::spell::PendingCast>();
+        pending.fill_record();
+        pending.fill_record_spell(BLIZZARD);
+        world.resource_mut::<crate::spell::SpellTargeting>().enter(
+            BLIZZARD,
+            crate::spell::CastCommit::Spell,
+            0x40,
+        );
+    }
+    // Esc: `SpellStopCasting` (`0x6e6e80` → `0x6e4940(0, 1, 0x1c)`).
+    app.world_mut()
+        .run_system_once(|mut cancel: crate::spell::SelfCancel| cancel.stop_casting())
+        .unwrap();
+    crate::creature_anim::apply_unit_edits(app.world_mut());
+    app.update();
+
+    assert!(
+        !app.world()
+            .resource::<crate::spell::SpellTargeting>()
+            .active(),
+        "the cursor is down"
+    );
+    assert_eq!(hold(&app, me), Some(ARCANE_MISSILES), "the channel's hold");
+    let after = sounds(&mut app);
+    // The sound router's books over both frames, the hum a looping kit.
+    let mut loops = crate::sound::HoldLoops::default();
+    for ev in rise.iter().chain(&after) {
+        match *ev {
+            SpellKitSound::Play {
+                entity,
+                spell_id,
+                kit_sound: AM_HUM,
+            } => loops.rang(entity, spell_id, AM_HUM),
+            SpellKitSound::StopHold { entity, spell_id } => {
+                loops.stop_hold(entity, spell_id);
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(
+        loops.held(me),
+        Some((ARCANE_MISSILES, AM_HUM)),
+        "Blizzard's reap stops none of the channel's sound (got {after:?})"
+    );
+}
+
+/// Beside its own stop, a spell go stops its caster's kits of the running auto-repeat spell
+/// `[0xceac30]` (`0x6e7fed` when set, `0x6e7ffb` with force 0): another spell's go ends an Auto
+/// Shot hold and its loop on its caster and on no other unit, and with no auto-repeat running it
+/// ends neither.
+#[test]
+fn a_go_stops_the_running_auto_repeat_spells_hold_and_loop_on_its_caster() {
+    use crate::sound::HoldLoops;
+
+    const AUTO_SHOT: u32 = 75;
+    const AUTO_SHOT_VISUAL: u32 = 2003;
+    const AUTO_SHOT_PRECAST_KIT: u32 = 3030;
+    const AUTO_SHOT_LOOP: u32 = 4040;
+    const ARCANE_SHOT: u32 = 3044;
+
+    /// One frame of `events` through the router, its sounds through the sound router's books (the
+    /// Auto Shot sound a looping kit); returns the hold reaps it wrote.
+    fn frame(app: &mut App, loops: &mut HoldLoops, events: &[CastEvent]) -> Vec<(Entity, u32)> {
+        for &ev in events {
+            app.world_mut().write_message(ev);
+        }
+        app.update();
+        let sounds: Vec<SpellKitSound> = app
+            .world_mut()
+            .resource_mut::<Messages<SpellKitSound>>()
+            .drain()
+            .collect();
+        for ev in sounds {
+            match ev {
+                SpellKitSound::Play {
+                    entity,
+                    spell_id,
+                    kit_sound: AUTO_SHOT_LOOP,
+                } => loops.rang(entity, spell_id, AUTO_SHOT_LOOP),
+                SpellKitSound::StopHold { entity, spell_id } => {
+                    loops.stop_hold(entity, spell_id);
+                }
+                _ => {}
+            }
+        }
+        app.world_mut()
+            .resource_mut::<Messages<SpellKitFx>>()
+            .drain()
+            .filter_map(|fx| match fx {
+                SpellKitFx::Reap {
+                    entity, spell_id, ..
+                } => Some((entity, spell_id)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    let mut app = app();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            AUTO_SHOT_VISUAL,
+            VisualStages {
+                precast: AUTO_SHOT_PRECAST_KIT,
+                ..Default::default()
+            },
+        )]),
+        HashMap::from([(
+            AUTO_SHOT_PRECAST_KIT,
+            VisualKit {
+                anim_id: Some(HOLD_ANIM),
+                sound: Some(AUTO_SHOT_LOOP),
+                ..Default::default()
+            },
+        )]),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([
+            (
+                AUTO_SHOT,
+                SpellDisplay {
+                    visual: AUTO_SHOT_VISUAL,
+                    ..Default::default()
+                },
+            ),
+            (ARCANE_SHOT, SpellDisplay::default()),
+        ])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    app.insert_resource(crate::spell::AutoRepeatActive(Some(AUTO_SHOT)));
+    let hunter = app.world_mut().spawn_empty().id();
+    let other = app.world_mut().spawn_empty().id();
+    let mut loops = HoldLoops::default();
+
+    frame(
+        &mut app,
+        &mut loops,
+        &[
+            cast_event(hunter, AUTO_SHOT, CastEventKind::Start),
+            cast_event(other, AUTO_SHOT, CastEventKind::Start),
+        ],
+    );
+    assert_eq!(hold(&app, hunter), Some(AUTO_SHOT));
+    assert_eq!(loops.held(hunter), Some((AUTO_SHOT, AUTO_SHOT_LOOP)));
+
+    let reaped = frame(
+        &mut app,
+        &mut loops,
+        &[cast_event(hunter, ARCANE_SHOT, CastEventKind::Go)],
+    );
+    assert_eq!(hold(&app, hunter), None, "the caster's Auto Shot hold");
+    assert_eq!(loops.held(hunter), None, "and its loop");
+    assert_eq!(
+        reaped,
+        vec![(hunter, ARCANE_SHOT), (hunter, AUTO_SHOT)],
+        "the go's own spell, then the auto-repeat spell, on the caster alone"
+    );
+    assert_eq!(hold(&app, other), Some(AUTO_SHOT), "another unit's hold");
+    assert_eq!(
+        loops.held(other),
+        Some((AUTO_SHOT, AUTO_SHOT_LOOP)),
+        "and its loop"
+    );
+
+    // With no auto-repeat running, another spell's go leaves both.
+    app.insert_resource(crate::spell::AutoRepeatActive(None));
+    frame(
+        &mut app,
+        &mut loops,
+        &[cast_event(hunter, AUTO_SHOT, CastEventKind::Start)],
+    );
+    frame(
+        &mut app,
+        &mut loops,
+        &[cast_event(hunter, ARCANE_SHOT, CastEventKind::Go)],
+    );
+    assert_eq!(hold(&app, hunter), Some(AUTO_SHOT));
+    assert_eq!(loops.held(hunter), Some((AUTO_SHOT, AUTO_SHOT_LOOP)));
+}
+
+/// A GO of `hits` and `misses` (target, code, reflect byte) under `target_mask`, at `dest`.
+fn launcher_go(
+    target_mask: u16,
+    hits: Vec<Entity>,
+    misses: Vec<(Entity, u8, u8)>,
+    dest: Option<Vec3>,
+) -> SpellGoTargets {
+    SpellGoTargets {
+        caster: None,
+        spell_id: 1,
+        hits,
+        misses,
+        source: None,
+        dest,
+        target_mask,
+        ammo_display_id: None,
+        seq: 1,
+    }
+}
+
+/// A ground-cast travelling spell with units in its area flies one missile at the point carrying
+/// the hit list (`0x6e8ba4`, `0x6e8bd4`), and a second one carrying the miss list with its reasons
+/// (`0x6e8279`); none flies at a unit.
+#[test]
+fn a_ground_go_flies_one_missile_at_the_point_per_list() {
+    let mut world = World::new();
+    let [a, b, c] = [(); 3].map(|_| world.spawn_empty().id());
+    let at = Vec3::new(5.0, 0.0, 9.0);
+    let go = launcher_go(0x40, vec![a, b], vec![(c, 2, 0)], Some(at));
+    let shots = launcher_shots(&go, 0, |_| false);
+    assert!(shots.targets.is_empty(), "no missile at a unit");
+    assert_eq!(
+        shots.grounds,
+        [
+            GroundShot {
+                at,
+                list: GroundList::Hits(vec![a, b]),
+            },
+            GroundShot {
+                at,
+                list: GroundList::Misses(vec![(c, 2)]),
+            },
+        ]
+    );
+}
+
+/// A SOURCE-only mask aims its missile at the source point (`0x60a5ce`); with both points the
+/// DEST one wins (`0x60a584`).
+#[test]
+fn a_source_only_go_aims_at_its_source_point() {
+    let (source, dest) = (Vec3::X, Vec3::Z);
+    let mut go = launcher_go(0x20, Vec::new(), Vec::new(), None);
+    go.source = Some(source);
+    let at = |go: &SpellGoTargets| launcher_shots(go, 0, |_| false).grounds[0].at;
+    assert_eq!(at(&go), source);
+    go.target_mask = 0x60;
+    go.dest = Some(dest);
+    assert_eq!(at(&go), dest);
+}
+
+/// A point in the mask flies per unit only when the visual's field 15 has bit 0 (`0x6e8aab`,
+/// `0x6e8ad4`); with UNIT and no point it always does (`0x6e8ac6`), and a mask with neither flies
+/// nothing for a nonempty list (`0x6e8ba4`).
+#[test]
+fn a_point_flies_per_unit_only_under_the_visuals_bit() {
+    let mut world = World::new();
+    let a = world.spawn_empty().id();
+    let at = Vec3::ONE;
+    let hit = MissileTarget {
+        unit: a,
+        miss: None,
+        reflect: 0,
+    };
+    let per_unit = launcher_shots(&launcher_go(0x42, vec![a], Vec::new(), Some(at)), 1, |_| {
+        false
+    });
+    assert_eq!(
+        (per_unit.targets, per_unit.grounds),
+        (vec![hit], Vec::new())
+    );
+    let at_point = launcher_shots(&launcher_go(0x42, vec![a], Vec::new(), Some(at)), 0, |_| {
+        false
+    });
+    assert!(at_point.targets.is_empty());
+    assert_eq!(at_point.grounds.len(), 1, "one missile at the point");
+    let unit = launcher_shots(&launcher_go(0x2, vec![a], Vec::new(), None), 0, |_| false);
+    assert_eq!((unit.targets, unit.grounds), (vec![hit], Vec::new()));
+    let neither = launcher_shots(&launcher_go(0, vec![a], Vec::new(), None), 1, |_| false);
+    assert!(neither.targets.is_empty() && neither.grounds.is_empty());
+}
+
+/// The per-unit arm passes over a dead unit (`0x6e8b24`) and gives a missed one its reason and
+/// the byte a reflect carries (`0x6e8b3a`, the launcher's last argument at `0x6e8279`).
+#[test]
+fn the_per_unit_arm_skips_the_dead_and_carries_the_reflect_byte() {
+    let mut world = World::new();
+    let [alive, dead, reflector] = [(); 3].map(|_| world.spawn_empty().id());
+    let go = launcher_go(0x2, vec![alive, dead], vec![(reflector, 11, 2)], None);
+    let shots = launcher_shots(&go, 0, |e| e == dead);
+    assert_eq!(
+        shots.targets,
+        [
+            MissileTarget {
+                unit: alive,
+                miss: None,
+                reflect: 0,
+            },
+            MissileTarget {
+                unit: reflector,
+                miss: Some(11),
+                reflect: 2,
+            },
+        ]
+    );
+}
+
+/// The launcher needs the visual's field 6 or the wire's ammo (`0x6e8a7f`, `0x6e8a88`): a
+/// travelling spell with neither flies nothing, and so plays no impact.
+#[test]
+fn a_travelling_spell_without_a_missile_or_ammo_flies_nothing() {
+    const BOLT: u32 = 17483;
+    const BOLT_VISUAL: u32 = 900;
+    let mut app = app();
+    app.insert_resource(SpellVisuals(SpellVisualCatalog::from_tables(
+        HashMap::from([(
+            BOLT_VISUAL,
+            VisualStages {
+                impact: 286,
+                ..Default::default()
+            },
+        )]),
+        HashMap::new(),
+    )));
+    app.insert_resource(crate::ui_action::Spells {
+        catalog: SpellCatalog::from_displays(HashMap::from([(
+            BOLT,
+            SpellDisplay {
+                visual: BOLT_VISUAL,
+                speed: 24.0,
+                ..Default::default()
+            },
+        )])),
+        ..crate::ui_action::Spells::empty_for_tests()
+    });
+    let caster = app.world_mut().spawn_empty().id();
+    let target = app.world_mut().spawn_empty().id();
+    for ammo_display_id in [None, Some(5996)] {
+        app.world_mut().write_message(SpellGoTargets {
+            caster: Some(caster),
+            spell_id: BOLT,
+            hits: vec![target],
+            misses: Vec::new(),
+            source: None,
+            dest: None,
+            target_mask: 0x2,
+            ammo_display_id,
+            seq: 1,
+        });
+        app.update();
+        let spawns = app
+            .world_mut()
+            .resource_mut::<Messages<MissileSpawn>>()
+            .drain()
+            .count();
+        assert_eq!(
+            spawns,
+            usize::from(ammo_display_id.is_some()),
+            "ammo {ammo_display_id:?}"
+        );
+    }
+}

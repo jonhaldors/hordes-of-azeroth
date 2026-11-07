@@ -1,0 +1,12 @@
+[package]
+name = "benilla-dbc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WDBC (client DBC) reader for WoW 1.12.1 (build 5875)"
+
+[lints]
+workspace = true
+
+[dependencies]
+benilla-bytes = { path = "../benilla-bytes" }

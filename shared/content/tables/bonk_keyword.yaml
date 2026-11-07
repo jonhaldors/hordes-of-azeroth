@@ -1,0 +1,164 @@
+# Imported by tools/content/dump_tables.py from bonk_keyword. Edit this file, then run tools/content/compile.py.
+table: bonk_keyword
+columns:
+- id
+- name
+- icon
+- spell_id
+- max_stacks
+- value_per_stack
+- tick_ms
+- duration_ms
+- spreads_on_death
+- description
+rows:
+- - 1
+  - Chill
+  - Spell_Frost_IceStorm
+  - 12485
+  - 10
+  - 3.0
+  - 0
+  - 4000
+  - 0
+  - Slows the enemy by 3% per stack, up to 30%. At 10 stacks the enemy becomes Frozen. An enemy that can't be Frozen yet stays at 10 stacks. Each new stack refreshes Chill to 4 sec.
+- - 2
+  - Frozen
+  - Spell_Frost_Glacier
+  - 18798
+  - 1
+  - 0.0
+  - 0
+  - 2000
+  - 0
+  - 'Normal enemies are frozen in place for 2 sec. Elites and bosses keep moving but count as Frozen for those 2 sec. Shatter: your Frost spells always critically strike Frozen enemies, and every critical strike against a Frozen enemy deals an extra 50% damage. After a Freeze, that enemy can''t be Frozen again for 6 sec.'
+- - 3
+  - Burning
+  - Spell_Fire_Incinerate
+  - 12654
+  - 30
+  - 0.04
+  - 1000
+  - 6000
+  - 1
+  - Each stack deals Fire damage every tick. Each new stack refreshes all stacks to their full duration, up to 30 stacks. When a burning enemy dies, half of its stacks spread to the 2 nearest enemies within 8 yards, and the damage its stacks had left bursts onto up to 4 enemies within 8 yards, half on each.
+- - 4
+  - Bleed
+  - Ability_BackStab
+  - 12721
+  - 30
+  - 0.04
+  - 1000
+  - 6000
+  - 1
+  - Each stack deals Physical damage every tick. Each new stack refreshes all stacks to their full duration, up to 30 stacks. When a bleeding enemy dies, half of its stacks spread to the 2 nearest enemies within 8 yards, and the damage its stacks had left bursts onto up to 4 enemies within 8 yards, half on each.
+- - 5
+  - Poison
+  - Spell_Nature_CorrosiveBreath
+  - 19448
+  - 30
+  - 0.04
+  - 1000
+  - 6000
+  - 1
+  - Each stack deals Nature damage every tick. Each new stack refreshes all stacks to their full duration, up to 30 stacks. When a poisoned enemy dies, half of its stacks spread to the 2 nearest enemies within 8 yards, and the damage its stacks had left bursts onto up to 4 enemies within 8 yards, half on each.
+- - 6
+  - Fire Vulnerability
+  - Spell_Fire_SoulBurn
+  - 22959
+  - 5
+  - 3.0
+  - 0
+  - 15000
+  - 0
+  - Increases Fire damage taken by 3% per stack. Stacks up to 5 times.
+- - 7
+  - Sunder Armor
+  - Ability_Warrior_Sunder
+  - 27991
+  - 5
+  - 4.0
+  - 0
+  - 15000
+  - 0
+  - Increases Physical damage taken by 4% per stack. Stacks up to 5 times.
+- - 8
+  - Shadow Vulnerability
+  - Spell_Shadow_BlackPlague
+  - 15258
+  - 5
+  - 3.0
+  - 0
+  - 15000
+  - 0
+  - Increases Shadow damage taken by 3% per stack. Stacks up to 5 times.
+- - 9
+  - Hunter's Mark
+  - Ability_Hunter_SniperShot
+  - 20374
+  - 1
+  - 15.0
+  - 0
+  - 8000
+  - 0
+  - Marked enemies take 15% more damage from you and your summons, raised by the marking spell's ranks and Mark upgrades up to 30%. Talents add on top. When a Marked enemy dies, the Mark passes to the 2 nearest unmarked enemies within 10 yards.
+- - 10
+  - Dazed
+  - Spell_Frost_Stun
+  - 13496
+  - 1
+  - 30.0
+  - 0
+  - 4000
+  - 0
+  - Slows the enemy by 30% for 4 sec.
+- - 11
+  - Static
+  - Spell_Nature_Lightning
+  - 18148
+  - 5
+  - 0.8
+  - 0
+  - 8000
+  - 0
+  - Stacks up to 5 times. At 5 stacks, the enemy is struck by lightning, dealing Nature damage to it and up to 3 enemies within 6 yards, and the stacks reset.
+- - 12
+  - Nature Vulnerability
+  - Spell_Holy_SealOfMight
+  - 17364
+  - 5
+  - 4.0
+  - 0
+  - 12000
+  - 0
+  - Increases Nature damage taken by 4% per stack. Stacks up to 5 times.
+- - 13
+  - Decay
+  - Spell_Shadow_ChillTouch
+  - 594
+  - 30
+  - 0.04
+  - 1000
+  - 6000
+  - 1
+  - Each stack deals Shadow damage every tick. Each new stack refreshes all stacks to their full duration, up to 30 stacks. When a decaying enemy dies, half of its stacks spread to the 2 nearest enemies within 8 yards.
+- - 14
+  - Agony
+  - Spell_Shadow_CurseOfSargeras
+  - 14868
+  - 30
+  - 0.1
+  - 1000
+  - 12000
+  - 0
+  - Each stack deals Shadow damage every tick. A stack's damage grows by a quarter of its starting damage every tick it stays on, up to triple after 8 ticks. One curse per enemy.
+- - 15
+  - Moonfire
+  - Spell_Nature_StarFall
+  - 8921
+  - 30
+  - 0.04
+  - 1000
+  - 6000
+  - 1
+  - Each stack deals Arcane damage every tick. Each new stack refreshes all stacks to their full duration, up to 30 stacks. When a moonfired enemy dies, half of its stacks spread to the 2 nearest enemies within 8 yards.

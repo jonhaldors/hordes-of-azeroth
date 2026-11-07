@@ -1,0 +1,1642 @@
+//! The pet bindings: the action bar `PetActionBarFrame.lua` drives, the stat block the pet frames
+//! read, and the pet menu's predicates and verbs. The app resolves every slot and pushes it
+//! ([`super::UiScript::set_pet_actions`]); presses queue back out for the app to send. A token
+//! slot's name and texture are the names of globals, which the stock Lua resolves
+//! (`PetActionBarFrame.lua:98-104`). Booleans are 1/nil and cooldowns go cold once elapsed, as in
+//! [`super::action`].
+
+use mlua::{Lua, MultiValue, Value};
+
+use super::binding_abi;
+use super::protected::{self, Tag};
+use super::Model;
+
+// The slot-word values the one-shot orders synthesize, restated from
+// `benilla_protocol::messages::pet` because this crate does not depend on the protocol.
+const PET_ACT_COMMAND: u8 = 0x07;
+const PET_ACT_REACTION: u8 = 0x06;
+const PET_COMMAND_STAY: u32 = 0;
+const PET_COMMAND_FOLLOW: u32 = 1;
+const PET_COMMAND_ATTACK: u32 = 2;
+const PET_REACT_PASSIVE: u32 = 0;
+const PET_REACT_DEFENSIVE: u32 = 1;
+const PET_REACT_AGGRESSIVE: u32 = 2;
+/// Bit 27 of the pet state word: the server has disabled the bar.
+const PET_STATE_BAR_DISABLED: u32 = 0x0800_0000;
+
+/// A slot word as the server packs it: the type in the top byte, the action in the low bits.
+const fn order(kind: u8, action: u32) -> u32 {
+    (kind as u32) << 24 | action
+}
+
+/// `PetDismiss`'s word, the Dismiss command `0x4bd6e0` stores and presses (`0x4bd701`).
+pub const PET_DISMISS_WORD: u32 = order(PET_ACT_COMMAND, 3);
+
+/// A pet verb the host applies inside its call ([`super::ScriptCall::Pet`]), past the binding's
+/// own checks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PetCall {
+    /// `TogglePetAutocast(slot)` (`0x4be290` → `0x4bcbb0`), the 1-based slot the VM flipped: the
+    /// app's word flips and `CMSG_PET_SET_ACTION` goes out (`0x4bcc4f`).
+    ToggleAutocast(u32),
+    /// One bar write of the drag, the assign core with its send flag (`0x4bc9a0`): one
+    /// `CMSG_PET_SET_ACTION` of one or two `(0-based position, word)` pairs, sent whole, since the
+    /// server tells the two forms apart by body size (`0x4bcad4`).
+    SetActions(Vec<(u32, u32)>),
+    /// `PetStopAttack()` (`0x4bd650`).
+    StopAttack,
+    /// `PetAbandon()` past its gate (`0x4bd740`).
+    Abandon,
+    /// `PetRename(name)` (`0x4be4e0` → `0x4bd840`): the name as `lua_tostring` read it, `None`
+    /// for none.
+    Rename(Option<String>),
+    /// `ToggleSpellAutocast(id, "pet")` past its gate (`0x4bccb0`), by the spell the VM flipped:
+    /// `CMSG_PET_SPELL_AUTOCAST` names the spell.
+    SpellAutocast(u32),
+}
+
+/// One pet bar slot, resolved by the app.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PetActionView {
+    /// `GetPetActionInfo`'s first return and the occupancy test: `None` hides the button
+    /// (`PetActionBarFrame.lua:122-128`). The spell's name, or for a token the name of a global.
+    pub name: Option<String>,
+    /// The second return: the spell's rank line, `None` for a token.
+    pub subtext: Option<String>,
+    /// The third return: an icon path, or for a token the name of a global.
+    pub texture: Option<String>,
+    /// A command or reaction token, whose `name` and `texture` are global names.
+    pub is_token: bool,
+    /// The slot's spell, for `GameTooltip:SetPetAction`; not a `GetPetActionInfo` return.
+    pub spell_id: Option<u32>,
+    /// The checked ring.
+    pub active: bool,
+    /// The slot can autocast: the static `UI-AutoCastableOverlay` ring.
+    pub autocast_allowed: bool,
+    /// Autocast is on: the sparkle trail.
+    pub autocast_enabled: bool,
+    /// `IsPetAttackActive`: a left click calls the pet off instead of running the slot.
+    pub attack_active: bool,
+    /// `(start_ms on the GetTime clock, duration_ms, enabled)`, as [`super::action::ActionState`].
+    pub cooldown: Option<(i64, u32, bool)>,
+    /// The slot's packed word, verbatim, for the drag ([`super::cursor::pet`]): the reference
+    /// compares occupants under `& 0x3FFFFFFF` and writes the source word through unchanged
+    /// (`0x4bc9a0`, `0x4bce00`). `0` is the empty slot.
+    pub packed: u32,
+    /// `SPELL_ATTR_PASSIVE` (`Attributes & 0x40`) on a spell slot: the drop silently refuses a
+    /// passive source (`0x4bc9f8`-`0x4bca2e`).
+    pub passive: bool,
+}
+
+/// [`PetActionView`] as stored, its cooldown converted to `GetTime` seconds at push time.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct StoredPetAction {
+    pub(crate) view: PetActionView,
+    pub(crate) cooldown: Option<(f64, f64, bool)>,
+}
+
+/// The pet stat block: the four hunter stat bindings and `HasPetUI`'s second return
+/// (`0x4be670`), plus the family word, icon and diet. The stats share one hunter-pet gate
+/// (`0x6116e0`) and fail their own ways: loyalty to nil, the pairs to `(0, 0)`, happiness to
+/// `(nil, 100.0, 0.0)`. The family word has no gate (`0x51a310`); the diet shares the stats'.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PetStats {
+    /// `HasPetUI`'s second return; false makes every gated binding answer its failure form.
+    pub hunter_pet: bool,
+    /// `GetPetHappiness`'s first return, bucketed `0..=3` by the client; `Some(0)` is not nil.
+    pub happiness: Option<u32>,
+    /// Return 2: the damage percentage, already scaled by 100.
+    pub damage_percentage: f32,
+    /// Return 3: the loyalty rate, unscaled and possibly negative.
+    pub loyalty_rate: f32,
+    /// `GetPetLoyalty`: the `PetLoyalty.dbc` name verbatim, `"(Loyalty Level N) "` prefix included.
+    pub loyalty: Option<String>,
+    /// `GetPetTrainingPoints`: `(totalPoints, spent)`, high word first.
+    pub training_points: (u16, u16),
+    /// `GetPetExperience`: `(currXP, nextXP)`.
+    pub experience: (u32, u32),
+    /// `UnitCreatureFamily("pet")`: the localized `CreatureFamily.dbc` word off the cached creature
+    /// record (`0x51a310`). `None` is nil: no record yet, id 0, or an id with no row (10, 13, 14,
+    /// 18 and 22 have none). `PetPaperDollFrame.lua:68-70` guards its level line on it.
+    pub family: Option<String>,
+    /// `GetPetIcon()`: the family row's `CreatureFamily.dbc` icon, `None` on the family word's
+    /// misses. Ungated like the family word; whether the reference gates it (`0x4beb10`) is
+    /// untraced, and no warlock reaches its stock callers (`PetStable.lua:51`, `161-162`).
+    pub icon: Option<String>,
+    /// `GetPetFoodTypes()`: the diet names the family's food mask selects, in record order
+    /// (`0x4bea10`: bit `1 << (id - 1)` of `CreatureFamily` column 7, names from `ItemPetFood`).
+    /// Empty for a zero mask (every warlock minion) or a failed hunter gate, which the app applies.
+    pub food_types: Vec<String>,
+}
+
+/// The pushed pet state: the bar's slots and bar-wide bits, the stat block, the menu predicates.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct PetBarState {
+    /// `PetHasActionBar()`: there is a bar, even one of ten empty slots.
+    pub(crate) has_bar: bool,
+    /// `GetPetActionsUsable()` (`0x4bcf70`): false desaturates the whole bar, and refuses the
+    /// drag's bar writes with it (`0x4bc9d0`).
+    pub(crate) actions_usable: bool,
+    pub(crate) slots: Vec<StoredPetAction>,
+    /// `HasPetUI`'s first return: a pet with a nonzero `UNIT_FIELD_PETNUMBER` (`0x4be697`). Not
+    /// `has_bar`, whose gate is the cached guid alone.
+    pub(crate) has_ui: bool,
+    pub(crate) stats: PetStats,
+    /// `PickupPetAction`'s gate: the pet's object resolves (`0x4be1f7`) and `UNIT_FLAG_POSSESSED`
+    /// is clear (`0x4be20a`), which blocks the drop as well as the pick-up. Not `actions_usable`:
+    /// possession does not grey the bar, and the pick-up itself does not ask it. The writes at
+    /// both ends do (`0x4bc9d0`), so a greyed bar with its pet in view still lifts an action onto
+    /// the cursor and then writes nothing.
+    pub(crate) pickup_allowed: bool,
+    /// `PetCanBeAbandoned()`: a kept pet rather than a summon. It forks the pet menu: paperdoll,
+    /// rename and abandon show when true, dismiss only when false (`UnitPopup.lua:402-417`).
+    pub(crate) can_be_abandoned: bool,
+    /// `PetCanBeRenamed()`, ANDed with the above for the rename row; set until the first rename.
+    pub(crate) can_be_renamed: bool,
+    /// The charm or possess expiry `[0xb714a8]` on the `GetTime` clock, in seconds: the last
+    /// `SMSG_PET_SPELLS` duration past its arrival, `None` for a packet whose duration is 0.
+    pub(crate) expiry: Option<f64>,
+    /// The pet's state word (`[0xb71468]`): the reaction in byte 0, the command in bits 8-15 and
+    /// the server's bar-disabled bit 27. A reaction or Stay/Follow press writes it here.
+    pub(crate) state: u32,
+}
+
+/// The press dispatcher's local half (`0x4bd1d0`) for a usable bar (`0x4bd1f2`): a reaction
+/// writes byte 0 (`0x4bd399` → `0x4bc940`) and Stay or Follow bits 8-15 (`0x4bd43f` →
+/// `0x4bc960`), each signalling `PET_BAR_UPDATE` (`0x4bc956`, `0x4bc979`) before the send at
+/// `0x4bd444`, even when nothing moved. The token slots repaint from the word first, so the
+/// handler reads the lit button. Attack's latch rides its validator, which is the app's.
+fn latch_press(model: &mut Model, packed: u32) {
+    let bar = &mut model.pet_bar;
+    if !bar.has_bar || !bar.actions_usable {
+        return;
+    }
+    let kind = ((packed >> 24) & 0x3F) as u8;
+    let action = packed & 0xFFFF;
+    match kind {
+        PET_ACT_REACTION => bar.state = (bar.state & 0xFFFF_FF00) | action,
+        PET_ACT_COMMAND if action <= PET_COMMAND_FOLLOW => {
+            bar.state = (bar.state & 0x0800_00FF) | (action << 8);
+        }
+        _ => return,
+    }
+    repaint_tokens(bar);
+    model.raise("PET_BAR_UPDATE", Vec::new());
+}
+
+/// The token slots' checked ring from the state word, as `GetPetActionInfo` lights them: a
+/// command when the unmasked `state >> 8` equals it or Attack's latch is up (`0x4bdf01`-`0x4bdf22`),
+/// a reaction when byte 0 does, a disabled bar reading as Passive (`0x4bde3c`).
+fn repaint_tokens(bar: &mut PetBarState) {
+    let react = if bar.state & PET_STATE_BAR_DISABLED != 0 {
+        PET_REACT_PASSIVE
+    } else {
+        bar.state & 0xFF
+    };
+    for slot in bar.slots.iter_mut().filter(|s| s.view.is_token) {
+        let kind = ((slot.view.packed >> 24) & 0x3F) as u8;
+        let action = slot.view.packed & 0xFFFF;
+        slot.view.active = match kind {
+            PET_ACT_COMMAND => bar.state >> 8 == action || slot.view.attack_active,
+            PET_ACT_REACTION => react == action,
+            _ => slot.view.active,
+        };
+    }
+}
+
+impl super::UiScript {
+    /// The ten slot views as the VM holds them, the drag's and the toggles' writes included, each
+    /// without its cooldown: what the bar's `PET_BAR_UPDATE` handler last read.
+    pub fn pet_action_views(&self) -> Vec<PetActionView> {
+        self.model_ref()
+            .pet_bar
+            .slots
+            .iter()
+            .map(|s| PetActionView {
+                cooldown: None,
+                ..s.view.clone()
+            })
+            .collect()
+    }
+
+    /// Push the whole pet bar; the app diffs and fires `PET_BAR_UPDATE`.
+    pub fn set_pet_actions(
+        &mut self,
+        has_bar: bool,
+        actions_usable: bool,
+        pickup_allowed: bool,
+        slots: Vec<PetActionView>,
+    ) {
+        // Field by field: the stat block and the menu predicates beside them move on other clocks.
+        let bar = &mut self.model_mut().pet_bar;
+        bar.has_bar = has_bar;
+        bar.actions_usable = actions_usable;
+        bar.pickup_allowed = pickup_allowed;
+        bar.slots = slots
+            .into_iter()
+            .map(|view| {
+                // The start is already on the `GetTime` clock, in ms.
+                let cooldown = view.cooldown.map(|(start_ms, duration_ms, enabled)| {
+                    (
+                        start_ms as f64 / 1000.0,
+                        f64::from(duration_ms) / 1000.0,
+                        enabled,
+                    )
+                });
+                StoredPetAction { view, cooldown }
+            })
+            .collect();
+    }
+
+    /// `SetPetGuid(0, 0)`'s VM half (`0x4bc6fd` → `0x4bc7e0`), the world entry's pet reset: no
+    /// bar and no expiry, as a bar with no guid pushes it, and no pet UI or stats, as `HasPetUI`
+    /// and the stat getters resolve the pet from the cleared guid (`0x4be67e`-`0x4be690`); the
+    /// state word stays, which no reader asks without a guid. Whether a bar was showing, the
+    /// guid's change its `UNIT_PET` signals on. A caller that holds the guid pushes the same.
+    pub fn drop_pet_bar(&mut self) -> bool {
+        let dropped = self.model_ref().pet_bar.has_bar;
+        self.set_pet_expiry(None);
+        self.set_pet_actions(false, false, false, Vec::new());
+        self.set_pet_stats(false, PetStats::default());
+        dropped
+    }
+
+    /// `SetPetGuid`'s signals: `UNIT_PET("player")` when the guid changed (`0x4bc84f`), then
+    /// `PET_BAR_UPDATE` every time (`0x4bc90c`).
+    pub fn fire_pet_bar_dropped(&mut self, changed: bool) {
+        if changed {
+            self.fire_event("UNIT_PET", vec![super::ScriptValue::Str("player".into())]);
+        }
+        self.fire_event("PET_BAR_UPDATE", Vec::new());
+    }
+
+    /// Push the pet's state word (`[0xb71468]`), as `SMSG_PET_SPELLS` and the app's latches leave
+    /// it.
+    pub fn set_pet_state(&mut self, state: u32) {
+        self.model_mut().pet_bar.state = state;
+    }
+
+    /// Push the stat block and `HasPetUI`'s first return, which move on descriptor updates rather
+    /// than with the bar.
+    pub fn set_pet_stats(&mut self, has_ui: bool, stats: PetStats) {
+        let bar = &mut self.model_mut().pet_bar;
+        bar.has_ui = has_ui;
+        bar.stats = stats;
+    }
+
+    /// Push the pet's expiry on the `GetTime` clock, `None` for none: `SetPet` (`0x4bc7e0`)
+    /// stores `OsTick() + duration` for each `SMSG_PET_SPELLS` whose duration is not 0, else 0.
+    pub fn set_pet_expiry(&mut self, expiry: Option<f64>) {
+        self.model_mut().pet_bar.expiry = expiry;
+    }
+
+    /// Push the menu's two predicates, which move with the pet's `UNIT_FIELD_FLAGS`.
+    pub fn set_pet_menu(&mut self, can_be_abandoned: bool, can_be_renamed: bool) {
+        let bar = &mut self.model_mut().pet_bar;
+        bar.can_be_abandoned = can_be_abandoned;
+        bar.can_be_renamed = can_be_renamed;
+    }
+
+    /// Take the `CastPetAction` calls out of the call stream, as 1-based slots; the app decides
+    /// what each one sends.
+    pub fn take_pet_actions(&mut self) -> Vec<u32> {
+        self.take_calls_where(|c| match c {
+            super::ScriptCall::PetAction(slot) => Some(*slot),
+            _ => None,
+        })
+    }
+
+    /// The `TogglePetAutocast` calls a harness VM kept, as 1-based slots.
+    pub fn take_pet_autocast_toggles(&mut self) -> Vec<u32> {
+        self.take_calls_where(|c| match c {
+            super::ScriptCall::Pet(PetCall::ToggleAutocast(slot)) => Some(*slot),
+            _ => None,
+        })
+    }
+
+    /// How many `PetStopAttack()` calls a harness VM kept.
+    pub fn take_pet_stop_attacks(&mut self) -> u32 {
+        self.take_calls_where(|c| {
+            matches!(c, super::ScriptCall::Pet(PetCall::StopAttack)).then_some(())
+        })
+        .len() as u32
+    }
+
+    /// Take the one-shot orders (`PetAttack` and the rest) out of the call stream, each a packed
+    /// slot word.
+    pub fn take_pet_orders(&mut self) -> Vec<u32> {
+        self.take_calls_where(|c| match c {
+            super::ScriptCall::PetOrder(packed) => Some(*packed),
+            _ => None,
+        })
+    }
+
+    /// Set the flag `HasFullControl` answers.
+    pub fn set_player_control(&mut self, in_control: bool) {
+        self.model_mut().player_control = in_control;
+    }
+
+    /// The drag's bar writes a harness VM kept, already applied here: one `Vec` per
+    /// `CMSG_PET_SET_ACTION` of one or two `(0-based position, packed word)` pairs.
+    pub fn take_pet_set_actions(&mut self) -> Vec<Vec<(u32, u32)>> {
+        self.take_calls_where(|c| match c {
+            super::ScriptCall::Pet(PetCall::SetActions(entries)) => Some(entries.clone()),
+            _ => None,
+        })
+    }
+
+    /// The `PetAbandon()` and `PetDismiss()` calls a harness VM kept, counted, as
+    /// `(abandons, dismisses)`.
+    pub fn take_pet_gives_up(&mut self) -> (u32, u32) {
+        let abandons = self.take_calls_where(|c| {
+            matches!(c, super::ScriptCall::Pet(PetCall::Abandon)).then_some(())
+        });
+        let dismisses = self.take_calls_where(|c| {
+            matches!(c, super::ScriptCall::PetOrder(PET_DISMISS_WORD)).then_some(())
+        });
+        (abandons.len() as u32, dismisses.len() as u32)
+    }
+
+    /// The names the `PetRename` calls a harness VM kept carry, in order; `None` for none.
+    pub fn take_pet_renames(&mut self) -> Vec<Option<String>> {
+        self.take_calls_where(|c| match c {
+            super::ScriptCall::Pet(PetCall::Rename(name)) => Some(name.clone()),
+            _ => None,
+        })
+    }
+
+    /// A possessed unit's Attack latch raised (`0x4bd42e`): the Attack token lit on it, as the bar
+    /// paints it (`0x4bdf01`-`0x4bdf22`), for the `PET_BAR_UPDATE` the host signals (`0x4bd438`).
+    pub fn raise_pet_attack(&mut self) {
+        let bar = &mut self.model_mut().pet_bar;
+        for slot in bar.slots.iter_mut().filter(|s| s.view.is_token) {
+            let kind = ((slot.view.packed >> 24) & 0x3F) as u8;
+            if kind == PET_ACT_COMMAND && slot.view.packed & 0xFFFF == PET_COMMAND_ATTACK {
+                slot.view.attack_active = true;
+            }
+        }
+        repaint_tokens(bar);
+    }
+
+    /// `PetStopAttack`'s repaint (`0x4bd6ae`-`0x4bd6b4`): the attack latch down on every slot and
+    /// the command tokens relit from the state word, for the `PET_BAR_UPDATE` the host signals.
+    pub fn lower_pet_attack(&mut self) {
+        let bar = &mut self.model_mut().pet_bar;
+        for slot in &mut bar.slots {
+            slot.view.attack_active = false;
+        }
+        repaint_tokens(bar);
+    }
+}
+
+/// A pet word's autocast-on bit (30); bit 31 allows it.
+pub(crate) const AUTOCAST_ON: u32 = 0x4000_0000;
+/// A pet word without its two autocast bits: the type and the action, which the client compares
+/// words under (`0x4bca44`, `0x4bcd2a`, `0x4bd1b9`).
+pub(crate) const ACTION_MASK: u32 = 0x3FFF_FFFF;
+
+/// A pet book entry takes a word that differs from its own in the autocast bits alone.
+pub(crate) fn set_book_word(book: &mut super::spellbook::SpellSlotView, word: u32) {
+    book.packed = word;
+    if let Some((_, on)) = book.autocast.as_mut() {
+        *on = word & AUTOCAST_ON != 0;
+    }
+}
+
+/// A book word as the bar paints a spell (`0x4bdc50`'s spell arm): its name, rank and icon, the
+/// spell id, and the autocast bits read off the word (`0x4bdd65`, `0x4bdda4`).
+pub(crate) fn book_word_view(book: &super::spellbook::SpellSlotView) -> PetActionView {
+    PetActionView {
+        name: Some(book.name.clone()),
+        subtext: book.rank.clone(),
+        texture: book.bar_face(),
+        spell_id: Some(book.spell_id),
+        autocast_allowed: book.packed & 0x8000_0000 != 0,
+        autocast_enabled: book.packed & AUTOCAST_ON != 0,
+        packed: book.packed,
+        passive: book.passive,
+        ..Default::default()
+    }
+}
+
+/// The stored slot at a 1-based button index.
+fn slot_at(model: &Model, i: u32) -> Option<&StoredPetAction> {
+    usize::try_from(i.checked_sub(1)?)
+        .ok()
+        .and_then(|n| model.pet_bar.slots.get(n))
+}
+
+/// Register the pet-bar globals.
+pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
+    let g = lua.globals();
+
+    let flag = |b: bool| if b { Value::Integer(1) } else { Value::Nil };
+
+    // GetPetTimeRemaining() (`0x4be600`): nil with no expiry, else the milliseconds to it as an
+    // unsigned 32-bit tick difference (`fild qword` over a zero high dword), so one past its
+    // expiry wraps to about 4.29e9 until the next packet. The stock caller is commented out
+    // (`PetFrame.lua:91-97`).
+    g.set(
+        "GetPetTimeRemaining",
+        lua.create_function(|lua, ()| {
+            let expiry = lua
+                .app_data_ref::<Model>()
+                .expect("model app_data")
+                .pet_bar
+                .expiry;
+            let Some(expiry) = expiry else {
+                return Ok(Value::Nil);
+            };
+            let now = crate::script::clock::now(lua);
+            #[allow(clippy::cast_possible_truncation)] // a tick difference, wrapped as the u32 is
+            let ms = ((expiry - now) * 1000.0).round() as i64 as u32;
+            Ok(Value::Number(f64::from(ms)))
+        })?,
+    )?;
+
+    g.set(
+        "PetHasActionBar",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(model.pet_bar.has_bar))
+        })?,
+    )?;
+
+    g.set(
+        "GetPetActionsUsable",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(model.pet_bar.actions_usable))
+        })?,
+    )?;
+
+    // An out-of-range index answers seven nils (`0x4bdf3e`), which the Lua reads as an empty slot.
+    g.set(
+        "GetPetActionInfo",
+        lua.create_function(move |lua, i: Value| {
+            // `is-number` else `Usage: GetPetActionInfo(index)` (`0x8478b8`, `0x4bdc67`).
+            let i = binding_abi::index_arg32(lua, i, "Usage: GetPetActionInfo(index)")?;
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let Some(slot) = slot_at(&model, i) else {
+                return Ok(super::binding_abi::tuple(&[None; 7]));
+            };
+            let v = &slot.view;
+            let text = |s: &Option<String>| match s {
+                Some(s) => Ok(Value::String(lua.create_string(s)?)),
+                None => Ok::<_, mlua::Error>(Value::Nil),
+            };
+            Ok(MultiValue::from_vec(vec![
+                text(&v.name)?,
+                text(&v.subtext)?,
+                text(&v.texture)?,
+                flag(v.is_token),
+                flag(v.active),
+                flag(v.autocast_allowed),
+                flag(v.autocast_enabled),
+            ]))
+        })?,
+    )?;
+
+    // An elapsed or absent cooldown answers (0, 0, 1), so a re-feed never replays the sweep.
+    g.set(
+        "GetPetActionCooldown",
+        lua.create_function(|lua, i: Value| {
+            // `is-number` else `Usage: GetPetActionCooldown(index)` (`0x8478d8`, `0x4bdfb7`).
+            let i = binding_abi::index_arg32(lua, i, "Usage: GetPetActionCooldown(index)")?;
+            let now = crate::script::clock::now(lua);
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(match slot_at(&model, i).and_then(|s| s.cooldown) {
+                Some((start, duration, enabled)) if start + duration > now || !enabled => (
+                    crate::script::clock::held_start(start, enabled, now),
+                    duration,
+                    i32::from(enabled),
+                ),
+                _ => (0.0, 0.0, 1),
+            })
+        })?,
+    )?;
+
+    // The one pet binding that answers a real boolean (`0x6f39f0`), `false` even out of range.
+    g.set(
+        "IsPetAttackActive",
+        lua.create_function(move |lua, i: Value| {
+            // `is-number` else `Usage: IsPetAttackActive(index)` (`0x8478fc`, `0x4be0f1`).
+            let i = binding_abi::index_arg32(lua, i, "Usage: IsPetAttackActive(index)")?;
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(slot_at(&model, i).is_some_and(|s| s.view.attack_active))
+        })?,
+    )?;
+
+    // `CastPetAction(index)` (`0x4be330`): an index past the eleventh slot raises its own line
+    // (`0x4be388`). With the pet's object held and not possessed (`0x4be3c9`-`0x4be3de`) it clears
+    // the cursor (`ClearCursor(1,1)`, `0x4be3e8`), and a held pet action drops on the slot
+    // (`0x4be3f9`) and ends the verb. Otherwise, with a pet and one of the ten slots
+    // (`0x4be414`, `0x4be419`), it presses the slot with a zero target (`0x4be431`), an empty one
+    // included: its zero word falls through the dispatcher's type switch to the send
+    // (`0x4bd233`), which vmangos ignores (`PetHandler.cpp:178`). Then `GAMEABILITYACTIVATE`
+    // plays (`0x4be436`-`0x4be43b`), whatever the press did.
+    g.set(
+        "CastPetAction",
+        lua.create_function(|lua, i: Value| {
+            // `is-number` else `Usage: CastPetAction(index)` (`0x8479d4`, `0x4be35b`).
+            let i = binding_abi::index_arg32(lua, i, "Usage: CastPetAction(index)")?;
+            if i.wrapping_sub(1) > 10 {
+                return Err(mlua::Error::RuntimeError(
+                    "Invalid slot in CastPetAction".into(),
+                ));
+            }
+            let (pickup_allowed, has_bar) = {
+                let model = lua.app_data_ref::<Model>().expect("model app_data");
+                (model.pet_bar.pickup_allowed, model.pet_bar.has_bar)
+            };
+            if pickup_allowed && super::cursor::pet::clear_and_drop(lua, i)?.is_some() {
+                return Ok(());
+            }
+            if !has_bar || i > 10 {
+                return Ok(());
+            }
+            // `PressPetAction 0x4bd1d0` opens on the gate's tag 2 (`0x4bd1e5`), ahead of its bar
+            // test and every effect; a refusal is silent.
+            if protected::gate(lua, Tag::CAST) {
+                super::tick::verb(lua, |model| {
+                    if let Some(packed) = slot_at(model, i).map(|s| s.view.packed) {
+                        latch_press(model, packed);
+                    }
+                });
+                super::calls::submit(lua, super::ScriptCall::PetAction(i))?;
+            }
+            let mut model = lua.app_data_mut::<Model>().expect("model app_data");
+            // `PlaySoundByName` drops a play during the UI load (`0x458046`).
+            if model.sound_suppression == 0 {
+                model
+                    .sound_queue
+                    .push(super::SoundRequest::KitName("GAMEABILITYACTIVATE".into()));
+            }
+            Ok(())
+        })?,
+    )?;
+
+    // `0x4be290`: a non-number raises the usage line and an index past the eleventh slot raises
+    // "Invalid slot" (`0x4be2d0`). Then, whatever is held, `ClearCursor(1,1)` (`0x4be2f8`); a held
+    // pet action is dropped on the slot (`0x4be309`) and the verb ends, else `0x4bcbb0` runs:
+    // on a usable pet (`0x4bcbcf`) a slot whose word allows autocast (bit 31,
+    // `0x4bcbf1`) flips bit 30 in place, copies a spell word onto its book entry (`0x4bd190`),
+    // queues the `CMSG_PET_SET_ACTION` and signals `PET_BAR_UPDATE` (`0x4bcc81`) before the verb
+    // returns. A token has no bit 31, so it does nothing.
+    g.set(
+        "TogglePetAutocast",
+        lua.create_function(|lua, i: mlua::Value| {
+            let i =
+                super::binding_abi::number_arg(lua, i, "Usage: TogglePetAutocast(index)")? as u32;
+            if i.wrapping_sub(1) > 10 {
+                return Err(mlua::Error::RuntimeError(
+                    "Invalid slot in TogglePetAutocast".into(),
+                ));
+            }
+            if super::cursor::pet::clear_and_drop(lua, i)?.is_some() {
+                return Ok(());
+            }
+            // `TogglePetSlotAutocast 0x4bcbb0` opens on the gate's tag 2 (`0x4bcbc2`).
+            if !protected::gate(lua, Tag::CAST) {
+                return Ok(());
+            }
+            let flipped = super::tick::verb(lua, |model| {
+                let Some(n) = i
+                    .checked_sub(1)
+                    .map(|n| n as usize)
+                    .filter(|&n| n < model.pet_bar.slots.len())
+                else {
+                    return false;
+                };
+                if !model.pet_bar.actions_usable || !model.pet_bar.slots[n].view.autocast_allowed {
+                    return false;
+                }
+                let view = &mut model.pet_bar.slots[n].view;
+                view.packed ^= AUTOCAST_ON;
+                view.autocast_enabled = view.packed & AUTOCAST_ON != 0;
+                let word = view.packed;
+                if (word >> 24) & 0x3F == 1 {
+                    if let Some(book) = model
+                        .pet_book
+                        .slots
+                        .iter_mut()
+                        .rev()
+                        .find(|b| b.packed & ACTION_MASK == word & ACTION_MASK)
+                    {
+                        set_book_word(book, word);
+                    }
+                }
+                true
+            });
+            // The send (`0x4bcc4f`), then the signal (`0x4bcc81`).
+            if flipped {
+                super::calls::submit(lua, super::ScriptCall::Pet(PetCall::ToggleAutocast(i)))?;
+                super::tick::verb(lua, |model| model.raise("PET_BAR_UPDATE", Vec::new()));
+            }
+            Ok(())
+        })?,
+    )?;
+
+    // Two returns on every path (`0x4be670`), `(nil, nil)` with no pet UI.
+    g.set(
+        "HasPetUI",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let bar = &model.pet_bar;
+            Ok((flag(bar.has_ui), flag(bar.has_ui && bar.stats.hunter_pet)))
+        })?,
+    )?;
+
+    // The client buckets return 1 off `PetPersonality.dbc` (`0x4be900`), and bucket 0 is the
+    // number 0; only the gate failure is nil, and even then returns 2 and 3 are `(100.0, 0.0)`.
+    g.set(
+        "GetPetHappiness",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let s = &model.pet_bar.stats;
+            let happiness = match s.happiness.filter(|_| s.hunter_pet) {
+                Some(b) => Value::Integer(i64::from(b)),
+                None => Value::Nil,
+            };
+            let (dmg, rate) = if happiness == Value::Nil {
+                (100.0, 0.0)
+            } else {
+                (s.damage_percentage, s.loyalty_rate)
+            };
+            Ok(MultiValue::from_vec(vec![
+                happiness,
+                Value::Number(f64::from(dmg)),
+                Value::Number(f64::from(rate)),
+            ]))
+        })?,
+    )?;
+
+    // The one stat binding that fails to nil, level 0 included.
+    g.set(
+        "GetPetLoyalty",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let s = &model.pet_bar.stats;
+            Ok(match s.loyalty.as_deref().filter(|_| s.hunter_pet) {
+                Some(name) => Value::String(lua.create_string(name)?),
+                None => Value::Nil,
+            })
+        })?,
+    )?;
+
+    // The high then low word of one packed dword; a gate failure is (0, 0), not nil.
+    g.set(
+        "GetPetTrainingPoints",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let s = &model.pet_bar.stats;
+            let (total, spent) = if s.hunter_pet {
+                s.training_points
+            } else {
+                (0, 0)
+            };
+            Ok((f64::from(total), f64::from(spent)))
+        })?,
+    )?;
+
+    // Numbers on every path; the client reads both unsigned, so neither is negative.
+    g.set(
+        "GetPetExperience",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let s = &model.pet_bar.stats;
+            let (cur, next) = if s.hunter_pet { s.experience } else { (0, 0) };
+            Ok((f64::from(cur), f64::from(next)))
+        })?,
+    )?;
+
+    // One return on every path, with no class gate (`0x51a310`). Answers the `"pet"` token only:
+    // the reference resolves any unit off its cached creature record (`[[unit+0xb30]+0x1c]`), so
+    // a wild boar's `"target"` answers "Boar" there and nil here. The pet page is the only stock
+    // caller.
+    g.set(
+        "UnitCreatureFamily",
+        lua.create_function(move |lua, token: Option<String>| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let family = token
+                .filter(|t| t.eq_ignore_ascii_case("pet"))
+                .and_then(|_| model.pet_bar.stats.family.as_deref());
+            Ok(match family {
+                Some(name) => Value::String(lua.create_string(name)?),
+                None => Value::Nil,
+            })
+        })?,
+    )?;
+
+    // A real nil, never "": the stable reads it as a predicate and as a texture
+    // (`PetStable.lua:51`, `161-162`), and an empty path would draw white.
+    g.set(
+        "GetPetIcon",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(match model.pet_bar.stats.icon.as_deref() {
+                Some(path) => Value::String(lua.create_string(path)?),
+                None => Value::Nil,
+            })
+        })?,
+    )?;
+
+    // One return per diet and never a nil (`0x4bea10`): an empty diet is zero values, for which
+    // `BuildListString` answers nil (`PetPaperDollFrame.xml:269`).
+    g.set(
+        "GetPetFoodTypes",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            let values: Vec<Value> = model
+                .pet_bar
+                .stats
+                .food_types
+                .iter()
+                .map(|f| lua.create_string(f).map(Value::String))
+                .collect::<mlua::Result<_>>()?;
+            Ok(MultiValue::from_vec(values))
+        })?,
+    )?;
+
+    // The six one-shot orders (`0x4be450`..`0x4be4a0`) each write the slot word the bar's own
+    // reaction or command slot carries and re-enter `0x4bd1d0`, as a `CastPetAction` press does;
+    // PetAttack takes the current selection. With no pet bar the order is silently dropped.
+    for (name, packed) in [
+        ("PetPassiveMode", order(PET_ACT_REACTION, PET_REACT_PASSIVE)),
+        (
+            "PetDefensiveMode",
+            order(PET_ACT_REACTION, PET_REACT_DEFENSIVE),
+        ),
+        (
+            "PetAggressiveMode",
+            order(PET_ACT_REACTION, PET_REACT_AGGRESSIVE),
+        ),
+        ("PetWait", order(PET_ACT_COMMAND, PET_COMMAND_STAY)),
+        ("PetFollow", order(PET_ACT_COMMAND, PET_COMMAND_FOLLOW)),
+        ("PetAttack", order(PET_ACT_COMMAND, PET_COMMAND_ATTACK)),
+    ] {
+        g.set(
+            name,
+            lua.create_function(move |lua, ()| {
+                // Each re-enters `PressPetAction`, whose gate (tag 2) opens it.
+                if !protected::gate(lua, Tag::CAST) {
+                    return Ok(());
+                }
+                let pressed = super::tick::verb(lua, |model| {
+                    if model.pet_bar.has_bar {
+                        latch_press(model, packed);
+                    }
+                    model.pet_bar.has_bar
+                });
+                if pressed {
+                    super::calls::submit(lua, super::ScriptCall::PetOrder(packed))?;
+                }
+                Ok(())
+            })?,
+        )?;
+    }
+
+    // `0x4bd650`, with no gate: the host sends and lowers the latch, and signals the repaint.
+    g.set(
+        "PetStopAttack",
+        lua.create_function(|lua, ()| {
+            super::calls::submit(lua, super::ScriptCall::Pet(PetCall::StopAttack))
+        })?,
+    )?;
+
+    // ── The pet menu ─────────────────────────────────────────────────────────
+
+    g.set(
+        "PetCanBeAbandoned",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(model.pet_bar.can_be_abandoned))
+        })?,
+    )?;
+
+    g.set(
+        "PetCanBeRenamed",
+        lua.create_function(move |lua, ()| {
+            let model = lua.app_data_ref::<Model>().expect("model app_data");
+            Ok(flag(model.pet_bar.can_be_renamed))
+        })?,
+    )?;
+
+    // The `ABANDON_PET` popup's OnAccept, after its confirm.
+    g.set(
+        "PetAbandon",
+        lua.create_function(|lua, ()| {
+            // `SendPetAbandon 0x4bd740` opens on the gate's tag 2 (`0x4bd74b`).
+            if protected::gate(lua, Tag::CAST) {
+                super::calls::submit(lua, super::ScriptCall::Pet(PetCall::Abandon))?;
+            }
+            Ok(())
+        })?,
+    )?;
+
+    // The menu row itself, with no confirm (`UnitPopup.lua:591`): `PressPetDismiss 0x4bd6e0`
+    // presses the Dismiss word with a zero target (`0x4bd701`-`0x4bd70e`), behind the press's own
+    // tag-2 gate, then signals `PET_DISMISS_START` with 10000 (`0x4bd713`-`0x4bd722`), whether or not
+    // the press sent.
+    g.set(
+        "PetDismiss",
+        lua.create_function(|lua, ()| {
+            if protected::gate(lua, Tag::CAST) {
+                super::calls::submit(lua, super::ScriptCall::PetOrder(PET_DISMISS_WORD))?;
+            }
+            super::tick::verb(lua, |model| {
+                model.raise("PET_DISMISS_START", vec![super::ScriptValue::Int(10_000)])
+            });
+            Ok(())
+        })?,
+    )?;
+
+    // `0x4be4e0`: the name as `lua_tostring` reads it (`0x6f3690`), a number coerced and anything
+    // else none, handed to `0x4bd840`, whose gates and send the host runs.
+    g.set(
+        "PetRename",
+        lua.create_function(|lua, name: Value| {
+            let name = lua
+                .coerce_string(name)?
+                .map(|s| String::from_utf8_lossy(&s.as_bytes()).into_owned());
+            super::calls::submit(lua, super::ScriptCall::Pet(PetCall::Rename(name)))
+        })?,
+    )?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PetActionView, PetStats};
+    use crate::script::UiScript;
+
+    /// A charmed or possessed unit's time left in ms, nil for none, and the unsigned wrap once
+    /// the expiry has passed (`0x4be634`).
+    #[test]
+    fn pet_time_remaining_counts_down_to_the_expiry() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        assert!(s
+            .eval::<Option<f64>>("return GetPetTimeRemaining()")
+            .unwrap()
+            .is_none());
+        s.tick(10.0);
+        s.set_pet_expiry(Some(12.5));
+        assert_eq!(
+            s.eval::<f64>("return GetPetTimeRemaining()").unwrap(),
+            2500.0
+        );
+        s.tick(2.0);
+        assert_eq!(
+            s.eval::<f64>("return GetPetTimeRemaining()").unwrap(),
+            500.0
+        );
+        s.tick(1.0);
+        assert_eq!(
+            s.eval::<f64>("return GetPetTimeRemaining()").unwrap(),
+            f64::from(u32::MAX - 499),
+            "0.5 s past it"
+        );
+        s.set_pet_expiry(None);
+        assert!(s
+            .eval::<Option<f64>>("return GetPetTimeRemaining()")
+            .unwrap()
+            .is_none());
+    }
+
+    /// Attack (a token, attacking), Claw (a spell, autocasting, cooling down), an empty slot.
+    fn slots() -> Vec<PetActionView> {
+        vec![
+            PetActionView {
+                name: Some("PET_ACTION_ATTACK".into()),
+                texture: Some("PET_ATTACK_TEXTURE".into()),
+                is_token: true,
+                active: true,
+                attack_active: true,
+                ..Default::default()
+            },
+            PetActionView {
+                name: Some("Claw".into()),
+                subtext: Some("Rank 3".into()),
+                texture: Some("Interface\\Icons\\Ability_Druid_Rake".into()),
+                autocast_allowed: true,
+                autocast_enabled: true,
+                cooldown: Some((9400, 1500, true)),
+                ..Default::default()
+            },
+            PetActionView::default(),
+        ]
+    }
+
+    #[test]
+    fn slot_info_reads_and_out_of_range_is_one_nil() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        assert!(s.eval::<bool>("return PetHasActionBar() == nil").unwrap());
+        assert!(s.eval::<bool>("return GetPetActionInfo(1) == nil").unwrap());
+
+        s.set_pet_actions(true, true, true, slots());
+        assert_eq!(s.eval::<i64>("return PetHasActionBar()").unwrap(), 1);
+        assert_eq!(s.eval::<i64>("return GetPetActionsUsable()").unwrap(), 1);
+
+        let (name, subtext, texture, is_token, active, allowed, enabled) = s
+            .eval::<(
+                String,
+                Option<String>,
+                String,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+            )>("return GetPetActionInfo(1)")
+            .unwrap();
+        assert_eq!(
+            (
+                name.as_str(),
+                subtext,
+                texture.as_str(),
+                is_token,
+                active,
+                allowed,
+                enabled
+            ),
+            (
+                "PET_ACTION_ATTACK",
+                None,
+                "PET_ATTACK_TEXTURE",
+                Some(1),
+                Some(1),
+                None,
+                None
+            )
+        );
+
+        assert!(s
+            .eval::<bool>(
+                "local n, sub, tex, tok, act, allow, on = GetPetActionInfo(2) \
+                 return n == 'Claw' and sub == 'Rank 3' and tok == nil and act == nil \
+                 and allow == 1 and on == 1 and string.find(tex, 'Icons') ~= nil"
+            )
+            .unwrap());
+
+        // The empty slot has returns, unlike the out-of-range single nil, but no name.
+        assert!(s
+            .eval::<bool>("local n, _, tex = GetPetActionInfo(3) return n == nil and tex == nil")
+            .unwrap());
+        assert!(s.eval::<bool>("return GetPetActionInfo(4) == nil").unwrap());
+    }
+
+    #[test]
+    fn cooldown_triple_stamps_to_the_vm_clock_and_goes_cold() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.tick(10.0); // GetTime == 10
+        s.set_pet_actions(true, true, true, slots());
+
+        assert_eq!(
+            s.eval::<(f64, f64, i32)>("return GetPetActionCooldown(1)")
+                .unwrap(),
+            (0.0, 0.0, 1),
+            "no cooldown reads cold"
+        );
+        let (start, duration, enable) = s
+            .eval::<(f64, f64, i32)>("return GetPetActionCooldown(2)")
+            .unwrap();
+        assert!((start - 9.4).abs() < 1e-9, "start {start}");
+        assert!((duration - 1.5).abs() < 1e-9);
+        assert_eq!(enable, 1);
+
+        s.tick(2.0); // now == 12 > 9.4 + 1.5
+        assert_eq!(
+            s.eval::<(f64, f64, i32)>("return GetPetActionCooldown(2)")
+                .unwrap(),
+            (0.0, 0.0, 1)
+        );
+    }
+
+    #[test]
+    fn intents_queue_and_the_meaningless_ones_are_dropped() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, true, true, slots());
+
+        s.run("CastPetAction(1) CastPetAction(3) CastPetAction(9) CastPetAction(11)")
+            .unwrap();
+        assert_eq!(
+            s.take_pet_actions(),
+            vec![1, 3, 9],
+            "an empty slot is pressed, the eleventh is not (`0x4be416`)"
+        );
+        assert!(s.take_pet_actions().is_empty(), "drain empties");
+
+        s.run("TogglePetAutocast(1) TogglePetAutocast(2)").unwrap();
+        assert_eq!(
+            s.take_pet_autocast_toggles(),
+            vec![2],
+            "only the autocastable slot"
+        );
+
+        assert_eq!(s.take_pet_stop_attacks(), 0);
+        s.run("PetStopAttack() PetStopAttack()").unwrap();
+        assert_eq!(s.take_pet_stop_attacks(), 2);
+        assert_eq!(s.take_pet_stop_attacks(), 0, "drain empties");
+    }
+
+    /// `0x4bcbb0` flips the slot and its book entry and signals `PET_BAR_UPDATE` before the verb
+    /// returns; an unusable pet (`0x4bcbcf`) does nothing.
+    #[test]
+    fn a_slot_autocast_toggle_repaints_in_place() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_book(crate::script::PetBookState {
+            token: Some("PET".into()),
+            slots: vec![crate::script::SpellSlotView {
+                spell_id: 2649,
+                name: "Growl".into(),
+                autocast: Some((true, true)),
+                packed: 0xC100_0000 | 2649,
+                ..Default::default()
+            }],
+        });
+        let mut bar = slots();
+        bar[1].packed = 0xC100_0000 | 2649;
+        s.set_pet_actions(true, false, true, bar.clone());
+        s.run(
+            "function PROBE() \
+               local _, e = GetSpellAutocast(1, BOOKTYPE_PET) \
+               local _, _, _, _, _, _, b = GetPetActionInfo(2) \
+               return tostring(e) .. ',' .. tostring(b) \
+             end",
+        )
+        .unwrap();
+        crate::script::tick::heard::listen(&s, &["PET_BAR_UPDATE"], Some("PROBE()"));
+        s.run("TogglePetAutocast(2)").unwrap();
+        assert!(crate::script::tick::heard::take(&s).is_empty());
+        assert!(s.take_pet_autocast_toggles().is_empty());
+
+        s.set_pet_actions(true, true, true, bar);
+        s.run("TogglePetAutocast(2)").unwrap();
+        assert_eq!(
+            crate::script::tick::heard::take(&s),
+            ["PET_BAR_UPDATE nil,nil"],
+            "the slot and its book entry both read autocast off"
+        );
+        assert_eq!(s.take_pet_autocast_toggles(), vec![2]);
+    }
+
+    #[test]
+    fn attack_active_is_a_per_slot_boolean() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, true, true, slots());
+        assert!(s.eval::<bool>("return IsPetAttackActive(1)").unwrap());
+        assert!(!s.eval::<bool>("return IsPetAttackActive(2)").unwrap());
+        assert!(s
+            .eval::<bool>("return IsPetAttackActive(9) == false")
+            .unwrap());
+    }
+
+    /// The predicates are checked the way `UnitPopup.lua`'s row conditions read them.
+    #[test]
+    fn the_menu_predicates_fork_the_rows_and_the_verbs_queue() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+
+        // No pet pushed: every row is off.
+        assert!(s
+            .eval::<bool>("return PetCanBeAbandoned() == nil and PetCanBeRenamed() == nil")
+            .unwrap());
+
+        // A hunter's freshly tamed pet.
+        s.set_pet_menu(true, true);
+        assert_eq!(s.eval::<i64>("return PetCanBeAbandoned()").unwrap(), 1);
+        assert!(
+            s.eval::<bool>("return PetCanBeAbandoned() and PetCanBeRenamed()")
+                .unwrap(),
+            "the rename row wants BOTH"
+        );
+        assert!(!s.eval::<bool>("return not PetCanBeAbandoned()").unwrap());
+
+        // The same pet after one rename.
+        s.set_pet_menu(true, false);
+        assert!(s.eval::<bool>("return PetCanBeAbandoned() ~= nil").unwrap());
+        assert!(s.eval::<bool>("return PetCanBeRenamed() == nil").unwrap());
+
+        // A warlock's demon: only Dismiss shows.
+        s.set_pet_menu(false, false);
+        assert!(s.eval::<bool>("return not PetCanBeAbandoned()").unwrap());
+
+        assert_eq!(s.take_pet_gives_up(), (0, 0));
+        s.run("PetAbandon() PetDismiss() PetDismiss()").unwrap();
+        assert_eq!(s.take_pet_gives_up(), (1, 2));
+        assert_eq!(s.take_pet_gives_up(), (0, 0), "drain empties");
+
+        // Every call goes to the sender, whose gates raise the errors (`0x4bd840`): a number
+        // coerces, and no argument is no name (`0x6f3690`).
+        s.run("PetRename(\"Bruce\") PetRename(\"\") PetRename(7) PetRename()")
+            .unwrap();
+        assert_eq!(
+            s.take_pet_renames(),
+            vec![
+                Some("Bruce".to_string()),
+                Some(String::new()),
+                Some("7".to_string()),
+                None
+            ]
+        );
+        assert!(s.take_pet_renames().is_empty(), "drain empties");
+    }
+
+    #[test]
+    fn pushing_the_bar_leaves_the_stats_and_the_menu_alone() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_menu(true, true);
+        s.set_pet_stats(
+            true,
+            PetStats {
+                hunter_pet: true,
+                happiness: Some(3),
+                ..Default::default()
+            },
+        );
+
+        s.set_pet_actions(true, true, true, slots());
+
+        assert_eq!(s.eval::<i64>("return PetCanBeAbandoned()").unwrap(), 1);
+        assert_eq!(s.eval::<i64>("return PetCanBeRenamed()").unwrap(), 1);
+        assert_eq!(s.eval::<i64>("return HasPetUI()").unwrap(), 1);
+        assert_eq!(s.eval::<i64>("return GetPetHappiness()").unwrap(), 3);
+    }
+
+    #[test]
+    fn a_disabled_bar_is_still_a_bar() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, false, true, slots());
+        assert_eq!(s.eval::<i64>("return PetHasActionBar()").unwrap(), 1);
+        assert!(s
+            .eval::<bool>("return GetPetActionsUsable() == nil")
+            .unwrap());
+    }
+
+    /// Reactions are type 6 and commands type 7, each with its state in the low byte.
+    #[test]
+    fn the_pet_one_shots_synthesize_the_bars_slot_words() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.run("PetAttack(); PetFollow(); PetWait(); PetPassiveMode()")
+            .unwrap();
+        assert!(s.take_pet_orders().is_empty(), "no bar, no order");
+        s.set_pet_actions(true, true, true, slots());
+        s.run(
+            "PetPassiveMode(); PetDefensiveMode(); PetAggressiveMode(); PetWait(); PetFollow(); \
+             PetAttack()",
+        )
+        .unwrap();
+        assert_eq!(
+            s.take_pet_orders(),
+            vec![
+                0x0600_0000,
+                0x0600_0001,
+                0x0600_0002,
+                0x0700_0000,
+                0x0700_0001,
+                0x0700_0002
+            ]
+        );
+        assert!(s.take_pet_orders().is_empty(), "drained");
+    }
+
+    /// The reaction and Stay/Follow presses write the state word and signal `PET_BAR_UPDATE` in
+    /// the verb (`0x4bc956`, `0x4bc979`), before the send, even when nothing moved; the handler
+    /// reads the lit token. An unusable bar latches and signals nothing (`0x4bd1f9`); Attack's
+    /// latch is the app's.
+    #[test]
+    fn the_reaction_and_command_presses_signal_in_place() {
+        use crate::script::tick::heard;
+        let token = |name: &str, packed: u32| PetActionView {
+            name: Some(name.into()),
+            texture: Some("T".into()),
+            is_token: true,
+            packed,
+            ..Default::default()
+        };
+        let bar = vec![
+            token("PET_ACTION_WAIT", 0x0700_0000),
+            token("PET_ACTION_FOLLOW", 0x0700_0001),
+            token("PET_MODE_PASSIVE", 0x0600_0000),
+            token("PET_MODE_DEFENSIVE", 0x0600_0001),
+            token("PET_ACTION_ATTACK", 0x0700_0002),
+        ];
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, true, true, bar.clone());
+        s.set_pet_state(1 << 8 | 1);
+        s.run("function LIT(i) local _, _, _, _, a = GetPetActionInfo(i) return a or 0 end")
+            .unwrap();
+        let lit = "LIT(1) .. LIT(2) .. LIT(3) .. LIT(4)";
+        heard::listen(&s, &["PET_BAR_UPDATE"], Some(lit));
+        s.run("PetWait()").unwrap();
+        assert!(s.errors().is_empty(), "{:?}", s.errors());
+        assert_eq!(heard::take(&s), ["PET_BAR_UPDATE 1001"]);
+        s.run("PetWait()").unwrap();
+        assert_eq!(
+            heard::take(&s),
+            ["PET_BAR_UPDATE 1001"],
+            "unmoved, signalled"
+        );
+        s.run("CastPetAction(3)").unwrap();
+        assert_eq!(heard::take(&s), ["PET_BAR_UPDATE 1010"]);
+        s.run("PetFollow() PetDefensiveMode()").unwrap();
+        assert_eq!(
+            heard::take(&s),
+            ["PET_BAR_UPDATE 0110", "PET_BAR_UPDATE 0101"]
+        );
+        s.run("PetAttack() CastPetAction(5)").unwrap();
+        assert!(heard::take(&s).is_empty(), "Attack's latch is the app's");
+
+        s.set_pet_actions(true, false, true, bar);
+        s.run("PetWait()").unwrap();
+        assert!(heard::take(&s).is_empty(), "an unusable bar");
+    }
+
+    /// A pet book word dropped on the bar paints as the bar would: a running spell's
+    /// `ActiveIconID` (`0x4bdd2f`), which the book carries for it, not the book's icon.
+    #[test]
+    fn a_book_word_paints_the_bars_face() {
+        let book = crate::script::SpellSlotView {
+            spell_id: 24450,
+            name: "Prowl".into(),
+            texture: Some("BOOK".into()),
+            bar_texture: Some(Some("ACTIVE".into())),
+            packed: 0x8100_5f82,
+            ..Default::default()
+        };
+        assert_eq!(
+            super::book_word_view(&book).texture.as_deref(),
+            Some("ACTIVE")
+        );
+        let idle = crate::script::SpellSlotView {
+            bar_texture: None,
+            ..book
+        };
+        assert_eq!(
+            super::book_word_view(&idle).texture.as_deref(),
+            Some("BOOK")
+        );
+    }
+
+    #[test]
+    fn has_full_control_follows_the_hosts_flag() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        assert_eq!(s.eval::<i64>("return HasFullControl()").unwrap(), 1);
+        s.set_player_control(false);
+        assert!(s.eval::<bool>("return HasFullControl() == nil").unwrap());
+        s.set_player_control(true);
+        assert_eq!(s.eval::<i64>("return HasFullControl()").unwrap(), 1);
+    }
+
+    #[test]
+    fn the_pet_icon_answers_a_path_or_a_real_nil() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        assert!(s.eval::<bool>("return GetPetIcon() == nil").unwrap());
+
+        s.set_pet_stats(true, hunter_stats());
+        assert_eq!(
+            s.eval::<String>("return GetPetIcon()").unwrap(),
+            "Interface\\Icons\\Ability_Hunter_Pet_Boar"
+        );
+
+        assert_eq!(s.arity("GetPetIcon()").unwrap(), 1);
+    }
+
+    fn hunter_stats() -> PetStats {
+        PetStats {
+            hunter_pet: true,
+            icon: Some("Interface\\Icons\\Ability_Hunter_Pet_Boar".into()),
+            happiness: Some(3),
+            damage_percentage: 125.0,
+            loyalty_rate: 20.0,
+            loyalty: Some("(Loyalty Level 6) Best Friend".into()),
+            training_points: (170, 130),
+            experience: (4200, 8000),
+            family: Some("Boar".into()),
+            food_types: vec![
+                "Meat".into(),
+                "Fish".into(),
+                "Cheese".into(),
+                "Bread".into(),
+                "Fungus".into(),
+                "Fruit".into(),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_hunters_pet_answers_every_stat_binding() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_stats(true, hunter_stats());
+
+        assert!(s
+            .eval::<bool>(
+                "local h, dmg, rate = GetPetHappiness() \
+                 return h == 3 and dmg == 125 and rate == 20"
+            )
+            .unwrap());
+        assert_eq!(
+            s.eval::<String>("return GetPetLoyalty()").unwrap(),
+            "(Loyalty Level 6) Best Friend",
+            "the shipped prefix is pushed verbatim — the client does no stripping"
+        );
+        assert!(s
+            .eval::<bool>("local t, sp = GetPetTrainingPoints() return t == 170 and sp == 130")
+            .unwrap());
+        assert!(s
+            .eval::<bool>("local c, n = GetPetExperience() return c == 4200 and n == 8000")
+            .unwrap());
+        assert!(s
+            .eval::<bool>("local ui, hunter = HasPetUI() return ui == 1 and hunter == 1")
+            .unwrap());
+    }
+
+    #[test]
+    fn a_non_hunter_pet_fails_three_different_ways() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_stats(
+            true,
+            PetStats {
+                hunter_pet: false,
+                ..hunter_stats()
+            },
+        );
+
+        assert!(
+            s.eval::<bool>(
+                "local h, dmg, rate = GetPetHappiness() \
+                 return h == nil and dmg == 100 and rate == 0"
+            )
+            .unwrap(),
+            "happiness is nil but its two numbers are still numbers"
+        );
+        assert!(s.eval::<bool>("return GetPetLoyalty() == nil").unwrap());
+        assert!(s
+            .eval::<bool>("local t, sp = GetPetTrainingPoints() return t == 0 and sp == 0")
+            .unwrap());
+        assert!(s
+            .eval::<bool>("local c, n = GetPetExperience() return c == 0 and n == 0")
+            .unwrap());
+        assert!(s
+            .eval::<bool>("local ui, hunter = HasPetUI() return ui == 1 and hunter == nil")
+            .unwrap());
+    }
+
+    #[test]
+    fn happiness_bucket_zero_is_not_the_failure_case() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_stats(
+            true,
+            PetStats {
+                happiness: Some(0),
+                damage_percentage: 100.0,
+                loyalty_rate: 0.0,
+                ..hunter_stats()
+            },
+        );
+        assert!(s
+            .eval::<bool>("local h = GetPetHappiness() return h == 0 and h ~= nil")
+            .unwrap());
+        assert!(
+            s.eval::<bool>("return not GetPetHappiness() == false")
+                .unwrap(),
+            "0 is truthy in Lua, so the reference's `not happiness` hide-test does NOT fire"
+        );
+    }
+
+    #[test]
+    fn no_pet_still_answers_two_values_from_has_pet_ui() {
+        let s = UiScript::new().unwrap();
+        assert!(s
+            .eval::<bool>("local ui, hunter = HasPetUI() return ui == nil and hunter == nil")
+            .unwrap());
+        assert!(s.eval::<bool>("return GetPetLoyalty() == nil").unwrap());
+        assert!(s
+            .eval::<bool>("local h, dmg = GetPetHappiness() return h == nil and dmg == 100")
+            .unwrap());
+    }
+
+    #[test]
+    fn unit_creature_family_is_nil_on_every_absent_path() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        // No pet pushed.
+        assert!(s
+            .eval::<bool>(r#"return UnitCreatureFamily("pet") == nil"#)
+            .unwrap());
+
+        // Family 0 and an unanswered creature query both arrive as `None`.
+        s.set_pet_stats(
+            true,
+            PetStats {
+                family: None,
+                ..hunter_stats()
+            },
+        );
+        assert!(s
+            .eval::<bool>(r#"return UnitCreatureFamily("pet") == nil"#)
+            .unwrap());
+        assert!(
+            s.eval::<bool>(r#"return UnitCreatureFamily("pet") ~= ''"#)
+                .unwrap(),
+            "nil, never an empty string — '' is TRUTHY in Lua, so it would pass the ref's guard \
+             and print a bare 'Level 58 ' with a trailing space"
+        );
+
+        // With a family: `"pet"` answers it, any other token nil.
+        s.set_pet_stats(true, hunter_stats());
+        assert_eq!(
+            s.eval::<String>(r#"return UnitCreatureFamily("pet")"#)
+                .unwrap(),
+            "Boar"
+        );
+        for token in [r#""target""#, r#""player""#, "nil"] {
+            assert!(
+                s.eval::<bool>(&format!("return UnitCreatureFamily({token}) == nil"))
+                    .unwrap(),
+                "{token} must answer nil"
+            );
+        }
+    }
+
+    #[test]
+    fn get_pet_food_types_returns_one_value_per_diet() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        assert_eq!(s.arity("GetPetFoodTypes()").unwrap(), 0);
+
+        s.set_pet_stats(true, hunter_stats());
+        assert_eq!(
+            s.arity("GetPetFoodTypes()").unwrap(),
+            6,
+            "a boar's six diets are six returns, not one string"
+        );
+        assert!(s
+            .eval::<bool>(
+                "local a, b, c = GetPetFoodTypes() \
+                 return a == 'Meat' and b == 'Fish' and c == 'Cheese'"
+            )
+            .unwrap());
+
+        s.set_pet_stats(
+            true,
+            PetStats {
+                food_types: vec![],
+                ..hunter_stats()
+            },
+        );
+        assert_eq!(s.arity("GetPetFoodTypes()").unwrap(), 0);
+    }
+
+    /// The diet's hunter gate is the app's to apply, so here a non-hunter's diet is just empty.
+    #[test]
+    fn the_family_word_answers_for_a_non_hunter_pet() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_stats(
+            true,
+            PetStats {
+                hunter_pet: false,
+                family: Some("Imp".into()),
+                food_types: vec![],
+                ..PetStats::default()
+            },
+        );
+        assert_eq!(
+            s.eval::<String>(r#"return UnitCreatureFamily("pet")"#)
+                .unwrap(),
+            "Imp"
+        );
+        assert!(s.eval::<bool>("return GetPetLoyalty() == nil").unwrap());
+        assert_eq!(s.arity("GetPetFoodTypes()").unwrap(), 0);
+    }
+
+    /// A held pet action answers the call's own now, whatever was pushed (`0x6e1517`).
+    #[test]
+    fn a_held_pet_action_answers_the_polls_now() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.tick(10.0);
+        let mut v = slots();
+        v[1].cooldown = Some((0, 1, false));
+        s.set_pet_actions(true, true, true, v);
+        let poll = |s: &UiScript| {
+            s.eval::<(f64, f64, i32)>("return GetPetActionCooldown(2)")
+                .unwrap()
+        };
+        assert_eq!(poll(&s), (10.0, 0.001, 0));
+        s.tick(0.02);
+        let (start, _, _) = poll(&s);
+        assert_eq!(start, s.eval::<f64>("return GetTime()").unwrap());
+        assert!((start - 10.02).abs() < 1e-9);
+    }
+
+    /// `CastPetAction` and the six one-shot orders re-enter `PressPetAction` (`0x4bd1d0`) inside
+    /// the call, so each hands its press to the lent host before it returns.
+    #[test]
+    fn pet_presses_apply_in_the_call_with_a_host_lent() {
+        use crate::script::ScriptCall;
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, true, true, slots());
+        assert_eq!(
+            crate::script::host::test_support::applied_in_call(&mut s, "CastPetAction(1)"),
+            vec![ScriptCall::PetAction(1)]
+        );
+        let orders = crate::script::host::test_support::applied_in_call(
+            &mut s,
+            "PetPassiveMode() PetDefensiveMode() PetAggressiveMode() PetWait() PetFollow() \
+             PetAttack()",
+        );
+        assert_eq!(orders.len(), 6, "{orders:?}");
+        assert!(orders.iter().all(|c| matches!(c, ScriptCall::PetOrder(_))));
+    }
+
+    /// `CastPetAction` (`0x4be330`) presses any slot of the ten, an empty one included: its zero
+    /// word falls through the dispatcher's type switch to the send (`0x4bd233`), and the press
+    /// plays `GAMEABILITYACTIVATE` after it (`0x4be436`-`0x4be43b`).
+    #[test]
+    fn an_empty_slot_press_sends_its_word_and_plays_the_ability_sound() {
+        use crate::script::SoundRequest;
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, true, true, slots());
+        s.run("CastPetAction(3)").unwrap();
+        assert_eq!(s.take_pet_actions(), vec![3]);
+        assert_eq!(
+            s.take_sounds(),
+            vec![SoundRequest::KitName("GAMEABILITYACTIVATE".into())]
+        );
+        // A spell slot's press plays it too.
+        s.run("CastPetAction(2)").unwrap();
+        assert_eq!(s.take_pet_actions(), vec![2]);
+        assert_eq!(
+            s.take_sounds(),
+            vec![SoundRequest::KitName("GAMEABILITYACTIVATE".into())]
+        );
+        // The eleventh slot passes the index check (`0x4be388`) but is pressed by nothing
+        // (`0x4be419`), and no sound plays.
+        s.run("CastPetAction(11)").unwrap();
+        assert!(s.take_pet_actions().is_empty());
+        assert!(s.take_sounds().is_empty());
+    }
+
+    /// An index past the eleventh slot raises the binding's own line (`0x4be38d`, `0x8479b4`).
+    #[test]
+    fn a_slot_past_the_eleventh_raises_invalid_slot() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_pet_actions(true, true, true, slots());
+        for i in [0, 12] {
+            let e = s
+                .run(&format!("CastPetAction({i})"))
+                .unwrap_err()
+                .to_string();
+            assert!(e.contains("Invalid slot in CastPetAction"), "{i}: {e}");
+        }
+        assert!(s.take_pet_actions().is_empty());
+    }
+
+    /// With a pet action held, `CastPetAction` clears the cursor (`0x4be3e8`) and drops the action
+    /// on the pressed slot through `0x4bce00` (`0x4be3f9`), then returns: no press, no sound.
+    #[test]
+    fn a_held_pet_action_drops_on_the_pressed_slot_and_presses_nothing() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        let mut v = slots();
+        v[1].packed = 0xC100_0BC2;
+        s.set_pet_actions(true, true, true, v);
+        s.run("PickupPetAction(2)").unwrap();
+        assert!(s.cursor_payload().is_some(), "Claw is held");
+        let _ = s.take_sounds();
+        s.run("CastPetAction(3)").unwrap();
+        assert!(
+            s.take_pet_actions().is_empty(),
+            "the held action is dropped, not cast"
+        );
+        assert!(s.take_sounds().is_empty());
+        assert!(s.cursor_payload().is_none(), "the cursor cleared");
+        assert_eq!(
+            s.eval::<Option<String>>("return (GetPetActionInfo(3))")
+                .unwrap()
+                .as_deref(),
+            Some("Claw"),
+            "slot 3 took the held action"
+        );
+    }
+}

@@ -1,0 +1,183 @@
+/*
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2009-2011 MaNGOSZero <https://github.com/mangos/zero>
+ * Copyright (C) 2011-2016 Nostalrius <https://nostalrius.org>
+ * Copyright (C) 2016-2017 Elysium Project <https://github.com/elysium-project>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+#ifndef DBCENUMS_H
+#define DBCENUMS_H
+
+#include "Platform/Define.h"
+
+// Client expected level limitation, like as used in DBC item max levels for "until max player level"
+// use as default max player level, must be fit max level for used client
+// also see MAX_LEVEL and PLAYER_STRONG_MAX_LEVEL define
+#define PLAYER_MAX_LEVEL 60
+
+// client supported max level for player/pets/etc. Avoid overflow or client stability affected.
+// also see GT_MAX_LEVEL define
+#define MAX_LEVEL    100
+
+// Server side limitation. Base at used code requirements.
+// also see MAX_LEVEL and GT_MAX_LEVEL define
+#define PLAYER_STRONG_MAX_LEVEL 255
+
+// Max level for trial accounts.
+#define TRIAL_MAX_LEVEL 20
+
+// Max creature level in vanilla (included some bosses and elite) (no cls data above this level)
+#define CREATURE_MAX_LEVEL 63
+
+enum AreaTeams
+{
+    AREATEAM_NONE  = 0,
+    AREATEAM_ALLY  = 2,
+    AREATEAM_HORDE = 4
+};
+
+enum AreaFlags
+{
+    AREA_FLAG_SNOW                  = 0x00000001,           // Has Breath Particles (only Dun Morogh, Naxxramas, Razorfen Downs and Winterspring)
+    AREA_FLAG_UNK1                  = 0x00000002,           // Override Parent Breath Particles (only Naxxramas and Razorfen Downs)
+    AREA_FLAG_UNK2                  = 0x00000004,           // Only used on development map
+    AREA_FLAG_SLAVE_CAPITAL         = 0x00000008,           // Allow trade channel
+    AREA_FLAG_UNK3                  = 0x00000010,           // Enemies PvP flagged
+    AREA_FLAG_SLAVE_CAPITAL2        = 0x00000020,           // Allow resting
+    AREA_FLAG_DUEL                  = 0x00000040,           // Zones where duels allowed
+    AREA_FLAG_ARENA                 = 0x00000080,           // Arena, both instanced and world arenas
+    AREA_FLAG_CAPITAL               = 0x00000100,           // Main capital city flag
+    AREA_FLAG_CITY                  = 0x00000200,           // Highest areaid with this flag will be name used on chat channels (e.g. Trade - City)
+};
+
+enum FactionTemplateFlags
+{
+    FACTION_TEMPLATE_RESPOND_TO_CALL_FOR_HELP       = 0x00000001,
+    FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_LOW_PRIO  = 0x00000002,
+    FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_MED_PRIO  = 0x00000004,
+    FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_HIG_PRIO  = 0x00000008,
+    FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_LOW_PRIO    = 0x00000010,
+    FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_MED_PRIO    = 0x00000020,
+    FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_HIG_PRIO    = 0x00000040,
+    FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_LOW_PRIO    = 0x00000080,
+    FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_MED_PRIO    = 0x00000100,
+    FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_HIG_PRIO    = 0x00000200,
+    FACTION_TEMPLATE_FLEE_FROM_CALL_FOR_HELP        = 0x00000400,
+    FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS            = 0x00000800,   // flagged for PvP
+    FACTION_TEMPLATE_FLAG_ATTACK_PVP_ACTIVE_PLAYERS = 0x00001000,   // faction will attack players that were involved in PvP combat
+};
+
+static char const* FactionTemplateFlagToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case FACTION_TEMPLATE_RESPOND_TO_CALL_FOR_HELP:
+            return "Respond To Call For Help";
+        case FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_LOW_PRIO:
+            return "Broadcast To Enemies (Low Priority)";
+        case FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_MED_PRIO:
+            return "Broadcast To Enemies (Medium Priority)";
+        case FACTION_TEMPLATE_BROADCAST_TO_ENEMIES_HIG_PRIO:
+            return "Broadcast To Enemies (High Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_LOW_PRIO:
+            return "Search For Enemies (Low Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_MED_PRIO:
+            return "Search For Enemies (Medium Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_ENEMIES_HIG_PRIO:
+            return "Search For Enemies (High Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_LOW_PRIO:
+            return "Search For Friends (Low Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_MED_PRIO:
+            return "Search For Friends (Medium Priority)";
+        case FACTION_TEMPLATE_SEARCH_FOR_FRIENDS_HIG_PRIO:
+            return "Search For Friends (High Priority)";
+        case FACTION_TEMPLATE_FLEE_FROM_CALL_FOR_HELP:
+            return "Flee From Call For Help";
+        case FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS:
+            return "Assist Players";
+        case FACTION_TEMPLATE_FLAG_ATTACK_PVP_ACTIVE_PLAYERS:
+            return "Attack PvP Active Players";
+    }
+    return "UNKNOWN";
+}
+
+enum FactionMasks
+{
+    FACTION_MASK_PLAYER   = 1,                              // any player
+    FACTION_MASK_ALLIANCE = 2,                              // player or creature from alliance team
+    FACTION_MASK_HORDE    = 4,                              // player or creature from horde team
+    FACTION_MASK_MONSTER  = 8                               // aggressive creature from monster team
+    // if none flags set then non-aggressive creature
+};
+
+static char const* FactionMaskToString(uint32 flag)
+{
+    switch (flag)
+    {
+        case FACTION_MASK_PLAYER:
+            return "Player";
+        case FACTION_MASK_ALLIANCE:
+            return "Alliance";
+        case FACTION_MASK_HORDE:
+            return "Horde";
+        case FACTION_MASK_MONSTER:
+            return "Monster";
+    }
+    return "UNKNOWN";
+}
+
+enum MapTypes
+{
+    MAP_COMMON          = 0,
+    MAP_INSTANCE        = 1,
+    MAP_RAID            = 2,
+    MAP_BATTLEGROUND    = 3,
+};
+
+enum AbilytyLearnType
+{
+    ABILITY_LEARNED_ON_GET_PROFESSION_SKILL     = 1,
+    ABILITY_LEARNED_ON_GET_RACE_OR_CLASS_SKILL  = 2
+};
+
+enum AbilitySkillFlags
+{
+    ABILITY_SKILL_NONTRAINABLE = 0x100
+};
+
+enum ItemEnchantmentType
+{
+    ITEM_ENCHANTMENT_TYPE_NONE         = 0,
+    ITEM_ENCHANTMENT_TYPE_COMBAT_SPELL = 1,
+    ITEM_ENCHANTMENT_TYPE_DAMAGE       = 2,
+    ITEM_ENCHANTMENT_TYPE_EQUIP_SPELL  = 3,
+    ITEM_ENCHANTMENT_TYPE_RESISTANCE   = 4,
+    ITEM_ENCHANTMENT_TYPE_STAT         = 5,
+    ITEM_ENCHANTMENT_TYPE_TOTEM        = 6
+};
+
+enum SkillRaceClassInfoFlags
+{
+    SKILL_FLAG_NO_SKILLUP_MESSAGE       = 0x2,
+    SKILL_FLAG_ALWAYS_MAX_VALUE         = 0x10,
+    SKILL_FLAG_UNLEARNABLE              = 0x20,     // Skill can be unlearned
+    SKILL_FLAG_INCLUDE_IN_SORT          = 0x80,     // Spells belonging to a skill with this flag will additionally compare skill ids when sorting spellbook in client
+    SKILL_FLAG_NOT_TRAINABLE            = 0x100,
+    SKILL_FLAG_MONO_VALUE               = 0x400     // Skill always has value 1 - clientside display flag, real value can be different
+};
+
+#endif

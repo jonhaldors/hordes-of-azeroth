@@ -1,0 +1,19 @@
+# Imported by tools/content/dump_tables.py from bonk_hidden_locale. Edit this file, then run tools/content/compile.py.
+table: bonk_hidden_locale
+columns:
+- id
+- locale
+- name
+- yell
+- found_text
+rows:
+- - 1
+  - zhCN
+  - 霍格
+  - 啊啊啊……新鲜的肉！
+  - 那片灌木丛里藏着个大家伙……是霍格！
+- - 2
+  - zhCN
+  - 老瞎眼
+  - 呣咕噜噜噜咕噜咕噜！
+  - 一处鱼人营地！老瞎眼和他的手下从浪花中冲了出来！

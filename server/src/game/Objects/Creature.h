@@ -1,0 +1,788 @@
+/*
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2009-2011 MaNGOSZero <https://github.com/mangos/zero>
+ * Copyright (C) 2011-2016 Nostalrius <https://nostalrius.org>
+ * Copyright (C) 2016-2017 Elysium Project <https://github.com/elysium-project>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+#ifndef MANGOSSERVER_CREATURE_H
+#define MANGOSSERVER_CREATURE_H
+
+#include "Common.h"
+#include "SharedDefines.h"
+#include "CreatureDefines.h"
+#include "Unit.h"
+#include "LootMgr.h"
+#include "Util.h"
+
+#include <vector>
+#include <list>
+
+class SpellEntry;
+class CreatureAI;
+class Group;
+class Quest;
+class Player;
+class WorldSession;
+class CreatureGroup;
+struct GameEventCreatureData;
+
+struct CreatureCreatePos
+{
+    // exactly coordinates used
+    CreatureCreatePos(Map* map, float x, float y, float z, float o)
+        : m_map(map), m_closeObject(nullptr), m_angle(0.0f), m_dist(0.0f) { m_pos.x = x; m_pos.y = y; m_pos.z = z; m_pos.o = o; }
+    // if dist == 0.0f -> exactly object coordinates used, in other case close point to object (CONTACT_DIST can be used as minimal distances)
+    CreatureCreatePos(WorldObject* closeObject, float ori, float dist = 0.0f, float angle = 0.0f)
+        : m_map(closeObject->GetMap()),
+        m_closeObject(closeObject), m_angle(angle), m_dist(dist) { m_pos.o = ori; }
+
+    Map* GetMap() const { return m_map; }
+    void SelectFinalPoint(Creature* cr);
+    bool Relocate(Creature* cr) const;
+
+    // read only after SelectFinalPoint
+    Position m_pos;
+private:
+    Map* m_map;
+    WorldObject* m_closeObject;
+    float m_angle;
+    float m_dist;
+};
+
+class ThreatListProcesser
+{
+public:
+    ThreatListProcesser() = default;
+    virtual ~ThreatListProcesser() = default;
+    virtual bool Process(Unit* unit) = 0;
+};
+
+class Creature : public Unit
+{
+    CreatureAI *m_AI;
+
+    public:
+
+        explicit Creature(CreatureSubtype subtype = CREATURE_SUBTYPE_GENERIC);
+        virtual ~Creature() override;
+
+        void AddToWorld() override;
+        void RemoveFromWorld() override;
+
+        bool Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, uint32 firstCreatureId, GameEventCreatureData const* eventData = nullptr);
+        void LoadDefaultAuras(uint32 const* auras);
+        void LoadCreatureAddon(bool reload = false);
+
+        // CreatureGroups
+        CreatureGroup* GetCreatureGroup() const { return m_creatureGroup; }
+        void SetCreatureGroup(CreatureGroup* group) { m_creatureGroup = group; }
+        void JoinCreatureGroup(Creature* leader, float dist, float angle, uint32 options);
+        void LeaveCreatureGroup();
+        uint32 GetSpawnFlags() const;
+
+        // Fonctions utilisees par les links, et appelle CreatureAI.
+        void OnEnterCombat(Unit* pAttacker, bool notInCombat = false) override;
+        void OnLeaveCombat() override;
+        void RemoveAurasAtReset();
+
+        // Awful things used in awful scripts. TODO: remove
+        void ResetStats();
+        void GetDefaultDamageRange(float& dmgMin, float& dmgMax) const;
+        int32 GetDefaultArmor() const;
+
+        CreatureClassLevelStats const* GetClassLevelStats() const;
+        void SelectLevel(float percentHealth = 100.0f, float percentMana = 100.0f);
+        void InitStatsForLevel(float percentHealth = 100.0f, float percentMana = 100.0f);
+        void LoadEquipment(uint32 equipmentId, bool force = false);
+        void LoadDefaultEquipment(GameEventCreatureData const* eventData = nullptr);
+
+        bool HasStaticDBSpawnData() const;                  // listed in `creature` table and have fixed in DB guid
+        uint32 GetDBTableGUIDLow() const;
+
+        virtual char const* GetName() const override { return GetCreatureInfo()->name.c_str(); }
+        char const* GetSubName() const { return GetCreatureInfo()->subname.c_str(); }
+
+        void Update(uint32 update_diff, uint32 time) override;  // overwrite Unit::Update
+
+        virtual void RegenerateAll(uint32 update_diff, bool skipCombatCheck = false);
+        void GetRespawnCoord(float &x, float &y, float &z, float* ori = nullptr, float* dist = nullptr) const;
+
+        void SaveHomePosition() { SetHomePosition(GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation()); }
+        void SetHomePosition(float x, float y, float z, float o);
+        void GetHomePosition(float &x, float &y, float &z, float &o);
+        Position const& GetHomePosition() const { return m_homePosition; }
+        float GetHomePositionO() const { return m_homePosition.o; }
+        void ResetHomePosition();
+
+        void AddCreatureState(CreatureStateFlag f) { m_creatureStateFlags |= f; }
+        bool HasCreatureState(CreatureStateFlag f) const { return m_creatureStateFlags & f; }
+        void ClearCreatureState(CreatureStateFlag f) { m_creatureStateFlags &= ~f; }
+        bool HasStaticFlag(CreatureStaticFlags flag) const { return GetCreatureInfo()->static_flags1 & flag; }
+        bool HasStaticFlag(CreatureStaticFlags2 flag) const { return GetCreatureInfo()->static_flags2 & flag; }
+        bool HasExtraFlag(CreatureFlagsExtra flag) const { return GetCreatureInfo()->flags_extra & flag; }
+        bool HasImmunityFlag(CreatureImmunityFlags flag) const { return GetCreatureInfo()->immunity_flags & flag; }
+        void ToggleUnitFlagsFromStaticFlags();
+        void SetDefaultValuesFromStaticFlags();
+
+        CreatureSubtype GetSubtype() const { return m_subtype; }
+        bool IsPet() const override { return m_subtype == CREATURE_SUBTYPE_PET; }
+        bool IsTotem() const { return m_subtype == CREATURE_SUBTYPE_TOTEM; }
+        Totem const* ToTotem() const { return IsTotem() ? reinterpret_cast<Totem const*>(this) : nullptr; }
+        Totem* ToTotem() { return IsTotem() ? reinterpret_cast<Totem*>(this) : nullptr; }
+        bool IsTemporarySummon() const { return m_subtype == CREATURE_SUBTYPE_TEMPORARY_SUMMON; }
+        bool IsCorpse() const override { return GetDeathState() ==  CORPSE; }
+        bool IsDespawned() const { return GetDeathState() ==  DEAD; }
+        void SetCorpseDelay(uint32 delay) { m_corpseDelay = delay; }
+        bool IsRacialLeader() const { return GetCreatureInfo()->racial_leader; }
+        bool IsCivilian() const { return GetCreatureInfo()->civilian; }
+        bool IsTrigger() const { return HasExtraFlag(CREATURE_FLAG_EXTRA_INVISIBLE); }
+        bool IsGuard() const { return HasExtraFlag(CREATURE_FLAG_EXTRA_GUARD); }
+
+        // World of Warcraft Client Patch 1.10.0 (2006-03-28)
+        // - Area effect spells and abilities will no longer consider totems as
+        //   valid targets.
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
+        bool IsImmuneToAoe() const { return IsTotem() || HasImmunityFlag(CREATURE_IMMUNITY_AOE); }
+#else
+        bool IsImmuneToAoe() const { return HasImmunityFlag(CREATURE_IMMUNITY_AOE); }
+#endif
+
+        bool CanWalk() const override { return GetCreatureInfo()->inhabit_type & INHABIT_GROUND; }
+        bool CanSwim() const override { return IsPet() || GetCreatureInfo()->inhabit_type & INHABIT_WATER; }
+        bool CanFly()  const override { return !IsPet() && (GetCreatureInfo()->inhabit_type & INHABIT_AIR || m_bonkFlyer); }
+
+        void SetCreatureReactState(ReactStates st) { m_reactState = st; }
+        ReactStates GetCreatureReactState() const { return m_reactState; }
+        bool HasCreatureReactState(ReactStates state) const { return (m_reactState == state); }
+        void InitializeReactState();
+
+        bool IsTrainerOf(Player* player, bool msg) const;
+        bool CanInteractWithBattleMaster(Player* player, bool msg) const;
+        bool CanTrainAndResetTalentsOf(Player const* pPlayer) const;
+
+        bool IsOutOfThreatArea(Unit const* pVictim) const;
+        void FillGuidsListFromThreatList(std::vector<ObjectGuid>& guids, uint32 maxamount = 0);
+
+        bool IsImmuneToSpell(SpellEntry const* spellInfo, bool castOnSelf) const override;
+        bool IsImmuneToDamage(SpellSchoolMask meleeSchoolMask, SpellEntry const* spellInfo = nullptr) const override;
+        bool IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index, bool castOnSelf) const override;
+
+        bool IsPlusMob() const
+        {
+            if (IsPet())
+                return false;
+
+            return GetCreatureInfo()->rank > CREATURE_ELITE_NORMAL;
+        }
+
+        bool IsElite() const
+        {
+            if (IsPet())
+                return false;
+
+            uint32 rank = GetCreatureInfo()->rank;
+            return rank != CREATURE_ELITE_NORMAL && rank != CREATURE_ELITE_RARE;
+        }
+
+        bool IsWorldBoss() const
+        {
+            if (IsPet())
+                return false;
+
+            return GetCreatureInfo()->rank == CREATURE_ELITE_WORLDBOSS;
+        }
+
+        bool IsInEvadeMode() const;
+
+        bool AIM_Initialize();
+        void SetAI(CreatureAI * ai) { m_AI = ai; }
+
+        CreatureAI* AI() { return m_AI; }
+        CreatureAI const* AI() const { return m_AI; }
+        void SetAInitializeOnRespawn(bool initialize)
+        {
+            if (initialize)
+                AddCreatureState(CSTATE_INIT_AI_ON_RESPAWN);
+            else
+                ClearCreatureState(CSTATE_INIT_AI_ON_RESPAWN);
+        }
+
+        uint32 GetShieldBlockValue() const override
+        {
+            return GetLevel() / 2 + uint32(GetStat(STAT_STRENGTH) / 20); // dunno mob block value
+        }
+
+        SpellSchoolMask GetMeleeDamageSchoolMask() const override { return m_meleeDamageSchoolMask; }
+        void SetMeleeDamageSchool(SpellSchools school) { m_meleeDamageSchoolMask = GetSchoolMask(school); }
+
+        bool HasSpell(uint32 spellId) const override;
+
+        void LockOutSpells(SpellSchoolMask schoolMask, uint32 duration) final;
+        void AddCooldown(SpellEntry const* spellEntry, ItemPrototype const* itemProto = nullptr, bool permanent = false, uint32 forcedDuration = 0) final;
+        void StartCooldownForSummoner();
+        void CancelSummonPossessedCharm();
+        bool UpdateEntry(uint32 entry, GameEventCreatureData const* eventData = nullptr, bool preserveHPAndPower = true);
+
+        void ApplyGameEventSpells(GameEventCreatureData const* eventData, bool activated);
+        bool UpdateStats(Stats stat) override;
+        bool UpdateAllStats() override;
+        void UpdateResistances(uint32 school) override;
+        void UpdateArmor() override;
+        void UpdateMaxHealth() override;
+        void UpdateMaxPower(Powers power) override;
+        void UpdateManaRegen() override;
+        void UpdateAttackPowerAndDamage(bool ranged = false) override;
+        void UpdateDamagePhysical(WeaponAttackType attType) override;
+        float GetWeaponBasedAuraModifier(WeaponAttackType attType, AuraType auraType) const final;
+        uint32 GetCurrentEquipmentId() const { return m_equipmentId; }
+
+        static float _GetHealthMod(int32 rank);             // Get custom factor to scale health (default 1, CONFIG_FLOAT_RATE_CREATURE_*_HP)
+        static float _GetDamageMod(int32 rank);             // Get custom factor to scale damage (default 1, CONFIG_FLOAT_RATE_*_DAMAGE)
+        static float _GetSpellDamageMod(int32 rank);        // Get custom factor to scale spell damage (default 1, CONFIG_FLOAT_RATE_*_SPELLDAMAGE)
+
+        VendorItemData const* GetVendorItems() const;
+        VendorItemData const* GetVendorTemplateItems() const;
+        uint32 GetVendorItemCurrentCount(VendorItem const* vItem);
+        uint32 UpdateVendorItemCurrentCount(VendorItem const* vItem, uint32 used_count);
+
+        TrainerSpellData const* GetTrainerTemplateSpells() const;
+        TrainerSpellData const* GetTrainerSpells() const;
+
+        CreatureInfo const* GetCreatureInfo() const { return m_creatureInfo; }
+        CreatureData const* GetCreatureData() const { return m_creatureData; };
+        CreatureDataAddon const* GetCreatureAddon() const { return m_creatureDataAddon; };
+
+        static uint32 ChooseDisplayId(CreatureInfo const* cinfo, CreatureData const* data = nullptr, CreatureDataAddon const* addon = nullptr, GameEventCreatureData const* eventData = nullptr, float* scale = nullptr);
+
+        std::string const& GetAIName() const;
+        std::string GetScriptName() const;
+        uint32 GetScriptId() const;
+
+        // overwrite WorldObject function for proper name localization
+        char const* GetNameForLocaleIdx(int32 locale_idx) const override;
+
+        void SetDeathState(DeathState s) override;                   // overwrite virtual Unit::SetDeathState
+        bool FallGround();
+
+        bool LoadFromDB(uint32 guid, Map* map, bool force = false);
+        virtual void SaveToDB();
+                                                            // overwrited in Pet
+        virtual void SaveToDB(uint32 mapid);
+        virtual void DeleteFromDB();                        // overwrited in Pet
+        static void DeleteFromDB(uint32 lowguid, CreatureData const* data);
+
+        Loot loot;
+        bool lootForPickPocketed;
+        bool lootForBody;
+        bool lootForSkin;
+        uint32 skinningForOthersTimer; // If == 0, then everyone can skin
+        bool lootForCreator = false;
+
+        void GenerateLootForBody(Player* looter, Group const* pGroupTap);
+        void GeneratePlayerDependentLoot(Player* looter, Group const* pGroupTap);
+        ObjectGuid GetLootRecipientGuid() const { return m_lootRecipientGuid; }
+        uint32 GetLootGroupRecipientId() const { return m_lootGroupRecipientId; }
+        Player* GetLootRecipient() const;                   // use group cases as prefered
+        Group* GetGroupLootRecipient() const;
+        bool HasLootRecipient() const { return m_lootGroupRecipientId || m_lootRecipientGuid; }
+        bool IsGroupLootRecipient() const { return m_lootGroupRecipientId; }
+        void SetLootRecipient(Unit* unit);
+        void AllLootRemovedFromCorpse();
+        Player* GetOriginalLootRecipient() const;           // ignore group changes/etc, not for looting
+        bool IsTappedBy(Player const* player) const;
+        bool IsSkinnableBy(Player const* player) const { return !skinningForOthersTimer || IsTappedBy(player); }
+
+        bool GetCharmSpellCooldown(uint32 spellId, uint32& cooldown);
+        nonstd::optional<CreatureCharmSpellEntry> m_spells[CREATURE_MAX_SPELLS];
+
+        float GetAttackDistance(Unit const* pl) const;
+        float GetDetectionRange() const { return m_detectionDistance; }
+
+        void SendAIReaction(AiReaction reactionType);
+
+        bool DoFlee();
+        bool DoFleeToGetAssistance();
+        float GetFleeingSpeed() const;
+        float GetBaseWalkSpeedRate() const;
+        float GetBaseRunSpeedRate() const;
+        void SetBaseSpeedRate(UnitMoveType mtype, float rate);
+        static constexpr uint32 BONK_PLATE_HEALTH_BASE = 100000;
+        void SetPlateId(uint32 id) { m_plateId = id; }
+        uint32 GetPlateId() const { return m_plateId; }
+        void SetBonkEnemy(bool enabled) { m_bonkEnemy = enabled; }
+        bool IsBonkEnemy() const { return m_bonkEnemy; }
+        void SetAvoidsBonkHazards(bool enabled) { m_avoidsBonkHazards = enabled; }
+        bool AvoidsBonkHazards() const { return m_avoidsBonkHazards; }
+        ZoneScript* GetEncounterScript() const { return m_bonkEnemy ? nullptr : m_zoneScript; }
+        void SetBonkFlyer(bool enabled) { m_bonkFlyer = enabled; }
+        bool IsBonkFlyer() const { return m_bonkFlyer; }
+        void SetBonkNormal(bool normal) { m_bonkNormal = normal; }
+        bool IsBonkNormal() const { return m_bonkNormal; }
+        void SetBonkCrowdDriven(uint32 untilMs) { m_bonkCrowdDrivenUntil = untilMs; }
+        bool IsBonkCrowdDriven() const;
+        void SetBonkCrowdTouching(bool touching) { m_bonkCrowdTouching = touching; }
+        bool IsBonkCrowdTouching() const { return m_bonkCrowdTouching; }
+        void SetClientUnselectable(bool enabled) { m_clientUnselectable = enabled; }
+        bool IsClientUnselectable() const { return m_clientUnselectable; }
+        void MoveAwayFromTarget(Unit const* pTarget, float distance);
+        void CallForHelp(float radius);
+        void CallAssistance();
+        void SetNoCallAssistance(bool val)
+        {
+            if (val)
+                AddCreatureState(CSTATE_ALREADY_CALL_ASSIST);
+            else
+                ClearCreatureState(CSTATE_ALREADY_CALL_ASSIST);
+        }
+        void SetNoSearchAssistance(bool val)
+        {
+            if (val)
+                AddCreatureState(CSTATE_ALREADY_SEARCH_ASSIST);
+            else
+                ClearCreatureState(CSTATE_ALREADY_SEARCH_ASSIST);
+        }
+        bool HasSearchedAssistance() const { return HasCreatureState(CSTATE_ALREADY_SEARCH_ASSIST); }
+        bool CanBeTargetedByCallForHelp(Unit const* pFriend, Unit const* pEnemy, bool checkfaction = true) const;
+        bool CanRespondToCallForHelpAgainst(Unit const* pEnemy) const;
+        bool CanFleeFromCallForHelpAgainst(Unit const* pEnemy) const;
+        bool CanAssistTo(Unit const* pFriend, Unit const* pEnemy, bool checkfaction = true) const;
+        bool CanInitiateAttack() const;
+        bool CanHaveTarget() const { return !HasExtraFlag(CREATURE_FLAG_EXTRA_NO_TARGET); }
+
+        uint32 GetDefaultMount() const { return m_mountId; }
+        void SetDefaultMount(uint32 id) { m_mountId = id; }
+
+        MovementGeneratorType GetDefaultMovementType() const { return m_defaultMovementType; }
+        void SetDefaultMovementType(MovementGeneratorType mgt) { m_defaultMovementType = mgt; }
+        void PauseOutOfCombatMovement(uint32 pauseTime = NPC_MOVEMENT_PAUSE_TIME);
+
+        bool IsVisibleInGridForPlayer(Player const* pl) const override;
+
+        void RemoveCorpse();
+        bool IsDeadByDefault() const { return m_isDeadByDefault; }
+
+        void ForcedDespawn(uint32 msTimeToDespawn = 0, uint32 secsTimeToRespawn = 0);
+        void DespawnOrUnsummon(uint32 msTimeToDespawn = 0, uint32 secsTimeToRespawn = 0);
+
+        time_t const& GetRespawnTime() const { return m_respawnTime; }
+        time_t GetRespawnTimeEx() const;
+        void SetRespawnTime(uint32 respawn) { m_respawnTime = respawn ? time(nullptr) + respawn : 0; }
+        void Respawn();
+        void SaveRespawnTime() override;
+        void ApplyDynamicRespawnDelay(uint32& delay);
+        void CastSpawnSpell();
+
+        // the delay is in seconds
+        uint32 GetRespawnDelay() const { return m_respawnDelay; }
+        void SetRespawnDelay(uint32 seconds) { m_respawnDelay = seconds; }
+
+        float GetWanderDistance() const { return m_wanderDistance; }
+        void SetWanderDistance(float dist) { m_wanderDistance = dist; }
+
+        // Functions spawn/remove creature with DB guid in all loaded map copies (if point grid loaded in map)
+        static void AddToRemoveListInMaps(uint32 db_guid, CreatureData const* data);
+        static void SpawnInMaps(uint32 db_guid, CreatureData const* data);
+
+        void StartGroupLoot(Group* group, uint32 timer);
+
+        void SendZoneUnderAttackMessage(Player const* attacker);
+
+        void SetInCombatWithZone(bool initialPulse = true);
+        void EnterCombatWithTarget(Unit* pTarget);
+
+        // Smartlog
+        time_t GetCombatTime(bool total) const;
+        void ResetCombatTime(bool combat = false);
+        void UpdateCombatState(bool combat)
+        {
+            if (combat)
+                AddCreatureState(CSTATE_COMBAT);
+            else
+                ClearCreatureState(CSTATE_COMBAT);
+        }
+        // For raid bosses that set the entire raid in combat
+        void UpdateCombatWithZoneState(bool combat)
+        {
+            if (combat)
+                AddCreatureState(CSTATE_COMBAT_WITH_ZONE);
+            else
+                ClearCreatureState(CSTATE_COMBAT_WITH_ZONE);
+        }
+        void LogDeath(Unit const* pKiller) const;
+        void LogLongCombat() const;
+        // Smartlog end
+
+        Unit* SelectAttackingTarget(AttackingTarget target, uint32 position, uint32 spellId, uint32 selectFlags = SELECT_FLAG_NO_TOTEM) const;
+        Unit* SelectAttackingTarget(AttackingTarget target, uint32 position, SpellEntry const* pSpellInfo = nullptr, uint32 selectFlags = SELECT_FLAG_NO_TOTEM) const;
+
+        // AI helpers
+        Unit* SelectNearestHostileUnitInAggroRange(bool useLOS, bool ignoreCivilians = false) const;
+        Creature* FindNearestFriendlyGuard(float range) const;
+        void CallNearestGuard(Unit* pEnemy) const;
+
+        // Used by Creature Spells system to always know result of cast
+        SpellCastResult TryToCast(Unit* pTarget, uint32 uiSpell, uint32 uiCastFlags, uint8 uiChance);
+        SpellCastResult TryToCast(Unit* pTarget, SpellEntry const* pSpellInfo, uint32 uiCastFlags, uint8 uiChance);
+
+        // Unit on which the creature is currently casting a spell. Used to make mobs face their cast target.
+        // Client makes creatures always face unit sent in UNIT_FIELD_TARGET, orientation doesn't matter.
+        // We send this guid instead when its set, to avoid overwriting the unit field.
+        void SetCastingTarget(Unit const* pTarget)
+        {
+            if (pTarget != GetVictim())
+            {
+                m_castingTargetGuid = pTarget->GetGUID();
+                ForceValuesUpdateAtIndex(UNIT_FIELD_TARGET);
+                ForceValuesUpdateAtIndex(UNIT_FIELD_TARGET + 1);
+            }
+        }
+        void ClearCastingTarget()
+        {
+            if (m_castingTargetGuid)
+            {
+                m_castingTargetGuid = 0;
+                ForceValuesUpdateAtIndex(UNIT_FIELD_TARGET);
+                ForceValuesUpdateAtIndex(UNIT_FIELD_TARGET + 1);
+            }
+        }
+        uint64 m_castingTargetGuid;
+
+        // - Victim selection (from aggro list)
+        Unit* GetNearestVictimInRange(float min, float max);
+        Unit* GetFarthestVictimInRange(float min, float max);
+        Unit* GetVictimInRange(float min, float max);
+        Unit* GetHostileCasterInRange(float min, float max);
+        Unit* GetHostileCaster();
+
+        // - Generic Selection
+        void ProcessThreatList(ThreatListProcesser* f);
+
+        // Spell Launch :
+        // Return true if target found.
+        bool CastSpellOnFarthestVictim (uint32 spellId, float min = 0.0f, float max = 100.0f, bool triggered = false);
+        bool CastSpellOnNearestVictim(uint32 spellId, float min = 0.0f, float max = 100.0f, bool triggered = false);
+        bool CastSpellOnHostileCasterInRange(uint32 spellId, float min = 0.0f, float max = 100.0f, bool triggered = false);
+        // Set in combat with units on the threatlist of 'pOther'
+        void AddThreatsOf(Creature const* pOther);
+
+        bool HasQuest(uint32 quest_id) const override;
+        bool HasInvolvedQuest(uint32 quest_id)  const override;
+
+        void SetDefaultGossipMenuId(uint32 menuId) { m_gossipMenuId = menuId; }
+        uint32 GetDefaultGossipMenuId() const override { return m_gossipMenuId; }
+
+        GridReference<Creature>& GetGridRef() { return m_gridRef; }
+        bool IsRegeneratingHealth() const { return HasCreatureState(CSTATE_REGEN_HEALTH); }
+        bool IsRegeneratingMana() const { return HasCreatureState(CSTATE_REGEN_MANA); }
+        virtual uint8 GetPetAutoSpellSize() const { return CREATURE_MAX_SPELLS; }
+        virtual uint32 GetPetAutoSpellOnPos(uint8 pos) const
+        {
+            if (pos >= CREATURE_MAX_SPELLS || m_charmInfo->GetCharmSpell(pos)->GetType() != ACT_ENABLED)
+                return 0;
+            return m_charmInfo->GetCharmSpell(pos)->GetAction();
+        }
+
+        void SetCombatStartPosition(float x, float y, float z) { m_combatStartX = x; m_combatStartY = y; m_combatStartZ = z; }
+        void GetCombatStartPosition(float &x, float &y, float &z) const
+        { x = m_combatStartX; y = m_combatStartY; z = m_combatStartZ; }
+
+        void SetSummonPoint(CreatureCreatePos const& pos) { m_summonPos = pos.m_pos; }
+        void GetSummonPoint(float &fX, float &fY, float &fZ, float &fOrient) const { fX = m_summonPos.x; fY = m_summonPos.y; fZ = m_summonPos.z; fOrient = m_summonPos.o; }
+
+        void SetNoXP() { AddUnitState(UNIT_STATE_NO_KILL_REWARD); }
+        void EnableMoveInLosEvent()
+        {
+            if (HasUnitState(UNIT_STATE_NO_SEARCH_FOR_OTHERS))
+                ClearUnitState(UNIT_STATE_NO_SEARCH_FOR_OTHERS);
+            if (HasUnitState(UNIT_STATE_NO_BROADCAST_TO_OTHERS))
+                ClearUnitState(UNIT_STATE_NO_BROADCAST_TO_OTHERS);
+            if (!HasUnitState(UNIT_STATE_AI_USES_MOVE_IN_LOS))
+                AddUnitState(UNIT_STATE_AI_USES_MOVE_IN_LOS);
+        }
+
+        void SetFactionTemporary(uint32 factionId, uint32 tempFactionFlags = TEMPFACTION_ALL);
+        void ClearTemporaryFaction();
+        uint32 GetTemporaryFactionFlags() const { return m_temporaryFactionFlags; }
+        int32 GetReputationId() const { return m_reputationId; }
+
+        void SendAreaSpiritHealerQueryOpcode(Player* pl);
+
+        void DisappearAndDie();
+
+        // Auto evade timer (if target not reachable)
+        // Tested on retail 5.4.0: Creatures evade after 3 seconds (but does not return to home position)
+        bool IsEvadeBecauseTargetNotReachable() const { return m_targetNotReachableTimer > 3000 && !IsBonkEnemy(); }
+        uint32 m_targetNotReachableTimer;
+
+        std::shared_ptr<time_t> const& GetLastLeashExtensionTimePtr() const;
+        void SetLastLeashExtensionTimePtr(std::shared_ptr<time_t> const& timer);
+        void ClearLastLeashExtensionTimePtr();
+        time_t GetLastLeashExtensionTime() const;
+        void UpdateLeashExtensionTime();
+
+        bool IsTempPacified() const         { return m_pacifiedTimer > 0; }
+        void SetTempPacified(uint32 timer)  { if (m_pacifiedTimer < timer) m_pacifiedTimer = timer; }
+        uint32 GetTempPacifiedTimer() const { return m_pacifiedTimer; }
+        uint32 m_pacifiedTimer;
+        float m_manaRegen;
+
+        void RegenerateHealth();
+        void RegenerateMana();
+
+        void SetVirtualItem(WeaponAttackType slot, uint32 item_id);
+        uint32 GetVirtualItemDisplayId(WeaponAttackType slot) const;
+        uint32 GetVirtualItemClass(WeaponAttackType slot) const;
+        uint32 GetVirtualItemSubclass(WeaponAttackType slot) const;
+        uint32 GetVirtualItemInventoryType(WeaponAttackType slot) const;
+
+        void ResetDamageTakenOrigin()
+        {
+            m_playerDamageTaken     = 0;
+            m_nonPlayerDamageTaken   = 0;
+        }
+
+        void CountDamageTaken(uint32 damage, bool fromPlayerOrSelf)
+        {
+            if (fromPlayerOrSelf)
+                m_playerDamageTaken += damage;
+            else
+                m_nonPlayerDamageTaken += damage;
+        }
+
+        bool IsLootAllowedDueToDamageOrigin() const
+        {
+            if (HasStaticFlag(CREATURE_STATIC_FLAG_CORPSE_RAID))
+                return true;
+
+            return 65 * m_playerDamageTaken > 35 * m_nonPlayerDamageTaken;
+        }
+
+        float GetXPModifierDueToDamageOrigin() const
+        {
+            if (HasStaticFlag(CREATURE_STATIC_FLAG_CORPSE_RAID))
+                return 1.0f;
+
+            // If players dealt less than 35% of the damage, no XP and no loot - or both=0
+            if (!IsLootAllowedDueToDamageOrigin())
+                return 0.0f;
+
+            return float(m_playerDamageTaken) / (m_playerDamageTaken + m_nonPlayerDamageTaken);
+        }
+
+        bool HasWeapon() const;
+        bool CanBeDisarmed() const final;
+
+        void SetCallForHelpDist(float dist)
+        {
+            m_callForHelpDist = dist;
+        }
+
+        void SetLeashDistance(float dist)
+        {
+            m_leashDistance = dist;
+        }
+
+        void SetDetectionDistance(float dist)
+        {
+            m_detectionDistance = dist;
+        }
+
+        // (msecs)timer used for group loot
+        uint32 GetGroupLootTimer() const { return m_groupLootTimer; }
+
+        virtual float GetFollowAngle() const;
+
+        void SetFollowTargetGuid(ObjectGuid guid)
+        {
+            m_followTarget = guid;
+        }
+        ObjectGuid GetFollowTargetGuid() const
+        {
+            if (!m_followTarget.IsEmpty())
+                return m_followTarget;
+            return GetCharmerOrOwnerGuid();
+        }
+        Unit* GetFollowTarget() const;
+
+        void SetEscortable(bool escortable)
+        {
+            if (escortable)
+                AddCreatureState(CSTATE_ESCORTABLE);
+            else
+                ClearCreatureState(CSTATE_ESCORTABLE);
+        }
+        bool IsEscortable() const { return HasCreatureState(CSTATE_ESCORTABLE); }
+        bool CanAssistPlayers() const { return HasFactionTemplateFlag(FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS) || HasExtraFlag(CREATURE_FLAG_EXTRA_CAN_ASSIST); }
+        bool CanSummonGuards() const { return HasStaticFlag(CREATURE_STATIC_FLAG_CALLS_GUARDS); }
+        uint32 GetOriginalEntry() const { return m_originalEntry; }
+
+    protected:
+        bool MeetsSelectAttackingRequirement(Unit const* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
+
+        bool CreateFromProto(uint32 guidlow, CreatureInfo const* cinfo, uint32 firstCreatureId, GameEventCreatureData const* eventData = nullptr);
+        bool InitEntry(uint32 entry, GameEventCreatureData const* eventData = nullptr);
+        void SetInitCreaturePowerType();
+
+        uint32 m_groupLootTimer;                            // (msecs)timer used for group loot
+        uint32 m_groupLootId;                               // used to find group which is looting corpse
+        void StopGroupLoot();
+
+        // vendor items
+        VendorItemCounts m_vendorItemCounts;
+
+        uint32 m_lootMoney;
+        ObjectGuid m_lootRecipientGuid;                     // player who will have rights for looting if m_lootGroupRecipient==0 or group disbanded
+        uint32 m_lootGroupRecipientId;                      // group who will have rights for looting if set and exist
+
+        // Timers
+        uint32 m_corpseDecayTimer;                          // (msecs)timer for death or corpse disappearance
+        time_t m_respawnTime;                               // (secs) time of next respawn
+        uint32 m_respawnDelay;                              // (secs) delay between corpse disappearance and respawning
+        uint32 m_corpseDelay;                               // (secs) delay between death and corpse disappearance
+        float m_wanderDistance;
+
+        time_t m_combatStartTime;
+        uint32 m_combatResetCount;
+
+        CreatureSubtype m_subtype;                          // set in Creatures subclasses for fast it detect without dynamic_cast use
+        MovementGeneratorType m_defaultMovementType;
+        uint32 m_equipmentId;
+        uint32 m_mountId;                                   // display Id to mount
+
+        bool m_isDeadByDefault;
+        bool m_AI_locked;
+        uint16 m_creatureStateFlags;
+        uint32 m_temporaryFactionFlags;                     // used for real faction changes (not auras etc)
+        int32 m_reputationId;                               // Id of the creature's faction in the client reputations list.
+        uint32 m_gossipMenuId;
+
+        SpellSchoolMask m_meleeDamageSchoolMask;
+        uint32 m_originalEntry;
+
+        CreatureGroup* m_creatureGroup;
+        ObjectGuid m_followTarget;                          // To be used for follower quests. Guid of player creature follows out of combat.
+
+        float m_combatStartX;
+        float m_combatStartY;
+        float m_combatStartZ;
+
+        Position m_homePosition;
+
+        ReactStates m_reactState;
+
+        Position m_summonPos;
+
+        // Shared timer between mobs who assist another.
+        // Damaging one extends leash range on all of them.
+        mutable std::shared_ptr<time_t> m_lastLeashExtensionTime;
+
+        // Used to compute XP.
+        uint32 m_playerDamageTaken;
+        uint32 m_nonPlayerDamageTaken;
+
+        uint32 m_callForHelpTimer;
+        float m_callForHelpDist;
+        float m_leashDistance;
+        float m_detectionDistance;
+        float m_baseWalkSpeedRate;
+        float m_baseRunSpeedRate;
+        uint32 m_plateId = 0;
+        bool m_bonkEnemy = false;
+        bool m_avoidsBonkHazards = false;
+        bool m_bonkFlyer = false;
+        bool m_bonkNormal = false;
+        uint32 m_bonkCrowdDrivenUntil = 0;
+        bool m_bonkCrowdTouching = true;
+        bool m_clientUnselectable = false;
+
+    private:
+        GridReference<Creature> m_gridRef;
+        CreatureInfo const* m_creatureInfo;
+        CreatureData const* m_creatureData;
+        CreatureDataAddon const* m_creatureDataAddon;
+};
+
+inline Creature* Object::ToCreature()
+{
+    return IsCreature() ? static_cast<Creature*>(this) : nullptr;
+}
+
+inline Creature const* Object::ToCreature() const
+{
+    return IsCreature() ? static_cast<Creature const*>(this) : nullptr;
+}
+
+inline Creature* ToCreature(Object* object)
+{
+    return object && object->IsCreature() ? static_cast<Creature*>(object) : nullptr;
+}
+
+inline Creature const* ToCreature(Object const* object)
+{
+    return object && object->IsCreature() ? static_cast<Creature const*>(object) : nullptr;
+}
+
+class AssistDelayEvent : public BasicEvent
+{
+    public:
+        AssistDelayEvent(ObjectGuid victim, Unit& owner, std::list<Creature*> const& assistants);
+
+        bool Execute(uint64 e_time, uint32 p_time) override;
+    private:
+        AssistDelayEvent();
+
+        ObjectGuid              m_victimGuid;
+        std::vector<ObjectGuid> m_assistantGuids;
+        Unit&                   m_owner;
+};
+
+class ForcedDespawnDelayEvent : public BasicEvent
+{
+    public:
+        explicit ForcedDespawnDelayEvent(Creature& owner, uint32 secsTimeToRespawn = 0) : BasicEvent(), m_owner(owner), m_secsTimeToRespawn(secsTimeToRespawn) { }
+        bool Execute(uint64 e_time, uint32 p_time) override;
+
+    private:
+        Creature& m_owner;
+        uint32 m_secsTimeToRespawn;
+};
+
+class TargetedEmoteEvent : public BasicEvent
+{
+public:
+    explicit TargetedEmoteEvent(Creature& owner, ObjectGuid const& targetGuid, uint32 emoteId) : BasicEvent(), m_owner(owner), m_targetGuid(targetGuid), m_emoteId(emoteId) { }
+    bool Execute(uint64 e_time, uint32 p_time) override;
+
+private:
+    Creature& m_owner;
+    ObjectGuid m_targetGuid;
+    uint32 m_emoteId;
+};
+
+class TargetedEmoteCleanupEvent : public BasicEvent
+{
+public:
+    explicit TargetedEmoteCleanupEvent(Creature& owner, float orientation) : BasicEvent(), m_owner(owner), m_orientation(orientation) { }
+    bool Execute(uint64 e_time, uint32 p_time) override;
+
+private:
+    Creature& m_owner;
+    float m_orientation;
+};
+
+#endif

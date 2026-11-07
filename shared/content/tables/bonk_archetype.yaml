@@ -1,0 +1,58 @@
+# Imported by tools/content/dump_tables.py from bonk_archetype. Edit this file, then run tools/content/compile.py.
+table: bonk_archetype
+columns:
+- id
+- name
+- health_multiplier
+- damage_multiplier
+- experience
+- first_sec
+- first_sec_later
+- orb
+- threat
+rows:
+- - 0
+  - Swarmer
+  - 0.5
+  - 0.6
+  - 0.5
+  - 0
+  - 0
+  - 0
+  - 1.0
+- - 1
+  - Grunt
+  - 1.0
+  - 1.0
+  - 1.0
+  - 0
+  - 0
+  - 0
+  - 1.0
+- - 2
+  - Bruiser
+  - 4.0
+  - 2.0
+  - 4.0
+  - 120
+  - 60
+  - 1
+  - 1.5
+- - 3
+  - Caster
+  - 1.0
+  - 1.0
+  - 1.0
+  - 180
+  - 180
+  - 0
+  - 1.2
+- - 4
+  - Charger
+  - 1.5
+  - 1.0
+  - 1.0
+  - 240
+  - 240
+  - 0
+  - 1.3

@@ -1,0 +1,19 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261107106000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261107106000');
+
+DELETE FROM `character_inventory` WHERE `item_id` BETWEEN 939001 AND 939007;
+DELETE FROM `bonk_account_bank` WHERE `item_id` BETWEEN 939001 AND 939007;
+DELETE FROM `mail_items` WHERE `item_id` BETWEEN 939001 AND 939007;
+DELETE FROM `item_instance` WHERE `item_id` BETWEEN 939001 AND 939007;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

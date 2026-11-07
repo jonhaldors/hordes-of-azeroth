@@ -1,0 +1,23 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261025950000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261025950000');
+
+CREATE TABLE IF NOT EXISTS `bonk_account_bank` (
+    `account` INT UNSIGNED NOT NULL,
+    `bag` INT UNSIGNED NOT NULL DEFAULT 0,
+    `slot` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    `item_guid` INT UNSIGNED NOT NULL PRIMARY KEY,
+    `item_id` INT UNSIGNED NOT NULL DEFAULT 0,
+    KEY `idx_account` (`account`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

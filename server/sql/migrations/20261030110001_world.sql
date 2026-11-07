@@ -1,0 +1,17 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261030110001');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261030110001');
+
+DELETE FROM `creature` WHERE `guid` = 900014;
+DELETE FROM `gameobject` WHERE `guid` = 900500;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

@@ -1,0 +1,16 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261019220000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261019220000');
+
+UPDATE `bonk_weapon` SET `damage_fraction` = 3.5 WHERE `id` = 502;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

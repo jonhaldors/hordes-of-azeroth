@@ -1,0 +1,439 @@
+//! The talent bindings over a pushed snapshot, the learn queue, and `SetTalent`: the talent builder
+//! for a passive talent, the spell tooltip with the talent lines interleaved for an exceptional one.
+
+use super::common::script;
+use crate::script::*;
+
+fn one_tab_state() -> TalentUiState {
+    TalentUiState {
+        tabs: vec![
+            TalentTabView {
+                name: "Fire".into(),
+                background: "MageFire".into(),
+                points_spent: 7,
+                texture: Some("Interface\\Icons\\Spell_Fire_Fire".into()),
+            },
+            TalentTabView {
+                name: "Frost".into(),
+                background: "MageFrost".into(),
+                points_spent: 0,
+                texture: None,
+            },
+        ],
+        talents: vec![
+            vec![
+                TalentView {
+                    talent_id: 100,
+                    name: "Improved Fireball".into(),
+                    texture: Some("Interface\\Icons\\Spell_Fire_FlameBolt".into()),
+                    tier: 1,
+                    column: 1,
+                    rank: 3,
+                    max_rank: 5,
+                    exceptional: false,
+                    meets_prereq: true,
+                    prereqs: Vec::new(),
+                    display_spell: 11070,
+                    next_spell: 11071,
+                    reqs: Vec::new(),
+                    learnable: true,
+                },
+                TalentView {
+                    talent_id: 101,
+                    name: "Ignite".into(),
+                    texture: None,
+                    tier: 2,
+                    column: 2,
+                    rank: 0,
+                    max_rank: 5,
+                    exceptional: false,
+                    meets_prereq: true,
+                    prereqs: vec![TalentPrereqView {
+                        tier: 1,
+                        column: 1,
+                        learnable: false,
+                    }],
+                    display_spell: 11119,
+                    next_spell: 0,
+                    reqs: vec![TalentReq::Prereq {
+                        rank: 5,
+                        name: "Improved Fireball".into(),
+                    }],
+                    learnable: false,
+                },
+            ],
+            Vec::new(),
+        ],
+        points: (2, 1),
+    }
+}
+
+#[test]
+fn bindings_read_the_pushed_snapshot() {
+    let mut s = script();
+    s.set_talents(one_tab_state());
+    s.run(
+        r#"
+        assert(GetNumTalentTabs() == 2)
+        local name, texture, points, file = GetTalentTabInfo(1)
+        assert(name == "Fire" and points == 7 and file == "MageFire")
+        assert(texture == "Interface\\Icons\\Spell_Fire_Fire", "the tab's SpellIcon path")
+        local n2, texture2, points2, file2 = GetTalentTabInfo(2)
+        assert(n2 == "Frost" and texture2 == nil and points2 == 0 and file2 == "MageFrost",
+            "a tab whose icon id is not in SpellIcon.dbc pushes nil there")
+        assert(GetTalentTabInfo(3) == nil, "out of range is nil")
+        assert(GetNumTalents(1) == 2 and GetNumTalents(2) == 0 and GetNumTalents(9) == 0)
+
+        local n, icon, tier, col, rank, max, exc, meets = GetTalentInfo(1, 1)
+        assert(n == "Improved Fireball" and tier == 1 and col == 1)
+        assert(rank == 3 and max == 5 and exc == nil and meets == 1)
+        assert(icon == "Interface\\Icons\\Spell_Fire_FlameBolt")
+        assert(GetTalentInfo(1, 9) == nil)
+
+        -- The prereq triplets, flat (the reference walks arg[5], arg[6], arg[7], ...).
+        local pt, pc, pl = GetTalentPrereqs(1, 2)
+        assert(pt == 1 and pc == 1 and pl == nil)
+        assert(GetTalentPrereqs(1, 1) == nil, "no prereqs is empty")
+
+        local cp1, cp2 = UnitCharacterPoints("player")
+        assert(cp1 == 2 and cp2 == 1)
+    "#,
+    )
+    .unwrap();
+    assert!(s.take_errors().is_empty());
+}
+
+/// `UnitCharacterPoints` resolves its token and reads the two counters (`+0xe48`, `+0xe4c`) only
+/// off the active player's object; any other unit, or none, answers 0, 0 (`0x519420`-`0x5194f8`).
+#[test]
+fn unit_character_points_answer_the_active_player_only() {
+    const ME: u64 = 0x10;
+    const OTHER: u64 = 0x20;
+    let mut s = script();
+    s.set_talents(one_tab_state());
+    let seat = |s: &mut UiScript, target: u64| {
+        s.set_unit_guids(&UnitGuids {
+            player: ME,
+            target,
+            party: [OTHER, 0, 0, 0],
+            held: [(ME, 0), (OTHER, 0)].into_iter().collect(),
+            ..Default::default()
+        });
+    };
+    let points = |s: &mut UiScript, token: &str| {
+        s.eval::<(i64, i64)>(&format!("return UnitCharacterPoints({token:?})"))
+            .unwrap()
+    };
+
+    seat(&mut s, OTHER);
+    assert_eq!(points(&mut s, "player"), (2, 1));
+    assert_eq!(points(&mut s, "PLAYER"), (2, 1));
+    assert_eq!(points(&mut s, "target"), (0, 0), "another player");
+    assert_eq!(points(&mut s, "party1"), (0, 0), "a party member");
+    assert_eq!(
+        points(&mut s, "pet"),
+        (0, 0),
+        "a recognised token naming nothing"
+    );
+
+    seat(&mut s, ME);
+    assert_eq!(points(&mut s, "target"), (2, 1), "the target is the player");
+
+    let err = s
+        .run(r#"UnitCharacterPoints("bogus")"#)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Unknown unit name: bogus"), "{err}");
+}
+
+/// A token that is neither string nor number raises the reference's usage (`0x51943a`,
+/// `0x851294`), not a type error; a number is stringified and then fails the resolver.
+#[test]
+fn unit_character_points_raises_the_reference_usage() {
+    let s = script();
+    for call in [
+        "UnitCharacterPoints()",
+        "UnitCharacterPoints(nil)",
+        "UnitCharacterPoints({})",
+    ] {
+        let err = s.run(call).unwrap_err().to_string();
+        assert!(
+            err.contains(r#"Usage: UnitCharacterPoints("unit")"#),
+            "{call}: {err}"
+        );
+    }
+    let err = s.run("UnitCharacterPoints(5)").unwrap_err().to_string();
+    assert!(err.contains("Unknown unit name: 5"), "{err}");
+}
+
+/// `isExceptional` is `1.0` when `[rec+0x4c] & 1` and nil otherwise (`0x4f33e8`): never `0`, which
+/// Lua reads as true, and `meetsPrereq` and each prereq's `isLearnable` are 1 or nil too
+/// (`0x4f3403`-`0x4f3443`, `0x4f3676`, `0x4f3644`). `GetTalentPrereqs` answers three values per edge.
+#[test]
+fn talent_flags_are_one_or_nil() {
+    let mut s = script();
+    let mut state = one_tab_state();
+    state.talents[0][0].exceptional = true;
+    state.talents[0][1].meets_prereq = false;
+    state.talents[0][1].prereqs.push(TalentPrereqView {
+        tier: 1,
+        column: 2,
+        learnable: true,
+    });
+    s.set_talents(state);
+    s.run(
+        r#"
+        local _, _, _, _, _, _, exc, meets = GetTalentInfo(1, 1)
+        assert(exc == 1 and type(exc) == "number" and meets == 1)
+        local _, _, _, _, _, _, exc2, meets2 = GetTalentInfo(1, 2)
+        assert(exc2 == nil, "an ordinary talent is not exceptional")
+        assert(meets2 == nil, "an unmet prerequisite is nil, not false")
+
+        local t1, c1, l1, t2, c2, l2 = GetTalentPrereqs(1, 2)
+        assert(t1 == 1 and c1 == 1 and l1 == nil)
+        assert(t2 == 1 and c2 == 2 and l2 == 1 and type(l2) == "number")
+    "#,
+    )
+    .unwrap();
+    assert_eq!(s.arity("GetTalentInfo(1, 2)").unwrap(), 8);
+    assert_eq!(s.arity("GetTalentPrereqs(1, 2)").unwrap(), 6);
+    assert!(s.take_errors().is_empty());
+}
+
+/// `LearnTalent` hands the talent id and its rank count to the host (`0x4f37c7`, `0x4f37d1`) for a
+/// talent below its maximum (`0x4f378f`), and `ConfirmTalentWipe` its answer.
+#[test]
+fn learn_talent_hands_the_talent_and_its_rank() {
+    let mut s = script();
+    s.keep_calls();
+    let mut state = one_tab_state();
+    state.talents[0][1].rank = 5;
+    s.set_talents(state);
+    s.run("LearnTalent(1, 1); LearnTalent(1, 2); LearnTalent(2, 1); ConfirmTalentWipe()")
+        .unwrap();
+    assert_eq!(
+        s.take_talent_calls(),
+        [
+            crate::script::TalentCall::Learn {
+                talent_id: 100,
+                rank: 3
+            },
+            crate::script::TalentCall::ConfirmWipe,
+        ]
+    );
+    assert!(s.take_errors().is_empty());
+}
+
+/// Stand-in values for the three talent keys, not the shipped wording: the tests check which key
+/// each line reaches.
+fn seed_talent_strings(s: &mut UiScript) {
+    s.run(
+        r#"
+        TOOLTIP_TALENT_RANK      = "[RANK %d/%d]"
+        TOOLTIP_TALENT_NEXT_RANK = "[NEXT_RANK]"
+        TOOLTIP_TALENT_LEARN     = "[LEARN]"
+        TOOLTIP_TALENT_PREREQ_P1 = "Requires %d points in %s"
+        TOOLTIP_TALENT_TIER_POINTS = "Requires %d points in %s Talents"
+    "#,
+    )
+    .unwrap();
+}
+
+/// A passive talent's full spell view, every body line filled, so a test sees which ones the talent
+/// builder drops.
+fn passive_body(description: &str) -> SpellTooltipView {
+    SpellTooltipView {
+        name: "Improved Fireball".into(),
+        cost: Some("35 Mana".into()),
+        range: Some("30 yd range".into()),
+        cast_time: Some("Instant".into()),
+        cooldown: Some("6 sec cooldown".into()),
+        requires_item: Some("One-Handed Axes".into()),
+        requires_form: Some("Battle Stance".into()),
+        reagents: Some("Reagents: Light Feather".into()),
+        chance: Some("2.62% chance to dodge".into()),
+        description: description.into(),
+        ..Default::default()
+    }
+}
+
+/// `SetTalent` on a passive talent is the talent builder `0x52b0a0`: name, `TOOLTIP_TALENT_RANK`
+/// (white), the gold description, a `" "` spacer, `TOOLTIP_TALENT_NEXT_RANK` and the next rank's
+/// gold description, green `TOOLTIP_TALENT_LEARN`; no cost, range, cast, requirement, reagent or
+/// chance line.
+#[test]
+fn set_talent_on_a_passive_talent_is_the_talent_builder() {
+    let mut s = script();
+    seed_talent_strings(&mut s);
+    s.set_talents(one_tab_state());
+    s.set_spell_tooltip(
+        11070,
+        passive_body("Reduces the casting time of your Fireball spell by 0.3 sec."),
+    );
+    s.set_spell_tooltip(
+        11071,
+        passive_body("Reduces the casting time of your Fireball spell by 0.4 sec."),
+    );
+    s.run(
+        r#"
+        local a = CreateFrame("Button", "TB1"); a:SetPoint("CENTER", 0, 0); a:SetWidth(10); a:SetHeight(10)
+        local tt = CreateFrame("GameTooltip", "TT", nil, "TestTooltipTemplate")
+        tt:SetOwner(a, "ANCHOR_RIGHT")
+        tt:SetTalent(1, 1)
+        assert(tt:IsShown(), "SetTalent shows")
+        -- name, rank, desc, spacer, next-rank header, next desc, learn hint = 7 lines.
+        assert(tt:NumLines() == 7, "got " .. tt:NumLines())
+        assert(TTTextLeft1:GetText() == "Improved Fireball")
+        assert(TTTextLeft2:GetText() == "[RANK 3/5]", "got " .. TTTextLeft2:GetText())
+        assert(TTTextLeft3:GetText() == "Reduces the casting time of your Fireball spell by 0.3 sec.")
+        assert(TTTextLeft4:GetText() == " ", "the spacer, got " .. tostring(TTTextLeft4:GetText()))
+        assert(TTTextLeft5:GetText() == "[NEXT_RANK]")
+        assert(TTTextLeft6:GetText() == "Reduces the casting time of your Fireball spell by 0.4 sec.")
+        assert(TTTextLeft7:GetText() == "[LEARN]")
+        for i = 1, 7 do
+            assert(getglobal("TTTextRight" .. i):GetText() == nil, "no right column on line " .. i)
+        end
+    "#,
+    )
+    .unwrap();
+    s.resolve();
+    let quads = s.extract();
+    let green = quads.iter().any(|q| {
+        matches!(&q.content, QuadContent::Text { text: Some(t), color: Some(c), .. }
+            if t == "[LEARN]" && c[0] < 1e-6 && (c[1] - 1.0).abs() < 1e-6)
+    });
+    assert!(green, "the learn hint is green");
+    // The spacer is `0x530380`'s gold, not `0x5303b0`'s caller colour.
+    let gold_spacer = quads.iter().any(|q| {
+        matches!(&q.content, QuadContent::Text { text: Some(t), color: Some(c), .. }
+            if t == " " && (c[0] - 1.0).abs() < 1e-6 && (c[1] - 210.0 / 255.0).abs() < 1e-3 && c[2] < 1e-6)
+    });
+    assert!(gold_spacer, "the spacer is gold");
+    assert!(s.take_errors().is_empty());
+}
+
+/// An exceptional talent (`Talent.dbc` Flags bit 0) is the spell builder `0x52e610` instead, whose
+/// cost, cast and required-item lines stay: Holy Shield's "Requires Shields".
+#[test]
+fn set_talent_on_an_exceptional_talent_keeps_the_spell_body() {
+    let mut s = script();
+    seed_talent_strings(&mut s);
+    let mut state = one_tab_state();
+    let holy_shield = &mut state.talents[0][1];
+    holy_shield.name = "Holy Shield".into();
+    holy_shield.exceptional = true;
+    holy_shield.reqs = vec![TalentReq::Tier {
+        points: 30,
+        tab: "Protection".into(),
+    }];
+    s.set_talents(state);
+    s.set_spell_tooltip(
+        11119,
+        SpellTooltipView {
+            name: "Holy Shield".into(),
+            cost: Some("150 Mana".into()),
+            cast_time: Some("Instant cast".into()),
+            requires_item: Some("Shields".into()),
+            description: "Increases chance to block by 30% for 10 sec.".into(),
+            ..Default::default()
+        },
+    );
+    s.run(
+        r#"
+        SPELL_EQUIPPED_ITEM = "Requires %s"
+        local a = CreateFrame("Button", "TB3"); a:SetPoint("CENTER", 0, 0); a:SetWidth(10); a:SetHeight(10)
+        local tt = CreateFrame("GameTooltip", "TT3", nil, "TestTooltipTemplate")
+        tt:SetOwner(a, "ANCHOR_RIGHT")
+        tt:SetTalent(1, 2)
+        local want = {
+            "Holy Shield", "[RANK 0/5]", "Requires 30 points in Protection Talents", "150 Mana",
+            "Instant cast", "Requires Shields", "Increases chance to block by 30% for 10 sec.",
+        }
+        assert(tt:NumLines() == table.getn(want), "got " .. tt:NumLines())
+        for i, text in ipairs(want) do
+            local got = getglobal("TT3TextLeft" .. i):GetText()
+            assert(got == text, "line " .. i .. ": " .. tostring(got))
+        end
+    "#,
+    )
+    .unwrap();
+    assert!(s.take_errors().is_empty());
+}
+
+/// `TOOLTIP_TALENT_RANK` is a `_G` read (`0x703bf0`), so an `__index` that calls a verb runs inside
+/// `SetTalent`; the Model must be free for it.
+#[test]
+fn set_talent_reads_the_rank_string_with_the_model_free() {
+    let mut s = script();
+    s.set_talents(one_tab_state());
+    s.run(
+        r#"
+        local a = CreateFrame("Button", "TB4"); a:SetPoint("CENTER", 0, 0); a:SetWidth(10); a:SetHeight(10)
+        local tt = CreateFrame("GameTooltip", "TT4", nil, "TestTooltipTemplate")
+        tt:SetOwner(a, "ANCHOR_RIGHT")
+        setmetatable(getfenv(0), { __index = function(t, k)
+            if k == "TOOLTIP_TALENT_RANK" then
+                CreateFrame("Frame"):SetWidth(10)
+                return "[RANK %d/%d]"
+            end
+        end })
+        tt:SetTalent(1, 2)
+        assert(TT4TextLeft1:GetText() == "[RANK 0/5]", tostring(TT4TextLeft1:GetText()))
+    "#,
+    )
+    .unwrap();
+    assert!(s.take_errors().is_empty());
+}
+
+/// A missing spell view renders the rank line alone and asks for the view once.
+#[test]
+fn set_talent_locked_reqs_and_the_ask_once_miss() {
+    let mut s = script();
+    seed_talent_strings(&mut s);
+    s.set_talents(one_tab_state());
+    // No spell view pushed for Ignite (11119).
+    s.run(
+        r#"
+        local a = CreateFrame("Button", "TB2"); a:SetPoint("CENTER", 0, 0); a:SetWidth(10); a:SetHeight(10)
+        local tt = CreateFrame("GameTooltip", "TT2", nil, "TestTooltipTemplate")
+        tt:SetOwner(a, "ANCHOR_RIGHT")
+        tt:SetTalent(1, 2)
+        assert(tt:IsShown())
+        assert(TT2TextLeft1:GetText() == "[RANK 0/5]", "fallback shows the rank head")
+    "#,
+    )
+    .unwrap();
+    let asks = s.take_spell_tooltip_asks();
+    assert!(
+        asks.contains(&11119),
+        "the display spell was asked: {asks:?}"
+    );
+
+    s.set_spell_tooltip(
+        11119,
+        SpellTooltipView {
+            name: "Ignite".into(),
+            description: "Your critical strikes ignite the target.".into(),
+            ..Default::default()
+        },
+    );
+    s.run(
+        r#"
+        local tt = getglobal("TT2")
+        tt:SetOwner(getglobal("TB2"), "ANCHOR_RIGHT")
+        tt:SetTalent(1, 2)
+        -- name, rank, req(red), desc = 4 lines; rank 0 has no next block, locked has no hint.
+        assert(tt:NumLines() == 4, "got " .. tt:NumLines())
+        assert(TT2TextLeft3:GetText() == "Requires 5 points in Improved Fireball")
+    "#,
+    )
+    .unwrap();
+    s.resolve();
+    let quads = s.extract();
+    let red = quads.iter().any(|q| {
+        matches!(&q.content, QuadContent::Text { text: Some(t), color: Some(c), .. }
+            if t.starts_with("Requires 5") && (c[0] - 1.0).abs() < 1e-6 && c[1] < 0.2)
+    });
+    assert!(red, "the requirement line is red");
+    assert!(s.take_errors().is_empty());
+}

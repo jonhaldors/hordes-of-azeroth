@@ -1,0 +1,18 @@
+DROP PROCEDURE IF EXISTS add_migration;
+DELIMITER ??
+CREATE PROCEDURE `add_migration`()
+BEGIN
+DECLARE v INT DEFAULT 1;
+SET v = (SELECT COUNT(*) FROM `migrations` WHERE `id`='20261030220000');
+IF v = 0 THEN
+INSERT INTO `migrations` VALUES ('20261030220000');
+
+CREATE TABLE IF NOT EXISTS `bonk_trinket_reset` (`guid` INT UNSIGNED NOT NULL PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT IGNORE INTO `bonk_trinket_reset` (`guid`)
+SELECT DISTINCT `guid` FROM `character_inventory` WHERE `bag` = 0 AND `slot` IN (12, 13) AND `item_id` BETWEEN 904740 AND 904899;
+
+END IF;
+END??
+DELIMITER ;
+CALL add_migration();
+DROP PROCEDURE IF EXISTS add_migration;

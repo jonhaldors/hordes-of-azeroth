@@ -1,0 +1,88 @@
+# Imported by tools/content/dump_tables.py from bonk_title_locale. Edit this file, then run tools/content/compile.py.
+table: bonk_title_locale
+columns:
+- id
+- locale
+- name
+- pattern
+rows:
+- - 1
+  - zhCN
+  - 迅捷者
+  - 迅捷者%s
+- - 2
+  - zhCN
+  - 永不停歇者
+  - 永不停歇者%s
+- - 3
+  - zhCN
+  - 艾泽拉斯的勇士
+  - 艾泽拉斯的勇士%s
+- - 4
+  - zhCN
+  - 圣光誓约者
+  - 圣光誓约者%s
+- - 5
+  - zhCN
+  - 灰烬使者
+  - 灰烬使者%s
+- - 6
+  - zhCN
+  - 荒野追猎者
+  - 荒野追猎者%s
+- - 7
+  - zhCN
+  - 狩猎宗师
+  - 狩猎宗师%s
+- - 8
+  - zhCN
+  - 无影者
+  - 无影者%s
+- - 9
+  - zhCN
+  - 弑君者
+  - 弑君者%s
+- - 10
+  - zhCN
+  - 虔诚者
+  - 虔诚者%s
+- - 11
+  - zhCN
+  - 艾泽拉斯之光
+  - 艾泽拉斯之光%s
+- - 12
+  - zhCN
+  - 元素之声
+  - 元素之声%s
+- - 13
+  - zhCN
+  - 雷霆之王
+  - 雷霆领主%s
+- - 14
+  - zhCN
+  - 大法师
+  - 大法师%s
+- - 15
+  - zhCN
+  - 提瑞斯法守护者
+  - 提瑞斯法守护者%s
+- - 16
+  - zhCN
+  - 虚空契约者
+  - 虚空契约者%s
+- - 17
+  - zhCN
+  - 暗影大师
+  - 暗影大师%s
+- - 18
+  - zhCN
+  - 丛林守护者
+  - 丛林守护者%s
+- - 19
+  - zhCN
+  - 大德鲁伊
+  - 大德鲁伊%s
+- - 20
+  - zhCN
+  - 老兵
+  - 老兵%s

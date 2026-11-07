@@ -1,5 +1,5 @@
 {
-  "repository": "jonhaldors/hordes-of-azeroth",
+  "repository": "xenoglossy-asyncio/hoa-core",
   "productName": "Hordes of Azeroth",
   "minLauncherVersion": "0.1.0",
   "realmName": "Hordes of Azeroth",
@@ -11,6 +11,11 @@
       "version": "11.4.13",
       "licence": "GPL-2.0",
       "url": "https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip",
+      "mirrors": [
+        "https://mirrors.tuna.tsinghua.edu.cn/mariadb/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip",
+        "https://mirrors.aliyun.com/mariadb/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip",
+        "https://mirrors.ustc.edu.cn/mariadb/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip"
+      ],
       "localCopy": "server/downloads/mariadb-11.4.13-winx64.zip",
       "install": { "unzipTo": "server/mariadb", "stripTopFolder": true }
     },
@@ -20,14 +25,19 @@
       "version": "11.4.13",
       "licence": "GPL-2.0",
       "url": "https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz",
+      "mirrors": [
+        "https://mirrors.tuna.tsinghua.edu.cn/mariadb/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz",
+        "https://mirrors.aliyun.com/mariadb/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz",
+        "https://mirrors.ustc.edu.cn/mariadb/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz"
+      ],
       "install": { "unzipTo": "server/mariadb", "stripTopFolder": true }
     }
   ],
   "packages": [
-    { "name": "launcher", "os": "windows", "build": "launcher", "changesWith": "tools/launcher/*.*", "files": [{ "from": "release/build/launcher/HoALauncher.exe", "to": "HoALauncher.exe" }] },
-    { "name": "addon", "git": ["Interface/AddOns/HordesOfAzeroth"] },
-    { "name": "glue", "git": ["Interface/GlueXML"] },
-    { "name": "launcher", "os": "linux", "build": "linux-launcher", "changesWith": "tools/launcher/*.*", "files": [{ "from": "release/build/linux/launcher/HoALauncher", "to": "HoALauncher" }] },
+    { "name": "launcher", "os": "windows", "build": "launcher", "changesWith": "launcher/*.*", "files": [{ "from": "release/build/launcher/HoALauncher.exe", "to": "HoALauncher.exe" }] },
+    { "name": "addon", "git": [{ "from": "addon/HordesOfAzeroth", "to": "Interface/AddOns/HordesOfAzeroth" }] },
+    { "name": "glue", "git": [{ "from": "glue/GlueXML", "to": "Data/Interface/GlueXML" }] },
+    { "name": "launcher", "os": "linux", "build": "linux-launcher", "changesWith": "launcher/*.*", "files": [{ "from": "release/build/linux/launcher/HoALauncher", "to": "HoALauncher" }] },
     { "name": "client", "os": "windows", "build": "client", "files": [{ "from": "release/build/client/HordesOfAzeroth.exe", "to": "HordesOfAzeroth.exe" }, { "from": "release/build/client/CLIENT-LICENSES.md", "to": "CLIENT-LICENSES.md" }, { "from": "THIRD-PARTY-NOTICES.md" }] },
     { "name": "client", "os": "linux", "build": "linux-client", "files": [{ "from": "release/build/linux/client/HordesOfAzeroth", "to": "HordesOfAzeroth.x86_64" }, { "from": "release/build/client/CLIENT-LICENSES.md", "to": "CLIENT-LICENSES.md" }, { "from": "THIRD-PARTY-NOTICES.md" }] },
     { "name": "telegraphkit", "os": "windows", "build": "telegraphkit", "changesWith": "tools/telegraphs/*.cs", "files": [{ "from": "release/build/TelegraphKit.exe", "to": "tools/TelegraphKit.exe" }] },
@@ -38,13 +48,19 @@
       "files": [
         { "from": "release/build/server-install/mangosd.exe", "to": "server/run/mangosd.exe" },
         { "from": "release/build/server-install/realmd.exe", "to": "server/run/realmd.exe" },
-        { "from": "release/build/server-install/libeay32.dll", "to": "server/run/libeay32.dll" },
-        { "from": "release/build/server-install/libmySQL.dll", "to": "server/run/libmySQL.dll" },
+        { "from": "release/build/server-install/libcrypto-3-x64.dll", "to": "server/run/libcrypto-3-x64.dll" },
+        { "from": "release/build/server-install/legacy.dll", "to": "server/run/legacy.dll" },
+        { "from": "release/build/server-install/libmariadb.dll", "to": "server/run/libmariadb.dll" },
         { "from": "release/build/server-install/mangosd.conf.dist", "to": "server/run/mangosd.conf.dist" },
         { "from": "release/build/server-install/realmd.conf.dist", "to": "server/run/realmd.conf.dist" },
         { "from": "release/build/server-install/msvcp140.dll", "to": "server/run/msvcp140.dll" },
         { "from": "release/build/server-install/vcruntime140.dll", "to": "server/run/vcruntime140.dll" },
-        { "from": "release/build/server-install/vcruntime140_1.dll", "to": "server/run/vcruntime140_1.dll" }
+        { "from": "release/build/server-install/vcruntime140_1.dll", "to": "server/run/vcruntime140_1.dll" },
+        { "from": "LICENSE", "to": "server/run/LICENSE" },
+        { "from": "LICENSE-NOTICE.md", "to": "server/run/LICENSE-NOTICE.md" },
+        { "from": "THIRD-PARTY-NOTICES.md", "to": "server/run/THIRD-PARTY-NOTICES.md" },
+        { "from": "LICENSES/*.txt", "to": "server/run/LICENSES" },
+        { "from": "server/dep/windows/licenses/*.txt", "to": "server/run/LICENSES" }
       ]
     },
     {
@@ -66,8 +82,15 @@
         { "from": "release/build/linux/server/bin/mangosd", "to": "server/run/mangosd" },
         { "from": "release/build/linux/server/bin/realmd", "to": "server/run/realmd" },
         { "from": "release/build/linux/server/bin/libmariadb.so.3", "to": "server/run/libmariadb.so.3" },
+        { "from": "release/build/linux/server/bin/libcrypto.so.3", "to": "server/run/libcrypto.so.3" },
+        { "from": "release/build/linux/server/bin/libssl.so.3", "to": "server/run/libssl.so.3" },
         { "from": "release/build/linux/server/etc/mangosd.conf.dist", "to": "server/run/mangosd.conf.dist" },
-        { "from": "release/build/linux/server/etc/realmd.conf.dist", "to": "server/run/realmd.conf.dist" }
+        { "from": "release/build/linux/server/etc/realmd.conf.dist", "to": "server/run/realmd.conf.dist" },
+        { "from": "LICENSE", "to": "server/run/LICENSE" },
+        { "from": "LICENSE-NOTICE.md", "to": "server/run/LICENSE-NOTICE.md" },
+        { "from": "THIRD-PARTY-NOTICES.md", "to": "server/run/THIRD-PARTY-NOTICES.md" },
+        { "from": "LICENSES/*.txt", "to": "server/run/LICENSES" },
+        { "from": "server/dep/windows/licenses/*.txt", "to": "server/run/LICENSES" }
       ]
     },
     {
@@ -97,17 +120,15 @@
     {
       "name": "base-db",
       "files": [
-        { "from": "server/downloads/db/mysql-dump/logon.sql", "to": "server/sql/logon.sql" },
-        { "from": "server/downloads/db/mysql-dump/characters.sql", "to": "server/sql/characters.sql" },
-        { "from": "server/downloads/db/mysql-dump/logs.sql", "to": "server/sql/logs.sql" }
+        { "from": "server/sql/logon.sql", "to": "server/sql/logon.sql" },
+        { "from": "server/sql/characters.sql", "to": "server/sql/characters.sql" },
+        { "from": "server/sql/logs.sql", "to": "server/sql/logs.sql" }
       ]
     },
     {
       "name": "migrations",
       "files": [
-        { "from": "server/core/sql/migrations/*_characters.sql", "to": "server/sql/migrations" },
-        { "from": "server/core/sql/migrations/*_logon.sql", "to": "server/sql/migrations" },
-        { "from": "server/core/sql/migrations/*_logs.sql", "to": "server/sql/migrations" }
+        { "from": "server/sql/migrations/*.sql", "to": "server/sql/migrations" }
       ]
     },
     { "name": "world-db", "build": "world-dump", "files": [{ "from": "release/build/world.sql", "to": "server/sql/world.sql" }] }
